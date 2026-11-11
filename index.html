@@ -7340,11 +7340,13 @@
           </div>
         </div>
         <section class="customer-filter-panel" aria-label="Customer filters" data-i18n-aria-label="cust_filters_aria">
-          <p class="eyebrow" data-i18n="cust_filters_sort_heading">FILTERS &amp; SORT</p>
+          <div class="customer-filter-head">
+            <p class="eyebrow" data-i18n="cust_filters_sort_heading">FILTERS &amp; SORT</p>
+            <details class="help-tip filter-help"><summary class="help-icon" aria-label="Service and billing status guidance" aria-controls="filterGuidance" data-i18n-aria-label="cust_filter_help_aria">i</summary><span id="filterGuidance" class="help-tip-content" role="tooltip" data-i18n="cust_filter_help">Service status is set by the operator and is not monitored. Billing status is derived from the saved bill amount, actual receipts, and carried credit.</span></details>
+          </div>
           <label class="customer-filter-month" for="customerFilterMonth"><span data-i18n="cust_billing_month">Billing month</span> <select id="customerFilterMonth"></select></label>
           <div class="customer-filter-group service-filter-toolbar" role="group" aria-label="Filter by manual service status; counts exclude archived profiles" data-i18n-aria-label="cust_service_filter_aria"><span class="customer-filter-label" data-i18n="cust_service_label">Service</span><button class="customer-filter-button" type="button" data-customer-service-filter="all" aria-pressed="true" data-i18n="all">All</button><button class="customer-filter-button" type="button" data-customer-service-filter="active" aria-pressed="false" aria-label="Active — Filter by manual service status" data-i18n-aria-label="cust_service_active_aria"><span data-i18n="cust_service_active">Active</span> <span id="serviceCountActive" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="offline" aria-pressed="false" aria-label="Offline — Filter by manual service status" data-i18n-aria-label="cust_service_offline_aria"><span data-i18n="cust_service_offline">Offline</span> <span id="serviceCountOffline" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="not-set" aria-pressed="false" aria-label="Not set — Filter by manual service status" data-i18n-aria-label="cust_service_not_set_aria"><span data-i18n="cust_not_set">Not set</span> <span id="serviceCountNotSet" class="service-count-badge" aria-hidden="true">—</span></button><span id="serviceStateCountsAnnouncement" class="sr-only" role="status" aria-live="polite" data-i18n="cust_service_counts_loading">Manual service counts loading</span></div>
           <div class="customer-filter-group" role="group" aria-label="Filter by billing status for selected month" data-i18n-aria-label="cust_bill_filter_aria"><span class="customer-filter-label" data-i18n="cust_bill_status_label">Bill status</span><button class="customer-filter-button" type="button" data-customer-billing-filter="all" aria-pressed="true" data-i18n="cust_all_incl_not_set">All (incl. Not set)</button><button class="customer-filter-button" type="button" data-customer-billing-filter="paid" aria-pressed="false" data-i18n="cust_bill_paid">Paid</button><button class="customer-filter-button" type="button" data-customer-billing-filter="pending" aria-pressed="false" data-i18n="cust_bill_pending">Pending</button><button class="customer-filter-button" type="button" data-customer-billing-filter="partial" aria-pressed="false" data-i18n="cust_bill_partial">Partial</button><button class="customer-filter-button" type="button" data-customer-billing-filter="not-set" aria-pressed="false" data-i18n="cust_not_set">Not set</button></div>
-          <details class="help-tip filter-help"><summary class="help-icon" aria-label="Service and billing status guidance" aria-controls="filterGuidance" data-i18n-aria-label="cust_filter_help_aria">i</summary><span id="filterGuidance" class="help-tip-content" role="tooltip" data-i18n="cust_filter_help">Service status is set by the operator and is not monitored. Billing status is derived from the saved bill amount, actual receipts, and carried credit.</span></details>
           <div class="customer-filter-row-secondary">
             <label class="customer-filter-area" for="customerFilterArea"><span data-i18n="cust_area_label">Area / Mohalla</span>
               <select id="customerFilterArea" aria-label="Filter roster by area or mohalla" data-i18n-aria-label="cust_filter_area_aria">
@@ -7363,12 +7365,14 @@
                 <option value="received-desc" data-i18n="cust_sort_received_desc">Collected (High → Low)</option>
               </select>
             </label>
-            <div class="customer-view-toggle" role="group" aria-label="Roster view layout" data-i18n-aria-label="cust_view_layout_aria">
-              <button id="customerViewCardsBtn" class="customer-view-btn is-active" type="button" aria-pressed="true" title="Card View" data-i18n="cust_cards" data-i18n-title="cust_cards_title">🗂️ Cards</button>
-              <button id="customerViewTableBtn" class="customer-view-btn" type="button" aria-pressed="false" title="Table View" data-i18n="cust_table" data-i18n-title="cust_table_title">📋 Table</button>
-              <button id="customerTableExpandBtn" class="customer-view-btn customer-expand-btn" type="button" aria-pressed="false" title="Maximize Table / Full Screen Width" hidden data-i18n="cust_expand" data-i18n-title="cust_expand_title">⛶ Expand</button>
+            <div class="customer-view-row">
+              <div class="customer-view-toggle ds-segmented" role="group" aria-label="Roster view layout" data-i18n-aria-label="cust_view_layout_aria">
+                <button id="customerViewCardsBtn" class="customer-view-btn ds-segmented__button is-active" type="button" aria-pressed="true" aria-selected="true" title="Card View" data-i18n-title="cust_cards_title"><span class="ds-action-icon" data-ds-icon="LayoutGrid"></span><span data-i18n="cust_cards">Cards</span></button>
+                <button id="customerViewTableBtn" class="customer-view-btn ds-segmented__button" type="button" aria-pressed="false" aria-selected="false" title="Table View" data-i18n-title="cust_table_title"><span class="ds-action-icon" data-ds-icon="Table"></span><span data-i18n="cust_table">Table</span></button>
+                <button id="customerTableExpandBtn" class="customer-view-btn customer-expand-btn" type="button" aria-pressed="false" title="Maximize Table / Full Screen Width" hidden data-i18n-title="cust_expand_title"><span data-i18n="cust_expand">⛶ Expand</span></button>
+              </div>
+              <button id="exportCustomerRosterCsvBtn" class="secondary-button export-roster-btn" type="button" title="Export customer roster to CSV" data-i18n-title="cust_export_roster_title"><span class="ds-action-icon" data-ds-icon="Download"></span><span data-i18n="cust_export_roster">Export CSV</span></button>
             </div>
-            <button id="exportCustomerRosterCsvBtn" class="secondary-button export-roster-btn" type="button" title="Export customer roster to CSV" data-i18n="cust_export_roster" data-i18n-title="cust_export_roster_title">📥 Export CSV</button>
           </div>
         </section>
         <div class="customer-list-search">
@@ -7405,14 +7409,14 @@
           </div>
         </div>
         <nav id="customerPagination" class="table-pagination" aria-label="Customer list pagination" data-i18n-aria-label="cust_pagination_aria">
-          <button id="customerPrevPage" class="pagination-btn" type="button" aria-label="Previous customer page" data-i18n="cust_prev" data-i18n-aria-label="cust_prev_aria">← Previous</button>
+          <button id="customerPrevPage" class="pagination-btn" type="button" aria-label="Previous customer page" data-i18n-aria-label="cust_prev_aria">←</button>
           <span id="customerPageInfo" class="pagination-page-info" aria-live="polite">Page 1 of 1</span>
-          <button id="customerNextPage" class="pagination-btn" type="button" aria-label="Next customer page" data-i18n="cust_next" data-i18n-aria-label="cust_next_aria">Next →</button>
-          <label class="pagination-size-label" for="customerPageSize"><span data-i18n="cust_per_page">Per page</span>
+          <button id="customerNextPage" class="pagination-btn" type="button" aria-label="Next customer page" data-i18n-aria-label="cust_next_aria">→</button>
+          <label class="pagination-size-label" for="customerPageSize"><span class="sr-only" data-i18n="cust_per_page">Per page</span>
             <select id="customerPageSize" aria-label="Customers per page" data-i18n-aria-label="cust_per_page_aria">
-              <option value="15" selected>15</option>
-              <option value="30">30</option>
-              <option value="60">60</option>
+              <option value="15" selected>15 / page</option>
+              <option value="30">30 / page</option>
+              <option value="60">60 / page</option>
               <option value="all" data-i18n="all">All</option>
             </select>
           </label>

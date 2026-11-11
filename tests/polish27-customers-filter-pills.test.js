@@ -12,6 +12,11 @@
 // solid-green treatment with dark-theme text fixed to dark ink; each
 // pill carries its own 44 px tap-target guarantee.
 //
+// Customers Directory Polish (Nov 2026) supersedes D3-pin below: the
+// six remaining 3D emoji are replaced by 16px ds-icons (paid gets a
+// green CSS dot like unpaid's red one), and the bar splits into a 2×2
+// revenue grid + a compact count row. The D3 dot assertions stay.
+//
 // Stylesheet-value approach (polish #17/#21/#25 pattern): read the
 // CSS/JS as text and assert the values; no browser needed.
 //
@@ -125,15 +130,22 @@ test('D6 tap target: the pill carries its own 44px min-height', () => {
 test('D3 def: the unpaid pill carries no emoji in its definition', () => {
   const unpaid = ROSTER_PILL_DEFS.find((def) => def.id === 'unpaid');
   assert.ok(unpaid, 'unpaid def missing');
-  assert.equal(unpaid.emoji, '', 'unpaid emoji must be empty (the red dot is CSS now)');
+  // Customers Directory Polish: the emoji field is gone entirely — the
+  // unpaid pill carries no icon at all (dsIcon '') because its marker
+  // is the CSS dot, and no def carries an emoji field any more.
+  assert.equal(unpaid.dsIcon, '', 'unpaid dsIcon must be empty (the red dot is CSS now)');
+  assert.ok(!('emoji' in unpaid), 'no def carries an emoji field any more');
 });
 
-test('D3 pin: the other six emoji stay (only the unpaid dot is designed)', () => {
-  const expected = { arrears: '⚠️', waada: '🤝', paid: '🟢', credit: '💎', paused: '⏸️', kist: '📦' };
+test('D3 pin: every pill maps to a ds-icon (or a status dot), no emoji anywhere', () => {
+  // Customers Directory Polish supersedes the old pin ("the other six
+  // emoji stay"): all six are replaced by 16px ds-icons; unpaid and
+  // paid carry no icon — their markers are the CSS dots.
+  const expected = { all: 'Users', unpaid: '', arrears: 'AlertTriangle', waada: 'Handshake', paid: '', credit: 'Wallet', paused: 'Pause', kist: 'Package' };
   for (const def of ROSTER_PILL_DEFS) {
-    if (def.id in expected) assert.equal(def.emoji, expected[def.id], `${def.id} emoji must stay`);
+    assert.equal(def.dsIcon, expected[def.id], `${def.id} dsIcon must be ${expected[def.id] || '(none — status dot)'}`);
+    assert.ok(!('emoji' in def), `${def.id} must not carry an emoji field`);
   }
-  assert.equal(ROSTER_PILL_DEFS.find((def) => def.id === 'all').emoji, '', 'all keeps no emoji');
 });
 
 test('D3 render: the unpaid button emits a CSS dot span as its first child', () => {
@@ -229,10 +241,10 @@ test('pins: the bar stays at the top — below the new-customers panel, above th
 
 test('pins: the unpaid aria-label carries the full figure with no emoji', () => {
   const fn = renderRosterPillBarFn(appSrc);
-  // The label is built as `emoji + t(labelKey)` only when the def
-  // carries an emoji — with the unpaid emoji empty, its aria-label
-  // (label + count + total) can carry no emoji.
-  assert.ok(fn.includes("const label = `${def.emoji ? `${def.emoji} ` : ''}${t(def.labelKey)}`"), 'label must stay emoji-prefixed only when the def has one');
+  // Customers Directory Polish: the label is the bare i18n string now
+  // — the emoji-prefixed construction is gone with the emoji field.
+  assert.ok(fn.includes('const label = t(def.labelKey);'), 'label must be the bare i18n string');
+  assert.ok(!fn.includes('def.emoji'), 'render must not reference any emoji field');
   const unpaid = ROSTER_PILL_DEFS.find((def) => def.id === 'unpaid');
-  assert.equal(unpaid.emoji, '', 'unpaid emoji empty, so its aria-label is emoji-free');
+  assert.equal(unpaid.dsIcon, '', 'unpaid carries no icon, so its aria-label is emoji-free');
 });

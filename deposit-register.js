@@ -54,6 +54,9 @@ const MOHALLA_ALIASES = {
   bani: 'BANII',
   kishti: 'KISHTII',
   chamyaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla.
+  jabbiyaaa: 'JABBIYAA',
 };
 
 function text(value) {
@@ -119,7 +122,9 @@ function toCents(raw) {
 
 export function formatDepositAmount(cents) {
   if (!Number.isFinite(cents)) return 'not recorded';
-  return `Rs. ${(cents / 100).toFixed(2)}`;
+  // Owner 5-part fix: whole rupees without decimals, with thousands
+  // grouping (Rs. 6,000, not Rs. 6000.00).
+  return `Rs. ${(cents / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 // Canonical mohalla key for filtering, mirroring the Plan T rule
@@ -320,7 +325,9 @@ export function depositHtml(rows) {
       return `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(entry.customerName || entry.customerId)}</td><td>${escapeHtml(DEPOSIT_DEVICE_TYPE_LABELS[entry.deviceType])}</td><td>${escapeHtml(entry.serial)}</td><td>${formatDepositAmount(entry.amountCents)}</td><td>${escapeHtml(entry.dateTaken)}</td><td>${escapeHtml(DEPOSIT_STATUS_LABELS[entry.status])}${extra}</td></tr>`;
     })
     .join('');
-  return `<table><thead><tr><th>Deposit</th><th>Customer</th><th>Device</th><th>Serial</th><th>Amount held</th><th>Date taken</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>`;
+  // Owner 5-part fix: the seven-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side columns.
+  return `<div class="table-scroll"><table><thead><tr><th>Deposit</th><th>Customer</th><th>Device</th><th>Serial</th><th>Amount held</th><th>Date taken</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function depositCsv(rows) {

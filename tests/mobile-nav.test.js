@@ -338,7 +338,9 @@ test('setupScrollToTop handles button click and scroll visibility', async () => 
 test('index.html provides network status pill, shortcuts modal, and mobile action sheet', () => {
   assert.match(index, /id="networkStatusPill"[^>]*class="network-status-pill"/);
   assert.match(index, /id="networkStatusDot"[^>]*class="network-status-dot online"/);
-  assert.match(index, /id="shortcutsHelpButton"[^>]*class="shortcuts-help-button"/);
+  // Home Dashboard overhaul: the shortcuts button moved from the
+  // topbar into the nav drawer footer (same modal, new id).
+  assert.match(index, /id="navDrawerShortcutsBtn"[^>]*class="nav-drawer-shortcuts-btn"/);
   assert.match(index, /<dialog id="keyboardShortcutsModal" class="modal shortcuts-modal"/);
   assert.match(index, /id="mobileActionSheetToggle"[^>]*class="mobile-action-toggle-btn"/);
   assert.match(index, /id="mobileActionSheetBackdrop"[^>]*class="mobile-action-sheet-backdrop"/);
@@ -687,7 +689,9 @@ test('setupMobileActionSheet manages sheet open, close, and action triggers', as
 
 test('index.html includes accessible command palette, pull-to-refresh indicator, and haptic hooks', () => {
   const indexHtml = read('index.html');
-  assert.match(indexHtml, /id="commandPaletteTrigger"/);
+  // Home Dashboard overhaul: the topbar command-palette trigger is
+  // deleted — the palette now opens from the drawer footer button.
+  assert.ok(!indexHtml.includes('id="commandPaletteTrigger"'), 'topbar palette trigger is gone');
   assert.match(indexHtml, /id="navDrawerCommandPaletteBtn"/);
   assert.match(indexHtml, /data-sheet-action="command-palette"/);
   assert.match(indexHtml, /id="commandPaletteModal" class="command-palette-dialog"/);
@@ -14663,7 +14667,9 @@ test('bilingual English / Urdu UI localization engine and RTL layout support (ag
 
   // 7. HTML and CSS Markups Verification
   const indexHtml = read('index.html');
-  assert.ok(indexHtml.includes('id="languageToggleBtn"'));
+  // Home Dashboard overhaul: the topbar language button is gone —
+  // the drawer header button is the only language toggle now.
+  assert.ok(!indexHtml.includes('id="languageToggleBtn"'), 'topbar language button is gone');
   assert.ok(indexHtml.includes('id="drawerLanguageToggleBtn"'));
 
   const navCss = read('nav.css');

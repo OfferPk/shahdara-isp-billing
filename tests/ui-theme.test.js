@@ -8,8 +8,10 @@ const app = read('app.js');
 const styles = read('styles.css');
 const tokens = read('tokens.css');
 
-test('theme toggle button and SVG icons exist in index.html topbar', () => {
-  assert.match(index, /id="themeToggle"[^>]*class="theme-toggle"/);
+test('theme toggle button and SVG icons exist in the nav drawer', () => {
+  // Home Dashboard overhaul: the theme toggle moved from the
+  // topbar into the nav drawer header (same class, same SVGs).
+  assert.match(index, /id="drawerThemeToggleBtn"[^>]*class="theme-toggle drawer-theme-toggle"/);
   assert.match(index, /aria-label="Toggle dark\/light theme"/);
   assert.match(index, /class="theme-icon theme-icon-sun"/);
   assert.match(index, /class="theme-icon theme-icon-moon"/);

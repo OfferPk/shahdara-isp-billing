@@ -230,16 +230,25 @@ test('cash in hand: the figure never changes any bill, payment, or customer reco
   assert.equal(JSON.stringify(state), before);
 });
 
-test('cash in hand wiring: the figure sits on the billing dashboard after the month-target line, and the dashboard renders it', () => {
+test('cash in hand wiring: the figure sits in the Home KPI strip (Cash in Hand card), and the dashboard renders it', () => {
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.ok(page.includes('id="cashInHandSection"'), 'cash-in-hand section exists');
-  assert.ok(page.indexOf('id="cashInHandSection"') > page.indexOf('id="monthTargetSection"'), 'figure follows the month-target line');
-  assert.ok(page.indexOf('id="cashInHandSection"') < page.indexOf('id="collectionForecastSection"'), 'figure sits before the forecast section');
+  // Home Dashboard overhaul: the standalone Cash in Hand section is
+  // DELETED — its ids moved into the KPI strip's Cash in Hand card,
+  // so the section would have duplicated them. The empty-state
+  // element is gone too; the renderer guards it.
+  assert.ok(!page.includes('id="cashInHandSection"'), 'standalone section is gone');
+  assert.ok(!page.includes('id="cihCashEmpty"'), 'empty state element is gone (renderer guards it)');
   assert.ok(page.includes('id="cihCashTotal"'), 'cash total element exists');
   assert.ok(page.includes('id="cihCashLine"'), 'count line element exists');
-  assert.ok(page.includes('id="cihCashEmpty"'), 'empty state element exists');
+  const stripStart = page.indexOf('id="homeKpiStrip"');
+  assert.ok(stripStart >= 0, 'KPI strip exists');
+  assert.ok(page.indexOf('id="cihCashTotal"') > stripStart, 'cash total sits inside the KPI strip');
+  assert.ok(page.indexOf('id="cihCashTotal"') < page.indexOf('id="homePrimaryActions"'), 'cash total sits before the quick actions');
   assert.ok(page.includes('data-i18n="dash_cashinhand_title"'), 'figure title is translated');
-  assert.ok(page.includes('data-i18n="dash_cashinhand_sub"'), 'figure subtitle is translated');
+  // No static subtitle in the strip: the sub-line is the
+  // JS-written count line (count_sing/plur keys, pinned by the
+  // i18n test below) — the deleted section's dash_cashinhand_sub
+  // went with it.
   assert.ok(page.includes('Cash in hand now'), 'figure title reads Cash in hand now');
 
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
@@ -256,7 +265,10 @@ test('i18n: every dash_cashinhand_ key used exists in English and Urdu, with Urd
   // directly after t(' — so the module scan takes every quoted
   // key.
   for (const match of module.matchAll(/'(dash_cashinhand_[a-z_]+)'/g)) used.add(match[1]);
-  assert.ok(used.size >= 4, `expected at least 4 cash-in-hand keys, found ${[...used].join(', ')}`);
+  // Home Dashboard overhaul: the deleted section's
+  // dash_cashinhand_sub key left the page — the 3 keys that remain
+  // (title + count_sing/plur) are still pinned.
+  assert.ok(used.size >= 3, `expected at least 3 cash-in-hand keys, found ${[...used].join(', ')}`);
   for (const key of used) {
     assert.ok(typeof TRANSLATIONS.en[key] === 'string' && TRANSLATIONS.en[key].length > 0, `missing English key ${key}`);
     assert.ok(typeof TRANSLATIONS.ur[key] === 'string' && TRANSLATIONS.ur[key].length > 0, `missing Urdu key ${key}`);

@@ -127,13 +127,13 @@ test('method strip: a day with no payments yet reads zero, never a blank', () =>
   assert.equal(els.dmsMethodTotal.textContent, 'PKR 0');
   assert.equal(els.dmsMethodLine.textContent, '0 payments today');
   assert.equal(els.dmsMethodEmpty.hidden, false);
-  // Every group still reads PKR 0 with a zero count, never a blank.
+  // The DATA still carries all six groups at PKR 0 (pinned by the
+  // deepEqual above), but the strip hides zero rows: an empty day
+  // reads zero through the total, the count line and the empty
+  // element — never through six empty PKR 0 rows, and never blank.
   const html = els.dmsMethodRows.innerHTML;
-  assert.equal(html.split('PKR 0').length - 1, 6, 'all six groups read PKR 0');
-  assert.equal(html.split('0 payments').length - 1, 6, 'all six groups read 0 payments');
-  assert.ok(html.includes('Cash'), 'cash row lands');
-  assert.ok(html.includes('Bank Transfer'), 'bank transfer row lands');
-  assert.ok(html.includes('Other'), 'other row lands');
+  assert.equal(html, '', 'no method rows on an empty day');
+  assert.equal(html.split('PKR 0').length - 1, 0, 'no PKR 0 rows');
 });
 
 test('method strip render: PKR figures, count line, and rows land in the view', () => {

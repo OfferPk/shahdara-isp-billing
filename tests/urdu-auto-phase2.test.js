@@ -173,7 +173,7 @@ const todayBase = {
 test('phase 2 render: Today card in Urdu mode shows Urdu, never the English originals', () => {
   setAppLanguage('ur');
   const { els, doc } = stubDoc();
-  renderHomeTodaySummary(doc, { ...todayBase, top5Overdue: [] });
+  renderHomeTodaySummary(doc, { ...todayBase, topOverdue: [] });
   assert.equal(els.homeTodayDateText.textContent, '2026-10-28 · براہ راست بندش رجسٹر اور وصولیاں');
   assert.equal(els.homeTodayCashVsDigital.textContent, 'نقد: PKR 3,000 · ڈیجیٹل: PKR 2,000');
   assert.equal(els.homeTodayCollectedVsBilled.textContent, 'PKR 90,000 / PKR 120,000 بل شدہ');
@@ -184,7 +184,7 @@ test('phase 2 render: Today card in Urdu mode shows Urdu, never the English orig
 
   renderHomeTodaySummary(doc, {
     ...todayBase,
-    top5Overdue: [{ id: 'c9', customerNumber: '35', name: 'Test Customer 35', phone: '03001234567', mohalla: 'Barrian', balanceDue: 6000 }],
+    topOverdue: [{ id: 'c9', customerNumber: '35', name: 'Test Customer 35', phone: '03001234567', mohalla: 'Barrian', balanceDue: 6000 }],
   });
   const row = els.homeTopOverdueList.innerHTML;
   assert.ok(row.includes('title="واٹس ایپ یاد دہانی بھیجیں"'), 'WA link title must be Urdu');
@@ -202,7 +202,7 @@ test('phase 2 render: Today card in Urdu mode shows Urdu, never the English orig
 test('phase 2 render: Today card in English mode is byte-identical to the old strings', () => {
   setAppLanguage('en');
   const { els, doc } = stubDoc();
-  renderHomeTodaySummary(doc, { ...todayBase, top5Overdue: [] });
+  renderHomeTodaySummary(doc, { ...todayBase, topOverdue: [] });
   assert.equal(els.homeTodayDateText.textContent, '2026-10-28 · Live closing register & collections');
   assert.equal(els.homeTodayCashVsDigital.textContent, 'Cash: PKR 3,000 · Digital: PKR 2,000');
   assert.equal(els.homeTodayCollectedVsBilled.textContent, 'PKR 90,000 / PKR 120,000 billed');
@@ -309,22 +309,27 @@ test('phase 2 wiring: the language-change listener re-renders the dashboard', ()
 test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
   for (const key of [
     'dash_eyebrow_live', 'dash_title', 'dash_units', 'dash_add_payment', 'dash_guidance',
-    'dash_kpi_today', 'dash_kpi_month', 'dash_kpi_dues', 'dash_kpi_defaulters',
-    'dash_tile_collect_title', 'dash_tile_customer_title', 'dash_tile_dues_title', 'dash_tile_closing_title',
+    'dash_kpi_today', 'dash_kpi_month', 'dash_kpi_dues',
+    // Home Dashboard overhaul: the deleted keys left with their
+    // elements — dash_kpi_defaulters (Customers-with-Dues card;
+    // the count survives as the Total Dues sub-line via
+    // dash_today_dues_count in app.js), dash_tile_collect_title /
+    // dash_tile_closing_title (Receive Payment / Daily Closing
+    // tiles deleted), dash_today_label_collected (home-today
+    // metrics grid deleted), dash_card_roznamcha (merged card now
+    // uses dash_card_closing), and the 16 dash_card_* labels of
+    // the deleted duplicate bottom KPI grid.
+    'dash_tile_customer_title', 'dash_tile_dues_title',
     // Polish #18: the 5th home tile (Installation) is a dashboard static too.
     'dash_tile_installation_title',
-    'dash_today_badge', 'dash_today_heading', 'dash_today_wa_text', 'dash_today_label_collected',
+    'dash_today_badge', 'dash_today_heading', 'dash_today_wa_text',
     'dash_today_overdue_title', 'dash_today_overdue_all',
     'dash_card_closing', 'dash_card_shop', 'dash_card_cycle', 'dash_card_complaint',
     'dash_card_tickets', 'dash_card_downtime', 'dash_card_splitter', 'dash_card_monthly_report',
-    'dash_card_roznamcha', 'dash_card_stock', 'dash_card_outage', 'dash_card_saad',
+    'dash_card_stock', 'dash_card_outage', 'dash_card_saad',
     'dash_card_install', 'dash_card_pending', 'dash_card_pole', 'dash_card_group',
     'dash_card_recovery', 'dash_card_khata', 'dash_card_wallet',
-    'dash_card_month_due', 'dash_card_total_due', 'dash_card_today_coll', 'dash_card_month_coll',
-    'dash_card_month_billed', 'dash_card_expenses', 'dash_card_profit', 'dash_card_profiles',
-    'dash_card_active', 'dash_card_bill_status', 'dash_card_new_conn', 'dash_card_velocity',
-    'dash_card_total_coll', 'dash_card_credit', 'dash_card_prev_coll',
-    'dash_card_exp_profit', 'dash_card_prov_cost',
+    'dash_card_active',
     'dash_btn_cash_suite', 'dash_btn_daily_register', 'dash_btn_daily_slip', 'dash_btn_staff_perf',
     'dash_btn_shop_settlement', 'dash_btn_billing_cycle', 'dash_btn_monthly_report',
     'dash_btn_roznamcha', 'dash_btn_trace_outage', 'dash_btn_saad_visits', 'dash_btn_cheatsheet',
@@ -339,9 +344,12 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
     assert.ok(indexSrc.includes(`data-i18n="${key}"`), `index.html must carry data-i18n="${key}"`);
   }
   assert.ok(indexSrc.includes('data-i18n-aria-label="dash_kpi_region_aria"'), 'KPI region aria must be wired');
-  assert.ok(indexSrc.includes('data-i18n-aria-label="dash_tile_collect_aria"'), 'collect tile aria must be wired');
   assert.ok(indexSrc.includes('data-i18n-aria-label="dash_today_wa_aria"'), 'WA button aria must be wired');
-  assert.ok(indexSrc.includes('data-i18n-aria-label="dash_summary_grid_aria"'), 'summary grid aria must be wired');
+  // Home Dashboard overhaul: dash_tile_collect_aria left with the
+  // deleted Receive Payment tile and dash_summary_grid_aria with
+  // the deleted duplicate grid; dash_velocity_aria stays wired on
+  // the velocity section in Reports, dash_target_gauge_aria on the
+  // target chart in Reports.
   assert.ok(indexSrc.includes('data-i18n-aria-label="dash_velocity_aria"'), 'velocity aria must be wired');
   assert.ok(indexSrc.includes('data-i18n-aria-label="dash_target_gauge_aria"'), 'target gauge aria must be wired');
   assert.ok(indexSrc.includes('data-i18n-placeholder="dash_owner_placeholder"'), 'owner input placeholder must be wired');
@@ -351,16 +359,21 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
   assert.ok(voiceLabel && !voiceLabel[0].includes('data-i18n'), 'voice-language label must not carry data-i18n (it wraps the select)');
 });
 
-test('phase 2 wiring: all 69 chart titles and business subtitles 3-20 are wired; engineering subtitles 21-69 are not', () => {
+test('phase 2 wiring: all 67 chart titles and business subtitles 3-18 are wired; engineering subtitles 19-67 are not', () => {
   const home = indexSrc.slice(indexSrc.indexOf('id="billingDashboard"'), indexSrc.indexOf('id="homeProviderCostDetails"'));
   const titles = [...home.matchAll(/<h4 class="chart-title"([^>]*)>/g)];
-  assert.equal(titles.length, 69, `expected 69 chart titles, got ${titles.length}`);
+  // Home Dashboard overhaul: 69 -> 67 — "Monthly Collection vs
+  // Target" left with the deleted gauge section, and "Disconnection
+  // & Reconnection Worklists" moved to the Collect tab (outside
+  // this Home slice). The business subtitles shrink from 20 to 18
+  // with the two removed titles.
+  assert.equal(titles.length, 67, `expected 67 chart titles, got ${titles.length}`);
   for (const [, attrs] of titles) assert.ok(attrs.includes('data-i18n="dash_'), `chart title must carry data-i18n, got <h4${attrs}>`);
   const subs = [...home.matchAll(/<p class="chart-subtitle"([^>]*)>/g)];
-  assert.equal(subs.length, 69, `expected 69 chart subtitles, got ${subs.length}`);
+  assert.equal(subs.length, 67, `expected 67 chart subtitles, got ${subs.length}`);
   subs.forEach(([, attrs], i) => {
     const n = i + 1;
-    if (n <= 20) {
+    if (n <= 18) {
       assert.ok(attrs.includes('data-i18n="dash_'), `business subtitle #${n} must carry data-i18n`);
     } else {
       assert.ok(!attrs.includes('data-i18n'), `engineering subtitle #${n} must NOT carry data-i18n yet (charts phase)`);

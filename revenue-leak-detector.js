@@ -3,7 +3,7 @@
  * Expired-Pause Revenue Leak Detector.
  *
  * A strictly read-only audit of the live ledger. It flags non-archived,
- * non-FREE customers in exactly three situations:
+ * non-FREE customers in exactly five situations:
  *
  *   1. zero-rate — an active customer whose recorded package price is
  *      exactly Rs 0. The shipped price fields are honoured in the
@@ -21,6 +21,17 @@
  *      billing has not started yet (billingStartMonth in the future),
  *      customers paused for the month (including a recorded skipped
  *      month) and FREE connections are not leaks and stay unflagged.
+ *   4. missing-selling-amount — a customer whose monthlySellingAmount
+ *      is null, undefined or blank (the same predicate the dashboard
+ *      totals count). Not gated on active status.
+ *   5. missing-provider-cost — a customer whose monthlyPurchaseCost
+ *      is null, blank, non-finite or negative (the same hasCost
+ *      predicate the dashboard totals use; zero counts as recorded).
+ *      Not gated on active status.
+ * Flags 4–5 are data-completeness rows: they carry a null estimate
+ * (no price or no cost means no honest leakage figure) and exist so
+ * the old footer paragraph's "3 unset prices / 12 missing margins"
+ * accounts surface as actionable rows instead of a raw paragraph.
  *
  * Estimated monthly leakage is DATA-HONEST: it is only ever the
  * customer's own recorded money —
@@ -45,11 +56,23 @@ import { isBillingPaused, isValidPauseDate, sanitizePauseFields } from './pause-
 export const REVENUE_LEAK_ZERO_RATE = 'zero-rate';
 export const REVENUE_LEAK_EXPIRED_PAUSE = 'expired-pause';
 export const REVENUE_LEAK_MISSING_BILL = 'missing-current-bill';
+// Home Dashboard overhaul: the footer paragraph that used to say
+// "Selling amount unset for 3 customers" / "12 profiles missing a
+// selling amount or provider cost" is removed; those accounts now
+// surface here as actionable audit rows instead. These two flags are
+// data-completeness flags, not lost-revenue flags: they fire for any
+// non-archived, non-free customer (the same population the dashboard
+// totals count), carry no honest estimate (null), and open the
+// profile on tap like every other row.
+export const REVENUE_LEAK_MISSING_SELLING_AMOUNT = 'missing-selling-amount';
+export const REVENUE_LEAK_MISSING_PROVIDER_COST = 'missing-provider-cost';
 
 const FLAG_ORDER = {
   [REVENUE_LEAK_MISSING_BILL]: 0,
   [REVENUE_LEAK_EXPIRED_PAUSE]: 1,
-  [REVENUE_LEAK_ZERO_RATE]: 2
+  [REVENUE_LEAK_ZERO_RATE]: 2,
+  [REVENUE_LEAK_MISSING_SELLING_AMOUNT]: 3,
+  [REVENUE_LEAK_MISSING_PROVIDER_COST]: 4
 };
 
 function text(value) {
@@ -226,6 +249,34 @@ function evaluateCustomer(customer, { today, month }) {
     push(REVENUE_LEAK_MISSING_BILL, rateOrLastBill(customer, month));
   }
 
+  // (4) Selling amount unset: the dashboard totals count exactly
+  // these records (monthlySellingAmount null, undefined or blank),
+  // so the audit count agrees with that count. No honest estimate
+  // exists without a price, so the row carries null and the card
+  // shows "no estimate" — the row is still actionable (tap opens
+  // the profile). Not gated on active status: an unset price is a
+  // data gap whatever the service state reads. Gated on the record
+  // being identifiable at all (an id, a number, or a name): a bare
+  // malformed record with none of those has no profile to open,
+  // so it is noise, not an actionable row.
+  const identifiable = (base.customerId !== null && base.customerId !== '')
+    || (base.customerNumber !== null && base.customerNumber !== '')
+    || base.customerName !== '';
+  if (identifiable && (customer.monthlySellingAmount === null || customer.monthlySellingAmount === undefined || customer.monthlySellingAmount === '')) {
+    push(REVENUE_LEAK_MISSING_SELLING_AMOUNT, null);
+  }
+
+  // (5) Provider cost missing: the same hasCost predicate the
+  // dashboard totals use (null, blank, non-finite or negative cost
+  // counts as missing; zero counts as a recorded cost). The margin
+  // cannot be estimated without a cost, so the row carries null.
+  // Same identifiability gate as (4).
+  const providerCost = customer.monthlyPurchaseCost;
+  const hasProviderCost = !(providerCost === null || providerCost === undefined || providerCost === '' || !Number.isFinite(Number(providerCost)) || Number(providerCost) < 0);
+  if (identifiable && !hasProviderCost) {
+    push(REVENUE_LEAK_MISSING_PROVIDER_COST, null);
+  }
+
   return rows;
 }
 
@@ -267,7 +318,9 @@ export function buildRevenueLeakSummary(rows) {
   const counts = {
     [REVENUE_LEAK_ZERO_RATE]: 0,
     [REVENUE_LEAK_EXPIRED_PAUSE]: 0,
-    [REVENUE_LEAK_MISSING_BILL]: 0
+    [REVENUE_LEAK_MISSING_BILL]: 0,
+    [REVENUE_LEAK_MISSING_SELLING_AMOUNT]: 0,
+    [REVENUE_LEAK_MISSING_PROVIDER_COST]: 0
   };
   const largestByCustomer = new Map();
   for (const row of list) {
@@ -288,6 +341,8 @@ export function buildRevenueLeakSummary(rows) {
     zeroRateCount: counts[REVENUE_LEAK_ZERO_RATE],
     expiredPauseCount: counts[REVENUE_LEAK_EXPIRED_PAUSE],
     missingBillCount: counts[REVENUE_LEAK_MISSING_BILL],
+    missingSellingAmountCount: counts[REVENUE_LEAK_MISSING_SELLING_AMOUNT],
+    missingProviderCostCount: counts[REVENUE_LEAK_MISSING_PROVIDER_COST],
     totalEstimatedMonthlyLeakage,
     totalEstimatedLeakage: totalEstimatedMonthlyLeakage
   };

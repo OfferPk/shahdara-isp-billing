@@ -1,6 +1,7 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
 import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal, calculateCpeAssetMetrics, setupCpeAssetModal, calculatePowerBackupMetrics, setupPowerBackupModal, calculateRouteDensityMetrics, setupRouteDensityModal } from './dashboard.js';
 import { queueTelecomCharts } from './lazy-telecom.js';
+import { canonicalMohalla } from './phase3.js';
 import { calculateDuesAgingBreakdown, setupDuesAgingModal, renderDuesAgingSvg } from './dashboard-dues-aging.js';
 
 
@@ -156,6 +157,18 @@ export function calculateMonthlyTrends(state, referenceDate = new Date(), months
 }
 
 /**
+ * Canonical area label for grouping: stored spellings fold to one
+ * canonical mohalla (Charyaa/Chamyaa/Chamyaaa -> Chamyaaa, Kishti ->
+ * Kishtii, Bani -> Banii, Orien school/Orient scholl -> Orient School),
+ * so the same mohalla never splits into two rows. A customer with no
+ * usable area or mohalla groups under 'Unassigned'.
+ */
+function canonicalAreaName(customer) {
+  const canonical = canonicalMohalla(customer?.mohalla || customer?.area || '');
+  return canonical?.label || 'Unassigned';
+}
+
+/**
  * Groups and sums outstanding unpaid balances across retained bills by customer area.
  * Returns top areas sorted descending by total dues.
  */
@@ -166,7 +179,7 @@ export function calculateDuesByArea(state, referenceDate = new Date(), maxAreas 
 
   for (const customer of (state.customers ?? [])) {
     if (customer.archived) continue;
-    const areaName = customer.area && String(customer.area).trim() ? String(customer.area).trim() : 'Unassigned';
+    const areaName = canonicalAreaName(customer);
 
     if (!areaMap.has(areaName)) {
       areaMap.set(areaName, { area: areaName, totalDueCents: 0, customerCount: 0, seenCustomers: new Set() });
@@ -214,7 +227,7 @@ export function calculateAreaDetailedBreakdown(state, referenceDate = new Date()
 
   for (const customer of (state.customers ?? [])) {
     if (customer.archived) continue;
-    const areaName = (customer.area && String(customer.area).trim()) ? String(customer.area).trim() : 'Unassigned';
+    const areaName = canonicalAreaName(customer);
 
     if (!areaMap.has(areaName)) {
       areaMap.set(areaName, {
@@ -274,7 +287,7 @@ export function calculateAreaCollectionHeatmap(state, referenceDate = new Date()
 
   for (const customer of (state.customers ?? [])) {
     if (customer.archived) continue;
-    const areaName = (customer.area && String(customer.area).trim()) ? String(customer.area).trim() : 'Unassigned';
+    const areaName = canonicalAreaName(customer);
 
     if (!areaMap.has(areaName)) {
       areaMap.set(areaName, {

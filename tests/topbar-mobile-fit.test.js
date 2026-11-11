@@ -66,14 +66,13 @@ test('topbar fit: backup pill is the designated shrinker with an ellipsis label 
 test('topbar fit: <=480px compacts brand title and language label, keeps both buttons', () => {
   const block = styles.match(/@media \(max-width: 480px\) \{\s*\.topbar \{ padding: 0 6px; gap: 4px; \}\s*\.brand-copy \{ display: none; \}/s);
   assert.ok(block, '<=480px hides the brand title text (the "S" mark stays)');
-  // Live visual bugs (Nov 2026, Bug 5): the 6px side padding was tightened
-  // to 4px as part of the header-crush fix — the topbar still fits at
-  // 360px with 0px overflow and the toggle measures 30px wide live, so
-  // the "compact but kept" intent is unchanged; only the literal moved.
-  assert.match(styles, /\.topbar #languageToggleBtn \{ min-width: 0; padding: 0 4px; gap: 0; \}/);
-  assert.match(styles, /\.topbar #languageToggleBtn \.language-toggle-label \{ display: none; \}/);
-  // The buttons themselves are never display:none at phone widths.
-  assert.ok(index.includes('id="languageToggleBtn"'), 'language button stays in the markup');
+  // Home Dashboard overhaul: the language toggle moved from the
+  // topbar into the nav drawer header — the topbar-scoped rules
+  // are deleted with it; the drawer button keeps the same Globe
+  // hook and label, and it is never display:none at phone widths.
+  assert.ok(!styles.includes('.topbar #languageToggleBtn'), 'no topbar-scoped language rules survive');
+  assert.ok(index.includes('id="drawerLanguageToggleBtn"'), 'language button lives in the drawer header');
+  assert.ok(index.includes('class="drawer-language-toggle-btn language-toggle-btn"'), 'drawer language button keeps its class');
   assert.ok(index.includes('id="backupHealthBadge"'), 'backup badge stays in the markup');
 });
 

@@ -15206,16 +15206,20 @@ dialog::backdrop {
   .topbar .backup-health-badge { min-width: 0; flex: 0 1 auto; }
   .topbar #backupHealthLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .topbar #fieldModeToggleBtn { width: 38px; height: 38px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center; }
-  .topbar #operatorModeToggleBtn { min-width: 0; padding: 0 10px; white-space: nowrap; }
+  /* Home Dashboard overhaul: the operator-mode toggle moved out of
+     the topbar into the nav drawer, so its .topbar rule is gone
+     with it (the toggle itself keeps working from the drawer). */
 }
 @media (max-width: 480px) {
   .topbar { padding: 0 6px; gap: 4px; }
   .brand-copy { display: none; }
   .topbar-actions { gap: 3px; }
-  .topbar #operatorModeToggleBtn { display: none; }
+  /* Home Dashboard overhaul: the operator-mode toggle and the
+     language toggle moved out of the topbar into the nav drawer,
+     so their .topbar hide/compact rules are gone with them — the
+     topbar now keeps only Menu, Brand, Search, Notifications and
+     Field Mode at phone widths. */
   .topbar .backup-health-badge { flex: 0 0 auto; width: 38px; min-width: 38px; padding: 0; justify-content: center; }
-  .topbar #languageToggleBtn { min-width: 0; padding: 0 4px; gap: 0; }
-  .topbar #languageToggleBtn .language-toggle-label { display: none; }
 }
 
 /* Profile polish #5 — top-of-profile Wada banner + search result actions. */

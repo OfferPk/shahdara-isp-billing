@@ -83,3 +83,26 @@ test('collections location resolves variants to the same area', () => {
   assert.equal(loc.area.key, 'banii');
   assert.equal(loc.area.label, 'Banii');
 });
+
+test('Home Dashboard aliases fold before the default list: Charyaa is Chamyaaa, Orien school / Orient scholl are Orient School', () => {
+  // CHARYAA is still one of the 15 default spellings, but the
+  // stored evidence says it is the same mohalla as CHAMYAAA —
+  // the alias must win over the default-list match, or the two
+  // spellings split every mohalla view again.
+  for (const variant of ['Charyaa', 'CHARYAA', 'charyaa', 'MOHALLA CHARYAA']) {
+    const canon = canonicalMohalla(variant);
+    assert.equal(canon.key, 'chamyaaa', `${variant} keys as chamyaaa`);
+    assert.equal(canon.label, 'Chamyaaa', `${variant} labels as Chamyaaa`);
+    assert.equal(canon.stored, 'CHAMYAAA', `${variant} stores as CHAMYAAA`);
+  }
+  for (const variant of ['Orien school', 'ORIEN SCHOOL', 'Orient scholl', 'ORIENT SCHOLL']) {
+    const canon = canonicalMohalla(variant);
+    assert.equal(canon.key, 'orient school', `${variant} keys as orient school`);
+    assert.equal(canon.label, 'Orient School', `${variant} labels as Orient School`);
+    assert.equal(canon.stored, 'Orient School', `${variant} stores as Orient School`);
+  }
+  // The other alias folds still hold alongside the new ones.
+  assert.equal(canonicalMohalla('Chamyaa').stored, 'CHAMYAAA');
+  assert.equal(canonicalMohalla('Kishti').stored, 'KISHTII');
+  assert.equal(canonicalMohalla('Bani').stored, 'BANII');
+});

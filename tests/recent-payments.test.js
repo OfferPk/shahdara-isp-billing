@@ -343,7 +343,10 @@ test('SISP-174: dashboard wires the pills and the 1-tap Receipt / WhatsApp / PNG
   assert.ok(html.includes('id="recentPaymentsFilters"'));
   assert.ok(app.includes('buildRecentPayments(state, RECENT_PAYMENTS_FILTER_POOL)'));
   assert.ok(app.includes('buildRecentPaymentPills(recentPool)'));
-  assert.ok(app.includes('filterRecentPayments(recentPool, recentPaymentsFilter)'));
+  // Home Dashboard overhaul: Home shows only the LAST 3
+  // transactions — the filter call carries the explicit limit 3
+  // (the pool stays 25; the default limit 5 is no longer used).
+  assert.ok(app.includes('filterRecentPayments(recentPool, recentPaymentsFilter, 3)'));
   assert.ok(app.includes("querySelectorAll('[data-recent-filter]')"));
   // Print receipt: the same data-print-receipt wiring as profile/transactions.
   assert.ok(app.includes("recentPaymentsListEl.querySelectorAll('[data-print-receipt]')"));
@@ -356,8 +359,11 @@ test('SISP-174: dashboard wires the pills and the 1-tap Receipt / WhatsApp / PNG
   assert.ok(app.includes('receiptWhatsAppActionMarkup(customer, {'));
   assert.ok(app.includes('bindReceiptPhoneActions(recentPaymentsListEl)'));
   // Actions render OUTSIDE the profile-navigation button (never nested):
-  // the row template closes the open-button before the actions markup.
-  assert.ok(app.includes('</button>${recentPaymentActionsMarkup(row)}'));
+  // the row template closes the open-button before the tap-to-expand
+  // actions menu (Home Dashboard overhaul: the actions moved inside
+  // a <details> menu so only the last 3 rows show on Home).
+  assert.ok(app.includes('</button><details class="recent-payment-actions-menu">'), 'actions menu follows the closed navigation button');
+  assert.ok(app.includes('${recentPaymentActionsMarkup(row)}</details>'), 'actions markup sits inside the details menu');
   // The actions carry the row's own customer / month / payment identity.
   assert.ok(app.includes('data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(row.month)}" data-payment-id="${escapeHtml(payment.id)}"'));
 });

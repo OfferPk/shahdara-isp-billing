@@ -17,7 +17,6 @@ import { taggedFirstMonths, firstMonthWaiverOf } from './new-customer-tag.js';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
 import { initReceiptFooterStudioModal, getReceiptFooter, saveReceiptFooter, buildReceiptFooterText, RECEIPT_FOOTER_STORAGE_KEY } from './receipt-footer-studio.js?v=1.11.0';
 import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
-import { calculateDashboardTodayCard, renderDashboardTodayCard } from './dashboard-today-card.js?v=1.11.0';
 import { calculateFieldRecoveryToday, renderFieldRecoveryTodayCard } from './dashboard-field-recovery.js?v=1.11.0';
 import { calculateCollectionInsights, renderCollectionInsightsCard } from './dashboard-collection-insights.js?v=1.11.0';
 import { calculateUpcomingDues, renderUpcomingDues } from './dashboard-upcoming-dues.js?v=1.11.0';
@@ -28,7 +27,6 @@ import { calculateCollectorCard, renderCollectorCard } from './dashboard-collect
 import { calculateNewCustomers, renderNewCustomers } from './dashboard-new-customers.js?v=1.11.0';
 import { calculateNoPaymentCustomers, renderNoPayment } from './dashboard-no-payment.js?v=1.11.0';
 import { calculateMonthComparison, renderMonthComparison } from './dashboard-month-comparison.js?v=1.11.0';
-import { calculateMonthTargetProgress, renderMonthTarget } from './dashboard-month-target.js?v=1.11.0';
 import { calculateCashInHand, renderDashboardCashInHand } from './dashboard-cash-in-hand.js?v=1.11.0';
 import { calculatePendingClearance, renderDashboardPendingClearance } from './dashboard-pending-clearance.js?v=1.11.0';
 import { calculateCreditBalances, renderDashboardCreditBalances } from './dashboard-credit-balances.js?v=1.11.0';
@@ -98,7 +96,7 @@ import { BACKUP_HEALTH_KEY, assessBackupHealth, backupPreActionPrompt, countAllP
 import { verifyBackup, describeRestoreChanges } from './backup-verification.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
-import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast, buildPonCapacityReport, renderPonCapacityRows } from './dashboard.js?v=1.11.0';
+import { calculateDashboardKpis, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast, buildPonCapacityReport, renderPonCapacityRows } from './dashboard.js?v=1.11.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, wireDsIcons, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, setupSwUpdatePrompt, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
 import { dsIcon } from './ds-icons.js';
 
@@ -264,7 +262,7 @@ import { FIBER_ZONES, buildOutageQueue, buildUpstreamChainCheck, normalizeFeeder
 import { buildDaisyChainTree, setupDaisyChainTreeModal } from './daisy-chain-tree-view.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, syncSaadPaymentLedgers, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { LINEMAN_PAYOUTS_KEY, loadLinemanPayouts, saveLinemanPayouts, setupLinemanPayoutModal, syncLinemanPayoutLedgers } from './lineman-payout-slip.js';
-import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
+import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, openInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
 import { buildInstallationGate, setupInstallGateDialog } from './installation-completion-gate.js';
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
@@ -1961,14 +1959,19 @@ function renderDashboard() {
   const retainedBills = allBillRows.filter(({bill}) => retainedMonths.has(bill.month));
   const pricedRetainedBills = retainedBills.filter(({bill}) => bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== '' && Number(bill.dueAmount) > 0);
   const currentBills = allBillRows.filter(({bill}) => bill.month === totals.currentMonth);
-  const pricedCurrentBills = currentBills.filter(({bill}) => bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== '' && Number(bill.dueAmount) > 0);
-  const retainedPayments = retainedBills.flatMap(({bill}) => bill.payments ?? []);
   const allPayments = allBillRows.flatMap(({bill}) => bill.payments ?? []);
   const todayPayments = allPayments.filter(payment => payment.date === totals.today).length;
-  const previousMonthPayments = allPayments.filter(payment => typeof payment.date === 'string' && payment.date.slice(0,7) === totals.previousMonth).length;
-  const profilesWithCost = totals.providerCostBreakdown.reduce((sum,group) => sum + group.profilesWithCost, 0);
-  const profilesWithProfit = state.customers.filter(customer => !customer.archived && customerPackageProfit(customer) !== null).length;
-  $('#dashboardCustomerCount').textContent = totals.totalCustomers;
+  // Home Dashboard overhaul: retainedPayments and
+  // pricedCurrentBills fed only the deleted grid cards (Total
+  // collection, This month's due) — removed with the cards.
+  // Home Dashboard overhaul: previousMonthPayments, profilesWithCost
+  // and profilesWithProfit fed only the deleted grid cards
+  // (Previous month's collection, Expected monthly provider cost,
+  // Expected monthly package profit) — removed with the cards.
+  // Home Dashboard overhaul: the "Customer profiles" grid card is
+  // DELETED (each figure lives once in the KPI strip above; the
+  // profile count stays visible in the Customers tab), so the
+  // #dashboardCustomerCount write is gone with it.
   // SISP-1: shop settlement summary card (unsettled cash per shop).
   const shopSummaryEl = $('#shopSettlementSummary');
   if (shopSummaryEl) {
@@ -1992,15 +1995,19 @@ function renderDashboard() {
         return `<p><span>${escapeHtml(s.shop)}</span><strong>${escapeHtml(formatAmount(s.unsettled))}</strong><small> · ${escapeHtml(t('dash_shop_detail', null, { collected: formatAmount(s.collectedThisMonth), date: s.lastHandoverDate || t('dash_shop_never') }))}</small>${agingBlock}</p>`;
       }).join('');
   }
-  // Owner feature 2026-10-29: Recent Payments card (last 5 payments
+  // Owner feature 2026-10-29: Recent Payments card (last 3 payments
   // across all customers; voided SISP-34 payments excluded by the
   // builder). Read-only — rows open the customer profile, "All" opens
-  // the Transactions view.
+  // the Transactions view. Home Dashboard overhaul: the card shows
+  // only the LAST 3 (was 5) in compact single-row format, and the
+  // per-row receipt actions (WhatsApp / Receipt / PNG) sit behind a
+  // tap-to-expand toggle so the row stays one line; the full list
+  // and actions live in the Collect tab via "All".
   // SISP-174: method filter pills + 1-tap receipt actions per row. The
   // pills DERIVE from a wider pool of recent payments (never a
   // hardcoded shop/method list — see recent-payments.js rule 7); with
   // no filter selected the visible rows are exactly the builder's
-  // default last-5, and the row action buttons sit OUTSIDE the
+  // default last-3, and the row action buttons sit OUTSIDE the
   // profile-navigation button so tapping one never opens the profile.
   const recentPaymentsListEl = $('#recentPaymentsList');
   if (recentPaymentsListEl) {
@@ -2009,7 +2016,7 @@ function renderDashboard() {
     if (recentPaymentsFilter !== RECENT_PAYMENTS_ALL_FILTER && !recentPills.some(pill => pill.key === recentPaymentsFilter)) {
       recentPaymentsFilter = RECENT_PAYMENTS_ALL_FILTER;
     }
-    const recentRows = filterRecentPayments(recentPool, recentPaymentsFilter);
+    const recentRows = filterRecentPayments(recentPool, recentPaymentsFilter, 3);
     const recentFiltersEl = $('#recentPaymentsFilters');
     if (recentFiltersEl) {
       recentFiltersEl.setAttribute('aria-label', t('dash_recent_filter_label'));
@@ -2024,7 +2031,7 @@ function renderDashboard() {
     }
     recentPaymentsListEl.innerHTML = recentRows.length === 0
       ? `<li class="recent-payments-empty">${escapeHtml(t('dash_recent_empty'))}</li>`
-      : recentRows.map((row) => `<li class="recent-payment-item"><div class="recent-payment-row"><button type="button" class="recent-payment-open" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-ref">${escapeHtml(row.receiptRef || humanDate(row.date))}</strong><span class="recent-payment-sub" dir="auto">${escapeHtml(row.customerName)}${row.method ? ` · ${escapeHtml(row.method)}` : ''}</span></span><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong></button>${recentPaymentActionsMarkup(row)}</div></li>`).join('');
+      : recentRows.map((row) => `<li class="recent-payment-item"><div class="recent-payment-row"><button type="button" class="recent-payment-open" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-ref">${escapeHtml(row.receiptRef || humanDate(row.date))}</strong><span class="recent-payment-sub" dir="auto">${escapeHtml(row.customerName)}${row.method ? ` · ${escapeHtml(row.method)}` : ''}</span></span><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong></button><details class="recent-payment-actions-menu"><summary class="recent-payment-actions-toggle">${escapeHtml(t('dash_recent_actions'))} ▾</summary>${recentPaymentActionsMarkup(row)}</details></div></li>`).join('');
     recentPaymentsListEl.querySelectorAll('[data-recent-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.recentCustomerId)));
     recentPaymentsListEl.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
     recentPaymentsListEl.querySelectorAll('[data-png-receipt]').forEach(button => button.addEventListener('click', () => downloadPngReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
@@ -2099,6 +2106,17 @@ function renderDashboard() {
     const velocityTotalEl = $('#collectionVelocityTotal');
     if (velocityTotalEl) velocityTotalEl.textContent = t('vel_total', null, { amount: formatAmount(velocity.totalCents / 100) });
   }
+  // Home Dashboard overhaul: the five zero-candidate audit cards
+  // (Package Upgrade Suggestions, Disconnect Reasons & Win-Back,
+  // At-Risk Loyal Customers, Revenue Leak Audit, Hardware / Optical
+  // Bottleneck Audit) collapse to one "✅ All 5 Audits Clear" pill
+  // when every count is 0. Each section records its count below as
+  // it renders; the toggle runs after the last one.
+  let auditsUpsellCount = null;
+  let auditsWinbackCount = null;
+  let auditsLoyaltyCount = null;
+  let auditsRevleakCount = null;
+  let auditsHwauditCount = null;
   // SISP-59: Package Upgrade Suggestions — active customers on
   // <= 5 Mbps who logged slow-speed complaints or paid on time 3+
   // months, with the projected +Rs/month ARPU lift and a 1-tap
@@ -2108,6 +2126,7 @@ function renderDashboard() {
   if (upsellListEl) {
     const upsellCandidates = buildUpsellCandidates(state, { complaints: loadComplaints(), tickets: loadTickets() }, referenceDate);
     const upsellSummary = buildUpsellSummary(upsellCandidates);
+    auditsUpsellCount = upsellSummary.count;
     const upsellTotalEl = $('#upsellTotalGain');
     if (upsellTotalEl) upsellTotalEl.textContent = upsellSummary.count > 0 ? t('upsell_total', null, { amount: formatAmount(upsellSummary.totalGainPerMonth) }) : '';
     upsellListEl.innerHTML = upsellCandidates.length === 0
@@ -2132,6 +2151,7 @@ function renderDashboard() {
   if (winbackListEl) {
     const winbackAnalytics = buildDisconnectAnalytics(state, referenceDate);
     const winbackQueue = buildWinBackQueue(state);
+    auditsWinbackCount = winbackQueue.length;
     const winbackCountEl = $('#winbackQueueCount');
     if (winbackCountEl) winbackCountEl.textContent = winbackQueue.length > 0 ? t('winback_queue_count', null, { count: winbackQueue.length }) : '';
     const winbackAnalyticsEl = $('#winbackAnalytics');
@@ -2171,6 +2191,7 @@ function renderDashboard() {
   if (loyaltyListEl) {
     const atRiskRows = buildAtRiskLoyalCustomers(state, { complaints: loadComplaints(), tickets: loadTickets() }, referenceDate);
     const loyaltySummary = buildLoyaltySummary(atRiskRows);
+    auditsLoyaltyCount = loyaltySummary.count;
     const loyaltyCountEl = $('#loyaltyAtRiskCount');
     if (loyaltyCountEl) loyaltyCountEl.textContent = loyaltySummary.count > 0 ? t('loyalty_count', null, { count: loyaltySummary.count }) : '';
     loyaltyListEl.innerHTML = atRiskRows.length === 0
@@ -2193,6 +2214,7 @@ function renderDashboard() {
   if (revenueLeakListEl) {
     const leakRows = buildRevenueLeakAudit(state, referenceDate);
     const leakSummary = buildRevenueLeakSummary(leakRows);
+    auditsRevleakCount = leakRows.length;
     const leakTotalEl = $('#revenueLeakTotal');
     if (leakTotalEl) leakTotalEl.textContent = leakSummary.totalEstimatedMonthlyLeakage > 0
       ? t('revleak_total', null, { amount: formatAmount(leakSummary.totalEstimatedMonthlyLeakage) })
@@ -2200,7 +2222,9 @@ function renderDashboard() {
     const leakFlagKeys = {
       'zero-rate': 'revleak_flag_zero',
       'expired-pause': 'revleak_flag_expired',
-      'missing-current-bill': 'revleak_flag_missing'
+      'missing-current-bill': 'revleak_flag_missing',
+      'missing-selling-amount': 'revleak_flag_noprice',
+      'missing-provider-cost': 'revleak_flag_nocost'
     };
     revenueLeakListEl.innerHTML = leakRows.length === 0
       ? `<li class="revleak-empty">${escapeHtml(t('revleak_empty'))}</li>`
@@ -2209,7 +2233,11 @@ function renderDashboard() {
           ? t('revleak_zero_line')
           : row.flag === 'expired-pause'
             ? t('revleak_expired_line', null, { date: row.autoResumeDate ? humanDate(row.autoResumeDate) : '' })
-            : t('revleak_missing_line', null, { month: displayMonthName(row.currentMonth) });
+            : row.flag === 'missing-selling-amount'
+              ? t('revleak_noprice_line')
+              : row.flag === 'missing-provider-cost'
+                ? t('revleak_nocost_line')
+                : t('revleak_missing_line', null, { month: displayMonthName(row.currentMonth) });
         const amount = row.estimatedMonthlyLeakage === null
           ? `<span class="revleak-no-estimate">${escapeHtml(t('revleak_no_estimate'))}</span>`
           : `<strong class="revleak-amount">${escapeHtml(t('revleak_estimate', null, { amount: formatAmount(row.estimatedMonthlyLeakage) }))}</strong>`;
@@ -2254,6 +2282,7 @@ function renderDashboard() {
   if (hwauditListEl) {
     const suspects = buildBottleneckSuspects(state, { complaints: loadComplaints(), tickets: loadTickets() });
     const hwSummary = buildBottleneckSummary(suspects);
+    auditsHwauditCount = hwSummary.count;
     const hwauditCountEl = $('#hwauditCount');
     if (hwauditCountEl) hwauditCountEl.textContent = hwSummary.count > 0 ? t('hwaudit_count', null, { count: hwSummary.count }) : '';
     hwauditListEl.innerHTML = suspects.length === 0
@@ -2264,6 +2293,19 @@ function renderDashboard() {
         return `<li class="hwaudit-item"><button type="button" class="hwaudit-row" data-hwaudit-customer-id="${escapeHtml(row.customerId)}"><span class="hwaudit-main"><strong class="hwaudit-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="hwaudit-sub-line">${escapeHtml(t('hwaudit_line', null, { label: row.packageLabel, rx: formatRxDbm(row.lastRxDbm) }))}</span><span class="hwaudit-sub-line">${escapeHtml([boxLine, complaintsLine].filter(Boolean).join(' · '))}</span></span><strong class="hwaudit-rx">${escapeHtml(formatRxDbm(row.lastRxDbm))}</strong></button></li>`;
       }).join('');
     hwauditListEl.querySelectorAll('[data-hwaudit-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.hwauditCustomerId)));
+  }
+  // Home Dashboard overhaul: the five audit cards collapse to one
+  // pill when every audit count is 0. The sections are found by
+  // their headings (no new ids) and hidden as a group; the pill
+  // shows in their place. Any non-zero count restores all five.
+  if (auditsUpsellCount !== null && auditsWinbackCount !== null && auditsLoyaltyCount !== null && auditsRevleakCount !== null && auditsHwauditCount !== null) {
+    const auditsAllClear = auditsUpsellCount + auditsWinbackCount + auditsLoyaltyCount + auditsRevleakCount + auditsHwauditCount === 0;
+    const auditsPillEl = $('#auditsClearPill');
+    if (auditsPillEl) auditsPillEl.hidden = !auditsAllClear;
+    for (const headingId of ['upsellHeading', 'winbackHeading', 'loyaltyHeading', 'revenueLeakHeading', 'hwauditHeading']) {
+      const auditSection = document.getElementById(headingId)?.closest('section');
+      if (auditSection) auditSection.hidden = auditsAllClear;
+    }
   }
   // SISP-67: Unified Zone Field Dispatch Board — every OPEN field
   // item (complaints, tickets, installations, pending works,
@@ -2617,14 +2659,20 @@ function renderDashboard() {
       ? ''
       : `<p><span>${t('dash_detail_latest')}</span><strong>${escapeHtml(summary.visits[summary.visits.length - 1].date)} · ${escapeHtml(visitWhereLabel(summary.visits[summary.visits.length - 1]))} · ${escapeHtml(formatHours(visitHours(summary.visits[summary.visits.length - 1])))} h</strong></p>`;
   }
-  // Installation tracker: this-month requests / installed / pending / total delay days.
+  // Installation tracker: the headline is the OPEN queue (every
+  // pending request, any month) — the same queue the Zone Field
+  // Dispatch Board reads — so the card can never say "No requests
+  // yet" while the board shows pending installs. The month detail
+  // underneath stays this month's requests / installed / delay.
   const installSummaryEl = $('#installTrackerSummary');
   if (installSummaryEl) {
     const installSummary = buildMonthlyInstallSummary(loadInstallRequests(), pakistanMonthNow(referenceDate), installTrackerToday(referenceDate));
+    const openQueue = openInstallRequests(loadInstallRequests(), installTrackerToday(referenceDate));
+    const openDelayDays = openQueue.reduce((sum, row) => sum + (row.daysSoFar || 0), 0);
     const installValueEl = $('#dashboardInstallTrackerValue');
     const installPeriodEl = $('#dashboardInstallTrackerPeriod');
-    if (installValueEl) installValueEl.textContent = installSummary.requestCount === 0 ? t('dash_install_empty') : `${t(installSummary.requestCount === 1 ? 'dash_install_req_sing' : 'dash_install_req_plur', null, { count: installSummary.requestCount })} · ${t('dash_install_installed', null, { count: installSummary.installedCount })}`;
-    if (installPeriodEl) installPeriodEl.textContent = installSummary.requestCount === 0 ? t('dash_install_period_empty') : t('dash_install_period', null, { pending: installSummary.pendingCount, days: installSummary.totalDelayDays });
+    if (installValueEl) installValueEl.textContent = openQueue.length === 0 ? t('dash_install_empty') : t(openQueue.length === 1 ? 'dash_install_pending_sing' : 'dash_install_pending_plur', null, { count: openQueue.length });
+    if (installPeriodEl) installPeriodEl.textContent = openQueue.length === 0 ? t('dash_install_period_empty') : t('dash_install_period', null, { pending: openQueue.length, days: openDelayDays });
     installSummaryEl.innerHTML = installSummary.requestCount === 0
       ? ''
       : `<p><span>${t('dash_detail_latest')}</span><strong>${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requestDate)} · ${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requesterName)} · ${escapeHtml(String(installSummary.requests[installSummary.requests.length - 1].amountPaid))} PKR</strong></p>`;
@@ -2812,12 +2860,14 @@ function renderDashboard() {
   document.querySelector('[data-customer-service-filter="offline"]').setAttribute('aria-label', t('dash_service_offline_aria', null, { count: totals.offlineServiceCount }));
   document.querySelector('[data-customer-service-filter="not-set"]').setAttribute('aria-label', t('dash_service_notset_aria', null, { count: totals.unsetServiceCount }));
   $('#serviceStateCountsAnnouncement').textContent = t('dash_service_announce', null, { active: totals.activeServiceCount, offline: totals.offlineServiceCount, notset: totals.unsetServiceCount });
-  $('#dashboardTotalCollection').textContent = retainedPayments.length ? formatAmount(totals.totalCollection) : t('dash_no_payments');
-  $('#dashboardTotalDue').textContent = retainedBills.length === 0 ? t('dash_no_bills') : pricedRetainedBills.length ? formatAmount(totals.totalDue) : t('dash_not_set');
-  $('#dashboardTodayCollection').textContent = todayPayments ? formatAmount(totals.todayCollection) : t('dash_no_payments');
-  // Plan 471: the today card — collections so far today, the count of
-  // payments today, and the dues falling due today, in one glance.
-  renderDashboardTodayCard(document, calculateDashboardTodayCard(state, referenceDate));
+  // Home Dashboard overhaul: the duplicate bottom KPI grid is
+  // DELETED (Total collection, Total due bill, Today's collection —
+  // each figure lives once in the KPI strip above), so their three
+  // writes are gone with it.
+  // Home Dashboard overhaul: the "today at a glance" card is
+  // DELETED (its figures live once in the KPI strip above), so the
+  // today-card render call is gone with it. The module stays for
+  // its own tests; nothing else calls it from renderDashboard.
   // QC-5: the field recovery card — today's recovered vs the day
   // target with a progress bar, payments, customers visited,
   // remaining target and pending customers, in one glance.
@@ -2855,10 +2905,12 @@ function renderDashboard() {
   // collections in PKR beside last month's in PKR, with the
   // difference in plain words, in one glance.
   renderMonthComparison(document, calculateMonthComparison(state, referenceDate));
-  // Plan 480: the month-target progress line — this month's
-  // target in PKR, collected so far in PKR, and the remaining
-  // amount in plain words, in one glance.
-  renderMonthTarget(document, calculateMonthTargetProgress(state, referenceDate, storageAvailable ? localStorage : null));
+  // Home Dashboard overhaul: the "Month target progress" gauge
+  // section is DELETED (resolved — the gauge showed "No Collection
+  // Target Set" and its 62% was collection-vs-billed, not a target;
+  // the target chart with its Set button lives in Reports now), so
+  // the month-target render call is gone with it. The module stays
+  // for its own tests.
   // Plan 481: the cash-in-hand figure — the cash collected and
   // not yet handed over in PKR, with the count of payments
   // behind it, in one glance.
@@ -2879,31 +2931,25 @@ function renderDashboard() {
   // and cash in hand in PKR, printed from one button, in one
   // glance.
   renderPrintSummary(document, calculatePrintSummary(state, referenceDate, storageAvailable ? localStorage : null));
-  $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
-  $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
-  $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');
-  $('#dashboardCashProfitPeriod').textContent = t('dash_profit_period', null, { collection: formatAmount(currentCash.collection), expenses: formatAmount(currentCash.expenses) });
-  $('#dashboardPreviousCollection').textContent = previousMonthPayments ? formatAmount(totals.previousMonthCollection) : t('dash_no_payments');
-  $('#dashboardCurrentMonthDue').textContent = currentBills.length === 0 ? t('dash_no_bills') : pricedCurrentBills.length ? formatAmount(totals.currentMonthDue) : t('dash_not_set');
-  $('#dashboardPendingCredit').textContent = allPayments.length ? formatAmount(totals.pendingCredit) : t('dash_no_credit');
-  $('#dashboardExpectedProfit').textContent = profilesWithProfit ? formatAmount(totals.expectedMonthlyPackageProfit) : t('dash_not_set');
-  $('#dashboardProviderCost').textContent = profilesWithCost ? formatAmount(totals.expectedMonthlyProviderCost) : t('dash_not_set');
-  $('#dashboardCustomerPeriod').textContent = t('dash_customer_period', null, { archived: totals.archivedCustomers, total: totals.totalCustomers });
-  $('#dashboardProviderCostPeriod').textContent = profilesWithCost ? t('dash_provcost_period') : t('dash_provcost_empty');
+  // Home Dashboard overhaul: the duplicate bottom KPI grid is
+  // DELETED (Recorded expenses, Net cash profit, Previous month's
+  // collection, This month's due, Unused prepaid credit, Expected
+  // monthly package profit, Expected monthly provider cost — each
+  // figure lives once in the KPI strip above or in its own tab),
+  // so their writes are gone with them. The provider-cost
+  // breakdown list stays on Home (collapsed details), so its two
+  // writes below are kept.
   $('#providerCostBreakdownList').innerHTML = totals.providerCostBreakdown.map(group => `<li><span class="provider-breakdown-name">${escapeHtml(group.provider)}</span><strong>${escapeHtml(formatAmount(group.expectedMonthlyCost))}</strong><span class="provider-breakdown-meta">${t(group.profilesWithCost === 1 ? 'dash_provcost_cost_sing' : 'dash_provcost_cost_plur', null, { count: group.profilesWithCost })} · ${t('dash_provcost_missing', null, { count: group.profilesMissingCost })}</span></li>`).join('');
   $('#providerCostBreakdownEmpty').hidden = totals.providerCostBreakdown.length > 0;
-  $('#dashboardTotalCollectionPeriod').textContent = retainedPayments.length ? t('dash_coll_period', null, { months: MONTH_LIMIT }) : t('dash_coll_period_empty');
-  $('#dashboardTotalDuePeriod').textContent = retainedBills.length ? t('dash_due_period', null, { months: MONTH_LIMIT }) : t('dash_due_period_empty');
-  $('#dashboardTodayPeriod').textContent = t('dash_today_period', null, { date: totals.today });
-  $('#dashboardPreviousPeriod').textContent = t('dash_prev_period', null, { month: displayMonthName(totals.previousMonth) });
-  $('#dashboardCurrentDuePeriod').textContent = `${t('dash_current_due_period', null, { month: displayMonthName(totals.currentMonth) })}${currentBills.length ? '' : t('dash_current_due_suffix')}`;
-  $('#dashboardExpectedProfitPeriod').textContent = t('dash_margin_note');
-  const notes = [];
-  if (totals.customersMissingSellingAmount) notes.push(t(totals.customersMissingSellingAmount === 1 ? 'dash_note_selling_sing' : 'dash_note_selling_plur', null, { count: totals.customersMissingSellingAmount }));
-  if (totals.unpricedBillCount) notes.push(t(totals.unpricedBillCount === 1 ? 'dash_note_unpriced_sing' : 'dash_note_unpriced_plur', null, { count: totals.unpricedBillCount }));
-  if (totals.incompleteProfitProfiles) notes.push(t(totals.incompleteProfitProfiles === 1 ? 'dash_note_profit_sing' : 'dash_note_profit_plur', null, { count: totals.incompleteProfitProfiles }));
-  if (totals.customersMissingProviderCost) notes.push(t(totals.customersMissingProviderCost === 1 ? 'dash_note_provcost_sing' : 'dash_note_provcost_plur', null, { count: totals.customersMissingProviderCost }));
-  $('#dashboardExcludedAmounts').textContent = notes.length ? notes.join(' ') : t('dash_excluded_default');
+  // Home Dashboard overhaul: the six period sub-lines above belonged
+  // to the deleted grid cards (Total collection, Total due, Today,
+  // Previous month, This month's due, Expected profit) — gone with
+  // the cards. The KPI strip carries its own sub-lines.
+  // The old raw exclusions paragraph (#dashboardExcludedAmounts) is
+  // gone: its unset-price and missing-margin accounts now surface as
+  // actionable rows in the Revenue Leak Audit (revenue-leak-detector
+  // flags missing-selling-amount / missing-provider-cost), so the
+  // totals' caveats live where they can be tapped and fixed.
 
   const kpis = calculateDashboardKpis(state, referenceDate);
   const activeSubscribersEl = $('#dashboardActiveCustomers');
@@ -2911,46 +2957,12 @@ function renderDashboard() {
     activeSubscribersEl.textContent = `${kpis.activeSubscribers} (${kpis.activePercent}%)`;
     $('#dashboardActiveCustomersPeriod').textContent = t('dash_kpi_active_period', null, { offline: kpis.offlineSubscribers, notset: kpis.unsetSubscribers });
   }
-  const billStatusEl = $('#dashboardMonthBillStatus');
-  if (billStatusEl) {
-    if (kpis.totalCurrentMonthBills === 0) {
-      billStatusEl.textContent = t('dash_no_bills');
-      $('#dashboardMonthBillStatusPeriod').textContent = t('dash_billstatus_empty');
-    } else {
-      billStatusEl.textContent = t('dash_billstatus_value', null, { paid: kpis.paidBillsCount, unpaid: kpis.unpaidBillsCount });
-      $('#dashboardMonthBillStatusPeriod').textContent = t('dash_billstatus_period', null, { partial: kpis.partialBillsCount, total: kpis.totalCurrentMonthBills, month: displayMonthName(totals.currentMonth) });
-    }
-  }
-  const billedRevenueEl = $('#dashboardCurrentMonthBilled');
-  if (billedRevenueEl) {
-    billedRevenueEl.textContent = kpis.currentMonthBilled > 0 ? formatAmount(kpis.currentMonthBilled) : t('dash_no_bills');
-    $('#dashboardCurrentMonthBilledPeriod').textContent = kpis.collectionRate !== null ? t('dash_billed_rate', null, { rate: kpis.collectionRate }) : t('dash_billed_period', null, { month: displayMonthName(totals.currentMonth) });
-  }
-  const monthCollectionEl = $('#dashboardCurrentMonthCollection');
-  if (monthCollectionEl) {
-    monthCollectionEl.textContent = currentCash.paymentCount ? formatAmount(kpis.currentMonthCollection) : t('dash_no_payments');
-    $('#dashboardCurrentMonthCollectionPeriod').textContent = t(currentCash.paymentCount === 1 ? 'dash_monthcoll_sing' : 'dash_monthcoll_plur', null, { count: currentCash.paymentCount, month: displayMonthName(totals.currentMonth) });
-  }
-  const newConnEl = $('#dashboardNewConnections');
-  if (newConnEl) {
-    newConnEl.textContent = String(kpis.newConnectionsCount);
-    $('#dashboardNewConnectionsPeriod').textContent = t('dash_newconn_period', null, { month: displayMonthName(totals.currentMonth) });
-  }
-  const velocity = calculateCollectionVelocity(state, referenceDate);
-  const velocityValEl = $('#dashboardCollectionVelocity');
-  if (velocityValEl) {
-    velocityValEl.textContent = t('dash_velocity_day', null, { amount: formatAmount(velocity.dailyRunRate) });
-    $('#dashboardCollectionVelocityPeriod').textContent = velocity.projectedRate !== null
-      ? t('dash_velocity_proj', null, { amount: formatAmount(velocity.projectedMonthEnd), rate: velocity.projectedRate, days: velocity.daysRemaining })
-      : t('dash_velocity_days', null, { day: velocity.currentDay, daysInMonth: velocity.daysInMonth, days: velocity.daysRemaining });
-    const fillEl = $('#dashboardVelocityFill');
-    if (fillEl) {
-      const pct = Math.min(100, Math.max(0, velocity.currentRate ?? 0));
-      fillEl.style.width = `${pct}%`;
-      const bar = fillEl.parentElement;
-      if (bar && bar.setAttribute) bar.setAttribute('aria-valuenow', String(pct));
-    }
-  }
+  // Home Dashboard overhaul: the guarded writes for the deleted grid
+  // cards (Bill status, Monthly billed revenue, This month's
+  // collection, New connections, Collection velocity) are gone with
+  // the cards. The figures live once in the KPI strip above (Month
+  // Collected / Billed) or in their own Reports sections
+  // (New customers, Collection Velocity, month-compare).
   collectionTargetController?.refresh();
   const discCountEl = $('#worklistsSummaryDiscCount');
   const discAmtEl = $('#worklistsSummaryDiscAmount');
@@ -2977,11 +2989,27 @@ function renderDashboard() {
     if (kpiRateSub) {
       kpiRateSub.textContent = kpis.collectionRate !== null ? t('dash_kpi_rate', null, { rate: kpis.collectionRate }) : t('dash_kpi_rate_zero');
     }
+    // Home Dashboard overhaul: the month KPI carries its own
+    // progress bar (the "PKR 119,700 / PKR 194,300" figure is shown
+    // once, here, with the bar — instead of repeating the 62% in
+    // three places). The fill is found by class inside this card.
+    const kpiMonthFill = document.querySelector('#kpiCardMonth .home-kpi-progress-fill');
+    if (kpiMonthFill) {
+      const pct = Math.min(100, Math.max(0, kpis.collectionRate ?? 0));
+      kpiMonthFill.style.width = `${pct}%`;
+    }
   }
   const kpiDuesEl = $('#kpiTotalDue');
   if (kpiDuesEl) {
     kpiDuesEl.textContent = retainedBills.length === 0 ? 'PKR 0' : pricedRetainedBills.length ? formatAmount(totals.totalDue) : t('dash_not_set');
   }
+  // Home Dashboard overhaul: the Total Dues card's sub-line is the
+  // ENGINE-based accounts-with-dues count (a bill counts only when
+  // the billing engine still calls it unpaid — the old "Customers
+  // with Dues" card used a raw due-minus-paid sum, which counted 57
+  // where the engine counts the overdue list's 39; the engine figure
+  // is the one shown). Written into #kpiCustomersWithDues, the id
+  // reused from the deleted card.
   const kpiDefaultersEl = $('#kpiCustomersWithDues');
   if (kpiDefaultersEl) {
     let defaultersCount = 0;
@@ -2995,7 +3023,7 @@ function renderDashboard() {
       });
       if (hasDue) defaultersCount++;
     }
-    kpiDefaultersEl.textContent = t(defaultersCount === 1 ? 'dash_defaulters_sing' : 'dash_defaulters_plur', null, { count: defaultersCount });
+    kpiDefaultersEl.textContent = t('dash_today_dues_count', null, { count: defaultersCount });
   }
   // Owner feature 2026-10-29: Advance Held KPI card — total advance
   // credit being held right now (unapplied, voided excluded, via the
@@ -3044,10 +3072,20 @@ function renderDashboard() {
     }
     const splitEl = $('#collectionForecastSplit');
     if (splitEl) {
-      splitEl.textContent = t('fcst_split', null, {
+      // The thermometer's collected figure is pool recovery (cash
+      // dated this month PLUS credit/advance applied), while the
+      // KPI strip's month figure is cash only — the 14,400 gap
+      // between them. Name the credit part on this line so the two
+      // figures never look contradictory: collected = cash + credit.
+      const cashCents = Math.round((kpis.currentMonthCollection || 0) * 100);
+      const creditCents = (forecast.collectedCents || 0) - cashCents;
+      const splitText = t('fcst_split', null, {
         billed: formatAmount(forecast.billedCents / 100),
         arrears: formatAmount(forecast.arrearsCents / 100)
       });
+      splitEl.textContent = creditCents > 0
+        ? `${splitText} · ${t('fcst_credit_applied', null, { amount: formatAmount(creditCents / 100) })}`
+        : splitText;
     }
     const runRateEl = $('#collectionForecastRunRate');
     if (runRateEl) {
@@ -3163,14 +3201,14 @@ function renderDashboard() {
       setupDashboardBriefingModal(state, referenceDate, { onToast: toast });
     }
   });
-  // QC-11: home top shortcuts — Quick Collect / Bulk Collect / Record
-  // Payment at the top of home, below the search. Each button reuses an
-  // existing opener; no new flow is built here. Record Payment reuses
-  // openAddPayment(), which itself routes to the Quick Collect modal
-  // (qc.open()) with a profile-form fallback — that IS the record-payment
-  // flow in this build, so the two shortcuts share a destination by
-  // design, not by duplication. Guarded like #homeActionDuesList above
-  // so a repeated renderDashboard() never double-wires.
+  // QC-11: home top shortcuts. Home Dashboard overhaul: the "Most
+  // used" row is gone — Quick Collect now leads the primary actions
+  // (data-shortcut="quick-collect", class home-top-shortcut) and is
+  // the only shortcut button left. Bulk Collect stays reachable from
+  // inside the QC sheet; Record Payment was the same flow as Quick
+  // Collect. The wiring below reuses the existing opener; no new
+  // flow is built here. Guarded so a repeated renderDashboard()
+  // never double-wires.
   document.querySelectorAll('.home-top-shortcut').forEach((btn) => {
     if (btn.dataset?.wiredTopShortcut) return;
     if (btn.dataset) btn.dataset.wiredTopShortcut = 'true';
@@ -13378,7 +13416,9 @@ setupKeyboardShortcuts({
     }
   },
   onToggleTheme: () => {
-    $('#themeToggle')?.click();
+    // Home Dashboard overhaul: the topbar #themeToggle moved into
+    // the nav drawer as #drawerThemeToggleBtn.
+    $('#drawerThemeToggleBtn')?.click();
   },
   onToggleDrawer: () => {
     $('#navDrawerToggle')?.click();
@@ -13406,7 +13446,9 @@ setupKeyboardShortcuts({
     $('#quickActionTileRounds')?.click();
   },
   onToggleLanguage: () => {
-    $('#languageToggleBtn')?.click();
+    // Home Dashboard overhaul: the topbar #languageToggleBtn moved
+    // into the nav drawer as #drawerLanguageToggleBtn.
+    $('#drawerLanguageToggleBtn')?.click();
   },
   onTopDefaulters: () => {
     $('#quickActionTopDefaulters')?.click();
@@ -13452,11 +13494,18 @@ mobileActionSheetController = setupMobileActionSheet({
       renderInventory();
       $('#movementItemId')?.focus();
     } else if (action === 'toggle-theme') {
-      $('#themeToggle')?.click();
+      // Home Dashboard overhaul: the topbar #themeToggle is gone —
+      // the theme control lives in the drawer header now.
+      $('#drawerThemeToggleBtn')?.click();
     } else if (action === 'keyboard-help') {
-      $('#shortcutsHelpButton')?.click();
+      // Home Dashboard overhaul: the topbar #shortcutsHelpButton is
+      // gone — the shortcuts control lives in the drawer footer now.
+      $('#navDrawerShortcutsBtn')?.click();
     } else if (action === 'command-palette') {
-      $('#commandPaletteTrigger')?.click();
+      // Home Dashboard overhaul: the topbar #commandPaletteTrigger
+      // is gone — the palette control lives in the drawer footer
+      // now (it closes the drawer and opens the palette).
+      $('#navDrawerCommandPaletteBtn')?.click();
     } else if (action === 'opm-tester') {
       mobileOpmTestingModalController?.open();
     } else if (action === 'vfl-tracer') {
@@ -13510,7 +13559,9 @@ const commandPalette = setupCommandPalette({
     }
   },
   onToggleTheme: () => {
-    $('#themeToggle')?.click();
+    // Home Dashboard overhaul: the topbar #themeToggle moved into
+    // the nav drawer as #drawerThemeToggleBtn.
+    $('#drawerThemeToggleBtn')?.click();
   },
   onToggleRail: () => {
     $('#sidebarRailToggle')?.click();

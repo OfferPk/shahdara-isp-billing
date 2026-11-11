@@ -28,6 +28,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   REVENUE_LEAK_EXPIRED_PAUSE, REVENUE_LEAK_MISSING_BILL, REVENUE_LEAK_ZERO_RATE,
+  REVENUE_LEAK_MISSING_SELLING_AMOUNT, REVENUE_LEAK_MISSING_PROVIDER_COST,
   buildRevenueLeakAudit, buildRevenueLeakSummary, lastPricedBillBefore,
   recordedPackagePrice, revenueLeaksForCustomer, scanRevenueLeaks
 } from '../revenue-leak-detector.js';
@@ -39,7 +40,7 @@ function customer(overrides = {}) {
   return {
     id: 'c1', customerNumber: 1, name: 'Test Customer', mohalla: 'BARRIAN',
     serviceStatus: 'active', archived: false, isFreeConnection: false,
-    packagePrice: 3000, monthlySellingAmount: 3000,
+    packagePrice: 3000, monthlySellingAmount: 3000, monthlyPurchaseCost: 1000,
     monthlyPriceSchedule: [{ effectiveMonth: '2026-01', amount: 3000 }],
     billingStartMonth: '2026-01',
     paused: false, pauseStartDate: null, autoResumeDate: null, pauseSkippedMonths: [],
@@ -170,20 +171,25 @@ test('missing-current-bill: without a schedule the estimate falls back to the la
   });
   delete record.packagePrice;
   const rows = buildRevenueLeakAudit({ customers: [record] }, TODAY);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].flag, REVENUE_LEAK_MISSING_BILL);
-  assert.equal(rows[0].estimatedMonthlyLeakage, 2000);
-  assert.equal(rows[0].estimateSource, 'last-priced-bill');
-  assert.equal(rows[0].estimateBillMonth, '2026-08');
+  // The record also has no selling amount, so it carries the
+  // missing-selling-amount flag too — the estimate assertion pins
+  // the missing-bill row, not the row count.
+  const missingBill = rows.find((row) => row.flag === REVENUE_LEAK_MISSING_BILL);
+  assert.ok(missingBill, 'missing-bill row present');
+  assert.equal(missingBill.estimatedMonthlyLeakage, 2000);
+  assert.equal(missingBill.estimateSource, 'last-priced-bill');
+  assert.equal(missingBill.estimateBillMonth, '2026-08');
+  assert.ok(rows.some((row) => row.flag === REVENUE_LEAK_MISSING_SELLING_AMOUNT), 'unset selling amount is flagged alongside');
 });
 
 test('missing-current-bill: no recorded rate anywhere means a flag with a null estimate', () => {
   const record = customer({ packagePrice: null, monthlySellingAmount: null, monthlyPriceSchedule: [], bills: [] });
   delete record.packagePrice;
   const rows = buildRevenueLeakAudit({ customers: [record] }, TODAY);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].flag, REVENUE_LEAK_MISSING_BILL);
-  assert.equal(rows[0].estimatedMonthlyLeakage, null);
+  const missingBill = rows.find((row) => row.flag === REVENUE_LEAK_MISSING_BILL);
+  assert.ok(missingBill, 'missing-bill row present');
+  assert.equal(missingBill.estimatedMonthlyLeakage, null);
+  assert.ok(rows.some((row) => row.flag === REVENUE_LEAK_MISSING_SELLING_AMOUNT), 'unset selling amount is flagged alongside');
 });
 
 test('missing-current-bill: not flagged when billing has not started, the month is paused, or a bill exists', () => {
@@ -222,8 +228,9 @@ test('summary: counts by flag and totals across customers', () => {
   assert.equal(summary.totalEstimatedMonthlyLeakage, 5500);
   assert.deepEqual(buildRevenueLeakSummary([]), {
     count: 0, flaggedCustomers: 0,
-    counts: { 'zero-rate': 0, 'expired-pause': 0, 'missing-current-bill': 0 },
+    counts: { 'zero-rate': 0, 'expired-pause': 0, 'missing-current-bill': 0, 'missing-selling-amount': 0, 'missing-provider-cost': 0 },
     zeroRateCount: 0, expiredPauseCount: 0, missingBillCount: 0,
+    missingSellingAmountCount: 0, missingProviderCostCount: 0,
     totalEstimatedMonthlyLeakage: 0, totalEstimatedLeakage: 0
   });
 });
@@ -234,7 +241,11 @@ test('sort: largest known estimate first, flags without an estimate last', () =>
   const unknown = customer({ id: 'unknown', customerNumber: 3, packagePrice: null, monthlySellingAmount: null, monthlyPriceSchedule: [], bills: [] });
   delete unknown.packagePrice;
   const rows = buildRevenueLeakAudit({ customers: [small, big, unknown] }, TODAY);
-  assert.deepEqual(rows.map((row) => row.customerId), ['big', 'small', 'unknown']);
+  // The unknown record has no selling amount either, so it carries
+  // a second, estimate-less row (missing-selling-amount) after its
+  // missing-bill row — both sort last, after the known estimates.
+  assert.deepEqual(rows.map((row) => row.customerId), ['big', 'small', 'unknown', 'unknown']);
+  assert.deepEqual(rows.map((row) => row.flag), [REVENUE_LEAK_MISSING_BILL, REVENUE_LEAK_MISSING_BILL, REVENUE_LEAK_MISSING_BILL, REVENUE_LEAK_MISSING_SELLING_AMOUNT]);
 });
 
 test('revenueLeaksForCustomer mirrors the audit for a single customer', () => {
@@ -276,7 +287,11 @@ const REVLEAK_KEYS = [
   'revleak_title', 'revleak_sub', 'revleak_empty', 'revleak_total',
   'revleak_estimate', 'revleak_no_estimate', 'revleak_flag_zero',
   'revleak_flag_expired', 'revleak_flag_missing', 'revleak_zero_line',
-  'revleak_expired_line', 'revleak_missing_line'
+  'revleak_expired_line', 'revleak_missing_line',
+  // Home Dashboard overhaul: the raw exclusions paragraph's two
+  // counts surface as actionable audit flags now.
+  'revleak_flag_noprice', 'revleak_flag_nocost',
+  'revleak_noprice_line', 'revleak_nocost_line'
 ];
 
 test('i18n: every revleak key exists in both dictionaries', () => {

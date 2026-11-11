@@ -45,21 +45,26 @@ function qc11Block() {
 
 // --- Behaviour: the three shortcuts exist and sit at the top of home ---
 
-test('top shortcuts section exists with three buttons, one per flow', () => {
-  assert.ok(html.includes('class="home-top-shortcuts"'), 'missing .home-top-shortcuts section');
-  for (const kind of ['quick-collect', 'bulk-collect', 'record-payment']) {
-    assert.ok(html.includes(`data-shortcut="${kind}"`), `missing shortcut button ${kind}`);
-  }
+test('top shortcuts: the "Most used" row is gone — Quick Collect alone leads the primary actions', () => {
+  // Home Dashboard overhaul: the .home-top-shortcuts section is
+  // DELETED. Quick Collect (data-shortcut="quick-collect") now
+  // leads #homePrimaryActions; Bulk Collect stays reachable from
+  // inside the QC sheet and Record Payment was the same flow as
+  // Quick Collect, so neither shortcut button survives on Home.
+  assert.ok(!html.includes('class="home-top-shortcuts"'), 'the Most-used row is gone');
+  assert.ok(html.includes('data-shortcut="quick-collect"'), 'Quick Collect shortcut survives');
   const kinds = [...html.matchAll(/data-shortcut="([a-z-]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(kinds, ['quick-collect', 'bulk-collect', 'record-payment']);
+  assert.deepEqual(kinds, ['quick-collect']);
+  assert.ok(html.indexOf('data-shortcut="quick-collect"') > html.indexOf('id="homePrimaryActions"'), 'Quick Collect sits inside the primary actions');
 });
 
-test('top shortcuts sit below the search and above the KPI strip and the old tiles', () => {
-  const section = html.indexOf('home-top-shortcuts');
-  assert.ok(section > html.indexOf('global-search-region'), 'shortcuts must sit below the global search');
-  assert.ok(section > html.indexOf('dashboard-heading'), 'shortcuts must sit inside the dashboard, after its heading');
-  assert.ok(section < html.indexOf('homeKpiStrip'), 'shortcuts must sit above the KPI strip');
-  assert.ok(section < html.indexOf('homePrimaryActions'), 'shortcuts must sit above the existing primary-actions tiles');
+test('Quick Collect tile sits below the search and the KPI strip, first in the primary actions', () => {
+  const tile = html.indexOf('data-shortcut="quick-collect"');
+  assert.ok(tile > html.indexOf('global-search-region'), 'Quick Collect must sit below the global search');
+  assert.ok(tile > html.indexOf('dashboard-heading'), 'Quick Collect must sit inside the dashboard, after its heading');
+  assert.ok(tile > html.indexOf('homeKpiStrip'), 'Quick Collect must sit below the KPI strip');
+  assert.ok(tile > html.indexOf('id="homePrimaryActions"'), 'Quick Collect must sit inside the primary-actions region');
+  assert.ok(tile < html.indexOf('id="quickActionAddCustomer"'), 'Quick Collect must lead the primary actions');
 });
 
 test('Quick Collect shortcut opens the existing Quick Collect modal', () => {
@@ -124,19 +129,24 @@ test('the QC-11 CSS block introduces no new hex colour', () => {
 
 // --- Pins: nothing existing moves, nothing is duplicated ---
 
-test('pin: the 5 existing home tiles stay, in the same order', () => {
-  const ids = [
-    'quickActionReceivePayment',
-    'quickActionAddCustomer',
-    'homeActionDuesList',
-    'quickActionDailyClosing',
-    'quickActionInstallationDashboard',
+test('pin: Home keeps exactly 4 quick actions, in order — Quick Collect, Add Customer, Dues List, Installation', () => {
+  // Home Dashboard overhaul: the 5-tile pin is SUPERSEDED — the
+  // "Most used" row is gone, Receive Payment (same flow as Quick
+  // Collect) and Daily Closing (already in the More menu) are
+  // deleted, and Quick Collect now leads the primary actions.
+  const markers = [
+    'data-shortcut="quick-collect"',
+    'id="quickActionAddCustomer"',
+    'id="homeActionDuesList"',
+    'id="quickActionInstallationDashboard"',
   ];
-  const positions = ids.map((id) => html.indexOf(`id="${id}"`));
-  for (let i = 0; i < ids.length; i++) {
-    assert.ok(positions[i] >= 0, `missing existing tile ${ids[i]}`);
-    if (i > 0) assert.ok(positions[i] > positions[i - 1], `existing tile order changed at ${ids[i]}`);
+  const positions = markers.map((m) => html.indexOf(m));
+  for (let i = 0; i < markers.length; i++) {
+    assert.ok(positions[i] >= 0, `missing quick action ${markers[i]}`);
+    if (i > 0) assert.ok(positions[i] > positions[i - 1], `quick action order changed at ${markers[i]}`);
   }
+  assert.ok(!html.includes('id="quickActionReceivePayment"'), 'Receive Payment tile is gone');
+  assert.ok(!html.includes('id="quickActionDailyClosing"'), 'Daily Closing tile is gone');
 });
 
 test('pin: Payment lo still opens Quick Collect (onReceivePayment unchanged)', () => {

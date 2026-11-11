@@ -246,16 +246,25 @@ test('live bugs: the topbar QR / language / field-mode buttons use ds-icons, not
   const field = html.slice(html.indexOf('id="fieldModeToggleBtn"'), html.indexOf('</button>', html.indexOf('id="fieldModeToggleBtn"')));
   assert.ok(field.includes('data-ds-icon="Bike"'), 'field-mode button carries the Bike hook');
   assert.ok(!field.includes('🏍️'), 'field-mode button has no motorcycle emoji left');
-  assert.equal((html.match(/class="lang-icon" data-ds-icon="Globe"/g) || []).length, 2, 'both language toggles carry the Globe hook');
+  // Home Dashboard overhaul: the language toggle moved from the
+  // topbar into the nav drawer header — only ONE Globe hook
+  // remains (the mobile-More language toggle id is wired in
+  // nav-language.js but has no element in the markup).
+  assert.equal((html.match(/class="lang-icon" data-ds-icon="Globe"/g) || []).length, 1, 'the drawer language toggle carries the Globe hook');
   assert.ok(!html.includes('<span class="lang-icon" aria-hidden="true">🌐</span>'), 'no globe-emoji language icon survives');
   assert.ok(isDsIconName('QrCode') && isDsIconName('Globe') && isDsIconName('Bike'), 'all three names resolve in ds-icons.js');
   assert.ok(dsIcon('Globe', 20).includes('<svg'), 'Globe renders an SVG');
   assert.ok(dsIcon('Bike', 20).includes('<svg'), 'Bike renders an SVG');
 });
 
-test('live bugs: the topbar cannot crush at phone widths — operator toggle hides, backup pins to 38px', () => {
+test('live bugs: the topbar cannot crush at phone widths — operator toggle lives in the drawer, backup pins to 38px', () => {
   const css = read('styles.css');
-  assert.ok(css.includes('.topbar #operatorModeToggleBtn { display: none; }'), 'the text operator toggle hides at <=480px');
+  // Home Dashboard overhaul: the operator toggle moved from the
+  // topbar into the nav drawer footer — the topbar display:none
+  // rule is deleted with it; the toggle is not a topbar element
+  // any more.
+  assert.ok(!css.includes('.topbar #operatorModeToggleBtn'), 'no topbar-scoped operator rule survives');
+  assert.ok(read('index.html').includes('id="operatorModeToggleBtn"'), 'operator toggle lives in the drawer footer');
   assert.ok(css.includes('.topbar .backup-health-badge { flex: 0 0 auto; width: 38px; min-width: 38px; padding: 0; justify-content: center; }'),
     'the backup pill pins to a 38px dot instead of crushing to a 14px strip');
   assert.ok(css.includes('.topbar #fieldModeToggleBtn { width: 38px; height: 38px; min-height: 38px;'),

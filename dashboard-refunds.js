@@ -79,4 +79,10 @@ export function renderDashboardRefunds(doc, summary) {
   if (lineEl) lineEl.textContent = refundsCountText(summary);
   const emptyEl = doc.getElementById('rfdRefundEmpty');
   if (emptyEl) emptyEl.hidden = (summary.count ?? 0) > 0;
+  // Home Dashboard overhaul: a zero card hides itself — with no
+  // refunds this month there is no refund figure to show, so the
+  // whole section stays out of the Collect tab until a refund is
+  // actually given.
+  const sectionEl = doc.getElementById('refundsSection');
+  if (sectionEl) sectionEl.hidden = (summary.count ?? 0) === 0;
 }

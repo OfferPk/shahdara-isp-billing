@@ -25,8 +25,11 @@
  * bank transfer and lands in the bank transfer figure, and a
  * cheque-labelled entry from an older or imported record reads as
  * other, never forced into a group it does not belong to. A day
- * with no payments yet reads zero, never a blank. All money is
- * PKR only, never converted to any other currency.
+ * with no payments yet reads zero, never a blank. Only method
+ * groups with money today are shown: a zero group still reads
+ * PKR 0 in the data but is hidden from the strip, so the strip
+ * never lists empty rows. All money is PKR only, never converted
+ * to any other currency.
  */
 
 import { calculateDailyClosingSummary, formatDateYmd, escapeHtml } from './dashboard-daily-closing.js';
@@ -86,17 +89,17 @@ export function calculateMethodStrip(state, referenceDate) {
 }
 
 /**
- * Builds the strip rows HTML: one row per method group, in the
- * filter's own order, with the method label, the PKR amount, and
- * the payment count. A group with no payments today still reads
- * PKR 0, never a blank.
+ * Builds the strip rows HTML: one row per method group with money
+ * today, in the filter's own order, with the method label, the PKR
+ * amount, and the payment count. A group with no payments today is
+ * hidden, never a PKR 0 row.
  *
  * @param {Object} summary - Output of calculateMethodStrip
  * @returns {string} The row items HTML
  */
 export function methodStripSectionHtml(summary) {
   const methods = Array.isArray(summary?.methods) ? summary.methods : [];
-  return methods.map((method) => {
+  return methods.filter((method) => (method.amountCents ?? 0) > 0 || (method.count ?? 0) > 0).map((method) => {
     const countText = t(method.count === 1 ? 'dash_methodstrip_payments_sing' : 'dash_methodstrip_payments_plur', null, { count: method.count });
     return `<li><span class="provider-breakdown-name">${escapeHtml(method.label)}</span><strong>${escapeHtml(formatPKR((method.amountCents ?? 0) / 100))}</strong><span class="provider-breakdown-meta">${escapeHtml(countText)}</span></li>`;
   }).join('');

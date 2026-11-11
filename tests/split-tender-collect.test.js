@@ -20,14 +20,23 @@ import { readFileSync } from 'node:fs';
 import {
   saveBillMonth, calculatePaymentAllocations, derivedBillStatus,
   createInitialState, createJsonBackup, previewJsonBackupMerge,
-  readState, correctPayment
+  readState, correctPayment, updateCustomerProfile,
+  generateMonthlyBillsThroughCurrentMonth, applyLateFeeToBill
 } from '../core.js';
 import { executeQuickCollection } from '../nav-quick-collect.js';
 import {
   executeSplitTenderCollection, validateSplitTender, splitTenderOf,
   splitPaymentsOf, buildSplitTenderReceipt, formatSplitTenderWhatsAppText,
-  generateSplitTenderReceiptHtml, splitBadgeMarkup
+  generateSplitTenderReceiptHtml, renderSplitReceiptCardHtml, splitBadgeMarkup
 } from '../split-tender-collect.js';
+// Sharafat 1: the readers for the fields a split used to drop — the
+// same defensive readers the combined receipt and the Transactions
+// rows already use, so the tests assert what the ledger actually
+// recorded, never the form's intent.
+import { lateFeeWaiverOf } from '../late-fee-waiver.js';
+import { overpaymentChoiceOf } from '../overpayment-choice.js';
+import { excessCashNoteOf } from '../excess-cash-note.js';
+import { remainderWaadaOf, REMAINDER_WAADA_NOTE } from '../waada-queue.js';
 import { collectDirectCashPayments } from '../roznamcha.js';
 import { buildWalletReconciliation } from '../wallet-reconciliation.js';
 import { collectShopPayments } from '../shop-settlement.js';
@@ -503,4 +512,259 @@ test('wiring pins: dialog fields exist, the QC modal imports the module, app.js 
   assert.match(qcSource, /senderDigits: \(splitSenderDigitsInput\?\.value \|\| ''\)\.trim\(\)/);
   const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.match(appSource, /splitBadgeMarkup/);
+});
+
+// --- Sharafat 1: split legs keep the collection note, category tag,
+// promise link, waiver, overpayment choice, excess note and
+// remainder waada — the fields a split used to drop silently. ---
+
+// A bill carrying a late fee, built the same way the waiver tests
+// build theirs (real profile + real monthly bill + real fee).
+function feeFixture({ principal = 3000, fee = 150, secondDue = 0 } = {}) {
+  const oct1 = new Date(2026, 9, 1, 12);
+  let state = createInitialState(['Sharafat One']);
+  const id = state.customers[0].id;
+  state = updateCustomerProfile(state, id, { packageSpeed: '15Mbps Unlimited', monthlySellingAmount: principal }, oct1);
+  state = generateMonthlyBillsThroughCurrentMonth(state, oct1);
+  state = applyLateFeeToBill(state, id, MONTH, { amount: fee, reason: 'Late payment surcharge' }, oct1);
+  if (secondDue > 0) {
+    // The second bill is next month's, so it is priced against a
+    // November reference — saveBillMonth only accepts months within
+    // the last 24 months of the reference date.
+    state = saveBillMonth(state, id, { month: '2026-11', dueAmount: secondDue, status: 'pending' }, new Date('2026-11-05T12:00:00+05:00'));
+  }
+  return { state, id };
+}
+const feeBillOf = (state, id, month = MONTH) => state.customers.find(c => c.id === id).bills.find(b => b.month === month);
+const feeBalanceOf = (state, id, month = MONTH) => calculatePaymentAllocations(state).forMonth(id, month)?.balanceDueCents / 100;
+
+test('Sharafat 1: a split with a collection note, a category tag and a promise link keeps all three on BOTH legs, the combined receipt and the shared drafts', () => {
+  const { nextState, combinedReceipt } = run(fixture(), {
+    ...SPEC_SPEC,
+    collectedBy: 'Saad',
+    collectionPlace: 'field',
+    collectionMohalla: 'Gangall',
+    urduNote: 'شکریہ',
+    categoryTag: 'collection',
+    promiseLink: { promiseId: 'p-1' }
+  });
+  const [p1, p2] = billOf(nextState).payments;
+
+  // Both legs are indistinguishable from a normal single payment
+  // carrying the same fields.
+  for (const payment of [p1, p2]) {
+    assert.equal(payment.collectedBy, 'Saad');
+    assert.equal(payment.collectionPlace, 'field');
+    assert.equal(payment.collectionMohalla, 'Gangall');
+    assert.equal(payment.urduNote, 'شکریہ');
+    assert.equal(payment.categoryTag, 'collection');
+    assert.deepEqual(payment.promiseLink, { promiseId: 'p-1', date: '2026-10-29' });
+  }
+
+  // The combined receipt reads them off the saved records.
+  assert.equal(combinedReceipt.collectedBy, 'Saad');
+  assert.equal(combinedReceipt.collectionPlace, 'field');
+  assert.equal(combinedReceipt.collectionMohalla, 'Gangall');
+  assert.equal(combinedReceipt.urduNote, 'شکریہ');
+  assert.equal(combinedReceipt.categoryTag, 'collection');
+  assert.deepEqual(combinedReceipt.promiseLink, { promiseId: 'p-1', date: '2026-10-29' });
+
+  // The shared drafts print them — the note in plain words, the
+  // Urdu note, the tag, and the promise the COMBINED tender
+  // fulfils (its total, its date).
+  const text = formatSplitTenderWhatsAppText(combinedReceipt);
+  assert.ok(text.includes('Collected by Saad'), 'WhatsApp prints the collector');
+  assert.ok(text.includes('Gangall'), 'WhatsApp prints the mohalla');
+  assert.ok(text.includes('شکریہ'), 'WhatsApp prints the Urdu note');
+  assert.ok(text.includes('Collection'), 'WhatsApp prints the tag');
+  assert.ok(text.includes('Fulfils promise p-1 — Rs 3000 on 2026-10-29'), 'WhatsApp names the combined tender as the fulfilling payment');
+  const html = generateSplitTenderReceiptHtml(combinedReceipt);
+  assert.ok(html.includes('Saad'), 'HTML sheet prints the collector');
+  assert.ok(html.includes('Gangall'), 'HTML sheet prints the mohalla');
+  assert.ok(html.includes('شکریہ'), 'HTML sheet prints the Urdu note');
+  assert.ok(html.includes('Fulfils promise p-1 — Rs 3000 on 2026-10-29'), 'HTML sheet prints the promise line');
+});
+
+test('Sharafat 1: a waiver rides leg 2 when leg 1 alone does not cover the principal but the combined tender does', () => {
+  const { state, id } = feeFixture(); // Rs. 3,000 principal + Rs. 150 fee
+  assert.equal(feeBalanceOf(state, id), 3150, 'precondition: 3,000 principal + 150 late fee due');
+  const { nextState, combinedReceipt } = executeSplitTenderCollection(state, {
+    customerId: id, month: MONTH, date: DATE, paidBy: 'Self',
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 1000, method: 'Easypaisa', transactionId: 'EP99887766' }
+    ],
+    waiveLateFee: true
+  }, { execute: executeQuickCollection, referenceDate: NOW });
+
+  // The fee is gone, exactly once, and the bill is settled.
+  const bill = feeBillOf(nextState, id);
+  assert.equal(bill.lateFee, 0);
+  assert.equal(feeBalanceOf(nextState, id), 0);
+  // Leg 1 carries no waiver; leg 2 — the leg that settled the bill —
+  // carries the audit pair.
+  const [p1, p2] = bill.payments;
+  assert.equal(lateFeeWaiverOf(p1), null, 'leg 1 waived nothing');
+  assert.equal(lateFeeWaiverOf(p2).waivedAmount, 150, 'leg 2 waived the whole remaining fee');
+  assert.equal(p2.lateFeeWaived, true);
+  // The combined receipt and the success card report the waiver.
+  assert.equal(combinedReceipt.lateFeeWaived, true);
+  assert.equal(combinedReceipt.waivedAmount, 150);
+  const card = renderSplitReceiptCardHtml(combinedReceipt);
+  assert.ok(card.includes('Late Fee'), 'card names the waived fee');
+  assert.ok(card.includes('PKR 150'), 'card prints the waived amount');
+});
+
+test('Sharafat 1: a waiver rides leg 1 when leg 1 alone already covers the principal', () => {
+  const { state, id } = feeFixture({ secondDue: 2000 }); // Oct 3,000 + 150 fee, Nov 2,000
+  const { nextState, combinedReceipt } = executeSplitTenderCollection(state, {
+    customerId: id, month: MONTH, date: DATE, paidBy: 'Self',
+    legs: [
+      { amount: 3000, method: 'Cash' },
+      { amount: 2000, method: 'Easypaisa', transactionId: 'EP99887766' }
+    ],
+    waiveLateFee: true
+  }, { execute: executeQuickCollection, referenceDate: NOW });
+
+  const octBill = feeBillOf(nextState, id);
+  const novBill = feeBillOf(nextState, id, '2026-11');
+  assert.equal(octBill.lateFee, 0, 'the October fee is waived');
+  assert.equal(feeBalanceOf(nextState, id), 0, 'October settled');
+  assert.equal(feeBalanceOf(nextState, id, '2026-11'), 0, 'leg 2 settled November');
+  const [p1, p2] = octBill.payments;
+  assert.equal(lateFeeWaiverOf(p1).waivedAmount, 150, 'leg 1 waived the fee — it settled the bill');
+  assert.equal(lateFeeWaiverOf(p2), null, 'leg 2 waived nothing');
+  assert.equal(combinedReceipt.lateFeeWaived, true);
+  assert.equal(combinedReceipt.waivedAmount, 150);
+});
+
+test('Sharafat 1: a waiver the combined tender cannot honour refuses the whole split loudly and records nothing', () => {
+  const { state, id } = feeFixture(); // Rs. 3,000 principal + Rs. 150 fee
+  assert.throws(() => executeSplitTenderCollection(state, {
+    customerId: id, month: MONTH, date: DATE, paidBy: 'Self',
+    legs: [
+      { amount: 1200, method: 'Cash' },
+      { amount: 800, method: 'Easypaisa', transactionId: 'EP99887766' }
+    ],
+    waiveLateFee: true
+  }, { execute: executeQuickCollection, referenceDate: NOW }), /full principal/);
+  // All-or-nothing: the input state is untouched, leg 1 included.
+  assert.equal(feeBillOf(state, id).payments.length, 0);
+  assert.equal(feeBillOf(state, id).lateFee, 150);
+  assert.equal(feeBalanceOf(state, id), 3150);
+});
+
+test('Sharafat 1: the overpayment choice rides the LAST leg only, with the extra over the COMBINED dues', () => {
+  const { nextState, combinedReceipt } = run(fixture(), {
+    ...SPEC_SPEC,
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 1500, method: 'Easypaisa', transactionId: 'EP99887766' }
+    ],
+    overpaymentChoice: 'advance',
+    overpaymentDuesCents: 300000
+  });
+  const [p1, p2] = billOf(nextState).payments;
+  // Leg 1 (Rs. 2,000 of Rs. 3,000 dues) carries no choice; leg 2
+  // carries the combined extra — Rs. 3,500 tendered minus Rs. 3,000
+  // dues — not its own Rs. 500 over the Rs. 1,000 left after leg 1.
+  assert.equal(overpaymentChoiceOf(p1), null, 'leg 1 carries no choice');
+  assert.deepEqual(overpaymentChoiceOf(p2), { choice: 'advance', extraCents: 50000 });
+  assert.deepEqual(combinedReceipt.overpaymentChoice, { choice: 'advance', extraCents: 50000 });
+  const text = formatSplitTenderWhatsAppText(combinedReceipt);
+  assert.ok(text.includes('Extra PKR 500 as advance'), 'WhatsApp prints the combined extra and its disposition');
+  const html = generateSplitTenderReceiptHtml(combinedReceipt);
+  assert.ok(html.includes('Extra PKR 500 as advance'), 'HTML sheet prints the combined extra and its disposition');
+});
+
+test('Sharafat 1: the excess-cash note rides the LAST leg only, with the extra over the COMBINED dues', () => {
+  const { nextState, combinedReceipt } = run(fixture(), {
+    ...SPEC_SPEC,
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 1500, method: 'Easypaisa', transactionId: 'EP99887766' }
+    ],
+    excessCashNote: 'change',
+    excessCashDuesCents: 300000
+  });
+  const [p1, p2] = billOf(nextState).payments;
+  assert.equal(excessCashNoteOf(p1), null, 'leg 1 carries no note');
+  assert.deepEqual(excessCashNoteOf(p2), { purpose: 'change', extraCents: 50000 });
+  assert.deepEqual(combinedReceipt.excessCashNote, { purpose: 'change', extraCents: 50000 });
+  const text = formatSplitTenderWhatsAppText(combinedReceipt);
+  assert.ok(text.includes('Extra PKR 500 — change to return'), 'WhatsApp prints the combined extra and its purpose');
+});
+
+test('Sharafat 1: the remainder-waada date rides the LAST leg, with the post-split remainder', () => {
+  const { nextState, combinedReceipt } = run(fixture(), {
+    ...SPEC_SPEC,
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 500, method: 'Easypaisa', transactionId: 'EP99887766' }
+    ],
+    remainderWaadaDate: '2026-11-05'
+  });
+  const [p1, p2] = billOf(nextState).payments;
+  assert.equal(remainderWaadaOf(p1), null, 'leg 1 carries no waada');
+  assert.deepEqual(remainderWaadaOf(p2), { promiseDate: '2026-11-05', promiseAmount: 500 });
+  // The waada persists with the payment, through the real SISP-3
+  // fields, with the remainder after BOTH legs (3,000 − 2,500).
+  const customer = nextState.customers[0];
+  assert.equal(customer.promiseDate, '2026-11-05');
+  assert.equal(customer.promiseAmount, 500);
+  assert.equal(customer.promiseNote, REMAINDER_WAADA_NOTE);
+  assert.deepEqual(combinedReceipt.remainderWaada, { promiseDate: '2026-11-05', promiseAmount: 500 });
+  const text = formatSplitTenderWhatsAppText(combinedReceipt);
+  assert.ok(text.includes('Baqi Rs. 500 • Waada: 2026-11-05'), 'WhatsApp prints the remainder waada beside the balance');
+  const card = renderSplitReceiptCardHtml(combinedReceipt);
+  assert.ok(card.includes('Baqi Rs. 500 • Waada: 2026-11-05'), 'card prints the remainder waada');
+});
+
+test('Sharafat 1: a split with none of the fields records and renders exactly as before', () => {
+  const { nextState, combinedReceipt } = run(fixture());
+  const [p1, p2] = billOf(nextState).payments;
+  // No leg carries any of the fields.
+  for (const payment of [p1, p2]) {
+    assert.equal(payment.collectedBy, undefined);
+    assert.equal(payment.collectionPlace, undefined);
+    assert.equal(payment.collectionMohalla, undefined);
+    assert.equal(payment.urduNote, undefined);
+    assert.equal(payment.categoryTag, undefined);
+    assert.equal(payment.promiseLink, undefined);
+    assert.equal(lateFeeWaiverOf(payment), null);
+    assert.equal(overpaymentChoiceOf(payment), null);
+    assert.equal(excessCashNoteOf(payment), null);
+    assert.equal(remainderWaadaOf(payment), null);
+  }
+  // The combined receipt defaults to empty / null / false / 0.
+  assert.equal(combinedReceipt.collectedBy, '');
+  assert.equal(combinedReceipt.collectionPlace, '');
+  assert.equal(combinedReceipt.collectionMohalla, '');
+  assert.equal(combinedReceipt.urduNote, '');
+  assert.equal(combinedReceipt.categoryTag, '');
+  assert.equal(combinedReceipt.promiseLink, null);
+  assert.equal(combinedReceipt.lateFeeWaived, false);
+  assert.equal(combinedReceipt.waivedAmount, 0);
+  assert.equal(combinedReceipt.overpaymentChoice, null);
+  assert.equal(combinedReceipt.excessCashNote, null);
+  assert.equal(combinedReceipt.remainderWaada, null);
+  // No collection block on any surface.
+  const text = formatSplitTenderWhatsAppText(combinedReceipt);
+  assert.ok(!text.includes('Collection / وصولی'), 'WhatsApp prints no collection line');
+  assert.ok(!text.includes('Note / نوٹ'), 'WhatsApp prints no note line');
+  assert.ok(!text.includes('Category / زمرہ'), 'WhatsApp prints no tag line');
+  assert.ok(!text.includes('Fulfils promise'), 'WhatsApp prints no promise line');
+  assert.ok(!text.includes('🎟️'), 'WhatsApp prints no waiver line');
+  assert.ok(!text.includes('🪙'), 'WhatsApp prints no extra line');
+  assert.ok(!text.includes('Waada:'), 'WhatsApp prints no waada line');
+  const html = generateSplitTenderReceiptHtml(combinedReceipt);
+  assert.ok(!html.includes('Collection / وصولی'), 'HTML sheet prints no collection row');
+  assert.ok(!html.includes('Note / نوٹ'), 'HTML sheet prints no note row');
+  assert.ok(!html.includes('Category / زمرہ'), 'HTML sheet prints no tag row');
+  assert.ok(!html.includes('Promise / وعدہ'), 'HTML sheet prints no promise row');
+  assert.ok(!html.includes('Late Fee Waived'), 'HTML sheet prints no waiver row');
+  assert.ok(!html.includes('Waada / وعدہ'), 'HTML sheet prints no waada row');
+  const card = renderSplitReceiptCardHtml(combinedReceipt);
+  assert.ok(!card.includes('🎟️'), 'card prints no waiver row');
+  assert.ok(!card.includes('🤝'), 'card prints no waada row');
 });

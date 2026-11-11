@@ -1309,7 +1309,12 @@ dark base treatment. */
 subtle muted dash, never as a loud missing-value warning. */
 .profile-empty-value{color:var(--muted)}
 .archive-state-badge{background:#f1f5f2;color:#536a60}
-.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;margin-top:19px;padding-top:16px;border-top:1px solid #dce9e2}
+/* Profile "Clear dues" (2026-11-10): the header action group gains a
+fourth Row 1 button (Edit / Clear dues / Delete / Archive), so the
+base grid grows from three columns to four. The ≤800px and ≤620px
+rules already wrap the group into two columns, so they need no
+change — the four buttons land 2×2 there, with More actions below. */
+.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px;margin-top:19px;padding-top:16px;border-top:1px solid #dce9e2}
 .profile-action-group>button{min-height:44px;touch-action:manipulation}
 .profile-action-group .current-payment-shortcut{min-height:48px;justify-self:stretch;padding-inline:15px;font-size:12px;font-weight:700}
 .profile-action-group .secondary-button{min-height:44px}

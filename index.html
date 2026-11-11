@@ -26961,6 +26961,11 @@
 
       <!-- Step 1: Customer Picker (Tap 1) -->
       <div id="quickCollectStepPick" class="qc-step">
+        <!-- QC Cash Modal Overhaul: bill status + sort sit side by
+             side in one 2-column row (labels above their selects),
+             so the queue starts one screen earlier. The two labels
+             are unchanged; only their shared row is new. -->
+        <div class="qc-filter-row-2col">
         <!-- QC-12: bill-status dropdown above the search — Unpaid /
              Paid / All. One pool, two controls: this select and the
              filter chips below the search set the same picker pool,
@@ -26988,12 +26993,13 @@
             <option value="oldest" data-i18n="qc2_sort_oldest">Oldest due first</option>
           </select>
         </label>
+        </div>
 
         <div class="qc-search-box">
           <input id="quickCollectSearchInput"
                  type="search"
                  class="qc-search-input"
-                 placeholder="Search by name, #ID, phone, or area..."
+                 placeholder="Search name, #ID, phone, or area..."
                  aria-label="Search customers for quick collection"
                  autocomplete="off">
           <button id="quickCollectSearchClearBtn" class="qc-search-clear" type="button" aria-label="Clear search" hidden>×</button>
@@ -27010,7 +27016,7 @@
             Pending (<span id="quickCollectDuesCount">0</span>)
           </button>
           <button type="button" class="quick-collect-filter-chip" data-filter="high-dues" role="tab" aria-selected="false">
-            High Dues ≥ 2k (<span id="quickCollectHighDuesCount">0</span>)
+            High ≥ 2k (<span id="quickCollectHighDuesCount">0</span>)
           </button>
           <button type="button" class="quick-collect-filter-chip" data-filter="all" role="tab" aria-selected="false">
             All (<span id="quickCollectAllCount">0</span>)
@@ -27026,14 +27032,24 @@
 
         <p id="mhfMohallaFilterSummary" class="mhf-summary" aria-live="polite"></p>
 
-        <p id="rttRoundTotals" class="rtt-round-totals" aria-live="polite"></p>
+        <!-- QC Cash Modal Overhaul: the round total and today's
+             collected sit side by side in one compact 2-column
+             .ds-stat-box banner instead of two stacked lines. The
+             two elements and their live text are unchanged. -->
+        <div class="qc-round-banner">
+        <p id="rttRoundTotals" class="rtt-round-totals ds-stat-box" aria-live="polite"></p>
 
-        <div id="dtpDailyTargetProgress" aria-live="polite"></div>
+        <div id="dtpDailyTargetProgress" class="ds-stat-box" aria-live="polite"></div>
+        </div>
 
+        <!-- QC Cash Modal Overhaul: end-of-day summary + new customer
+             sit side by side in one 2-column button row (40px) instead
+             of two stacked full-width buttons. Both buttons and their
+             wiring are unchanged. -->
+        <div class="qc-picker-actions-row">
         <button id="edsEndOfDaySummaryButton" type="button" class="secondary-button eds-summary-button" aria-expanded="false" aria-controls="edsEndOfDaySummary">
-          🌙 End-of-day summary
+          <span data-ds-icon="Moon"></span> End-of-day summary
         </button>
-        <div id="edsEndOfDaySummary" class="eds-summary" role="region" aria-label="End-of-day summary" aria-live="polite" hidden></div>
 
         <!-- Plan 450: the new-customer quick-add on the picker step — a
              brand-new customer is added here (name, phone, mohalla,
@@ -27042,6 +27058,11 @@
         <button id="ncaNewCustomerButton" type="button" class="secondary-button" aria-expanded="false" aria-controls="ncaQuickAddForm">
           ＋ New customer
         </button>
+        </div>
+        <!-- The expanded summary stays full-width below the button row,
+             never a grid cell: it is rendered into this region by the
+             toggle, and hidden again by its own inline close. -->
+        <div id="edsEndOfDaySummary" class="eds-summary" role="region" aria-label="End-of-day summary" aria-live="polite" hidden></div>
         <form id="ncaQuickAddForm" class="qc-form" novalidate hidden></form>
 
         <div id="quickCollectCustomerList" class="qc-customer-list" role="region" aria-label="Subscribers list" tabindex="0">
@@ -27050,10 +27071,10 @@
 
         <div class="qc-picker-footer">
           <button id="quickCollectOpenOneScreenBtn" type="button" class="secondary-button" style="width:100%;font-size:0.85rem;">
-            ⚡ One-screen payment — customer, amount, method, save
+            <span data-ds-icon="Zap"></span> One-screen payment — customer, amount, method, save
           </button>
           <button id="quickCollectGoToTransactionsBtn" type="button" class="secondary-button" style="width:100%;font-size:0.85rem;">
-            📋 Switch to Full Ledger &amp; Transactions Table
+            <span data-ds-icon="ClipboardList"></span> Switch to Full Ledger &amp; Transactions Table
           </button>
         </div>
       </div>

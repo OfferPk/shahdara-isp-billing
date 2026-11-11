@@ -11,12 +11,13 @@ import { PUCHO_QUESTIONS, matchPuchoQuestions, answerPucho, puchoHtml, puchoCata
 import { createWhatsAppFollowupDraft } from './profile-ui.js';
 import { loadComplaints } from './complaint-register.js';
 import { groupAreasWithCounts } from './form-validation.js';
+import { t } from './nav-language.js';
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const $ = (selector, root=document) => root.querySelector(selector);
 const nameInitials = name => String(name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
 
-export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses, renderLoans, puchoData}) {
+export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, openAdditionalPendingDialog, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses, renderLoans, puchoData}) {
   let lastQuery = '';
   const months = () => monthsForHistory();
   const setText = (selector, value) => { const node=$(selector); if (node) node.textContent=String(value ?? ''); };
@@ -261,9 +262,14 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
       const templateOptions=[['friendly','Friendly reminder'],['overdue','Overdue reminder'],['final','Final reminder'],['payment-confirmation','Payment confirmation']].map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
       const draft=followupFor(row,'friendly',allocations,referenceDate);
       const contact=draft?`<a class="secondary-button recovery-whatsapp" href="${escapeHtml(draft.url)}" target="_blank" rel="noopener noreferrer" data-recovery-draft="${escapeHtml(row.customerId)}">Review WhatsApp draft</a>`:'<span class="recovery-no-contact">A saved full international WhatsApp number is required.</span>';
-      return `<article class="recovery-customer-card" data-recovery-customer="${escapeHtml(row.customerId)}"><div class="recovery-customer-head"><strong>#${row.customerNumber} ${escapeHtml(row.name)}${row.archived?' · Archived':''}</strong><span>${escapeHtml(row.package)} · ${escapeHtml(row.area)}</span></div><div class="recovery-customer-metrics"><span>Outstanding <strong>${escapeHtml(formatAmount(row.outstanding))}</strong></span><span>Oldest due <strong>${row.oldestDueDate?escapeHtml(row.oldestDueDate):'Not recorded'}</strong></span><span>Health <strong>${row.health.score===null?'Insufficient history':`${row.health.score}/100`}</strong></span><span>Priority <strong>${row.priorityScore}</strong></span></div><details class="recovery-reasons"><summary>Why this priority?</summary><ul>${row.reasons.map(reason=>`<li>${escapeHtml(reason)}</li>`).join('')}</ul></details><div class="recovery-customer-actions"><button class="secondary-button" type="button" data-open-recovery-customer="${escapeHtml(row.customerId)}">Billing history</button><label>Draft template<select data-recovery-template="${escapeHtml(row.customerId)}">${templateOptions}</select></label>${contact}</div></article>`;
+      return `<article class="recovery-customer-card" data-recovery-customer="${escapeHtml(row.customerId)}"><div class="recovery-customer-head"><strong>#${row.customerNumber} ${escapeHtml(row.name)}${row.archived?' · Archived':''}</strong><span>${escapeHtml(row.package)} · ${escapeHtml(row.area)}</span></div><div class="recovery-customer-metrics"><span>Outstanding <strong>${escapeHtml(formatAmount(row.outstanding))}</strong>${row.manualBaqayaCents>0?`<span>${escapeHtml(t('addpend_breakdown',null,{bill:formatAmount(row.billDues),additional:formatAmount(row.manualBaqaya)}))}</span>`:''}</span><span>Oldest due <strong>${row.oldestDueDate?escapeHtml(row.oldestDueDate):'Not recorded'}</strong></span><span>Health <strong>${row.health.score===null?'Insufficient history':`${row.health.score}/100`}</strong></span><span>Priority <strong>${row.priorityScore}</strong></span></div><details class="recovery-reasons"><summary>Why this priority?</summary><ul>${row.reasons.map(reason=>`<li>${escapeHtml(reason)}</li>`).join('')}</ul></details><div class="recovery-customer-actions"><button class="secondary-button" type="button" data-open-recovery-customer="${escapeHtml(row.customerId)}">Billing history</button>${row.archived?'':`<button type="button" class="additional-pending-btn" data-additional-pending="${escapeHtml(row.customerId)}" aria-label="${escapeHtml(t('addpend_edit'))}">${escapeHtml(t('recovery_add_amount'))}</button>`}<label>Draft template<select data-recovery-template="${escapeHtml(row.customerId)}">${templateOptions}</select></label>${contact}</div></article>`;
     }).join('')}</div>`:'<p class="empty-state">No recorded outstanding balances in this priority group.</p>'}</section>`).join('');
     host.querySelectorAll('[data-open-recovery-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openRecoveryCustomer)));
+    // Dues Add-amount: the recovery card's ＋ Add amount button opens
+    // the existing Additional Pending dialog (same wiring as the
+    // Customers card); the dialog sets the TOTAL additional amount,
+    // never an increment.
+    host.querySelectorAll('[data-additional-pending]').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();openAdditionalPendingDialog?.(button.dataset.additionalPending);}));
     host.querySelectorAll('[data-recovery-template]').forEach(select=>select.addEventListener('change',()=>{
       const row=result.groups.flatMap(group=>group.customers).find(item=>item.customerId===select.dataset.recoveryTemplate),anchor=select.closest('.recovery-customer-card')?.querySelector('[data-recovery-draft]');if(!row||!anchor)return;
       const draft=followupFor(row,select.value,allocations,referenceDate);

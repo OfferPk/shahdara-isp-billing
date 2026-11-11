@@ -297,15 +297,13 @@ textarea { line-height: 1.5; }
 .service-filter-toolbar .customer-filter-button { flex: 0 0 auto; }
 .service-count-badge { font-size: 12px; }
 .report-filters {
-  flex-wrap: nowrap;
+  /* Reports Tab: the pills wrapped on desktop but scrolled sideways on
+     phones, hiding filters behind a stray scrollbar. They wrap here
+     too, so every filter is visible without scrolling. */
+  flex-wrap: wrap;
   gap: 6px;
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
   padding: 2px 1px 6px;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
 }
 .report-filters .report-filter-button { flex: 0 0 auto; }
 .view-nav { gap: 8px; scrollbar-width: thin; }
@@ -1508,7 +1506,15 @@ subtle muted dash, never as a loud missing-value warning. */
   .mobile-more-menu .more-menu-ops-details .quick-action-label{font-size:11px;line-height:1.25;overflow-wrap:anywhere}
   .mobile-more-menu .more-menu-ops-details .quick-action-sub{font-size:9.5px;line-height:1.25;white-space:normal;overflow:visible;text-overflow:clip}
   .more-item-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0}
+  /* Reports Tab Part 2(f): the + speed-dial FAB floats above the bottom
+     nav (nav 60px + 16px gap + 50px FAB = 126px), so on the Monthly
+     Report screen the old 74px clearance let the last rows — e.g. a
+     sales-tax 'PKR 585' — slide underneath it. 142px clears the whole
+     FAB band plus breathing room. Scoped to the reports screen: the
+     global 74px rule stays for every other screen (the customers
+     screen drops main padding to 0 on its own). */
   main{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
+  body[data-screen="reports"] main{padding-bottom:calc(142px + env(safe-area-inset-bottom))}
   .app-footer{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
   .owner-command-panel,.owner-report-panel{padding:13px;margin:11px 0;border-radius:13px}
   .owner-command-heading{align-items:center}

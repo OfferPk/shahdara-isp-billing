@@ -376,10 +376,15 @@ test('wiring: the clear lives in the two render functions and the call-site coun
   // the APD chip handler's set — the clears themselves still live
   // only in the two render functions above, so the counts move by
   // exactly one each and nothing else changes.
+  // Sharafat 1: the leg-2 input is one more renderOverpaymentChoice
+  // site — typing the second leg re-offers the choice over the
+  // combined total. The clear still lives only in the render
+  // function above, so the count moves by exactly one and nothing
+  // else changes.
   assert.equal((src.match(/renderCashChange\(\)/g) || []).length, 13,
     'renderCashChange call sites unchanged (12 sites + definition)');
-  assert.equal((src.match(/renderOverpaymentChoice\(\)/g) || []).length, 11,
-    'renderOverpaymentChoice call sites unchanged (10 sites + definition)');
+  assert.equal((src.match(/renderOverpaymentChoice\(\)/g) || []).length, 12,
+    'renderOverpaymentChoice call sites unchanged (11 sites + definition)');
   // The submit handler still reads the checked radio the same way —
   // the clear only changes what is checked, never how it is read.
   assert.ok(src.includes("overpaymentChoiceBox?.querySelector('input[name=\"quickCollectOverpaymentChoice\"]:checked')"),

@@ -78,8 +78,8 @@ test('shipped roster: the default import on a blank store adds nobody and stamps
 test('planner: empty store adds all 6 synthetic entries in roster order', () => {
   const additions = planDefaultCustomerAdditions([], TEST_ROSTER);
   assert.equal(additions.length, 6);
-  assert.deepEqual(additions[0], { name: 'Test Alpha', mohalla: 'CHARYAA', free: false });
-  assert.deepEqual(additions.at(-1), { name: 'Test Free Line', mohalla: 'THALII', free: true });
+  assert.deepEqual(additions[0], { name: 'Test Alpha', mohalla: 'CHARYAA', free: false, nameUrdu: '' });
+  assert.deepEqual(additions.at(-1), { name: 'Test Free Line', mohalla: 'THALII', free: true, nameUrdu: '' });
   assert.equal(additions.filter((item) => item.free).length, 1);
 });
 
@@ -100,8 +100,27 @@ test('planner: a roster name missing entirely is added exactly once', () => {
   const applied = applyDefaultCustomerRoster(blankState(), REF_DATE, TEST_ROSTER);
   const withoutBeta = applied.customers.filter((customer) => customer.name !== 'Test Beta');
   assert.deepEqual(planDefaultCustomerAdditions(withoutBeta, TEST_ROSTER), [
-    { name: 'Test Beta', mohalla: 'CHARYAA', free: false }
+    { name: 'Test Beta', mohalla: 'CHARYAA', free: false, nameUrdu: '' }
   ]);
+});
+
+test('planner: a reviewed nameUrdu rides through the planner onto the record, and a re-run still adds 0', () => {
+  const roster = [
+    { name: 'Test Urdu One', mohalla: 'CHARYAA', nameUrdu: 'ٹیسٹ اردو ون' },
+    { name: 'Test Urdu Two', mohalla: 'BARRIAN' }
+  ];
+  const additions = planDefaultCustomerAdditions([], roster);
+  assert.deepEqual(additions, [
+    { name: 'Test Urdu One', mohalla: 'CHARYAA', free: false, nameUrdu: 'ٹیسٹ اردو ون' },
+    { name: 'Test Urdu Two', mohalla: 'BARRIAN', free: false, nameUrdu: '' }
+  ]);
+  const applied = applyDefaultCustomerRoster(blankState(), REF_DATE, roster);
+  assert.equal(applied.customers[0].nameUrdu, 'ٹیسٹ اردو ون');
+  assert.equal(applied.customers[1].nameUrdu, '');
+  // The reviewed spelling is stored as data — never transliterator
+  // output — and the planner stays idempotent with it.
+  assert.deepEqual(planDefaultCustomerAdditions(applied.customers, roster), []);
+  assert.equal(applyDefaultCustomerRoster(applied, REF_DATE, roster), applied);
 });
 
 test('planner: archived records do not count, and matching is case/space-insensitive', () => {

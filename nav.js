@@ -840,13 +840,13 @@ export function setupKeyboardShortcuts({
       if (altKeyLower === 'l') {
         event.preventDefault();
         if (typeof onToggleLanguage === 'function') onToggleLanguage();
-        else document.getElementById('languageToggleBtn')?.click();
+        else document.getElementById('drawerLanguageToggleBtn')?.click();
         return;
       }
       if (altKeyLower === 't') {
         event.preventDefault();
         if (typeof onToggleTheme === 'function') onToggleTheme();
-        else document.getElementById('themeToggle')?.click();
+        else document.getElementById('drawerThemeToggleBtn')?.click();
         return;
       }
     }
@@ -916,7 +916,7 @@ export function setupKeyboardShortcuts({
         if (typeof onToggleTheme === 'function') {
           onToggleTheme();
         } else {
-          document.getElementById('themeToggle')?.click();
+          document.getElementById('drawerThemeToggleBtn')?.click();
         }
         return;
       }
@@ -979,7 +979,7 @@ export function setupKeyboardShortcuts({
       if (keyLower === 'l') {
         event.preventDefault();
         if (typeof onToggleLanguage === 'function') onToggleLanguage();
-        else document.getElementById('languageToggleBtn')?.click();
+        else document.getElementById('drawerLanguageToggleBtn')?.click();
         return;
       }
     }

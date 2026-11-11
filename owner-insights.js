@@ -1,4 +1,4 @@
-import { calculatePaymentAllocations, monthsForHistory, summarizeCustomerReceipts, summarizeCustomerTenure } from './core.js';
+import { calculatePaymentAllocations, manualBaqayaOutstandingCents, monthsForHistory, summarizeCustomerReceipts, summarizeCustomerTenure } from './core.js';
 import { canonicalMohalla, canonicalPackage } from './phase3.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 
@@ -630,13 +630,22 @@ export function buildSmartDuesRecovery(state,referenceDate=new Date(),allocation
     const open=(customer.bills??[]).filter(bill=>validPrice(bill.dueAmount)).map(bill=>({bill,balance:Math.max(0,allocations.forMonth(customer.id,bill.month)?.balanceDueCents??cents(bill.dueAmount))})).filter(row=>row.balance>0);
     if(!open.length)continue;
     const behavior=buildCustomerPaymentBehavior(state,customer,referenceDate,allocations);
-    const outstandingCents=open.reduce((sum,row)=>sum+row.balance,0);
+    // Dues Add-amount (Option C): the list's Outstanding is the total
+    // the owner can collect — bill dues PLUS the customer's unpaid
+    // manual baqaya — but only for customers already listed here (an
+    // open priced bill, the QC-2 listing rule). A baqaya-only customer
+    // still never appears. The priority score stays bill-only on
+    // purpose: the scorer is shared with the QC-2 priority tiers,
+    // which must not move when a baqaya is added.
+    const billDuesCents=open.reduce((sum,row)=>sum+row.balance,0);
+    const manualBaqayaCents=manualBaqayaOutstandingCents(customer);
+    const totalOutstandingCents=billDuesCents+manualBaqayaCents;
     const overdueRows=open.map(row=>({date:row.bill.dueDate,days:/^\d{4}-\d{2}-\d{2}$/.test(row.bill.dueDate??'')?Math.max(0,daysBetween(dateFor(referenceDate),row.bill.dueDate)??0):null}));
     const knownOverdue=overdueRows.filter(row=>row.days!==null).map(row=>row.days);
     const longestOverdueDays=knownOverdue.length?Math.max(...knownOverdue):null;
     const monthlyValue=validPrice(customer.monthlySellingAmount)?Number(customer.monthlySellingAmount):null;
     const components={
-      amount:outstandingCents>=5000000?30:outstandingCents>=2500000?27:outstandingCents>=1000000?24:outstandingCents>=500000?20:outstandingCents>=250000?16:outstandingCents>=100000?12:6,
+      amount:billDuesCents>=5000000?30:billDuesCents>=2500000?27:billDuesCents>=1000000?24:billDuesCents>=500000?20:billDuesCents>=250000?16:billDuesCents>=100000?12:6,
       overdue:longestOverdueDays===null?0:longestOverdueDays>60?25:longestOverdueDays>30?18:longestOverdueDays>7?12:longestOverdueDays>0?5:0,
       history:behavior.health.score===null?10:Math.round((100-behavior.health.score)/5),
       latePayments:Math.min(15,behavior.latePaymentCount*3),
@@ -645,8 +654,8 @@ export function buildSmartDuesRecovery(state,referenceDate=new Date(),allocation
     const priorityScore=Object.values(components).reduce((sum,value)=>sum+value,0);
     const group=priorityScore>=65?'High Priority':priorityScore>=35?'Medium Priority':'Low Priority';
     const oldestBill=open.sort((a,b)=>(a.bill.dueDate??a.bill.month).localeCompare(b.bill.dueDate??b.bill.month))[0].bill;
-    const reasons=[`Outstanding ${pkr(outstandingCents)} (+${components.amount} amount points).`,longestOverdueDays===null?'Saved due date not available.':`${longestOverdueDays} days overdue (+${components.overdue} points).`,behavior.health.score===null?'Payment history is insufficient; neutral history points applied.':`Payment health ${behavior.health.score}/100 (+${components.history} history points).`,`${behavior.latePaymentCount} recorded late receipt${behavior.latePaymentCount===1?'':'s'} (+${components.latePayments} points).`,monthlyValue===null?'Monthly customer value not recorded.':`Saved monthly value ${pkr(cents(monthlyValue))} (+${components.customerValue} value points).`];
-    rows.push({customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,package:customer.packageSpeed||'Not recorded',area:customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',archived:customer.archived===true,phone:customer.phone||'',outstanding:amount(outstandingCents),outstandingCents,openBillCount:open.length,oldestDueDate:oldestBill.dueDate??null,longestOverdueDays,latePaymentCount:behavior.latePaymentCount,health:behavior.health,monthlyValue,priorityScore,group,components,reasons});
+    const reasons=[`Outstanding ${pkr(billDuesCents)} (+${components.amount} amount points).`,longestOverdueDays===null?'Saved due date not available.':`${longestOverdueDays} days overdue (+${components.overdue} points).`,behavior.health.score===null?'Payment history is insufficient; neutral history points applied.':`Payment health ${behavior.health.score}/100 (+${components.history} history points).`,`${behavior.latePaymentCount} recorded late receipt${behavior.latePaymentCount===1?'':'s'} (+${components.latePayments} points).`,monthlyValue===null?'Monthly customer value not recorded.':`Saved monthly value ${pkr(cents(monthlyValue))} (+${components.customerValue} value points).`];
+    rows.push({customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,package:customer.packageSpeed||'Not recorded',area:customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',archived:customer.archived===true,phone:customer.phone||'',outstanding:amount(totalOutstandingCents),outstandingCents:totalOutstandingCents,billDuesCents,manualBaqayaCents,billDues:amount(billDuesCents),manualBaqaya:amount(manualBaqayaCents),openBillCount:open.length,oldestDueDate:oldestBill.dueDate??null,longestOverdueDays,latePaymentCount:behavior.latePaymentCount,health:behavior.health,monthlyValue,priorityScore,group,components,reasons});
   }
   const groups=['High Priority','Medium Priority','Low Priority'].map(name=>{const customers=rows.filter(row=>row.group===name).sort((a,b)=>b.priorityScore-a.priorityScore||b.outstandingCents-a.outstandingCents);return{name,customers,count:customers.length,recoverableAmount:amount(customers.reduce((sum,row)=>sum+row.outstandingCents,0))};});
   return{asOf:dateFor(referenceDate),groups,totalCustomers:rows.length,totalRecoverable:amount(rows.reduce((sum,row)=>sum+row.outstandingCents,0)),formula:'Outstanding amount (6–30 points) + overdue days (0–25) + payment history (0–20; neutral if insufficient) + late receipts (0–15) + saved monthly value (0–10). High ≥65; Medium 35–64; Low <35. Due dates and profile value are never inferred.'};

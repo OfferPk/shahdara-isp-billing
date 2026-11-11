@@ -284,7 +284,12 @@ test('qc3 card rules are token-only, action buttons are 44px tappable', () => {
     assert.ok(rest.includes(hex), `QC-3 CSS introduces new hex ${hex} — reuse tokens`);
   }
   assert.ok(added.includes('min-height: 44px'), 'action buttons must be 44px tappable');
-  assert.ok(added.includes('var(--green)'), 'the Collect button must use the green token');
+  // QC Cash Modal Overhaul: Collect is a solid Emerald primary CTA
+  // now (DS-0 --ds-brand background, white text, bold) instead of
+  // the --green outline accent, so it reads as the one primary
+  // action against the outline Call / Location buttons.
+  assert.ok(added.includes('var(--ds-brand)'), 'the Collect button must use the DS-0 brand token');
+  assert.ok(added.includes('background: var(--ds-brand)'), 'the Collect button must be solid Emerald, not an outline');
   const wrapStart = stylesSrc.indexOf('.qc-customer-card.qc3-card');
   assert.ok(wrapStart >= 0, 'missing card wrapper rule (column layout)');
   const wrapBlock = stylesSrc.slice(wrapStart, stylesSrc.indexOf('}', wrapStart));

@@ -99,9 +99,13 @@ export function receiptNumberSearchLineText(query, row) {
 
 // The receipt line on a transaction row's details: '' when the row
 // carries no receipt number, so a row without one shows nothing
-// extra. Always escaped.
-export function receiptNumberSearchRowMarkup(row) {
-  const ref = receiptNumberOfRow(row);
+// extra. Always escaped. The caller may pass the same deterministic
+// deriver the receipt verification lookup uses, so a payment with
+// no stored number still shows its derived code (REC-…) — the
+// code the removed 'Today on this device' box used to show for
+// today's payments. Stored numbers always win over derived ones.
+export function receiptNumberSearchRowMarkup(row, deriveReceiptNumber) {
+  const ref = receiptNumberOfRow(row, deriveReceiptNumber);
   if (!ref) return '';
   return ` · Receipt ${escapeHtml(ref)}`;
 }

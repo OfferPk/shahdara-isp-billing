@@ -142,6 +142,14 @@ export function fullHistoryEntries(input = {}) {
     if (!bill || typeof bill !== 'object') continue;
     const chargeCents = rupeesToCents(bill.dueAmount);
     if (chargeCents === null || chargeCents <= 0) continue;
+    // Transactions Screen Overhaul (Plan 449): the bill's own
+    // recorded connection, carried onto its entries so the
+    // per-connection filter can separate them — until now no entry
+    // ever carried one, so a named-connection view was always empty
+    // and a second-connection payment was only ever visible under
+    // All connections. A bill that names no connection leaves its
+    // entries untagged; the filter never guesses a connection.
+    const billConnection = cleanHistoryText(bill.connection ?? bill.connectionId);
     entries.push({
       type: 'charge',
       date: historyEntryDate(bill.dueDate, bill.month),
@@ -152,6 +160,7 @@ export function fullHistoryEntries(input = {}) {
       method: '',
       ref: cleanHistoryText(bill.id),
       voided: false,
+      ...(billConnection ? { connection: billConnection } : {}),
     });
     const payments = Array.isArray(bill.payments) ? bill.payments : [];
     for (const payment of payments) {
@@ -159,6 +168,10 @@ export function fullHistoryEntries(input = {}) {
       const amountCents = rupeesToCents(payment.amount);
       if (amountCents === null || amountCents === 0) continue;
       const type = paymentHistoryType(payment);
+      // The payment's own recorded connection first; a payment
+      // recorded on a bill of one connection belongs to that
+      // connection, the same fallback the date and month already use.
+      const paymentConnection = cleanHistoryText(payment.connection ?? payment.connectionId ?? bill.connection ?? bill.connectionId);
       entries.push({
         type,
         date: historyEntryDate(payment.date, bill.month),
@@ -169,6 +182,7 @@ export function fullHistoryEntries(input = {}) {
         method: cleanHistoryText(payment.method),
         ref: cleanHistoryText(payment.id),
         voided: payment.voided === true,
+        ...(paymentConnection ? { connection: paymentConnection } : {}),
       });
     }
   }

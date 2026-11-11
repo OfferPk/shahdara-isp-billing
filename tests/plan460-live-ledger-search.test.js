@@ -161,7 +161,13 @@ test('wiring: the app imports the module and applies it in the ledger render', (
   const renderEnd = appSrc.indexOf('function reportStatusLabel(', renderStart);
   const renderBody = appSrc.slice(renderStart, renderEnd);
   assert.ok(renderBody.includes('normalizeLiveLedgerSearch(transactionLiveSearch)'), 'the render normalizes the typed live search');
-  assert.ok(renderBody.includes('searchLedgerLive(transactions, liveSearch.query)'), 'the render narrows the ledger with the live search');
+  // Transactions Screen Overhaul: the live search now runs through
+  // the unified search (live + reference + receipt in one bar) —
+  // the live match is still the foundation, inside that module.
+  assert.ok(renderBody.includes('searchLedgerUnified(transactions, liveSearch.query, { deriveReceiptNumber: generateReceiptNumber })'), 'the render narrows the ledger with the unified search');
+  const unifiedSrc = readFileSync(new URL('../ledger-unified-search.js', import.meta.url), 'utf8');
+  assert.ok(unifiedSrc.includes("from './ledger-live-search.js'"), 'the unified search still applies the live search');
+  assert.ok(unifiedSrc.includes('liveLedgerSearchMatches(entry, search.query)'), 'the unified search still matches names, phones, and amounts');
   assert.ok(renderBody.includes("$('#llsLiveSummary')"), 'the render updates the live summary line');
   assert.ok(renderBody.includes('ledgerLiveSearchSummaryText(transactions, liveSearch.query)'), 'the summary line shows the typed text, count, and total');
   assert.ok(renderBody.includes('ledgerLiveSearchEmptyText(liveSearch.query)'), 'an empty live search says so plainly');
@@ -176,16 +182,27 @@ test('wiring: typing in the live box re-renders the ledger and clearing the filt
   assert.ok(listenerBody.includes('renderTransactions()'), 'the listener re-renders the ledger');
   const clearStart = appSrc.indexOf("$('#clearTransactionFilters').addEventListener('click'");
   const clearBody = appSrc.slice(clearStart, clearStart + 1500);
-  assert.ok(clearBody.includes("$('#transactionLiveSearch')"), 'clearing the filters clears the live box');
-  assert.ok(clearBody.includes("transactionLiveSearch = '';"), 'clearing the filters clears the live search state');
+  assert.ok(clearBody.includes('resetTransactionFilterState()'), 'clearing the filters resets the transaction state');
+  assert.ok(clearBody.includes("transactionQuickPill = 'all'"), 'clearing the filters restores the All pill');
+  // Transactions Screen Overhaul: the per-field clearing moved into
+  // resetTransactionFilterState (shared with the All pill) — the
+  // clear button calls it, so the same state is reset both ways.
+  const resetStart = appSrc.indexOf('function resetTransactionFilterState()');
+  const resetBody = appSrc.slice(resetStart, resetStart + 2900);
+  assert.ok(resetBody.includes("$('#transactionLiveSearch')"), 'the reset clears the live box');
+  assert.ok(resetBody.includes("transactionLiveSearch = '';"), 'the reset clears the live search state');
 });
 
 test('wiring: the page carries the live search box and the live summary line', () => {
   assert.ok(page.includes('id="transactionLiveSearch"'), 'the Transactions screen has a live search box');
   assert.ok(page.includes('id="llsLiveSummary"'), 'the live summary line exists in the summary bar');
-  const filtersStart = page.indexOf('<div class="transaction-filters">');
-  const filtersEnd = page.indexOf('</div>', page.indexOf('id="rnsReceiptSearchForm"'));
-  const filtersBody = page.slice(filtersStart, filtersEnd);
-  assert.ok(filtersBody.includes('for="transactionLiveSearch"'), 'the live search box is labelled');
-  assert.ok(filtersBody.includes('type="search"'), 'the live search box is a search input');
+  // Transactions Screen Overhaul: the live box moved out of the
+  // filters panel into the top search bar, with an accessible label
+  // instead of a <label> — it is a search input either way.
+  const topbarStart = page.indexOf('<div class="tx-topbar">');
+  const topbarEnd = page.indexOf('id="txAdvancedFilters"');
+  const topbarBody = page.slice(topbarStart, topbarEnd);
+  assert.ok(topbarBody.includes('id="transactionLiveSearch"'), 'the live search box sits in the top bar');
+  assert.ok(topbarBody.includes('aria-label="Search payments by name, phone, amount, reference, or receipt number"'), 'the live search box is labelled');
+  assert.ok(topbarBody.includes('type="search"'), 'the live search box is a search input');
 });

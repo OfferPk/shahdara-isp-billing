@@ -194,15 +194,20 @@ test('wiring: typing a reference re-renders the ledger and clearing the filters 
   assert.ok(listenerBody.includes('transactionCurrentPage = 1'), 'the listener restarts at the first page');
   assert.ok(listenerBody.includes('renderTransactions()'), 'the listener re-renders the ledger');
   const clearStart = appSrc.indexOf("$('#clearTransactionFilters').addEventListener('click'");
-  const clearBody = appSrc.slice(clearStart, clearStart + 4500);
-  assert.ok(clearBody.includes("$('#transactionReferenceSearch')"), 'clearing the filters clears the reference box');
-  assert.ok(clearBody.includes('transactionReferenceSearch = '), 'clearing the filters resets the reference state');
+  const clearBody = appSrc.slice(clearStart, clearStart + 1500);
+  assert.ok(clearBody.includes('resetTransactionFilterState()'), 'clearing the filters resets the transaction state');
+  // Transactions Screen Overhaul: the per-field clearing moved into
+  // resetTransactionFilterState (shared with the All pill).
+  const resetStart = appSrc.indexOf('function resetTransactionFilterState()');
+  const resetBody = appSrc.slice(resetStart, resetStart + 2900);
+  assert.ok(resetBody.includes("$('#transactionReferenceSearch')"), 'the reset clears the reference box');
+  assert.ok(resetBody.includes('transactionReferenceSearch = '), 'the reset resets the reference state');
 });
 
 test('wiring: the page carries the reference box and the reference summary line', () => {
   assert.ok(page.includes('id="transactionReferenceSearch"'), 'the Transactions screen has a reference search box');
   assert.ok(page.includes('id="lrsReferenceSummary"'), 'the reference summary line exists in the summary bar');
-  const filtersStart = page.indexOf('<div class="transaction-filters">');
+  const filtersStart = page.indexOf('<div class="transaction-filters" id="txAdvancedFilters" hidden>');
   const filtersEnd = page.indexOf('</div>', page.indexOf('id="rnsReceiptSearchForm"'));
   const filtersBody = page.slice(filtersStart, filtersEnd);
   assert.ok(filtersBody.includes('for="transactionReferenceSearch"'), 'the reference box is labelled');

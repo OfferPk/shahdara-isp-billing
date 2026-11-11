@@ -3468,19 +3468,28 @@ button.field-dispatch-item { cursor: pointer; }
    Token-only (dark-mode safe). The button is an info control, never a
    close control — the popup itself uses the shared dialog.billing-modal
    shell (var(--modal-surface)) and the unified .close-btn. */
-.help-info-btn {
+button:not([hidden]).help-info-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
+  min-height: 28px !important;
   /* Home Dashboard overhaul: the global button min-height rule
      (styles.css:782) floors every button at 44px, which stretched
      this 28px circle into a vertical oval on the At-Risk Loyal
      Customers and Revenue Leak Audit headers — the same root cause
      as the profile (i) oval and the QC modal (i) oval. The floor
-     is lifted here so the button stays a clean 28x28 circle. */
-  min-height: 28px;
+     is lifted here with !important AND a heavier selector:
+     `button:not([hidden]).help-info-btn` scores (0,2,1), which
+     beats the global `button:not([hidden])` rule (0,1,1); the
+     plain class selector (0,1,0) lost to it and every (i) still
+     rendered as a 28x44 oval — the !important alone was never
+     enough, because both rules carry !important and specificity
+     decides. The two 44px variants below set an explicit
+     height: 44px, so they are unaffected by the lower floor.
+     Transactions Screen Overhaul: third instance of the
+     same family, on the Transactions count row. */
   margin-inline-start: var(--space-2);
   padding: 0;
   border: 1px solid var(--line);

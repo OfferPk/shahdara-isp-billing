@@ -3215,7 +3215,12 @@ export function syncMobileBottomNav(screen, hash) {
   const speedDial = typeof document.getElementById === 'function' ? document.getElementById('mobileSpeedDial') : null;
   if (speedDial && speedDial.classList && typeof speedDial.classList.toggle === 'function') {
     const hasOpenDialog = Boolean(typeof document.querySelector === 'function' && document.querySelector('dialog[open], .mobile-action-sheet.is-open'));
-    speedDial.classList.toggle('is-suppressed', isMoreOpen || hasOpenDialog);
+    // Transactions Screen Overhaul: the FAB stays hidden on the
+    // Transactions view — the full-width "+ Add Payment" CTA is
+    // already at the top, and the floating button covers amounts
+    // on the rows below it.
+    const isTransactionsScreen = String(screen || '').toLowerCase() === 'transactions';
+    speedDial.classList.toggle('is-suppressed', isMoreOpen || hasOpenDialog || isTransactionsScreen);
   }
 
   return targetTab;

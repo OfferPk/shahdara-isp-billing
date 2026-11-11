@@ -221,15 +221,20 @@ test('wiring: choosing a book re-renders the ledger and clearing the filters cle
   assert.ok(listenerBody.includes('transactionCurrentPage = 1'), 'the listener restarts at the first page');
   assert.ok(listenerBody.includes('renderTransactions()'), 'the listener re-renders the ledger');
   const clearStart = appSrc.indexOf("$('#clearTransactionFilters').addEventListener('click'");
-  const clearBody = appSrc.slice(clearStart, clearStart + 4000);
-  assert.ok(clearBody.includes("$('#transactionReceiptBookFilter')"), 'clearing the filters clears the receipt-book select');
-  assert.ok(clearBody.includes('transactionReceiptBookFilter = '), 'clearing the filters resets the receipt-book state');
+  const clearBody = appSrc.slice(clearStart, clearStart + 1500);
+  assert.ok(clearBody.includes('resetTransactionFilterState()'), 'clearing the filters resets the transaction state');
+  // Transactions Screen Overhaul: the per-field clearing moved into
+  // resetTransactionFilterState (shared with the All pill).
+  const resetStart = appSrc.indexOf('function resetTransactionFilterState()');
+  const resetBody = appSrc.slice(resetStart, resetStart + 2900);
+  assert.ok(resetBody.includes("$('#transactionReceiptBookFilter')"), 'the reset clears the receipt-book select');
+  assert.ok(resetBody.includes('transactionReceiptBookFilter = '), 'the reset resets the receipt-book state');
 });
 
 test('wiring: the page carries the receipt-book select and the book summary line', () => {
   assert.ok(page.includes('id="transactionReceiptBookFilter"'), 'the Transactions screen has a receipt-book select');
   assert.ok(page.includes('id="lrbBookSummary"'), 'the book summary line exists in the summary bar');
-  const filtersStart = page.indexOf('<div class="transaction-filters">');
+  const filtersStart = page.indexOf('<div class="transaction-filters" id="txAdvancedFilters" hidden>');
   const filtersEnd = page.indexOf('</div>', page.indexOf('id="rnsReceiptSearchForm"'));
   const filtersBody = page.slice(filtersStart, filtersEnd);
   assert.ok(filtersBody.includes('for="transactionReceiptBookFilter"'), 'the receipt-book select is labelled');

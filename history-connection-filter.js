@@ -12,14 +12,12 @@
 //
 // The connection of an entry is read from the entry itself: an
 // entry recorded against a connection carries that connection on
-// its own record, and the filter matches it case-insensitively.
+// its own record (the full-history list carries the payment and
+// bill records' own connection onto the entry), and the filter
+// matches it case-insensitively.
 // An entry with no recorded connection belongs to no named
 // connection and appears only under All connections — the filter
-// never guesses a connection for it. The history records name no
-// connection today, so a named view lists only entries whose
-// record names one; the filter adds the missing piece — the
-// choice itself — and invents no link between a transaction and
-// a connection.
+// never guesses a connection for it.
 //
 // The offered connections come from the caller's billing-link
 // record for the customer — its primary and linked connections —

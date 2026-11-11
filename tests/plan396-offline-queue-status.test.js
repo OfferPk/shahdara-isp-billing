@@ -360,18 +360,21 @@ test('Plan 396: the existing pending-actions queue is untouched', () => {
   const indexSrc = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(indexSrc.includes('id="offlineQueueModal"'));
   assert.ok(indexSrc.includes('id="offlineQueueList"'));
-  assert.ok(indexSrc.includes('id="oqsQueueSection"'));
+  // Transactions Screen Overhaul: the "Today on this device" section
+  // (oqsQueueSection) was removed as a duplicate of the first
+  // day-group — the pending-actions queue modal above is untouched.
 });
 
-test('Plan 396: the Transactions view wires the queue section', () => {
+test('Transactions Screen Overhaul: the Transactions queue section is gone; only the recorded time is still read', () => {
   const appSrc = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.ok(appSrc.includes("from './offline-queue-status.js'"));
-  assert.ok(appSrc.includes('todayQueueEntries'));
-  assert.ok(appSrc.includes('offlineQueueSectionHtml'));
-  assert.ok(appSrc.includes("$('#oqsQueueSection')"));
+  assert.ok(appSrc.includes('queueEntryTime'));
+  assert.equal(appSrc.includes('todayQueueEntries'), false);
+  assert.equal(appSrc.includes('offlineQueueSectionHtml'), false);
+  assert.equal(appSrc.includes("$('#oqsQueueSection')"), false);
   const indexSrc = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.ok(indexSrc.includes('id="oqsQueueSection"'));
-  assert.ok(indexSrc.includes('class="oqs-queue"'));
+  assert.equal(indexSrc.includes('id="oqsQueueSection"'), false);
+  assert.equal(indexSrc.includes('class="oqs-queue"'), false);
 });
 
 test('Plan 396: styles reuse existing colours only — no new hex in queue rules', () => {

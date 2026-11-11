@@ -15348,3 +15348,39 @@ test('Backlog Item 8: getMobileNavTabForScreen and syncMobileBottomNav handle co
   }
 });
 
+test('Transactions Screen Overhaul: syncMobileBottomNav hides the FAB on the Transactions view only', async () => {
+  const { syncMobileBottomNav } = await import('../nav.js');
+
+  const suppressed = new Set();
+  const speedDial = {
+    classList: {
+      toggle(name, force) {
+        if (force) suppressed.add(name);
+        else suppressed.delete(name);
+      },
+      contains(name) { return suppressed.has(name); },
+    },
+  };
+  const prevDoc = globalThis.document;
+  globalThis.document = {
+    querySelector: (sel) => (sel === '.mobile-bottom-nav' ? { querySelectorAll: () => [] } : null),
+    getElementById: (id) => {
+      // More menu closed and no dialog open, so the screen alone decides.
+      if (id === 'mobileMoreMenu') return { hidden: true, querySelectorAll: () => [] };
+      if (id === 'mobileSpeedDial') return speedDial;
+      return null;
+    },
+  };
+
+  try {
+    syncMobileBottomNav('transactions');
+    assert.equal(speedDial.classList.contains('is-suppressed'), true);
+    syncMobileBottomNav('home');
+    assert.equal(speedDial.classList.contains('is-suppressed'), false);
+    syncMobileBottomNav('customers');
+    assert.equal(speedDial.classList.contains('is-suppressed'), false);
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});
+

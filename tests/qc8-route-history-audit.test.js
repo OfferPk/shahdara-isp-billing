@@ -244,8 +244,14 @@ test('QC-8: every route outcome has a display label', () => {
 // ---- audit action ----
 
 test('QC-8: audit catalogue gains field_visit as the 11th action', () => {
-  assert.equal(AUDIT_ACTIONS.length, 11);
-  assert.equal(AUDIT_ACTIONS[AUDIT_ACTIONS.length - 1].value, 'field_visit');
+  // Mohalla Seed why-comment: the catalogue grows to 12 with
+  // 'payment_records_cleared' (the Clear All payment-records wipe leaves
+  // an audit trace), so field_visit is no longer last and is pinned by
+  // lookup instead of position. The intent — field_visit is a known
+  // action with its label and it normalises — is unchanged.
+  assert.equal(AUDIT_ACTIONS.length, 12);
+  assert.equal(AUDIT_ACTIONS[AUDIT_ACTIONS.length - 1].value, 'payment_records_cleared');
+  assert.equal(AUDIT_ACTIONS.find((a) => a.value === 'field_visit').label, 'Field visit recorded');
   assert.equal(auditActionLabel('field_visit'), 'Field visit recorded');
   assert.equal(AUDIT_LOG_STORAGE_KEY, 'shahdara_operator_audit_log_v1');
   const ok = normalizeAuditEntry({

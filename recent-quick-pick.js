@@ -202,11 +202,37 @@ export function recentQuickPickLineText(entry) {
   return `${entry.name} — ${entry.mohalla} · ${recentQuickPickDuesText(entry)}`;
 }
 
+// QC Cash Modal Overhaul: "Collected 2026-11-10" becomes a compact
+// "10 Nov" badge — a pure month-name lookup, no Date/clock, so the
+// module stays time-free. An invalid date never renders a badge.
+const RECENT_QUICK_PICK_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function formatRecentQuickPickShortDate(value) {
+  if (!isStrictRecentQuickPickDate(value)) return null;
+  const match = STRICT_QUICK_PICK_DATE.exec(value);
+  return `${Number(match[3])} ${RECENT_QUICK_PICK_MONTHS[Number(match[2]) - 1]}`;
+}
+
 export function recentQuickPickHtml(entries) {
   if (!Array.isArray(entries) || entries.length === 0) return '';
+  // QC Cash Modal Overhaul: Recent collapses into an accordion —
+  // one summary line ("Recent: N collected (latest: #N Name) ▾")
+  // with the rows hidden until the operator taps it, so the nine
+  // expanded cards no longer sit above the unpaid queue. The rows
+  // keep their pick behaviour; the toggle carries no .rqp-row, so
+  // the list's click delegation cannot mistake it for a pick.
+  // Entries arrive latest-first, so entries[0] is the latest.
+  const latest = entries[0];
+  const latestNumber = latest.customerNumber === null || latest.customerNumber === undefined
+    ? '' : `#${escapeRecentQuickPickHtml(String(latest.customerNumber))} `;
+  const summary = `Recent: ${entries.length} collected (latest: ${latestNumber}${escapeRecentQuickPickHtml(latest.name)})`;
   const rows = entries.map((entry) => {
     const number = entry.customerNumber === null || entry.customerNumber === undefined
       ? '' : `#${escapeRecentQuickPickHtml(String(entry.customerNumber))}`;
+    const shortDate = formatRecentQuickPickShortDate(entry.lastCollectedDate);
+    const dateBadge = shortDate !== null
+      ? `<span class="qc-cust-meta rqp-date-badge">${escapeRecentQuickPickHtml(shortDate)}</span>`
+      : `<span class="qc-cust-meta">Collected ${escapeRecentQuickPickHtml(entry.lastCollectedDate)}</span>`;
     return `
       <button type="button"
               class="qc-customer-card rqp-row"
@@ -220,10 +246,10 @@ export function recentQuickPickHtml(entries) {
           </div>
         </div>
         <div class="qc-card-right">
-          <span class="qc-cust-meta">Collected ${escapeRecentQuickPickHtml(entry.lastCollectedDate)}</span>
+          ${dateBadge}
         </div>
       </button>
     `;
   }).join('');
-  return `<p class="qc-cust-meta">Recent — collected from</p>${rows}`;
+  return `<button type="button" class="rqp-toggle" aria-expanded="false"><span class="rqp-toggle-label">${summary}</span><span class="rqp-toggle-chevron" aria-hidden="true">▾</span></button><div class="rqp-rows" hidden>${rows}</div>`;
 }

@@ -165,7 +165,10 @@ test('wiring: opening the sheet starts a new round before the counts refresh', (
 });
 
 test('wiring: the picker screen carries the round-total line, before the customer list', () => {
-  assert.ok(pageSrc.includes('<p id="rttRoundTotals" class="rtt-round-totals"'), 'missing round-total line element');
+  // QC Cash Modal Overhaul: the round total is now a ds-stat-box cell
+  // inside the 2-column .qc-round-banner, so the class list gained
+  // ds-stat-box. The element, its id and its position are unchanged.
+  assert.ok(pageSrc.includes('<p id="rttRoundTotals" class="rtt-round-totals ds-stat-box"'), 'missing round-total line element');
   const pickStep = pageSrc.indexOf('id="quickCollectStepPick"');
   const totalsEl = pageSrc.indexOf('id="rttRoundTotals"');
   const listEl = pageSrc.indexOf('id="quickCollectCustomerList"');

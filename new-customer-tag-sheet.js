@@ -29,6 +29,7 @@ import {
   FIRST_MONTH_WAIVER_REASON_DEFAULT,
 } from './new-customer-tag.js';
 import { monthsForHistory } from './core.js';
+import { dsIcon } from './ds-icons.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const pkr = n => `PKR ${Number(n || 0).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`;
@@ -329,15 +330,27 @@ export function setupNewCustomerTagSheet({ win = window, doc = document, getCont
   // insert as Bulk Collect's button. This module is imported by app.js,
   // so it runs before bulk-collect.js: the Bulk Collect button ends up
   // directly above this one, both at the top of the picker.
+  // QC Cash Modal Overhaul: Tag shares the 2-column compact card
+  // row (.qc-top-actions) with Bulk Collect at the top of the
+  // picker. The row is found or created by class (no new element
+  // id); Tag appends, Bulk prepends, so the order is Bulk then Tag
+  // whichever module initialises first. The tag emoji becomes the
+  // Tag ds-icon; the label and small print are unchanged.
   const pick = doc.getElementById('quickCollectStepPick');
   if (pick && !doc.getElementById('nctTagNewCustomersBtn')) {
     const btn = doc.createElement('button');
     btn.type = 'button';
     btn.id = 'nctTagNewCustomersBtn';
     btn.className = 'nct-open-btn';
-    btn.innerHTML = '<span aria-hidden="true">🔖</span> Tag new customers <small>first month free</small>';
+    btn.innerHTML = `<span aria-hidden="true">${dsIcon('Tag', 18)}</span> Tag new customers <small>first month free</small>`;
     btn.addEventListener('click', open);
-    pick.insertBefore(btn, pick.firstElementChild);
+    let row = pick.querySelector('.qc-top-actions');
+    if (!row) {
+      row = doc.createElement('div');
+      row.className = 'qc-top-actions';
+      pick.insertBefore(row, pick.firstElementChild);
+    }
+    row.appendChild(btn);
   }
 
   const api = { open, close, isOpen: () => modal.open, refresh: () => { if (modal.open) renderAll(); } };

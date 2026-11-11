@@ -7713,8 +7713,8 @@ html, body {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  padding: 6px 12px;
-  font-size: 0.8rem;
+  padding: 6px 10px;
+  font-size: 12.5px;
   font-weight: 600;
   border-radius: 999px;
   border: 1px solid var(--border-color, #cbd5e1);
@@ -7725,9 +7725,9 @@ html, body {
 }
 
 .quick-collect-filter-chip.is-active {
-  background: #2563eb;
+  background: var(--ds-brand);
   color: #ffffff;
-  border-color: #2563eb;
+  border-color: var(--ds-brand);
 }
 
 .qc-customer-list {
@@ -7959,8 +7959,10 @@ html, body {
   white-space: nowrap;
 }
 .qc3-collect {
-  border-color: var(--green);
-  color: var(--green);
+  background: var(--ds-brand);
+  border-color: var(--ds-brand);
+  color: var(--white);
+  font-weight: 700;
 }
 
 /* QC-7: explicit 360px pass for the QC picker card row. The
@@ -8180,19 +8182,21 @@ html, body {
    no colour of its own, so no new hex colour is introduced. */
 .mhf-mohalla-filter-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   margin: 8px 0 0;
 }
 
 .mhf-mohalla-filter-row label {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .mhf-mohalla-filter {
   flex: 1;
   min-width: 0;
+  width: 100%;
 }
 
 .mhf-summary {
@@ -8277,9 +8281,9 @@ html, body {
   font-weight: 700;
 }
 
-.eds-close-button {
-  font-size: 0.85rem;
-}
+/* (The .eds-panel-dismiss rule lives with the QC Cash Modal Overhaul
+   block after §4.1.4: the close is an inline × at the panel's top
+   right, not a secondary button.) */
 
 /* Plan 449 — second-connection step on the success screen: the
    other connection, its suggested amount, and the running total
@@ -9019,6 +9023,226 @@ html, body {
   flex-shrink: 0 !important;
 }
 
+/* QC Cash Modal Overhaul — the picker steps get the same compact
+   single-row header as the success screen (§4.1), scoped to the
+   non-success steps so the approved 52px success header is untouched:
+   44px total (6px + 6px padding around the 32px (i) / close), the
+   eyebrow hidden, the title one ellipsised line. The (i) and close
+   are already 32x32 (§4.1.3/§4.1.4, not success-only). The sticky
+   top offset stays the base -16px: only the row changes. Token-only,
+   zero new hex. */
+#quickCollectModal:not(.qc-success-open) .modal-heading {
+  align-items: center !important;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+#quickCollectModal:not(.qc-success-open) .modal-heading > div {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+#quickCollectModal:not(.qc-success-open) .modal-heading .eyebrow {
+  display: none !important;
+}
+#quickCollectModal:not(.qc-success-open) #quickCollectTitle {
+  font-size: 16px !important;
+  font-weight: 700;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* QC Cash Modal Overhaul — the two filter selects share one
+   2-column row, labels above their selects (12px bold), so the
+   picker shows both controls without a stacked filter tower. */
+.qc-filter-row-2col {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.qc-filter-row-2col .qsf-status-filter-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  margin: 0;
+}
+.qc-filter-row-2col .qsf-status-filter-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* QC Cash Modal Overhaul — Bulk Collect + Tag New Customers share
+   one 2-column compact card row (52px). The row only grids the two
+   buttons; their own files own the border and height. The 0.85rem
+   label keeps "Bulk Collect Cash" on one line beside its icon at
+   360px. */
+.qc-top-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 0 0 8px;
+}
+.qc-top-actions .bc-open-btn,
+.qc-top-actions .nct-open-btn {
+  min-height: 52px;
+  font-size: 0.85rem;
+}
+
+/* QC Cash Modal Overhaul — the round total + today's collected
+   share one compact 2-column .ds-stat-box banner. The cells reuse
+   the directory strip's compact sizing (min-height 0, 8px 10px). */
+.qc-round-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.qc-round-banner .ds-stat-box {
+  min-height: 0;
+  padding: 8px 10px;
+}
+.qc-round-banner .rtt-round-totals {
+  margin: 0;
+}
+
+/* QC Cash Modal Overhaul — end-of-day summary + new customer share
+   one 2-column button row (40px). The 40px height needs !important:
+   the global button rule floors every button at 44px !important
+   (styles.css:801), and that rule is NOT changed. */
+.qc-picker-actions-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.qc-picker-actions-row .secondary-button {
+  width: 100%;
+  min-height: 40px !important;
+  height: 40px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* QC Cash Modal Overhaul — the expanded end-of-day summary is a
+   clean bordered card with its close as an inline × at the top
+   right (the delegated #edsEndOfDaySummaryClose handler is
+   unchanged). The × needs !important on min-height: the global
+   button rule floors every button at 44px !important. */
+.eds-summary-panel {
+  position: relative;
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  padding: 12px 44px 12px 12px;
+  margin: 8px 0 0;
+  background: var(--ds-card);
+}
+.eds-panel-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--ds-border);
+  background: var(--color-neutral-100, #f0f4f2);
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* QC Cash Modal Overhaul — Recent collapses into an accordion: one
+   summary line ("Recent: N collected (latest: #N Name) ▾") with the
+   rows hidden until the operator taps it. The chevron rotates
+   instead of swapping text, so the toggle handler only flips
+   aria-expanded and the rows' hidden flag. The rows container keeps
+   its [hidden] behaviour: the flex display must not beat it. */
+.rqp-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  background: var(--ds-nested);
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.rqp-toggle-chevron {
+  display: inline-block;
+  flex: none;
+  transition: transform .16s ease;
+}
+.rqp-toggle[aria-expanded="true"] .rqp-toggle-chevron {
+  transform: rotate(180deg);
+}
+.rqp-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.rqp-rows[hidden] {
+  display: none;
+}
+.rqp-date-badge {
+  background: var(--ds-nested);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* QC Cash Modal Overhaul — the picker card: the figures row is the
+   KPI row below the identity row at every width (the QC-7 wrap
+   extended past its 360px gate — the squeeze the user reported
+   happened above 360px and in RTL, where the Outstanding figure
+   clipped as "Outstanding P..."). The priority badge sits top-right
+   of Row 1; the figures keep their full "Outstanding: PKR 3,000
+   DUE" label in the KPI row, so the dues figure appears exactly
+   once — the clipped Row-1 rendering is what is deleted, not the
+   dues figure itself (removing the figure would delete the dues
+   amount from the card entirely). Scoped to #quickCollectModal:
+   Field Mode shares .qc3-card-main with different children and is
+   untouched. The <=360px QC-7 media block stays (it still serves
+   Field Mode). */
+#quickCollectModal .qc3-card-main {
+  flex-wrap: wrap;
+}
+#quickCollectModal .qc3-card-main > .qc-card-right {
+  align-self: flex-start;
+}
+#quickCollectModal .qc3-figures {
+  flex: 0 0 100%;
+  justify-content: flex-end;
+}
+#quickCollectModal .qc3-card-main > .qc2-tier-label {
+  margin-left: auto;
+}
+
+/* QC Cash Modal Overhaul — the filter chips' focus ring goes Emerald
+   with the active pill. Scoped to the QC chips only: the global
+   :focus-visible baseline (Issue 229) is NOT changed. */
+#quickCollectModal .quick-collect-filter-chip:focus-visible {
+  outline-color: var(--ds-brand) !important;
+}
+
 /* §4.2.3 — Urdu package note as its own soft callout below the banner.
    The animated gradient is dropped for the message (the terms box keeps
    its gradient via the card builder's replace). Nastaliq + line-height
@@ -9296,7 +9520,7 @@ html, body {
 }
 
 [data-theme="dark"] #quickCollectModal .quick-collect-filter-chip.is-active {
-  background: #3b82f6;
+  background: var(--ds-brand);
   color: #ffffff;
 }
 

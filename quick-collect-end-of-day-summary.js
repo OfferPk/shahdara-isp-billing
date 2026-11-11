@@ -197,7 +197,11 @@ export function quickCollectEndOfDaySummaryText(summary) {
 export function quickCollectEndOfDaySummaryHtml(summary) {
   const s = summary && typeof summary === 'object' ? summary : {};
   const line = `<p class="eds-summary-line">${escapeHtml(quickCollectEndOfDaySummaryText(s))}</p>`;
-  const close = '<button type="button" id="edsEndOfDaySummaryClose" class="secondary-button eds-close-button">Close</button>';
+  // QC Cash Modal Overhaul: the Close is an inline × at the panel's
+  // top right (styled by .eds-panel-dismiss), not a secondary button
+  // below the rows. The id is unchanged: the picker's delegated
+  // handler closes on #edsEndOfDaySummaryClose.
+  const close = '<button type="button" id="edsEndOfDaySummaryClose" class="eds-panel-dismiss" aria-label="Close end-of-day summary">×</button>';
   const count = Number(s.count);
   if (!Number.isFinite(count) || count <= 0 || !Array.isArray(s.methods) || s.methods.length === 0) {
     return `<div class="eds-summary-panel" role="region" aria-label="End-of-day summary">${line}${close}</div>`;

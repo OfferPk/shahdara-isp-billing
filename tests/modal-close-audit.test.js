@@ -136,6 +136,13 @@ const BARE_GLYPH_ALLOWLIST = [
   { file: 'qa-otdr-bidirectional-inspection.js', cls: 'event-remove-btn', why: 'removes one inspection event row' },
   { file: 'roznamcha.js', aria: 'Remove expense', why: 'removes one roznamcha expense row' },
   { file: 'field-mode.js', cls: 'field-mode-nearby-dismiss', why: 'SISP-168: dismisses the nearby-unpaid hint card (a banner above the list, never a dialog)' },
+  // QC Cash Modal Overhaul: the × on the expanded end-of-day summary
+  // dismisses only that panel inside the Quick Collect modal — a
+  // panel dismiss, never a dialog close (same family as the
+  // field-mode nearby-dismiss above). Its class is .eds-panel-dismiss,
+  // not a close-button class, so the modal-close redesign scanner
+  // (which matches close classes + Close labels) does not pick it up.
+  { file: 'quick-collect-end-of-day-summary.js', id: 'edsEndOfDaySummaryClose', why: 'dismisses the expanded end-of-day summary panel inside the Quick Collect modal' },
   // Plan 459: the × on a saved filter row removes only that filter —
   // an item-level micro-control, never a dialog close.
   { file: 'saved-search-filters.js', cls: 'fcs-clear-recent-btn', why: 'removes one saved filter row' },

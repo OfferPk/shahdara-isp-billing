@@ -1,8 +1,8 @@
 /* Bulk Collect Cash (bulk-collect.js). Mobile-first; matches Quick Collect / app greens. */
 .bc-open-btn {
   display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2);
-  width: 100%; min-height: 48px; padding: var(--space-2) 14px;
-  border: 1px dashed var(--green, #0e5b4d); border-radius: 12px;
+  width: 100%; min-height: 52px; padding: var(--space-2) 14px;
+  border: 1px solid var(--ds-border); border-radius: 12px;
   background: var(--mint, #e6f3ee); color: var(--green-dark, #094338);
   font: 700 0.95rem 'DM Sans', system-ui, sans-serif; cursor: pointer;
 }

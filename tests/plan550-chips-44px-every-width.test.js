@@ -134,7 +134,11 @@ test('chip rules keep their old sizes and colours', () => {
   assert.equal(decl(baseRule(styles, '.quick-amount-chip'), 'font-size'), '0.78rem');
   assert.equal(decl(baseRule(styles, '.qab-amount-chip'), 'padding'), '4px 10px');
   assert.equal(decl(baseRule(styles, '.qc-date-chip'), 'padding'), '4px 10px');
-  assert.equal(decl(baseRule(styles, '.quick-collect-filter-chip'), 'padding'), '6px 12px');
+  // QC Cash Modal Overhaul: the filter-chip padding moves 6px 12px →
+  // 6px 10px (with the 12.5px font) so Pending / High ≥ 2k / All fit
+  // on one row at 360px. Min-height stays 44px; every other chip
+  // rule keeps its old size.
+  assert.equal(decl(baseRule(styles, '.quick-collect-filter-chip'), 'padding'), '6px 10px');
   assert.equal(decl(baseRule(components, '.loose-change-chip'), 'padding'), '4px 10px');
   assert.equal(decl(baseRule(components, '.qc-shop-chip'), 'padding'), '7px 12px');
   assert.equal(decl(baseRule(components, '.qc-shop-chip'), 'font-size'), '13px');

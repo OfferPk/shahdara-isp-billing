@@ -136,7 +136,10 @@ test('purity fence: the month module imports nothing and reads no storage, clock
 
 test('wiring: pending send path builds the share receipt and shows the month on the card', () => {
   assert.ok(PENDING_ACTIONS_SOURCE.includes('pendingReceiptForShare(r, cust)'));
-  assert.ok(PENDING_ACTIONS_SOURCE.includes('pendingReceiptMonthLabel(r)'));
+  // Reports Tab Part 3: the compact card shows the SHORT month label
+  // ('Nov 2026') from the same shared derivation as the share draft —
+  // the full 'November 2026' does not fit the one-line meta row.
+  assert.ok(PENDING_ACTIONS_SOURCE.includes('pendingReceiptShortMonthLabel(r)'));
   assert.equal(PENDING_ACTIONS_SOURCE.includes('originMonth: r.month'), false);
   assert.ok(PENDING_ACTIONS_SOURCE.includes("from './pending-receipt-month.js'"));
 });

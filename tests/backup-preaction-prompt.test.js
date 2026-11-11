@@ -188,7 +188,12 @@ test('SISP-199: wiring — app.js renders both banners from the shared derivatio
   assert.match(app, /'#billingCycleBackupBanner'/);
   assert.match(app, /'#bulkImportBackupBanner'/);
   // Badge and banners share the ONE derivation (definition + exactly two call sites).
-  assert.equal(app.split('deriveBackupHealth();').length - 1, 2, 'badge + banner must both call deriveBackupHealth()');
+  // Mohalla Seed why-comment: the count grows to 3 because the Clear
+  // All backup gate (clearAllBackupIsFresh) reads the SAME shared
+  // derivation — it is a third reader, not a second computation.
+  // The intent is unchanged: one deriveBackupHealth(), shared by
+  // every reader, fresh at every use, no cached status.
+  assert.equal(app.split('deriveBackupHealth();').length - 1, 3, 'badge + banners + Clear All gate must all call the ONE deriveBackupHealth()');
   // The banners refresh on the same updateDataSafetyUi pass as the badge.
   assert.match(app, /renderBackupHealthBadge\(\);\n  renderBackupPreActionBanners\(\);/);
   // Both banner buttons run the REAL SISP-52 share flow (handleShareBackupAction).

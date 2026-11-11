@@ -133,22 +133,22 @@ test('today card: the card never changes any bill, payment, or customer record',
   assert.equal(JSON.stringify(state), before);
 });
 
-test('today card wiring: card sits on the billing dashboard after the today collection card, and the dashboard renders it', () => {
+test('today card wiring: the card is deleted from Home and the dashboard no longer renders it', () => {
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.ok(page.includes('summary-today-card'), 'today card exists in the summary grid');
-  assert.ok(page.indexOf('summary-today-card') > page.indexOf('summary-today-collection'), 'today card follows the today collection card');
-  assert.ok(page.includes('id="dtcTodayCollected"'), 'collected figure element exists');
-  assert.ok(page.includes('id="dtcTodayCount"'), 'payment count element exists');
-  assert.ok(page.includes('id="dtcDuesDueToday"'), 'dues due today element exists');
-  assert.ok(page.includes('id="dtcTodayPeriod"'), 'period line exists');
-  assert.ok(page.includes('data-i18n="dash_todaycard_title"'), 'card title is translated');
-  assert.ok(page.includes('data-i18n="dash_todaycard_payments_label"'), 'payments label is translated');
-  assert.ok(page.includes('data-i18n="dash_todaycard_due_label"'), 'due label is translated');
-  assert.ok(page.includes('Today at a glance'), 'card title reads Today at a glance');
+  // Home Dashboard overhaul: the today card was a duplicate of
+  // the KPI strip (Today Collected) and the home-today section —
+  // the grid card is DELETED. Its figures live in the KPI strip
+  // and the Top 3 preview. The module stays for its own unit
+  // tests; renderDashboard no longer imports or calls it.
+  assert.ok(!page.includes('summary-today-card'), 'today card is gone from the grid');
+  assert.ok(!page.includes('id="dtcTodayCollected"'), 'collected figure element is gone');
+  assert.ok(!page.includes('id="dtcTodayCount"'), 'payment count element is gone');
+  assert.ok(!page.includes('id="dtcDuesDueToday"'), 'dues due today element is gone');
+  assert.ok(!page.includes('id="dtcTodayPeriod"'), 'period line is gone');
 
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-  assert.ok(app.includes("from './dashboard-today-card.js?v=1.11.0'"), 'dashboard imports the today card module at the pinned version');
-  assert.ok(app.includes('renderDashboardTodayCard(document, calculateDashboardTodayCard(state, referenceDate))'), 'renderDashboard fills the today card');
+  assert.ok(!app.includes("from './dashboard-today-card.js?v=1.11.0'"), 'dashboard no longer imports the today card module');
+  assert.ok(!app.includes('renderDashboardTodayCard(document, calculateDashboardTodayCard(state, referenceDate))'), 'renderDashboard no longer fills the deleted card');
 });
 
 test('i18n: every dash_todaycard_ key used exists in English and Urdu', () => {
@@ -157,7 +157,10 @@ test('i18n: every dash_todaycard_ key used exists in English and Urdu', () => {
   const used = new Set();
   for (const match of page.matchAll(/data-i18n="(dash_todaycard_[a-z_]+)"/g)) used.add(match[1]);
   for (const match of module.matchAll(/t\('(dash_todaycard_[a-z_]+)'/g)) used.add(match[1]);
-  assert.ok(used.size >= 4, `expected at least 4 today-card keys, found ${[...used].join(', ')}`);
+  // Home Dashboard overhaul: the card's title/payments/due keys
+  // left the page with the deleted card — only the period key the
+  // module itself renders remains to pin.
+  assert.ok(used.size >= 1, `expected at least 1 today-card key, found ${[...used].join(', ')}`);
   for (const key of used) {
     assert.ok(typeof TRANSLATIONS.en[key] === 'string' && TRANSLATIONS.en[key].length > 0, `missing English key ${key}`);
     assert.ok(typeof TRANSLATIONS.ur[key] === 'string' && TRANSLATIONS.ur[key].length > 0, `missing Urdu key ${key}`);

@@ -226,10 +226,12 @@ test('summary filename is fixed per month and empty for a bad month', () => {
 
 test('known action labels match the audit log module, so the two cannot drift apart', () => {
   // QC-8 why-comment: the catalogue grows to 11 with 'field_visit'
-  // (every field visit outcome leaves an audit trace). The loop
+  // (every field visit outcome leaves an audit trace). The Mohalla
+  // Seed grows it to 12 with 'payment_records_cleared' (the Clear
+  // All Record wipe leaves an audit trace of itself). The loop
   // below already pins the new action's label too, so the intent —
   // the summary's labels cannot drift from the log's — is unchanged.
-  assert.equal(AUDIT_ACTIONS.length, 11);
+  assert.equal(AUDIT_ACTIONS.length, 12);
   for (const action of AUDIT_ACTIONS) {
     assert.equal(monthlyAuditSummaryActionLabel(action.value), action.label);
     assert.equal(monthlyAuditSummaryActionLabel(action.value), auditActionLabel(action.value));

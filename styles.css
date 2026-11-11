@@ -15277,3 +15277,66 @@ the same row; the dd becomes a flex row so the button never stretches. */
 .hea-annotation-form > label:nth-of-type(1), .hea-annotation-form > label:nth-of-type(2) { grid-column: 1 / -1; }
 .hea-annotation-form input, .hea-annotation-form select { min-height: 44px; font-size: 16px; border: 1px solid var(--ds-input-border); border-radius: var(--radius-sm); padding: 0 11px; background: #fff; color: var(--ink); width: 100%; min-width: 0; }
 .hea-annotation-form > button { grid-column: 1 / -1; width: 100%; min-height: 44px; background: var(--ds-brand); border: 1px solid var(--ds-brand); color: #fff; border-radius: 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+/* Customers Directory Polish (Nov 2026): the operator sees Customer #1
+ * without scrolling 3 screens. Pagination becomes one 48px row; the
+ * Service label sits above its chips; the (i) moves into the FILTERS &
+ * SORT header row; Cards|Table becomes the DS-0 segmented control
+ * beside Export CSV; the new-customers periods become a 1-row segmented
+ * bar with a 3-column stat strip; the trust footer joins the app footer
+ * into one muted card. Token-only: no new hex, no new store key. */
+
+/* (a) Pagination: one 48px flex row — [←] 1 / 7 (95) [→] left,
+ * Per-page select right. Scoped to #customerPagination so the archived
+ * pagination (same classes, no select) is untouched. */
+#customerPagination { flex-wrap: nowrap; justify-content: space-between; gap: 8px; padding: 6px 10px; }
+#customerPagination .pagination-btn { min-height: 36px; padding: 0 10px; }
+#customerPagination .pagination-page-info { flex: 1 1 auto; min-width: 0; text-align: center; white-space: nowrap; }
+#customerPagination .pagination-size-label { width: auto; margin-top: 0; }
+#customerPagination #customerPageSize { min-height: 36px; }
+
+/* (b) FILTERS & SORT header row: title left, 32×32 (i) right. The
+ * details keeps its own .help-icon sizing (32×32) and its tooltip
+ * still anchors to the details (position: relative). */
+.customer-filter-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.customer-filter-head .eyebrow { margin-bottom: 0; }
+.customer-filter-head .filter-help { margin-left: auto; }
+
+/* (b) Cards|Table + Export CSV on ONE row. The toggle is the DS-0
+ * segmented control: --ds-brand active, LayoutGrid/Table/Download SVG
+ * icons at 16px. The old .is-active blue (var(--primary-dark)) is
+ * beaten by the higher-specificity --ds-brand rule below. */
+.customer-view-row { display: flex; gap: 8px; align-items: center; }
+.customer-view-row .customer-view-toggle { flex: 1 1 auto; width: auto; margin-left: 0; }
+.customer-view-row .export-roster-btn { flex: 0 0 auto; width: auto; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; align-self: stretch; }
+.customer-view-toggle.ds-segmented .customer-view-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.customer-view-row .customer-expand-btn { flex: 0 0 auto; }
+.customer-view-toggle.ds-segmented .customer-view-btn .ds-action-icon svg,
+.customer-view-row .export-roster-btn .ds-action-icon svg { width: 16px; height: 16px; }
+.customer-view-toggle.ds-segmented .customer-view-btn[aria-selected="true"],
+.customer-view-toggle.ds-segmented .customer-view-btn.is-active { background: var(--ds-brand); border-color: var(--ds-brand); color: #fff; }
+
+/* (c) New customers: 1-row segmented bar (36px buttons) + 3-column
+ * .ds-stat-box strip. The month select moves to its own row below. */
+.new-customers-controls.ds-segmented { display: flex; gap: 4px; padding: 2px; }
+.new-customers-controls.ds-segmented .ds-segmented__button { min-height: 36px; padding: 4px 6px; font-size: 12px; }
+.new-customers-month { margin-top: 8px; }
+.new-customers-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.new-customers-totals .ds-stat-box { min-height: 0; padding: 8px 10px; }
+.new-customers-totals .ds-stat-box__value { font-size: 15px; }
+.new-customers-stat-sub { display: block; margin-top: 2px; font-size: 11px; font-weight: 600; color: var(--muted); }
+
+/* (b) Trust footer: the 74px gap was main's bottom-nav clearance
+ * (styles.css ~1511); the app footer already clears the nav itself
+ * (88px padding-bottom), so on the customers screen main needs none
+ * of it. Both strips share one muted background and a single divider. */
+.customer-pane .pane-footer { background: #f7faf8; }
+@media (max-width: 620px) {
+  /* Service label above the chips so All / Active / Offline / Not set
+   * fit at 360px with 0px overflow and no scrollbar; the chips wrap
+   * instead of clipping when counts grow. */
+  .customer-filter-panel .service-filter-toolbar { flex-wrap: wrap; overflow-x: visible; }
+  .customer-filter-panel .service-filter-toolbar .customer-filter-label { flex: 0 0 100%; }
+  body[data-screen="customers"] main { padding-bottom: 0; }
+  body[data-screen="customers"] .app-footer { border-top: 0; background: #f7faf8; }
+}

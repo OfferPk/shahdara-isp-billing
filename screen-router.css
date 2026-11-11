@@ -119,10 +119,6 @@ body.sr-screen-mode[data-screen="customers"] #customerPane > .pane-footer { orde
 @media (min-width: 621px) {
   body.sr-screen-mode .sr-filter-jump.sr-mobile-only { display: none; }
 }
-@media (max-width: 620px) {
-  body.sr-screen-mode[data-screen="transactions"] .transactions-pane { display: flex; flex-direction: column; }
-  body.sr-screen-mode[data-screen="transactions"] .transactions-pane > .sr-moved-filters { order: 1; margin-top: 14px; }
-}
 [data-theme="dark"] body.sr-screen-mode .sr-filter-jump { background: #1b2f29; border-color: #2c463d; color: #e4efe9; }
 
 /* Customers screen: the list leads; hide the duplicate small "+" since the header has the big button. */

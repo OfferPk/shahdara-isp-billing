@@ -73,7 +73,9 @@ function fromCents(cents) {
 
 function formatAmount(value) {
   if (value === null || value === undefined) return 'Not set';
-  return `PKR ${Number(value).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Owner 5-part fix: whole rupees without decimals, with thousands
+  // grouping (PKR 6,000, not PKR 6,000.00).
+  return `PKR ${Number(value).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 // A real calendar month only: 2026-13 is rejected, never repaired.
@@ -257,7 +259,9 @@ export function budgetVersusActualHtml(view) {
   if (!view || !view.valid) return '<p class="empty-state">Budget-versus-actual needs a valid month (YYYY-MM).</p>';
   if (view.rows.length === 0) return `<p class="empty-state">No budgets and no recorded expenses for ${escapeHtml(view.month)}.</p>`;
   const rows = view.rows.map((row) => `<tr><td>${escapeHtml(row.category)}</td><td>${row.budget === null ? 'Unbudgeted' : formatAmount(row.budget)}</td><td>${formatAmount(row.actual)}</td><td>${row.remaining === null ? '—' : formatAmount(row.remaining)}</td><td>${row.variance === null ? '—' : formatAmount(row.variance)}</td><td>${escapeHtml(row.status)}</td><td>${row.entries}</td></tr>`).join('');
-  return `<table><thead><tr><th scope="col">Category</th><th scope="col">Budget</th><th scope="col">Actual</th><th scope="col">Remaining</th><th scope="col">Variance</th><th scope="col">Status</th><th scope="col">Entries</th></tr></thead><tbody>${rows}</tbody></table>`;
+  // Owner 5-part fix: the seven-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side columns.
+  return `<div class="table-scroll"><table><thead><tr><th scope="col">Category</th><th scope="col">Budget</th><th scope="col">Actual</th><th scope="col">Remaining</th><th scope="col">Variance</th><th scope="col">Status</th><th scope="col">Entries</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function budgetVersusActualCsv(view) {

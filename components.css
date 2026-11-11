@@ -2593,6 +2593,15 @@ body.field-mode-open { overflow: hidden; }
 .collection-forecast-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
 .collection-forecast-title { margin: 0; font-size: var(--text-lg); color: var(--ink); }
 .collection-forecast-pct { font-size: var(--text-2xl); font-weight: 800; color: var(--green); font-variant-numeric: var(--numeric); white-space: nowrap; }
+/* Home Dashboard overhaul: on a phone the large right-aligned PKR
+   amount squeezed the title into 3–4 cramped vertical lines — the
+   title now stacks ABOVE the amount below 620px, and the same for
+   the target chart's header (title above its Set button). */
+@media (max-width: 620px) {
+  .collection-forecast-header { flex-direction: column; gap: var(--space-1); }
+  .collection-forecast-pct { white-space: normal; }
+  .chart-card-header-flex { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+}
 .fcst-thermo {
   height: 18px;
   margin-top: var(--space-3);
@@ -3465,6 +3474,13 @@ button.field-dispatch-item { cursor: pointer; }
   justify-content: center;
   width: 28px;
   height: 28px;
+  /* Home Dashboard overhaul: the global button min-height rule
+     (styles.css:782) floors every button at 44px, which stretched
+     this 28px circle into a vertical oval on the At-Risk Loyal
+     Customers and Revenue Leak Audit headers — the same root cause
+     as the profile (i) oval and the QC modal (i) oval. The floor
+     is lifted here so the button stays a clean 28x28 circle. */
+  min-height: 28px;
   margin-inline-start: var(--space-2);
   padding: 0;
   border: 1px solid var(--line);

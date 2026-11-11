@@ -2626,19 +2626,25 @@ export function setupQuickCollectModal({
   // own decision at the counter instead of guessing later. Offered,
   // never forced: no radio is pre-ticked, and an unticked choice
   // records nothing. The box hides while Advance is ticked (the
-  // money is already advance) and on a split payment (each leg is an
-  // ordinary payment of its own). Read-only: rendering chooses
-  // nothing and changes no record. Plan 523: the base is the payable
-  // figure, never bill dues alone — a payment exactly equal to the
-  // payable total used to be offered a choice for a phantom extra.
-  // Plan 537: when the box hides, the checked radio is cleared with
-  // it — a choice made for one amount never rides along with a
-  // different amount.
+  // money is already advance). Sharafat 1: the box NO LONGER hides
+  // on a split payment — the combined tender is the payment, so the
+  // choice is offered over the combined total (both legs) and rides
+  // the last leg; the old rule ("each leg is an ordinary payment of
+  // its own") is exactly what dropped the operator's choice.
+  // Read-only: rendering chooses nothing and changes no record.
+  // Plan 523: the base is the payable figure, never bill dues alone —
+  // a payment exactly equal to the payable total used to be offered
+  // a choice for a phantom extra. Plan 537: when the box hides, the
+  // checked radio is cleared with it — a choice made for one amount
+  // never rides along with a different amount.
   function renderOverpaymentChoice() {
     if (!overpaymentChoiceBox) return;
     let extraCents = 0;
-    const amountCents = Math.round(Number(amountInput?.value || 0) * 100);
-    if (activeCustomerId && activeDefaults && amountCents > 0 && !advanceCheckbox?.checked && !splitToggle?.checked) {
+    // Sharafat 1: on a split the tendered amount is both legs
+    // together — the choice is offered over the combined total, the
+    // same figure the submit handler reads the choice over.
+    const amountCents = Math.round((Number(amountInput?.value || 0) + (splitToggle?.checked ? Number(splitAmountInput?.value || 0) : 0)) * 100);
+    if (activeCustomerId && activeDefaults && amountCents > 0 && !advanceCheckbox?.checked) {
       const payableCents = Math.round(Number(activeDefaults.payableTotal ?? 0) * 100);
       extraCents = overpaymentExtraCents(payableCents, amountCents);
     }
@@ -3374,6 +3380,15 @@ export function setupQuickCollectModal({
   // the amount field is leg 1, the split amount field is leg 2.
   amountInput?.addEventListener('input', () => renderSplitTotal());
   splitAmountInput?.addEventListener('input', () => renderSplitTotal());
+  // Sharafat 1: leg 2 is half the tender — typing it re-offers the
+  // overpayment choice and re-plans the waiver box over the combined
+  // total, exactly like typing leg 1 does (the amount-input handler
+  // above already re-renders both for leg 1). No new listener type:
+  // these ride the existing leg-2 input listener.
+  splitAmountInput?.addEventListener('input', () => renderOverpaymentChoice());
+  splitAmountInput?.addEventListener('input', () => {
+    if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
+  });
 
   // Populate payment methods select once
   if (methodSelect && methodSelect.options.length <= 1) {
@@ -3402,6 +3417,11 @@ export function setupQuickCollectModal({
     // with the current leg figures. No new split change listener is
     // added here: the five-listener pin (Plan 527) stays exactly 5.
     renderSplitTotal();
+    // Sharafat 1: toggling the split re-plans the waiver box — the
+    // gate is the combined total while split is on, leg 1 alone
+    // when it is off. Same rule as the total above: no new split
+    // change listener, the five-listener pin stays exactly 5.
+    if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
     // Plan 535: toggling the split, or picking the second leg's
     // method, re-renders the pending-clearance flag with both
     // legs' methods — a Bank Transfer leg 2 flags while entering,
@@ -3410,8 +3430,11 @@ export function setupQuickCollectModal({
     renderPendingClearanceFlag();
   }
   splitToggle?.addEventListener('change', updateSplitVisibility);
-  // Plan 386: splitting the payment hides the choice (each leg is an
-  // ordinary payment of its own), and un-splitting re-offers it.
+  // Sharafat 1: splitting the payment no longer hides the choice —
+  // the combined tender is the payment, so the choice is offered
+  // over both legs together; un-splitting re-offers it over leg 1
+  // alone. (The old "each leg is an ordinary payment of its own"
+  // rule is exactly what dropped the operator's choice.)
   splitToggle?.addEventListener('change', () => renderOverpaymentChoice());
   // Plan 387: splitting the payment hides the warning (each leg is an
   // ordinary payment of its own), and un-splitting re-shows it.
@@ -4129,11 +4152,16 @@ export function setupQuickCollectModal({
       if (!customer || !bill) return;
       if (activeDefaults && activeDefaults.customerId === customerId && activeDefaults.ticketChargesPending > 0) return;
       const summary = calculatePaymentAllocations(state).forMonth(customerId, month);
+      // Sharafat 1: on a split the tendered amount is both legs
+      // together — the gate is the combined payment against the
+      // full principal, the same figure the recorder will judge the
+      // split's waiver on.
+      const paymentAmountCents = Math.round((Number(amountInput?.value || 0) + (splitToggle?.checked ? Number(splitAmountInput?.value || 0) : 0)) * 100);
       const plan = planLateFeeWaiver({
         bill,
         balanceDueCents: summary?.balanceDueCents,
         lateFeeCents: summary?.lateFeeCents,
-        paymentAmountCents: Math.round(Number(amountInput?.value || 0) * 100)
+        paymentAmountCents
       });
       if (!plan.eligible && plan.reason !== 'partial-principal') return;
       const feeStr = `PKR ${(plan.waivedAmountCents / 100).toLocaleString('en-PK')}`;
@@ -4148,9 +4176,15 @@ export function setupQuickCollectModal({
         checkbox?.addEventListener('change', () => {
           waiverTicked = checkbox.checked === true;
           if (!amountInput) return;
-          const targetCents = waiverTicked ? plan.principalDueCents : plan.balanceDueCents;
-          if (typeof targetCents === 'number' && targetCents > 0) {
-            amountInput.value = (targetCents / 100).toFixed(2);
+          // Sharafat 1: on a split the two leg amounts ARE the
+          // tender — rewriting leg 1 to the principal (or the
+          // balance) would corrupt the split the operator typed.
+          // The waiver only forgives the fee; the amounts stand.
+          if (!splitToggle?.checked) {
+            const targetCents = waiverTicked ? plan.principalDueCents : plan.balanceDueCents;
+            if (typeof targetCents === 'number' && targetCents > 0) {
+              amountInput.value = (targetCents / 100).toFixed(2);
+            }
           }
           // Plan 377: the waiver tick sets the amount programmatically
           // (no input event), so the words refresh explicitly.
@@ -6559,6 +6593,54 @@ export function setupQuickCollectModal({
       const leg2Amount = Number(splitAmountInput?.value);
       const leg2Txn = (splitTransactionIdInput?.value || '').trim();
       const leg2Override = (splitOverrideReasonInput?.value || '').trim();
+      // Plan 386: the overpayment choice for this payment — the radio
+      // picked for the extra over the customer's shared payable
+      // figure, read live at submit from the same figure the render
+      // offered the choice over (activeDefaults.payableTotal), so a
+      // figure typed after the last render still counts and the
+      // validator's extra matches the extra the operator saw. Plan
+      // 523: the recorded dues are the payable figure, never bill
+      // dues alone. The validator re-checks it before anything
+      // records. Sharafat 1: the choice is read here, BEFORE the
+      // split branch — a split reads it too, over the COMBINED
+      // tender, and it rides the last leg; the old rule ("only the
+      // single-payment path carries it") is exactly what dropped
+      // the operator's choice on every split.
+      let selectedOverpaymentChoice = '';
+      let overpaymentDuesCents = 0;
+      {
+        // The radios live inside the choice box, so the checked one
+        // is read through the box itself (null on hosts that predate
+        // the box, and null in the test stub whose elements answer
+        // no checked radio) — never through a page-wide lookup.
+        const picked = overpaymentChoiceBox?.querySelector('input[name="quickCollectOverpaymentChoice"]:checked') ?? null;
+        selectedOverpaymentChoice = picked?.value || '';
+        if (selectedOverpaymentChoice) {
+          overpaymentDuesCents = Math.round(Number(activeDefaults?.payableTotal ?? 0) * 100);
+        }
+      }
+      // Plan 395: the excess cash note for this payment — the purpose
+      // picked for the extra over the customer's total dues, read live
+      // at submit from the same allocation state the preview reads,
+      // so a figure typed after the last render still counts. The
+      // validator re-checks it before anything records. Sharafat 1:
+      // read here, BEFORE the split branch, for the same reason as
+      // the choice above — it rides the last leg, over the combined
+      // tender's extra.
+      let selectedExcessCashPurpose = '';
+      let excessCashDuesCents = 0;
+      {
+        selectedExcessCashPurpose = excessCashPurposeSelect?.value || '';
+        if (selectedExcessCashPurpose) {
+          const submitAllocations = calculatePaymentAllocations(state);
+          const submitCustomer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+          for (const bill of (submitCustomer?.bills ?? [])) {
+            const remaining = submitAllocations.forMonth(activeCustomerId, bill.month)?.balanceDueCents ?? 0;
+            if (remaining > 0) excessCashDuesCents += remaining;
+          }
+        }
+      }
+
       if (splitToggle?.checked) {
         if (advanceCheckbox?.checked) {
           if (typeof onToast === 'function') onToast(t('split_advance_conflict'), { type: 'error' });
@@ -6666,6 +6748,25 @@ export function setupQuickCollectModal({
             month: monthVal,
             date: dateVal,
             paidBy: paidByVal,
+            // Sharafat 1: the form-level fields a split used to drop
+            // — the collection note, the category tag, the promise
+            // link, the waiver tick, the overpayment choice, the
+            // excess-cash note and the remainder-waada date — read
+            // exactly as the single-payment submit below reads them,
+            // and carried into the spec the same way. The split
+            // module decides which leg each one rides.
+            collectedBy: collectedByVal || undefined,
+            collectionPlace: collectionPlaceVal || undefined,
+            collectionMohalla: collectionMohallaVal || undefined,
+            urduNote: urduNoteVal || undefined,
+            categoryTag: categoryTagVal || undefined,
+            promiseLink: promiseLinkVal ? { promiseId: promiseLinkVal } : undefined,
+            waiveLateFee: waiverTicked && !advanceCheckbox?.checked,
+            overpaymentChoice: selectedOverpaymentChoice || undefined,
+            overpaymentDuesCents: selectedOverpaymentChoice ? overpaymentDuesCents : undefined,
+            excessCashNote: selectedExcessCashPurpose || undefined,
+            excessCashDuesCents: selectedExcessCashPurpose ? excessCashDuesCents : undefined,
+            remainderWaadaDate: selectedRemainderWaadaDate || undefined,
             legs: [
               // FU-SISP121-SENDER: leg 1 is the main form, so its sender
               // values are the main SISP-63 inputs (visible when leg 1's
@@ -6757,49 +6858,9 @@ export function setupQuickCollectModal({
         return;
       }
 
-      // Plan 386: the overpayment choice for this payment — the radio
-      // picked for the extra over the customer's shared payable
-      // figure, read live at submit from the same figure the render
-      // offered the choice over (activeDefaults.payableTotal), so a
-      // figure typed after the last render still counts and the
-      // validator's extra matches the extra the operator saw. Plan
-      // 523: the recorded dues are the payable figure, never bill
-      // dues alone. The validator re-checks it before anything
-      // records. Only the single-payment path carries it; a split
-      // payment records two ordinary legs of its own.
-      let selectedOverpaymentChoice = '';
-      let overpaymentDuesCents = 0;
-      {
-        // The radios live inside the choice box, so the checked one
-        // is read through the box itself (null on hosts that predate
-        // the box, and null in the test stub whose elements answer
-        // no checked radio) — never through the bare document.
-        const picked = overpaymentChoiceBox?.querySelector('input[name="quickCollectOverpaymentChoice"]:checked') ?? null;
-        selectedOverpaymentChoice = picked?.value || '';
-        if (selectedOverpaymentChoice) {
-          overpaymentDuesCents = Math.round(Number(activeDefaults?.payableTotal ?? 0) * 100);
-        }
-      }
-      // Plan 395: the excess cash note for this payment — the purpose
-      // picked for the extra over the customer's total dues, read live
-      // at submit from the same allocation state the preview reads,
-      // so a figure typed after the last render still counts. The
-      // validator re-checks it before anything records. Only the
-      // single-payment path carries it; a split payment records two
-      // ordinary legs of its own.
-      let selectedExcessCashPurpose = '';
-      let excessCashDuesCents = 0;
-      {
-        selectedExcessCashPurpose = excessCashPurposeSelect?.value || '';
-        if (selectedExcessCashPurpose) {
-          const submitAllocations = calculatePaymentAllocations(state);
-          const submitCustomer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
-          for (const bill of (submitCustomer?.bills ?? [])) {
-            const remaining = submitAllocations.forMonth(activeCustomerId, bill.month)?.balanceDueCents ?? 0;
-            if (remaining > 0) excessCashDuesCents += remaining;
-          }
-        }
-      }
+      // Sharafat 1: the overpayment choice and the excess-cash note
+      // are read BEFORE the split branch above (both paths share
+      // them) — the single submit below reads the same variables.
       const { nextState, receipt, nextTickets } = executeQuickCollection(state, {
         customerId: activeCustomerId,
         month: monthVal,

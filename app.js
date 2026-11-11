@@ -44319,6 +44319,10 @@ if (typeof document !== 'undefined') {
       };
     }
   });
+  // Payments Inbox cleanup: the Inbox's wallet-review section opens the
+  // Suspense Register to claim an unidentified transfer — expose the
+  // controller the same way the Quick Collect controller is exposed.
+  if (typeof window !== 'undefined') window.suspensePaymentsModalController = suspensePaymentsModalController;
   // SISP-111: cross-customer advance credit transfer dialog — the
   // pure executor runs on a FRESH allocation snapshot inside the same
   // click (never the rendered figures), both customers and the

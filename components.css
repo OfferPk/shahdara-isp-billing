@@ -3672,3 +3672,127 @@ button:not([hidden]).help-info-btn {
   .profile-action-group > .backdated-payment-link,
   .profile-action-group > .customer-technical-tools { grid-column: 1 / -1; }
 }
+
+/* Reports Tab overhaul (Parts 1–2): Monthly Bills action grid, report-card
+   tags and quick actions, collapsible calculation rules, sales-tax
+   alignment, and the drawer operator-mode button fix. Theme tokens only —
+   no hardcoded surfaces, so dark mode stays correct. */
+.bills-actions-bar { flex-direction: column; align-items: stretch; }
+.bills-actions-bar .chart-caption { flex-basis: auto; }
+.bills-actions-bar .bills-action-generate { width: 100%; }
+.bills-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bills-actions-row .secondary-button { width: 100%; min-width: 0; }
+.bills-actions-row-compact .secondary-button { font-size: 11px; padding-left: 6px; padding-right: 6px; }
+.report-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.report-tag { display: inline-block; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; font-size: 9px; line-height: 1.35; color: var(--muted); white-space: nowrap; }
+.report-row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.calculation-rules { margin: 8px 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
+.calculation-rules summary { cursor: pointer; padding: 9px 12px; font-size: 12px; font-weight: 700; color: var(--ink); list-style: none; min-height: 44px; display: flex; align-items: center; }
+.calculation-rules summary::-webkit-details-marker { display: none; }
+.calculation-rules .chart-caption { margin: 0; padding: 0 12px 10px; }
+.stx-row { grid-template-columns: minmax(160px, 1.6fr) minmax(110px, 1fr) minmax(110px, .9fr) minmax(110px, .9fr); }
+.stx-amount-cell .report-cell-value { font-variant-numeric: tabular-nums; }
+/* The drawer 'Mode: Owner' button shares the 40px icon-button class
+   with the topbar field-mode toggle, so its text clipped to 'M O'.
+   The topbar button keeps its 38px rule (styles.css); this button gets
+   its own width so the full label shows. */
+#operatorModeToggleBtn { width: auto; min-width: 0; padding: 0 12px; font-size: 12px; white-space: nowrap; }
+@media (max-width: 620px) {
+  .stx-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Part 4A — Area / Mohalla Analytics cards in the Monthly Report. */
+.mohalla-analytics { margin: 12px 0; }
+.mohalla-analytics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.mohalla-card-btn { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; color: var(--ink); font: inherit; }
+.mohalla-card-btn:hover { border-color: var(--green); }
+.mohalla-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.mohalla-card-head strong { font-size: 14px; }
+.mohalla-card-head span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.mohalla-card-status { font-size: 11px; color: var(--muted); }
+.mohalla-card-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.mohalla-card-metrics > span { display: flex; flex-direction: column; min-width: 0; }
+.mohalla-metric-label { font-size: 9px; color: var(--muted); }
+.mohalla-card-metrics strong { font-size: 12px; overflow-wrap: anywhere; }
+.mohalla-card-rate { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.mohalla-rate-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--surface-soft); overflow: hidden; min-width: 0; }
+.mohalla-rate-bar > span { display: block; height: 100%; background: var(--green); border-radius: 999px; }
+.mohalla-card-package { font-size: 11px; color: var(--muted); }
+.report-area-chip { display: flex; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 10px; background: var(--mint); border: 1px solid var(--green); border-radius: 10px; font-size: 12px; font-weight: 700; color: var(--ink); }
+.report-area-chip[hidden] { display: none; }
+.report-area-chip span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* Part 3 — Pending Actions Center redesign: compact header (subtitle
+   removed, Copy List in the header, footer removed), single-row tabs,
+   compact cards with a one-line meta and right-pinned actions, so 3–4
+   cards show at once instead of half a card. */
+.pending-actions-header { padding: 12px 16px 10px; align-items: center; }
+.pending-actions-header-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.pending-header-icon-btn { background: var(--color-slate-100); border: 1px solid var(--color-slate-300); color: var(--color-slate-700); border-radius: 9px; padding: 6px 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer; min-height: 36px; white-space: nowrap; }
+.pending-actions-toolbar { padding: 10px 16px; gap: 8px; }
+.pending-actions-tabs { flex-wrap: nowrap; }
+.pending-actions-list { padding: 12px 16px; }
+.pending-action-card { padding: 10px 12px; gap: 6px; }
+.pending-card-header { flex-wrap: wrap; gap: 6px; }
+.pending-card-body { display: flex; flex-direction: column; gap: 4px; }
+.pending-card-meta-line { font-size: 0.84rem; color: var(--color-slate-600); overflow-wrap: anywhere; }
+.pending-card-meta-line strong { color: var(--color-slate-900); }
+.pending-add-phone-btn { font-size: 0.75rem; padding: 3px 8px; min-height: 30px; margin-left: 4px; }
+.pending-card-actions { justify-content: flex-end; margin-top: 2px; }
+.pending-card-actions button, .pending-card-actions a { min-height: 36px; padding: 6px 10px; }
+
+/* Reports Tab Part 4B(1): Operations panels never overflow the viewport.
+   The section is capped and clipped, wide record tables scroll inside
+   their own card, and on a phone the inline flex form rows stack into
+   one full-width column. */
+.analytics-panel { max-width: 100%; box-sizing: border-box; overflow-x: hidden; }
+.analytics-panel > div { max-width: 100%; box-sizing: border-box; }
+.analytics-panel label { min-width: 0; }
+.analytics-panel input, .analytics-panel select, .analytics-panel textarea { max-width: 100%; box-sizing: border-box; }
+.analytics-panel > div[id$="Body"] { overflow-x: auto; }
+/* Reports Tab Part 4B(1): the Analytics pane is a single-column grid,
+   so any card whose content is wider than the phone (a wide log table
+   in a .chart-card) stretches the grid track and pushes the whole page
+   sideways — the harness measured 838px, then 608px after the collector
+   table was contained. Capping every pane child at the pane width keeps
+   the page at 360px; wide tables still scroll inside their own card. */
+#analyticsView .phase3-pane > * { min-width: 0; max-width: 100%; box-sizing: border-box; overflow-x: hidden; }
+/* Reports Tab Part 4B(1), found by the 360px harness: the Collector
+   Performance table is 800px+ wide and sits in a .chart-card outside any
+   scroll wrapper, so it pushed the whole Analytics page sideways. */
+#collectorPerformanceBody { overflow-x: auto; }
+@media (max-width: 620px) {
+  .analytics-panel > div[style*="display: flex"] { display: grid !important; grid-template-columns: 1fr; }
+  .analytics-panel > div[style*="display: flex"] label { width: 100%; }
+  .analytics-panel > div[style*="display: flex"] label input,
+  .analytics-panel > div[style*="display: flex"] label select,
+  .analytics-panel > div[style*="display: flex"] label textarea { width: 100% !important; }
+  .analytics-panel .shift-weekday-field { width: 100%; }
+}
+
+/* Reports Tab Part 4B(2): the ten advanced Operations tools are clean
+   rounded cards whose heading + live summary stay visible while the body
+   starts collapsed; the long explanatory paragraph sits behind an
+   "ℹ️ Info" toggle inside the heading. */
+.ops-accordion { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--surface-soft); }
+.ops-accordion[data-collapsed="true"] > :not(.table-heading) { display: none !important; }
+.ops-accordion-summary { font-weight: 700; }
+.ops-accordion-toggle { white-space: nowrap; }
+.ops-info { margin: 6px 0 0; }
+.ops-info summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.ops-info .chart-caption { max-width: none; text-align: left; margin-top: 4px; }
+
+/* Reports Tab Part 4B(3): ops inputs use the app theme border instead of
+   the browser's harsh black top/left inset edge; shift-rule weekdays are
+   tap-to-toggle pills (green = closed, the app's existing action green). */
+.analytics-panel input[type="text"],
+.analytics-panel input[type="number"],
+.analytics-panel input[type="date"],
+.analytics-panel input[type="month"],
+.analytics-panel select,
+.analytics-panel textarea { border: 1px solid var(--line); background: var(--surface); box-shadow: none; }
+.shift-weekday-field { display: inline-flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.shift-weekday-label { font-size: 12px; }
+.shift-weekday-pills { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.shift-weekday-pill { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 10px; font-size: 12px; cursor: pointer; min-height: 0; }
+.shift-weekday-pill.is-on { background: var(--color-success); border-color: var(--color-success); color: var(--surface); font-weight: 700; }

@@ -31,22 +31,38 @@ test('accent modifiers colour only the icon tile, from tokens', () => {
 });
 
 test('KPI strip cards carry the shared card, a tile and their original hooks', () => {
-  for (const id of ['kpiCardToday', 'kpiCardMonth', 'kpiCardDues', 'kpiCardDefaulters', 'kpiCardAdvance']) {
+  // Home Dashboard overhaul: the strip is 5 cards now — Today,
+  // Month, Total Dues (all id'd) plus Cash in Hand and Active
+  // Subscribers, whose wrapper ids were removed to respect the
+  // no-new-element-id fence. The deleted Customers-with-Dues card
+  // survives only as the Total Dues sub-line (same id, reused);
+  // the Advance Held card moved to Collect (id kept).
+  for (const id of ['kpiCardToday', 'kpiCardMonth', 'kpiCardDues']) {
     assert.ok(html.includes(`ds-stat`), 'ds-stat applied');
     const cardAt = html.indexOf(`id="${id}"`);
     const cardTag = html.slice(html.lastIndexOf('<div', cardAt), cardAt);
     assert.ok(cardTag.includes('ds-stat'), `${id} carries .ds-stat`);
   }
+  const advanceAt = html.indexOf('id="kpiCardAdvance"');
+  assert.ok(advanceAt >= 0, 'Advance Held card exists in Collect');
+  assert.ok(html.slice(html.lastIndexOf('<div', advanceAt), advanceAt).includes('ds-stat'), 'kpiCardAdvance carries .ds-stat');
   for (const valId of ['kpiTodayCollection', 'kpiMonthCollectionBilled', 'kpiTotalDue', 'kpiCustomersWithDues', 'kpiAdvanceHeld']) {
     assert.ok(html.includes(`id="${valId}"`), `${valId} value hook unchanged`);
   }
-  assert.equal((html.match(/home-kpi-card[^"]*ds-stat/g) || []).length, 5, 'all 5 KPI cards adopted');
+  const strip = html.slice(html.indexOf('id="homeKpiStrip"'), html.indexOf('id="homePrimaryActions"'));
+  assert.equal((strip.match(/home-kpi-card[^"]*ds-stat/g) || []).length, 5, 'all 5 KPI cards adopted');
+  assert.equal((html.match(/home-kpi-card[^"]*ds-stat/g) || []).length, 6, 'the Collect Advance card is the sixth');
   assert.ok(block.includes('white-space: normal'), 'KPI values wrap instead of truncating');
 });
 
 test('every dashboard summary card adopted the shared card; plain KPI cards got a tile', () => {
   const articles = html.match(/<article class="summary-card [^"]*">/g) || [];
-  assert.ok(articles.length >= 36, `summary cards present (${articles.length})`);
+  // Home Dashboard overhaul: 51 -> 32 — the 19 deleted articles
+  // are the duplicate bottom-KPI-grid cards (14 tail metrics + the
+  // today card + 3 duplicate metric cards + the standalone Cash in
+  // Hand section). Every surviving article still carries the shared
+  // card and an accent.
+  assert.ok(articles.length >= 32, `summary cards present (${articles.length})`);
   for (const tag of articles) {
     assert.ok(tag.includes('ds-stat'), `shared card applied: ${tag}`);
     assert.ok(/ds-stat--(brand|paid|info|pending|overdue|whatsapp)/.test(tag), `accent set: ${tag}`);
@@ -61,7 +77,10 @@ test('every dashboard summary card adopted the shared card; plain KPI cards got 
   // QC-6: the count is 21, not 20 — the new Collection insights card
   // is a plain KPI summary card with an icon tile, same shape as the
   // QC-5 card it follows.
-  assert.equal(tiled.length, 21, 'the 21 plain KPI summary cards carry an icon tile');
+  // Home Dashboard overhaul: the count is 2, not 21 — all 19
+  // deleted duplicate-grid articles were tiled KPI cards; their
+  // content moved to the KPI strip (home-kpi-card, pinned above).
+  assert.equal(tiled.length, 2, 'the 2 plain KPI summary cards carry an icon tile');
 });
 
 test('summary/today geometry parity is kept on the same tokens', () => {

@@ -101,8 +101,8 @@ test('success screen receipt card renders the Area select', async () => {
   assert.ok(unassigned.includes('data-qc-area-select'));
   assert.ok(unassigned.includes('<option value="" selected>Unassigned</option>'));
   assert.ok(unassigned.includes('<option value="BANII">Banii</option>'));
-  assert.ok(unassigned.includes('<option value="CHAMYAAA">Chamyaaa</option>'), 'stored CHARYAA folds to the canonical CHAMYAAA option');
-  assert.ok(!unassigned.includes('<option value="CHARYAA">'), 'no separate CHARYAA option survives the fold');
+  assert.ok(unassigned.includes('<option value="CHARYAA">Charyaa</option>'), 'CHARYAA is its own option, never folded into CHAMYAAA');
+  assert.ok(unassigned.includes('<option value="CHAMYAAA">Chamyaaa</option>'), 'CHAMYAAA is its own option');
   assert.equal((unassigned.match(/<option/g) || []).length, 1 + DISTINCT_CANONICAL_MOHALLAS);
 
   const custom = renderQuickCollectReceiptCardHtml({ ...base, area: 'Begum Kot' });

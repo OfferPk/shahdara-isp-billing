@@ -3136,20 +3136,12 @@ function renderDashboard() {
     try { multiMonthMatrixController.refresh(); } catch { /* section is optional chrome */ }
   }
 
-  // Wire #homeActionDuesList
-  const duesListBtn = $('#homeActionDuesList');
-  if (duesListBtn && !duesListBtn.dataset?.wiredDues) {
-    if (duesListBtn.dataset) duesListBtn.dataset.wiredDues = 'true';
-    else duesListBtn.setAttribute('data-wired-dues', 'true');
-    duesListBtn.addEventListener('click', () => {
-      try {
-        window.location.hash = '#/recovery';
-      } catch {
-        switchView('reports');
-        $('#duesRecoveryPanel')?.scrollIntoView({ behavior: 'smooth' });
-      }
-    });
-  }
+  // LIVE FIX 4: the direct #homeActionDuesList wiring lived here and
+  // sent the tile to '#/recovery' — removed. The tile has ONE path
+  // now: the setupDashboardQuickActions onDuesList below, which opens
+  // the Top Defaulters modal (the customer dues list). A second
+  // listener here would open the modal twice on one tap, and
+  // showModal() on an already-open dialog throws.
 
   setupDashboardQuickActions({
     onReceivePayment: () => {
@@ -3168,12 +3160,18 @@ function renderDashboard() {
       $('#newCustomerName').focus();
     },
     onDuesList: () => {
-      try {
-        window.location.hash = '#/recovery';
-      } catch {
-        switchView('reports');
-        $('#duesRecoveryPanel')?.scrollIntoView({ behavior: 'smooth' });
+      // LIVE FIX 4: the Dues list tile opens the customer dues list —
+      // the Top Defaulters modal (who owes, how much, how many
+      // remain) — NOT Dues Recovery (billing-cycle forecast, complaint
+      // register, stock book). Dues Recovery stays its own screen,
+      // reachable from its own nav item. The modal controller is the
+      // same one the "Top Defaulters" quick action uses; the click
+      // fallback covers a not-yet-initialised controller.
+      if (topDefaultersModalController?.open) {
+        topDefaultersModalController.open();
+        return;
       }
+      $('#quickActionTopDefaulters')?.click();
     },
     onDailyClosing: () => {
       const modal = $('#dailyClosingModal');
@@ -9229,6 +9227,26 @@ function renderDetail() {
   $('#welcomeState').hidden = !!customer;
   $('#customerDetail').hidden = !customer;
   if (!customer) return;
+  // LIVE FIX 1: the Clear dues button is wired HERE, on every profile
+  // render, behind a dataset guard — not once at module load. A
+  // module-level binding attaches once and is lost if the node is ever
+  // replaced, leaving the button dead with no dialog, no toast and no
+  // error — exactly the reported symptom (tap does nothing, button
+  // stays idle). Re-wiring per render guarantees a live handler
+  // whenever a profile is open; the guard keeps exactly one listener
+  // per button node. (The old module-level binding is removed below —
+  // one wiring site only, so a tap can never run clearDues() twice.)
+  const clearDuesBtn = $('#clearDuesButton');
+  if (clearDuesBtn && !clearDuesBtn.dataset.wiredClearDues) {
+    clearDuesBtn.dataset.wiredClearDues = '1';
+    clearDuesBtn.addEventListener('click', () => {
+      // A rejected promise used to be swallowed silently (void
+      // clearDues()); surface it so a tap can never die quietly again.
+      clearDues().catch((err) => {
+        toast(`Clear dues could not start: ${err?.message || 'unknown error'}. Please try again.`, { type: 'error', title: 'Clear dues' });
+      });
+    });
+  }
   // SISP-94: switching profiles re-masks the router vault.
   if (routerCredRevealedFor !== customer.id) {
     routerCredRevealed = { wifi: false, admin: false };
@@ -11501,7 +11519,13 @@ async function clearDues() {
   const targetMonth = defaults.targetMonth;
   const today = getPakistanLocalDate();
   const guardKey = doubleTapSaveGuardKey({ customerId: customer.id, amount: payableTotal, method: 'Cash', month: targetMonth, date: today });
-  if (!doubleTapSaveGuardTryStart(clearDuesSaveGuard, guardKey)) return;
+  if (!doubleTapSaveGuardTryStart(clearDuesSaveGuard, guardKey)) {
+    // LIVE FIX 1: a refused tap used to die silently (the guard was
+    // already armed — e.g. an earlier tap whose confirm never
+    // settled) — the operator saw nothing at all. Say so instead.
+    toast('Clear dues is already running — please wait a moment, then tap again.', { type: 'info', title: 'Clear dues' });
+    return;
+  }
   try {
     doubleTapSaveGuardSetDisabled(button, true);
     if (button) button.setAttribute('aria-busy', 'true');
@@ -13755,7 +13779,9 @@ $('#editProfileButton').addEventListener('click', () => {
 
 // Profile "Clear dues" (2026-11-10): the green button in the header
 // action group pays the customer's full due in one Cash payment.
-$('#clearDuesButton').addEventListener('click', () => { void clearDues(); });
+// LIVE FIX 1: the button is wired in renderDetail() now (one wiring
+// site only) — the old module-level binding lived here and is removed,
+// so a tap can never run clearDues() twice.
 
 // Plan 494: one name-edit path, not two. The header "Edit name" button
 // opens the full edit form at the name field — reusing the error-jump

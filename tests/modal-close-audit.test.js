@@ -30,6 +30,11 @@
 //     circular ✕ close for the help guide popup; it keeps the shared
 //     close class and a Close aria-label, only the glyph differs.
 //     See DIALOG_CLOSE_EXCEPTIONS below.
+//   - #closeBulkCollectBtn: Bulk Collect Modal Fix item 5 (2026-11-13) —
+//     the second documented exception to the ↩ rule. The user specified
+//     a clean neutral ✕ close for the Bulk Collect modal; it keeps the
+//     shared close class and a Close aria-label, only the glyph differs.
+//     See DIALOG_CLOSE_EXCEPTIONS below.
 //   - Footer action-row buttons (secondary/primary "Close" / "Cancel" /
 //     "Done") inside dialogs that already have a conforming header close:
 //     form actions, not the dialog's close glyph (cf. PR #490's approved
@@ -77,14 +82,18 @@ const idClose = (b) => /close/i.test(b.id);
 const conforming = (b) => b.sharedClass && b.text === '↩' && ariaClose(b);
 const closeIntent = (b) => b.sharedClass || b.dataClose || ariaClose(b) || idClose(b);
 
-// QC Modal Fix (2026-11-13, item 14): the ONE documented exception
-// to the ↩ close rule. The user specified a standard circular ✕
-// close for the help guide popup — the popup is a nested overlay
-// that must stay put, and the ✕ is its explicit dismiss control.
-// The button keeps the shared close class and a Close aria-label;
-// only the glyph differs from the unified ↩.
+// Documented exceptions to the ↩ close rule. Each maps a dialog id to
+// its ✕ close button id. The button keeps the shared close class and a
+// Close aria-label; only the glyph differs from the unified ↩.
+//   - helpGuideDialog (QC Modal Fix item 14, 2026-11-13): the user
+//     specified a standard circular ✕ close for the help guide popup —
+//     a nested overlay that must stay put, and the ✕ is its explicit
+//     dismiss control.
+//   - bulkCollectModal (Bulk Collect Modal Fix item 5, 2026-11-13): the
+//     user specified a clean neutral ✕ close for the Bulk Collect modal.
 const DIALOG_CLOSE_EXCEPTIONS = {
-  helpGuideDialog: 'QC Modal Fix item 14: user-specified standard ✕ close',
+  helpGuideDialog: 'helpGuideCloseBtn',
+  bulkCollectModal: 'closeBulkCollectBtn',
 };
 
 const sourceFiles = ['index.html', ...readdirSync(root).filter((f) => f.endsWith('.js'))];
@@ -111,15 +120,15 @@ test('SISP-87 audit: every dialog in the tree renders the unified close button',
       const id = (openTag.match(/id="([^"]*)"/) || [])[1] || '(no id)';
       const buttons = [...block.matchAll(BUTTON_RE)].map((m) => parseButton(m[0]));
       const good = buttons.filter(conforming);
-      // QC Modal Fix item 14: the help guide popup is the one
-      // documented ↩ exception — its ✕ close (shared class + Close
-      // aria-label, ✕ glyph) counts as this dialog's conforming
-      // close, so the per-dialog invariant still holds.
-      const exception = DIALOG_CLOSE_EXCEPTIONS[id];
-      if (exception) {
-        const xclose = buttons.find((b) => b.id === 'helpGuideCloseBtn');
+      // Documented ↩ exceptions (see DIALOG_CLOSE_EXCEPTIONS): the
+      // dialog's ✕ close (shared class + Close aria-label, ✕ glyph)
+      // counts as this dialog's conforming close, so the per-dialog
+      // invariant still holds.
+      const exceptionBtnId = DIALOG_CLOSE_EXCEPTIONS[id];
+      if (exceptionBtnId) {
+        const xclose = buttons.find((b) => b.id === exceptionBtnId);
         assert.ok(xclose && xclose.sharedClass && xclose.text === '✕' && ariaClose(xclose),
-          `${name}: dialog #${id} must carry the documented ✕ close (${exception})`);
+          `${name}: dialog #${id} must carry the documented ✕ close (#${exceptionBtnId})`);
         conformingButtons += 1;
         continue;
       }
@@ -140,9 +149,10 @@ test('SISP-87 audit: every shared-class close button renders the back arrow with
     for (const m of source.matchAll(BUTTON_RE)) {
       const b = parseButton(m[0]);
       if (!b.sharedClass) continue;
-      // QC Modal Fix item 14: the help guide's ✕ close (see
-      // DIALOG_CLOSE_EXCEPTIONS) — the one documented ↩ exception.
-      if (b.id === 'helpGuideCloseBtn') continue;
+      // Documented ↩ exceptions (see DIALOG_CLOSE_EXCEPTIONS): the help
+      // guide's ✕ close (QC Modal Fix item 14) and the Bulk Collect
+      // modal's ✕ close (Bulk Collect Modal Fix item 5).
+      if (b.id === 'helpGuideCloseBtn' || b.id === 'closeBulkCollectBtn') continue;
       checked += 1;
       assert.equal(b.text, '↩', `${name}: .${b.cls} button #${b.id || '?'} must show ↩, found ${JSON.stringify(b.text)}`);
       assert.ok(ariaClose(b), `${name}: .${b.cls} button #${b.id || '?'} must carry a Close aria-label`);
@@ -179,6 +189,12 @@ const BARE_GLYPH_ALLOWLIST = [
   // shared .close-btn (plus its own .help-guide-close-btn hook), so
   // the redesign scanner picks it up too (see its own exception).
   { file: 'index.html', id: 'helpGuideCloseBtn', why: 'QC Modal Fix item 14: the help guide popup uses the user-specified standard circular ✕ close' },
+  // Bulk Collect Modal Fix item 5: the ✕ on the Bulk Collect modal IS a
+  // dialog close — the second documented exception to the ↩ rule,
+  // classified here so the audit enumerates it exactly once. Its class
+  // is the shared .close-button (plus its own .bc-close-btn hook), so
+  // the redesign scanner picks it up too (see its own exception).
+  { file: 'bulk-collect.js', id: 'closeBulkCollectBtn', why: 'Bulk Collect Modal Fix item 5: the Bulk Collect modal uses the user-specified clean neutral ✕ close' },
   // Plan 459: the × on a saved filter row removes only that filter —
   // an item-level micro-control, never a dialog close.
   { file: 'saved-search-filters.js', cls: 'fcs-clear-recent-btn', why: 'removes one saved filter row' },

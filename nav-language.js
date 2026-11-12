@@ -4033,6 +4033,10 @@ export const TRANSLATIONS = {
     qc2_priority_low: 'Low priority',
     qc2_tier_multi_month: '2+ months arrears',
     qc2_tier_long_overdue: '90+ days overdue',
+    // QC Modal Fix: the tag on a card whose dues reach the High
+    // filter threshold — it says why a Medium-scored card sits in
+    // the High ≥ 2k filter, without changing the scorer's badge.
+    qc2_high_balance: 'High balance ≥2k',
     // QC-3: proposed customer card — Outstanding vs Monthly package
     // figures, and the Call / Location / Collect action row.
     qc3_call: 'Call',
@@ -8649,6 +8653,7 @@ export const TRANSLATIONS = {
     qc2_priority_low: 'کم ترجیح',
     qc2_tier_multi_month: 'دو ماہ یا زیادہ کا بقایا',
     qc2_tier_long_overdue: 'نوے دن سے زیادہ تاخیر',
+    qc2_high_balance: 'زیادہ بقایا ≥2k',
     // QC-3: proposed customer card — Outstanding vs Monthly package
     // figures, and the Call / Location / Collect action row
     // (see the EN block above).

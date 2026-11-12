@@ -311,7 +311,12 @@ export function submitSpeedEntryBatch(state, rows, { execute, month, date, refer
         month,
         amount: check.amount,
         date,
-        method: check.method
+        method: check.method,
+        // Settlement, not a fee decision: the bill keeps its price, so
+        // a partial slip leaves its remainder due. Only a direct
+        // single collection reprices the bill to the taken fee (user
+        // decision 2026-11-12).
+        repriceBill: false
       }, referenceDate);
       nextState = after;
       recordedCount += 1;

@@ -330,5 +330,5 @@ export function packageHistoryViewSectionHtml(customer, currentPackage = {}, for
   const summary = view.segments.length > 0
     ? `<p class="phv-summary">${escapeHtml(packageHistoryViewText(view, format))}</p>`
     : '';
-  return `<section class="profile-package-history" aria-label="Package history"><h4>Package history</h4><p>Every package this customer has been on, with the dates and the price at the time — from the package changes already recorded on the profile. This view sets no package and re-prices nothing; a package is only changed through the profile Edit form.</p>${list}${undated}${summary}</section>`;
+  return `<section class="profile-package-history" aria-label="Package history"><h4>Package history</h4><p class="phv-explainer">Every package this customer has been on, with the dates and the price at the time — from the package changes already recorded on the profile. This view sets no package and re-prices nothing; a package is only changed through the profile Edit form.</p>${list}${undated}${summary}</section>`;
 }

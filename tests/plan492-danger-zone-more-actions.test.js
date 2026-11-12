@@ -24,11 +24,15 @@ const css = read('profile-ui.css');
 const styles = read('styles.css');
 const lang = read('nav-language.js');
 
-// The 13 quick actions that collapse behind "More actions" (Archive /
-// Unarchive stay visible in the header row; the QA tools stay in their
-// own disclosure). Count pinned: 13, not the design's approximate 12.
+// The 13 quick actions that collapse behind "More actions" (Unarchive
+// stays visible in the header row; the QA tools stay in their own
+// disclosure). Count pinned: 13, not the design's approximate 12.
+// Profile Polish B (10) (user request 2026-11-12) swaps one seat:
+// Record payment moves up into the header row and Archive moves down
+// into the Payments grid, so the count stays 13 with one member
+// exchanged.
 const ACTION_IDS = [
-  'currentBillPaymentShortcut', 'advancePaymentButton', 'backdatedPaymentButton',
+  'archiveCustomerButton', 'advancePaymentButton', 'backdatedPaymentButton',
   'openAccountStatementBtn', 'openReminderModalBtn', 'openCustomerPromiseBtn',
   'openBillInvoiceBtn', 'openLedgerAuditBtn', 'openAdjustmentModalBtn',
   'openServiceContractBtn', 'openDisputeClaimBtn', 'openKycAuditBtn',
@@ -62,7 +66,7 @@ test('Plan 492: mountCustomerProfileContent no longer mounts a danger zone into 
   assert.ok(!app.includes("'.profile-danger-zone'"), 'no mount group claims the danger zone anywhere');
 });
 
-test('Plan 492: the 13 quick actions live inside the More actions disclosure; Archive stays in the header row', () => {
+test('Plan 492: the 13 quick actions live inside the More actions disclosure; Unarchive stays in the header row, Archive joins the grid (Profile Polish B (10))', () => {
   assert.strictEqual(ACTION_IDS.length, 13, 'the collapsed action row holds 13 buttons');
   const groupAt = index.indexOf('class="profile-action-group"');
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"');
@@ -79,7 +83,7 @@ test('Plan 492: the 13 quick actions live inside the More actions disclosure; Ar
     const at = index.indexOf(`id="${id}"`);
     assert.ok(at > gridAt && at < qaAt, `${id} must sit inside the More actions grid, before the QA list`);
   }
-  for (const id of ['archiveCustomerButton', 'unarchiveCustomerButton']) {
+  for (const id of ['unarchiveCustomerButton']) {
     const at = index.indexOf(`id="${id}"`);
     assert.ok(at > groupAt && at < detailsAt, `${id} stays a direct child of the action group, ahead of the disclosure`);
   }
@@ -96,10 +100,11 @@ test('Plan 492: prof_more_actions exists in English and Urdu', () => {
 
 // Profile redesign: the #302 treatment moved INTO the category
 // grids. The outer grid is now a 1-column stack of categories; each
-// category holds a 2-column 52px action-card grid, Record + Advance
-// sit side-by-side first in Payments, and only the back-dated entry
-// spans the full category row (as a footer action, not a full-row
-// payment shortcut).
+// category holds a 2-column 52px action-card grid, Archive + Advance
+// sit side-by-side first in Payments (Profile Polish B (10) moved
+// Record payment up to the header and Archive down here), and only
+// the back-dated entry spans the full category row (as a footer
+// action, not a full-row payment shortcut).
 test('Plan 492: disclosure grid keeps the #302 treatment inside the category grids (2-col 52px cards, backdated full-row)', () => {
   assert.ok(css.includes('.profile-more-actions-grid {'), 'outer grid rule exists');
   assert.match(

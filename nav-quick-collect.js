@@ -184,7 +184,7 @@ import { overpaymentExtraCents } from './overpayment-choice.js';
 import { requiresLargeCashApproval, LARGE_CASH_DEFAULT_THRESHOLD_CENTS } from './large-cash-approval.js';
 import { underpaymentWarning, underpaymentWarningLineText } from './underpayment-warning.js';
 import { openSuspensionFor, suspendedWarningLineText } from './suspended-warning.js';
-import { formatWhatsAppUrl } from './form-validation.js';
+import { formatWhatsAppUrl, validatePakistanPhone } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
 import {
@@ -2102,7 +2102,26 @@ export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MO
  * @param {Object} receipt
  * @returns {string}
  */
-export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText } = {}) {
+/**
+ * LIVE FIX 3: which profile field the receipt's inline phone editor
+ * writes to. The row displays ONE number — whatsappPhone when it is
+ * the number shown, else the primary phone — so the editor saves back
+ * into the field that produced the displayed number; a customer with
+ * no number at all writes the primary `phone` (the profile edit's
+ * Phone field). Never guesses a number: it only names the field.
+ *
+ * @param {Object|null} customer
+ * @param {string} displayedPhone — the number the row currently shows
+ * @returns {'whatsappPhone'|'phone'}
+ */
+export function receiptPhoneSaveField(customer, displayedPhone) {
+  const shown = String(displayedPhone ?? '').trim();
+  const wp = String(customer?.whatsappPhone ?? '').trim();
+  if (shown && wp && wp === shown) return 'whatsappPhone';
+  return 'phone';
+}
+
+export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText, editingPhone = false, phoneEditValue = '', phoneEditError = '' } = {}) {
   // Plan 565: the card reads the same canonical remaining figure as
   // the WhatsApp draft (payableRemaining ?? newTotalDues ??
   // newBalanceDue ?? 0) — payableRemaining is the most complete
@@ -2129,15 +2148,30 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
   // live-state resolution (whatsappPhone first, else the primary
   // phone) passed in by the caller, falling back to the receipt's
   // stamped primary phone, never the stamp alone: a whatsappPhone-only
-  // customer would otherwise read "Not saved". No usable number reads
-  // "Not saved" with an "Add number" button (only when the receipt
-  // carries a customerId — without one there is nobody to edit). The
-  // button is wired by delegation on the card container.
+  // customer would otherwise read "Not saved".
+  // LIVE FIX 3: the row is SMART now — a saved number shows GREEN
+  // (qc-phone-saved, the card's success-green token) with a Change
+  // button; no number reads "Not saved" with an "Add number" button
+  // (only when the receipt carries a customerId — without one there is
+  // nobody to edit). Either button opens an INLINE editor on the card
+  // itself (input + Save / Cancel, no jump to the profile edit); the
+  // editor is wired by delegation on the card container.
   const displayPhone = String(whatsappPhone || '').trim() || String(receipt.phone || '').trim();
-  const phoneRow = `
+  const phoneRow = editingPhone ? `
         <div class="qc-receipt-item" data-qc-receipt-phone>
           <span class="qc-meta-label">Mobile Number</span>
-          ${displayPhone ? `<strong class="qc-meta-val">${escapeHtml(displayPhone)}</strong>` : `<strong class="qc-meta-val">Not saved</strong>${receipt.customerId ? `<button type="button" class="secondary-button" data-qc-add-phone>Add number</button>` : ''}`}
+          <span class="qc-meta-val">
+            <input class="qc-input qc-phone-input" data-qc-phone-input type="tel" inputmode="tel" maxlength="40" value="${escapeHtml(phoneEditValue)}" placeholder="03012345678" aria-label="Mobile number" />
+            ${phoneEditError ? `<span class="qc-phone-error" data-qc-phone-error role="alert">${escapeHtml(phoneEditError)}</span>` : ''}
+            <span class="qc-phone-actions">
+              <button type="button" class="secondary-button" data-qc-phone-save>Save</button>
+              <button type="button" class="text-button" data-qc-phone-cancel>Cancel</button>
+            </span>
+          </span>
+        </div>` : `
+        <div class="qc-receipt-item" data-qc-receipt-phone>
+          <span class="qc-meta-label">Mobile Number</span>
+          ${displayPhone ? `<strong class="qc-meta-val qc-phone-saved">${escapeHtml(displayPhone)}</strong>${receipt.customerId ? `<button type="button" class="text-button" data-qc-edit-phone>Change</button>` : ''}` : `<strong class="qc-meta-val">Not saved</strong>${receipt.customerId ? `<button type="button" class="secondary-button" data-qc-add-phone>Add number</button>` : ''}`}
         </div>`;
   // Month name: the BILL month being paid ("2026-11" → "November"),
   // never the device clock — an October payment recorded in November
@@ -3118,6 +3152,18 @@ export function setupQuickCollectModal({
   // BUT HOUSE fix: true once the success card's "Add number" click
   // listener has been wired (same once-only guard as the area select).
   let addPhoneWired = false;
+  // LIVE FIX 3: the receipt's inline phone editor — true while the
+  // Mobile Number row shows its input + Save / Cancel instead of the
+  // saved value; editingPhoneValue tracks what the operator typed
+  // (via the delegated input listener, so a re-render never loses
+  // it); phoneEditError carries the validation message, if any.
+  // lastPhoneEditReceiptId drops the editor whenever a different
+  // receipt lands on the card, so a stale editor never rides onto
+  // another receipt.
+  let editingPhone = false;
+  let editingPhoneValue = '';
+  let phoneEditError = '';
+  let lastPhoneEditReceiptId = null;
   let activeUndoContext = null;
   const UNDO_WINDOW_MS = 5000;
   let undoTimeoutId = null;
@@ -5743,6 +5789,15 @@ export function setupQuickCollectModal({
   // as the ordinary card, so an unassigned area can be picked right here.
   function renderActiveReceiptCard() {
     if (!receiptCardContainer || !activeReceipt) return;
+    // LIVE FIX 3: a new receipt (a fresh save, Collect Another, a
+    // reopened modal) drops the inline phone editor — a stale editor
+    // must never ride onto another receipt's card.
+    if (activeReceipt.id !== lastPhoneEditReceiptId) {
+      lastPhoneEditReceiptId = activeReceipt.id;
+      editingPhone = false;
+      editingPhoneValue = '';
+      phoneEditError = '';
+    }
     // BUT HOUSE fix: resolve the receipt owner's WhatsApp number from
     // live state (whatsappPhone first, else the primary phone) — the
     // same resolution the WhatsApp draft uses — so the card shows the
@@ -5773,7 +5828,7 @@ export function setupQuickCollectModal({
     const chargesPending = successNextStepsChargesPending(activeReceipt);
     receiptCardContainer.innerHTML = activeReceipt.splitTender
       ? renderSplitReceiptCardHtml(activeReceipt.splitTender, quickCollectAreaSelectHtml(activeReceipt.splitTender.area), { nextDueDateText, chargesPending })
-      : renderQuickCollectReceiptCardHtml(activeReceipt, { whatsappPhone: receiptWhatsappPhone, nextDueDateText });
+      : renderQuickCollectReceiptCardHtml(activeReceipt, { whatsappPhone: receiptWhatsappPhone, nextDueDateText, editingPhone, phoneEditValue: editingPhoneValue, phoneEditError });
     // Plan 443: the card re-render refreshes the share draft too, so
     // an area change or a share never leaves a stale draft on screen.
     renderReceiptShareDraft();
@@ -6239,21 +6294,67 @@ export function setupQuickCollectModal({
     });
   }
 
-  // BUT HOUSE fix: the success card's "Add number" button opens the
-  // profile editor with the phone field focused — exactly the
-  // warnNoPhone toast action's path (close the modal, then
-  // onEditCustomer with focus 'phone' after 350ms, so the dialog's
-  // own history entry goes back first). Delegated on the card
-  // container like the area select above, so re-renders keep working.
+  // LIVE FIX 3: the success card's Mobile Number row edits INLINE —
+  // "Add number" / "Change" opens an input + Save / Cancel on the
+  // card itself (no jump to the profile edit any more); Save validates
+  // with validatePakistanPhone and writes through the canonical
+  // updateCustomerProfile + onSaveState path, then re-renders the card
+  // so the number shows green. Delegated on the card container like
+  // the area select above, so re-renders keep working. The typed value
+  // rides in closure state via the delegated input listener, so a
+  // re-render mid-edit never loses it.
   if (receiptCardContainer && !addPhoneWired) {
     addPhoneWired = true;
+    receiptCardContainer.addEventListener('input', (event) => {
+      if (event.target?.closest?.('[data-qc-phone-input]')) {
+        editingPhoneValue = event.target.value ?? '';
+      }
+    });
     receiptCardContainer.addEventListener('click', (event) => {
-      const btn = event.target?.closest?.('[data-qc-add-phone]');
-      if (!btn || !activeReceipt?.customerId || typeof onEditCustomer !== 'function') return;
-      const customerId = activeReceipt.customerId;
-      closeModal();
-      // Let the dialog's own history entry go back first, then open the profile editor.
-      setTimeout(() => onEditCustomer(customerId, { focus: 'phone' }), 350);
+      if (!activeReceipt?.customerId) return;
+      const openBtn = event.target?.closest?.('[data-qc-add-phone], [data-qc-edit-phone]');
+      if (openBtn) {
+        const customer = getState()?.customers?.find((c) => c.id === activeReceipt.customerId) ?? null;
+        editingPhone = true;
+        editingPhoneValue = customer ? String(whatsappPhoneFor(customer) || '').trim() : '';
+        phoneEditError = '';
+        renderActiveReceiptCard();
+        receiptCardContainer.querySelector('[data-qc-phone-input]')?.focus?.();
+        return;
+      }
+      if (event.target?.closest?.('[data-qc-phone-cancel]')) {
+        editingPhone = false;
+        editingPhoneValue = '';
+        phoneEditError = '';
+        renderActiveReceiptCard();
+        return;
+      }
+      if (event.target?.closest?.('[data-qc-phone-save]')) {
+        const value = String(editingPhoneValue ?? '').trim();
+        if (!value) {
+          phoneEditError = 'Enter a mobile number to save.';
+          renderActiveReceiptCard();
+          receiptCardContainer.querySelector('[data-qc-phone-input]')?.focus?.();
+          return;
+        }
+        const check = validatePakistanPhone(value);
+        if (!check.valid) {
+          phoneEditError = check.message || 'That number does not look right — check it and try again.';
+          renderActiveReceiptCard();
+          receiptCardContainer.querySelector('[data-qc-phone-input]')?.focus?.();
+          return;
+        }
+        const customer = getState()?.customers?.find((c) => c.id === activeReceipt.customerId) ?? null;
+        const displayed = customer ? whatsappPhoneFor(customer) : (activeReceipt.phone || '');
+        const field = receiptPhoneSaveField(customer, displayed);
+        const next = updateCustomerProfile(getState(), activeReceipt.customerId, { [field]: value });
+        onSaveState(next);
+        editingPhone = false;
+        editingPhoneValue = '';
+        phoneEditError = '';
+        renderActiveReceiptCard();
+        onToast('Mobile number saved to the profile.', { type: 'success' });
+      }
     });
   }
 

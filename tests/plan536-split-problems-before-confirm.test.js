@@ -473,7 +473,11 @@ test('wiring: every split validation sits before the confirm check; the recordin
   assert.ok(advanceConflictAt > largeCashAt, 'the split validations sit beside the large-cash check');
   const tidRequiredAt = src.indexOf("t('split_leg2_tid_required')");
   assert.ok(tidRequiredAt > 0 && tidRequiredAt < confirmAt, 'the leg-2 TID check is before confirm');
-  const dup2At = src.indexOf('if (dup2 && duplicateBypassedForLeg2Txn !== leg2Txn) {');
+  // Sharafat 8: the leg-2 duplicate check compares the keyed
+  // bypass (customer + TID + amount + method) now, not the raw
+  // TID — the check's position before confirm is what this pin
+  // guards, and that is unchanged.
+  const dup2At = src.indexOf('if (dup2 && duplicateBypassedForLeg2TxnKey !== duplicateTidBypassKey(activeCustomerId, leg2Txn, leg2Amount, leg2Method)) {');
   assert.ok(dup2At > 0 && dup2At < confirmAt, 'the leg-2 duplicate check is before confirm');
   // The fully-paid split guard moved too — pin it by its own
   // comment, which lives only in the split block (the top-level

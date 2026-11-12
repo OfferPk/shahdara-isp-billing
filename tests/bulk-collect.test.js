@@ -37,8 +37,12 @@ test('paying a customer in full removes them from the Quick Collect pending list
   const s = makeState();
   const { nextState } = executeQuickCollection(s, { customerId: 'b', month, amount: 1500, date: today, method: 'Cash' });
   assert.ok(!getPendingCollectionCustomers(nextState, '', 'all-dues').some(r => r.id === 'b'));
+  // User decision 2026-11-12: a partial payment that sets the package
+  // reprices the month's bill to the amount paid, so the month is
+  // fully paid and the customer leaves the pending list too — a 500
+  // part-payment on a 1,500 bill no longer leaves 1,000 due.
   const partial = executeQuickCollection(s, { customerId: 'b', month, amount: 500, date: today, method: 'Cash' }).nextState;
-  assert.equal(getPendingCollectionCustomers(partial, '', 'all-dues').find(r => r.id === 'b').totalDues, 1000);
+  assert.ok(!getPendingCollectionCustomers(partial, '', 'all-dues').some(r => r.id === 'b'));
 });
 
 test('picker: "Sab ka bill wusool ho gaya" when all bills are paid; setup state when nobody has a fee (#248)', () => {

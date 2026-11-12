@@ -715,8 +715,30 @@ export function profileServiceState(customer, { today, openSuspension } = {}) {
   return { state: 'not-chosen', label: t('prof_service_not_chosen'), modifier: 'not-set' };
 }
 
-export function profileServiceStatusPillHtml(serviceState) {
-  return `<span class="profile-service-status profile-service-status-${serviceState.modifier}">${escapeHtml(serviceState.label)}</span>`;
+// Profile Polish C (15) — the bare status word for the section-header
+// pill: just the word ("Active", "Vacation", "Suspended", ...), never
+// the dated label ("Vacation · since Nov 3 2026") and never a "·"
+// separator. The word comes from the same label keys the derived
+// state already uses, so the header pill and the header badge agree
+// on the word. An unknown state falls back to the full label — a pill
+// with the label is better than a pill with nothing.
+const SERVICE_STATUS_WORD_KEYS = Object.freeze({
+  active: 'prof_service_active',
+  offline: 'prof_service_offline',
+  vacation: 'prof_status_vacation',
+  suspended: 'prof_status_suspended',
+  expired: 'prof_status_expired',
+  'not-chosen': 'prof_service_not_chosen',
+});
+
+export function profileServiceStatusWord(serviceState) {
+  const key = SERVICE_STATUS_WORD_KEYS[serviceState?.state];
+  return key ? t(key) : (serviceState?.label ?? '');
+}
+
+export function profileServiceStatusPillHtml(serviceState, { wordOnly = false } = {}) {
+  const text = wordOnly ? profileServiceStatusWord(serviceState) : serviceState.label;
+  return `<span class="profile-service-status profile-service-status-${serviceState.modifier}">${escapeHtml(text)}</span>`;
 }
 
 // Profile redesign (Step 2) — the header identity line: `{mohalla} ·

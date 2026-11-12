@@ -120,14 +120,37 @@ export function buildGlobalLedgerSearch(state, query, month) {
   });
 }
 
-/** Build call and WhatsApp targets without guessing a country code or accepting extension/URL syntax. */
+/** Dues Recovery Overhaul — normalise a saved Pakistani mobile to its
+ *  international form for WhatsApp links: 03XX-XXXXXXX, 03XXXXXXXXX
+ *  and 923XXXXXXXXX all become +923XXXXXXXXX. Anything already
+ *  international, or not a recognisable Pakistani mobile, is returned
+ *  unchanged so callers keep their existing behaviour — this never
+ *  invents a number, it only re-formats a saved one. */
+export function normalisePakistanWhatsAppNumber(phone) {
+  const compact = normalisePhoneSyntax(phone);
+  if (!compact) return phone;
+  const digits = compact.replace(/^\+/, '');
+  if (digits.startsWith('92') && digits.length === 12 && digits[2] === '3') return `+${digits}`;
+  if (digits.length === 11 && digits.startsWith('03')) return `+92${digits.slice(1)}`;
+  return phone;
+}
+
+/** Build call and WhatsApp targets without guessing a country code or accepting extension/URL syntax.
+ *  Dues Recovery Overhaul: the WhatsApp target is built from the
+ *  normalised Pakistani form, so a saved 03xx mobile gets a working
+ *  wa.me link instead of a disabled action (the receipt share in
+ *  nav-quick-profile.js already normalises the same way). The tel:
+ *  target keeps the saved number verbatim, so calls dial exactly
+ *  what the owner saved. A number that is neither international nor
+ *  a recognisable Pakistani mobile still gets no WhatsApp link. */
 export function contactActionTargets(phone) {
   const compact = normalisePhoneSyntax(phone);
   if (!/^\+?\d{3,20}$/.test(compact)) return null;
-  const explicitInternational = /^\+?[1-9]\d{7,14}$/.test(compact);
+  const whatsappCompact = normalisePhoneSyntax(normalisePakistanWhatsAppNumber(phone));
+  const whatsapp = /^\+?[1-9]\d{7,14}$/.test(whatsappCompact) ? `https://wa.me/${whatsappCompact.replace(/^\+/, '')}` : null;
   return {
     tel:`tel:${compact}`,
-    whatsapp:explicitInternational ? `https://wa.me/${compact.replace(/^\+/, '')}` : null
+    whatsapp
   };
 }
 

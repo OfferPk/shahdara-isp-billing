@@ -457,11 +457,14 @@ test('rounding (SISP-131): the Rs 50 toggle rounds at stamp time only; allocatio
   assert.equal(calculatePaymentAllocations(rawState).forMonth('cust-1', MONTH).balanceDueCents, 277500);
 
   // Allocation itself never note-rounds a payment: a paisa-exact
-  // 100.37 collection applies 10,037 cents and leaves 289,963 due.
+  // 100.37 collection applies 10,037 cents. User decision 2026-11-12:
+  // the payment sets the package to the amount paid (100.37) and
+  // reprices the bill to it, so the month is fully paid — no 289,963
+  // remainder.
   let paisaState = { version: 1, nextCustomerNumber: 102, customers: [baseCustomer()] };
   paisaState = saveBillMonth(paisaState, 'cust-1', { month: MONTH, dueAmount: BILL, status: 'pending' }, REF);
   const paisa = collect(paisaState, 100.37, []);
   const paisaLedger = calculatePaymentAllocations(paisa.nextState).byPaymentId.get(lastPayment(paisa.nextState).id);
   assert.deepEqual(paisaLedger.allocations, [{ month: MONTH, amountCents: 10037, kind: 'same-month' }]);
-  assert.equal(calculatePaymentAllocations(paisa.nextState).forMonth('cust-1', MONTH).balanceDueCents, 289963);
+  assert.equal(calculatePaymentAllocations(paisa.nextState).forMonth('cust-1', MONTH).balanceDueCents, 0);
 });

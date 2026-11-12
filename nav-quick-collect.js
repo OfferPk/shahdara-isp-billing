@@ -143,7 +143,7 @@ import {
 } from './waada-queue.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
 import { ensureUrduFont, t } from './nav-language.js';
-import { buildReceiptPaymentHistory } from './receipt.js';
+import { buildReceiptPaymentHistory, historyRowLabel } from './receipt.js';
 import {
   getDigitalPaymentsSettings,
   hasConfiguredDigitalPayments,
@@ -1548,7 +1548,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   const historyLines = (Array.isArray(receipt.previousPayments) ? receipt.previousPayments : [])
     .filter((row) => row && typeof row === 'object' && validQcHistoryDate(row.date) && Number.isFinite(Number(row.amount)))
     .slice(0, 3)
-    .map((row) => `• ${[formatQcReceiptDate(row.date), `PKR ${formatReceiptMoneyFigure(row.amount)}`, row.method, row.receiptLabel].filter(Boolean).join(' · ')}`);
+    .map((row) => `• ${[formatQcReceiptDate(row.date), `PKR ${formatReceiptMoneyFigure(row.amount)}`, row.method, historyRowLabel(row)].filter(Boolean).join(' · ')}`);
   const historyBlock = historyLines.length
     ? [`📜 *${t('rcpt_hist_heading', 'en')} / ${t('rcpt_hist_heading', 'ur')}:*`, ...historyLines, ``]
     : [];

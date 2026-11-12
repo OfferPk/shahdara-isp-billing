@@ -12,8 +12,10 @@
 //    valid payment takes the freed slot; malformed dates are skipped,
 //    never ranked or guessed;
 //  - receipt reference = stored receiptNumber -> permanentReceiptNumber
-//    -> readable-date fallback (Recent Payments precedent, PR #471);
-//    NO receipt number is ever fabricated;
+//    -> '' (no fallback: a number-less payment carries no label, so a
+//    history row never prints its own date twice — 2026-11-12 fix for
+//    the old readable-date fallback, PR #471 precedent, which doubled
+//    the date on every surface); NO receipt number is ever fabricated;
 //  - amount = the payment record's own `amount` (the figure the profile
 //    history shows; for a SISP-61 prepay that is the recorded net cash);
 //    all recorded kinds count (regular / advance / kist-carrying);
@@ -29,7 +31,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   buildPaymentReceipt, generatePaymentReceiptHtml,
-  buildReceiptPaymentHistory, receiptHistoryHeading
+  buildReceiptPaymentHistory, receiptHistoryHeading, historyRowLabel
 } from '../receipt.js';
 import {
   PNG_RECEIPT_HEIGHT, buildPngReceiptModel, computePngReceiptLayout, generateReceiptPNG
@@ -116,7 +118,7 @@ test('malformed or missing dates are skipped, never ranked or guessed', () => {
   assert.deepEqual(buildPaymentReceipt(customer, bills[1], current).previousPayments.map((row) => row.date), ['2026-09-10']);
 });
 
-test('receipt reference chain: stored receiptNumber, then permanentReceiptNumber, then readable date — never fabricated', () => {
+test('receipt reference chain: stored receiptNumber, then permanentReceiptNumber, then empty label — never fabricated, never a date', () => {
   const current = payment('pay-now', 3000, '2026-10-04');
   const { customer, bills } = ledger([
     {
@@ -131,9 +133,8 @@ test('receipt reference chain: stored receiptNumber, then permanentReceiptNumber
   ]);
   const history = buildPaymentReceipt(customer, bills[1], current).previousPayments;
   assert.equal(history[0].receiptRef, '', 'a payment that stored no number keeps an empty ref');
-  assert.match(history[0].receiptLabel, /2026/, 'fallback label is the readable date');
-  assert.notEqual(history[0].receiptLabel, '2026-09-18');
-  assert.doesNotMatch(history[0].receiptLabel, /RCPT|PERM|REC-\d/, 'no number is invented for the fallback');
+  assert.equal(history[0].receiptLabel, '', 'a payment that stored no number keeps an empty label — never a date');
+  assert.doesNotMatch(history[0].receiptLabel, /RCPT|PERM|REC-\d/, 'no number is invented for the empty label');
   assert.equal(history[1].receiptRef, 'PERM-42-9');
   assert.equal(history[1].receiptLabel, 'PERM-42-9');
   assert.equal(history[2].receiptRef, 'RCPT-42-2026-09-01');
@@ -356,6 +357,38 @@ test('profile WhatsApp draft: attached previousPayments render; absent means no 
   assert.ok(withHistory.message.includes('Sep 18 2026') && withHistory.message.includes('PKR 3,000') && withHistory.message.includes('RCPT-42-2026-09-02'));
   const without = createReceiptWhatsAppDraft('+92 300 123 4567', base);
   assert.ok(!without.message.includes('Last 3 Payments'), 'no attachment, no block — the approved template is untouched');
+});
+
+test('profile WhatsApp draft: a no-number row prints its date once, never doubled (2026-11-12 fix)', () => {
+  const base = {
+    customerName: 'Synthetic Customer', customerNumber: 42, amount: 3000,
+    date: '2026-10-04', method: 'Cash', month: '2026-10',
+    billStatus: 'paid', billAmount: 3000, balanceDueCents: 0, billDueDate: '2026-10-05'
+  };
+  // Fresh build: no stored number, empty label.
+  const fresh = createReceiptWhatsAppDraft('+92 300 123 4567', {
+    ...base,
+    previousPayments: [{ date: '2026-09-18', amount: 3000, method: 'EasyPaisa', receiptRef: '', receiptLabel: '' }]
+  });
+  assert.ok(fresh.message.includes('• Sep 18 2026 · PKR 3,000 · EasyPaisa'), fresh.message);
+  assert.equal((fresh.message.match(/Sep 18 2026/g) ?? []).length, 1, 'the date appears exactly once');
+  // Stale row built before the fix: the label is the old medium date.
+  const stale = createReceiptWhatsAppDraft('+92 300 123 4567', {
+    ...base,
+    previousPayments: [{ date: '2026-09-18', amount: 3000, method: 'EasyPaisa', receiptRef: '', receiptLabel: 'Sep 18, 2026' }]
+  });
+  assert.ok(stale.message.includes('• Sep 18 2026 · PKR 3,000 · EasyPaisa'), stale.message);
+  assert.ok(!stale.message.includes('Sep 18, 2026'), 'the stale date label is dropped, not printed twice');
+});
+
+test('historyRowLabel guard: a label that is the row\'s own date is dropped, a real number is kept', () => {
+  assert.equal(historyRowLabel({ date: '2026-10-06', receiptLabel: 'Oct 6, 2026' }), '');
+  assert.equal(historyRowLabel({ date: '2026-10-06', receiptLabel: '6 Oct 2026' }), '');
+  assert.equal(historyRowLabel({ date: '2026-10-06', receiptLabel: '06/10/2026' }), '');
+  assert.equal(historyRowLabel({ date: '2026-10-06', receiptLabel: 'RCPT-001' }), 'RCPT-001');
+  assert.equal(historyRowLabel({ date: '2026-10-06', receiptLabel: '' }), '');
+  assert.equal(historyRowLabel({ date: '2026-10-06' }), '');
+  assert.equal(historyRowLabel({ date: '2026-10-06', receiptLabel: 'Oct 7, 2026' }), 'Oct 7, 2026', 'a date that is not the row\'s own date is kept');
 });
 
 test('i18n: every rcpt_hist_* key resolves in both dictionaries and no source uses an undefined one', () => {

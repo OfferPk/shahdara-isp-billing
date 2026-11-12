@@ -28290,36 +28290,6 @@
       </header>
 
       <div class="billing-modal-body">
-        <!-- KPI Metric Cards Grid -->
-        <div class="defaulters-kpi-grid">
-          <div class="defaulter-kpi-card">
-            <span class="defaulter-kpi-label">Top Defaulters Total Dues</span>
-            <span id="topDefaultersKpiTopDues" class="defaulter-kpi-value">PKR 0</span>
-            <span class="defaulter-kpi-sub">Across filtered top accounts</span>
-          </div>
-          <div class="defaulter-kpi-card">
-            <span class="defaulter-kpi-label">Receivables Concentration</span>
-            <span id="topDefaultersKpiConcentration" class="defaulter-kpi-value">0%</span>
-            <span class="defaulter-kpi-sub">% of total ISP outstanding debt</span>
-          </div>
-          <div class="defaulter-kpi-card">
-            <span class="defaulter-kpi-label">Total Portfolio Outstanding</span>
-            <span id="topDefaultersKpiTotalDebt" class="defaulter-kpi-value">PKR 0</span>
-            <span class="defaulter-kpi-sub">All active &amp; delinquent accounts</span>
-          </div>
-          <div class="defaulter-kpi-card">
-            <span class="defaulter-kpi-label">Critical Risk Accounts (3m+)</span>
-            <span id="topDefaultersKpiCriticalCount" class="defaulter-kpi-value text-danger">0</span>
-            <span class="defaulter-kpi-sub">Severe disconnection candidates</span>
-          </div>
-        </div>
-
-        <!-- Pure Vector SVG Debt Concentration Chart -->
-        <div class="defaulters-chart-wrapper" style="margin-top: 16px;">
-          <h4 class="modal-section-title">Top Defaulters Debt Concentration Chart</h4>
-          <div id="topDefaultersChartContainer" class="chart-svg-container" style="min-height: 220px;" role="img" aria-label="Top defaulters debt concentration visualizer"></div>
-        </div>
-
         <!-- Filter Toolbar -->
         <div class="defaulters-toolbar-container" style="margin-top: 16px;">
           <div class="defaulters-filter-controls">
@@ -28382,6 +28352,38 @@
           </p>
         </div>
 
+        <!-- KPI Metric Cards Grid — below the dues list: the list is
+             the primary content (Dues-list tile live fix, 2026-11-12),
+             the summary cards and chart stay available by scrolling. -->
+        <div class="defaulters-kpi-grid">
+          <div class="defaulter-kpi-card">
+            <span class="defaulter-kpi-label">Top Defaulters Total Dues</span>
+            <span id="topDefaultersKpiTopDues" class="defaulter-kpi-value">PKR 0</span>
+            <span class="defaulter-kpi-sub">Across filtered top accounts</span>
+          </div>
+          <div class="defaulter-kpi-card">
+            <span class="defaulter-kpi-label">Receivables Concentration</span>
+            <span id="topDefaultersKpiConcentration" class="defaulter-kpi-value">0%</span>
+            <span class="defaulter-kpi-sub">% of total ISP outstanding debt</span>
+          </div>
+          <div class="defaulter-kpi-card">
+            <span class="defaulter-kpi-label">Total Portfolio Outstanding</span>
+            <span id="topDefaultersKpiTotalDebt" class="defaulter-kpi-value">PKR 0</span>
+            <span class="defaulter-kpi-sub">All active &amp; delinquent accounts</span>
+          </div>
+          <div class="defaulter-kpi-card">
+            <span class="defaulter-kpi-label">Critical Risk Accounts (3m+)</span>
+            <span id="topDefaultersKpiCriticalCount" class="defaulter-kpi-value text-danger">0</span>
+            <span class="defaulter-kpi-sub">Severe disconnection candidates</span>
+          </div>
+        </div>
+
+        <!-- Pure Vector SVG Debt Concentration Chart -->
+        <div class="defaulters-chart-wrapper" style="margin-top: 16px;">
+          <h4 class="modal-section-title">Top Defaulters Debt Concentration Chart</h4>
+          <div id="topDefaultersChartContainer" class="chart-svg-container" style="min-height: 220px;" role="img" aria-label="Top defaulters debt concentration visualizer"></div>
+        </div>
+
         <!-- SISP-13: MikroTik defaulter lock / restore script output -->
         <div id="topDefaultersMikrotikOutput" class="mikrotik-output-block" hidden>
           <h4 class="modal-section-title">MikroTik RouterOS script</h4>
@@ -28392,18 +28394,27 @@
       </div>
 
       <footer class="billing-modal-footer">
-        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button id="topDefaultersExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
-          <button id="topDefaultersCopyBriefingBtn" class="secondary-button" type="button">📋 Copy Briefing</button>
-          <button id="topDefaultersLockDueBtn" class="secondary-button lock-due-toggle" type="button" aria-pressed="false" title="Filter to Lock Due (15th+, no active Waada) — the MikroTik Lock Script then covers exactly this suspension set">🔴 Lock Due (15th+)</button>
-          <button id="topDefaultersPrelockNoticeBtn" class="secondary-button" type="button" data-i18n="prelock_open_btn" title="Final 24h WhatsApp notice queue for the Lock Due set (Waada-promised and paused customers are spared, as in the lock script)">📲 Send Final Pre-Lock WhatsApp Notice</button>
-          <button id="topDefaultersHideContactedBtn" class="secondary-button" type="button" aria-pressed="false" data-i18n="cct_hide_contacted_today">Hide contacted today</button>
-          <button id="topDefaultersMikrotikLockBtn" class="secondary-button" type="button">📡 MikroTik Lock Script</button>
-          <button id="topDefaultersMikrotikRestoreBtn" class="secondary-button" type="button">✅ MikroTik Restore Script</button>
-          <button id="topDefaultersPrintA4Btn" class="secondary-button" type="button">📄 Print A4</button>
-          <button id="topDefaultersPrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
-          <button id="topDefaultersZoneSheetBtn" class="secondary-button" type="button" data-i18n="zsheet_open_btn">🖨️ Zone Collection Sheet</button>
-        </div>
+        <!-- Dues-list tile live fix (2026-11-12): the ten action buttons
+             wrapped into a wall on a phone and pushed the customer dues
+             list off the viewport. They now live in a collapsed
+             <details> — one "Actions" toggle — so the list is the
+             primary content and the actions stay available but
+             secondary. Close stays outside, always visible. -->
+        <details class="defaulters-actions-details">
+          <summary class="secondary-button defaulters-actions-summary">⚙️ Actions</summary>
+          <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="topDefaultersExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
+            <button id="topDefaultersCopyBriefingBtn" class="secondary-button" type="button">📋 Copy Briefing</button>
+            <button id="topDefaultersLockDueBtn" class="secondary-button lock-due-toggle" type="button" aria-pressed="false" title="Filter to Lock Due (15th+, no active Waada) — the MikroTik Lock Script then covers exactly this suspension set">🔴 Lock Due (15th+)</button>
+            <button id="topDefaultersPrelockNoticeBtn" class="secondary-button" type="button" data-i18n="prelock_open_btn" title="Final 24h WhatsApp notice queue for the Lock Due set (Waada-promised and paused customers are spared, as in the lock script)">📲 Send Final Pre-Lock WhatsApp Notice</button>
+            <button id="topDefaultersHideContactedBtn" class="secondary-button" type="button" aria-pressed="false" data-i18n="cct_hide_contacted_today">Hide contacted today</button>
+            <button id="topDefaultersMikrotikLockBtn" class="secondary-button" type="button">📡 MikroTik Lock Script</button>
+            <button id="topDefaultersMikrotikRestoreBtn" class="secondary-button" type="button">✅ MikroTik Restore Script</button>
+            <button id="topDefaultersPrintA4Btn" class="secondary-button" type="button">📄 Print A4</button>
+            <button id="topDefaultersPrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
+            <button id="topDefaultersZoneSheetBtn" class="secondary-button" type="button" data-i18n="zsheet_open_btn">🖨️ Zone Collection Sheet</button>
+          </div>
+        </details>
         <button id="closeTopDefaultersSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
     </div>

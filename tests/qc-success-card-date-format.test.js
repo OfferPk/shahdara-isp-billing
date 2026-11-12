@@ -143,7 +143,7 @@ test('qc date format: the card and draft call the helper, not a re-typed format'
     'draft Date line must call formatQcReceiptDate'
   );
   assert.ok(
-    quickCollectSrc.includes('[formatQcReceiptDate(row.date), `PKR ${formatReceiptMoneyFigure(row.amount)}`, row.method, row.receiptLabel]'),
+    quickCollectSrc.includes('[formatQcReceiptDate(row.date), `PKR ${formatReceiptMoneyFigure(row.amount)}`, row.method, historyRowLabel(row)]'),
     'draft history rows must call formatQcReceiptDate'
   );
 });

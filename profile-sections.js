@@ -144,8 +144,18 @@ export function withProfileSectionOpen(map, customerId, key, isOpen) {
  * button to the summary (class-found wiring in app.js opens the same
  * edit form at this section's group). Omitting it renders exactly the
  * Phase A output, so sections without an edit control are byte-identical.
+ *
+ * Profile Polish C (15) — an optional summaryHtml renders caller-owned
+ * HTML inside the summary span instead of the escaped summary (the
+ * section-header status pill). It passes through unescaped exactly
+ * like the body, so the caller owns its escaping; omitting it renders
+ * exactly the Phase A output, so sections without a pill are
+ * byte-identical.
  */
-export function profileDetailSectionHtml({ key, heading, summary, body, open, editLabel }) {
+export function profileDetailSectionHtml({ key, heading, summary, summaryHtml, body, open, editLabel }) {
   const edit = editLabel ? `<button type="button" class="profile-section-edit secondary-button" data-profile-section-edit="${escapeProfileSectionHtml(key)}">${escapeProfileSectionHtml(editLabel)}</button>` : '';
-  return `<details class="profile-detail-section" data-profile-section="${escapeProfileSectionHtml(key)}"${open ? ' open' : ''}><summary><h3>${escapeProfileSectionHtml(heading)}</h3><span class="profile-section-summary">${escapeProfileSectionHtml(summary)}</span>${edit}</summary><div class="profile-section-body">${body ?? ''}</div></details>`;
+  const summaryInner = (typeof summaryHtml === 'string' && summaryHtml.length > 0)
+    ? summaryHtml
+    : escapeProfileSectionHtml(summary);
+  return `<details class="profile-detail-section" data-profile-section="${escapeProfileSectionHtml(key)}"${open ? ' open' : ''}><summary><h3>${escapeProfileSectionHtml(heading)}</h3><span class="profile-section-summary">${summaryInner}</span>${edit}</summary><div class="profile-section-body">${body ?? ''}</div></details>`;
 }

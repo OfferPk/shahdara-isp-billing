@@ -489,10 +489,16 @@ test('styles: the history rules exist and reuse an existing colour only', () => 
   for (const cls of ['.phv-list', '.phv-package', '.phv-price', '.phv-dates', '.phv-current', '.phv-gap', '.phv-summary', '.phv-undated', '.phv-none']) {
     assert.ok(stylesSrc.includes(cls), `styles must define ${cls}`);
   }
+  // Profile Polish C (15) — the package-history note is an info pill,
+  // so .phv- lines may also use the pre-existing info-blue palette
+  // (#e5efff / #174b87 / #adc9f1, the same blue as .phs-pill-package).
+  // The preserved intent is "reuse an existing colour only": no hex
+  // outside this set may appear.
+  const PHV_ALLOWED_HEX = new Set(['#5c6e66', '#e5efff', '#174b87', '#adc9f1']);
   const phvLines = stylesSrc.split('\n').filter((line) => line.includes('.phv-'));
   for (const line of phvLines) {
     for (const hex of line.match(/#[0-9a-fA-F]{3,8}/g) ?? []) {
-      assert.equal(hex.toLowerCase(), '#5c6e66', `phv rule must reuse an existing colour, found ${hex}`);
+      assert.ok(PHV_ALLOWED_HEX.has(hex.toLowerCase()), `phv rule must reuse an existing colour, found ${hex}`);
     }
   }
 });

@@ -46,6 +46,7 @@ import {
   createInitialState,
   generateMonthlyBillsThroughCurrentMonth,
   manualBaqayaOutstandingCents,
+  saveBillMonth,
   updateCustomerProfile
 } from '../core.js';
 import { addonChargesPending, addSpeedBoost } from '../speed-addon.js';
@@ -68,10 +69,17 @@ const FRESH_TID = 'FRESH-TID-536';
 function plan536FixtureState() {
   const now = new Date();
   let state = createInitialState(['Plan536 Tester']);
+  // The package is 1,000 and the bill is hand-priced at 3,000: the
+  // setup payment (1,000) equals the package, so the auto-package
+  // follow is a no-op (current fee === taken fee) and the bill keeps
+  // its price — a 2,000 remainder survives for the duplicate-TID
+  // scenario. A direct single collection that moved the package would
+  // reprice the bill and leave no remainder (user decision 2026-11-12).
   state = updateCustomerProfile(state, 'seed-001', {
-    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 3000
+    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 1000
   }, now);
   state = generateMonthlyBillsThroughCurrentMonth(state, now);
+  state = saveBillMonth(state, 'seed-001', { month: MONTH, dueAmount: 3000, status: 'pending' }, now);
   return state;
 }
 
@@ -453,6 +461,11 @@ test('single payment unchanged: a plain payment still flows form → confirm →
     const recorded = paymentsOf(getState(), MONTH);
     assert.equal(recorded.length, 1, 'the single payment recorded');
     assert.equal(recorded[0].amount, 1000, 'the recorded amount is Rs 1,000');
+    // The fixture's package is 1,000, so this 1,000 payment equals the
+    // package and the auto-package follow is a no-op — the bill keeps
+    // its 3,000 price and 2,000 is still due. (A payment that moved
+    // the package would reprice the bill and leave nothing due — user
+    // decision 2026-11-12 — but that is not what this flow test pins.)
     assert.equal(balanceDueCents(getState(), MONTH), 200000, 'ledger: Rs 2,000 still due');
     assert.equal(errorToast(toasts), undefined, `no error toast — got: ${errorToast(toasts)?.msg}`);
   });

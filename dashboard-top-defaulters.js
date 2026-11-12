@@ -833,7 +833,6 @@ export function setupTopDefaultersModal(state, {
     document.getElementById('quickActionTopDefaulters')
   ].filter(Boolean);
   const closeBtn = document.getElementById('closeTopDefaultersModalBtn');
-  const closeSecondaryBtn = document.getElementById('closeTopDefaultersSecondaryBtn');
 
   const searchInput = document.getElementById('topDefaultersSearchInput');
   const areaSelect = document.getElementById('topDefaultersAreaSelect');
@@ -846,7 +845,7 @@ export function setupTopDefaultersModal(state, {
   const kpiTotalDebt = document.getElementById('topDefaultersKpiTotalDebt');
   const kpiCriticalCount = document.getElementById('topDefaultersKpiCriticalCount');
 
-  const tableBody = document.getElementById('topDefaultersTableBody');
+  const listEl = document.getElementById('topDefaultersList');
   const emptyState = document.getElementById('topDefaultersEmptyState');
   const chartContainer = document.getElementById('topDefaultersChartContainer');
 
@@ -932,14 +931,16 @@ export function setupTopDefaultersModal(state, {
       });
     }
 
-    // Populate table rows
-    if (tableBody) {
+    // Populate the card list (Top Defaulters Modal Fix item 1,
+    // 2026-11-13): one full-width stacked card per defaulter replaces
+    // the wide 8-column table that clipped horizontally on a phone.
+    if (listEl) {
       if (!visibleAccounts.length) {
-        tableBody.innerHTML = '';
+        listEl.innerHTML = '';
         if (emptyState) emptyState.hidden = false;
       } else {
         if (emptyState) emptyState.hidden = true;
-        tableBody.innerHTML = visibleAccounts.map(acc => {
+        listEl.innerHTML = visibleAccounts.map(acc => {
           const riskBadge = acc.riskCategory === 'critical'
             ? `<span class="badge badge-danger">Critical</span>`
             : acc.riskCategory === 'high'
@@ -995,38 +996,58 @@ export function setupTopDefaultersModal(state, {
           // digital dispatch tap of their own.
           const contactPicker = `<span class="defaulter-contact-picker" data-picker-for="${escapeHtml(acc.id)}" hidden>${CONTACT_CHANNELS.map(ch => `<button type="button" class="btn-xs defaulter-contact-chip" data-cust-id="${escapeHtml(acc.id)}" data-channel="${ch}">${escapeHtml(contactChannelLabel(ch))}</button>`).join('')}</span>`;
 
+          // Top Defaulters Modal Fix item 1 (2026-11-13): stacked mobile
+          // card. Top row: '#rank · #ID NAME (Mohalla)' left, bold red
+          // due + overdue days right. Middle row: the Waada status pill
+          // — only when a promise exists (no invented 'No Waada' pill).
+          // The redundant 'Shahdara' city column is gone: the mohalla
+          // shows only when recorded, otherwise the parens are omitted
+          // (never '(Shahdara)'). Months, last payment and risk ride
+          // in a compact meta line; the remaining badges (score,
+          // escalation, vacation, segment, shield, contact) stack
+          // below it, exactly as the table cell showed them.
+          const mohallaText = String(acc.mohalla || '').trim();
+          const lastPayText = acc.lastPaymentDate
+            ? `Last: ${escapeHtml(acc.lastPaymentDate)} · PKR ${acc.lastPaymentAmount}`
+            : 'Never paid';
           return `
-            <tr data-cust-id="${escapeHtml(acc.id)}" class="defaulter-row ${acc.riskCategory}">
-              <td class="defaulter-rank-cell">#${acc.rank}</td>
-              <td class="defaulter-cust-cell">
-                <strong>#${acc.customerNumber}</strong> ${escapeHtml(acc.name)}
-                <div class="defaulter-subtext">${escapeHtml(acc.mohalla || acc.address || 'Shahdara')}</div>
-                ${waadaBadge ? `<div class="defaulter-waada-badge">${waadaBadge}</div>` : ''}
-                ${waadaScoreBadge ? `<div class="defaulter-waada-badge">${waadaScoreBadge}</div>` : ''}
-                ${escalationBadge ? `<div class="defaulter-escalation-badge">${escalationBadge}</div>` : ''}
-                ${vacationBadge ? `<div class="defaulter-waada-badge">${vacationBadge}</div>` : ''}
-                ${segmentBadge ? `<div class="defaulter-waada-badge">${segmentBadge}</div>` : ''}
-                ${shieldBadge ? `<div class="defaulter-waada-badge">${shieldBadge}</div>` : ''}
-                ${contactBadge ? `<div class="defaulter-contact-badge">${contactBadge}</div>` : ''}
-              </td>
-              <td>${escapeHtml(acc.area)}</td>
-              <td class="defaulter-months-cell">
+            <article data-cust-id="${escapeHtml(acc.id)}" class="defaulter-card ${acc.riskCategory}">
+              <div class="defaulter-card-top">
+                <div class="defaulter-card-id">
+                  <span class="defaulter-card-rank">#${acc.rank}</span>
+                  <strong>#${acc.customerNumber}</strong> ${escapeHtml(acc.name)}${mohallaText ? ` <span class="defaulter-card-mohalla">(${escapeHtml(mohallaText)})</span>` : ''}
+                </div>
+                <div class="defaulter-card-due">
+                  <strong>PKR ${acc.totalOutstanding.toLocaleString()}</strong>
+                  <small>${acc.oldestOverdueDays}d overdue</small>
+                </div>
+              </div>
+              ${waadaBadge ? `<div class="defaulter-card-waada">${waadaBadge}</div>` : ''}
+              <div class="defaulter-card-meta">
                 <div class="defaulter-months-tags">${monthsList}</div>
-                <small class="text-danger">${acc.oldestOverdueDays}d overdue</small>
-              </td>
-              <td class="defaulter-lastpay-cell">
-                ${acc.lastPaymentDate ? `${escapeHtml(acc.lastPaymentDate)}<br><small>PKR ${acc.lastPaymentAmount}</small>` : '<small class="text-muted">Never</small>'}
-              </td>
-              <td class="defaulter-dues-cell">
-                <strong>PKR ${acc.totalOutstanding.toLocaleString()}</strong>
-              </td>
-              <td class="defaulter-risk-cell">${riskBadge}</td>
-              <td class="table-actions-cell">
+                <span class="defaulter-card-lastpay">${lastPayText}</span>
+                ${riskBadge}
+              </div>
+              ${waadaScoreBadge ? `<div class="defaulter-waada-badge">${waadaScoreBadge}</div>` : ''}
+              ${escalationBadge ? `<div class="defaulter-escalation-badge">${escalationBadge}</div>` : ''}
+              ${vacationBadge ? `<div class="defaulter-waada-badge">${vacationBadge}</div>` : ''}
+              ${segmentBadge ? `<div class="defaulter-waada-badge">${segmentBadge}</div>` : ''}
+              ${shieldBadge ? `<div class="defaulter-waada-badge">${shieldBadge}</div>` : ''}
+              ${contactBadge ? `<div class="defaulter-contact-badge">${contactBadge}</div>` : ''}
+              <div class="defaulter-card-actions">
+                <button type="button" class="defaulter-reminder-btn defaulter-reminder-polite" data-cust-id="${escapeHtml(acc.id)}" title="Open a polite WhatsApp reminder draft">
+                  🟢 Polite Reminder
+                </button>
+                <button type="button" class="defaulter-reminder-btn defaulter-reminder-final" data-cust-id="${escapeHtml(acc.id)}" title="Open a final-notice WhatsApp draft">
+                  🟠 Final Notice
+                </button>
+                <button type="button" class="defaulter-collect-btn" data-cust-id="${escapeHtml(acc.id)}" title="Open Quick Collect for this customer">
+                  💵 Collect
+                </button>
+              </div>
+              <div class="defaulter-card-actions-secondary">
                 <button type="button" class="btn-xs secondary-button defaulter-waada-btn" data-cust-id="${escapeHtml(acc.id)}" title="Set Waada promise (one-tap chips)">
                   🤝 Waada
-                </button>
-                <button type="button" class="btn-xs whatsapp-btn defaulter-wa-btn" data-cust-id="${escapeHtml(acc.id)}" title="Open WhatsApp reminder draft">
-                  WhatsApp
                 </button>
                 <button type="button" class="btn-xs secondary-button defaulter-contact-btn" data-cust-id="${escapeHtml(acc.id)}" aria-expanded="false" title="${escapeHtml(t('cct_mark_title'))}">
                   ✓ ${escapeHtml(markContactedLabel())}
@@ -1035,8 +1056,8 @@ export function setupTopDefaultersModal(state, {
                 <button type="button" class="btn-xs secondary-button defaulter-view-btn" data-cust-id="${escapeHtml(acc.id)}" title="View subscriber profile">
                   Profile
                 </button>
-              </td>
-            </tr>
+              </div>
+            </article>
           `;
         }).join('');
       }
@@ -1068,40 +1089,75 @@ export function setupTopDefaultersModal(state, {
   if (riskSelect) riskSelect.addEventListener('change', renderContent);
   if (waadaSelect) waadaSelect.addEventListener('change', renderContent);
 
-  // Table action clicks (Waada, WhatsApp & View Profile)
-  if (tableBody) {
-    tableBody.addEventListener('click', e => {
+  // Card action clicks (Waada, Polite/Final reminders, Collect, Mark-contacted & View Profile)
+  // Top Defaulters Modal Fix item 1 (2026-11-13): the generic
+  // WhatsApp button is replaced by the two stage buttons. Both open a
+  // wa.me draft — never auto-sent — from the existing stage-driven
+  // reminder builder: Polite Reminder is the 'overdue' draft, Final
+  // Notice is the 'disconnection' (FINAL NOTICE) draft. There is no
+  // separate 'finalNotice' template id in the studio catalogue
+  // (finalPrelockNotice is the SISP-180 queue, a different thing), so
+  // the stage builder is the draft source for both.
+  const openReminderDraft = (custId, templateType) => {
+    const customer = (getState().customers || []).find(c => c.id === custId);
+    const row = currentData?.accounts.find(a => a.id === custId);
+    if (!customer || !row) return;
+    const msg = buildPaymentReminderMessage({
+      customer,
+      templateType,
+      billingData: { balance: row.totalOutstanding, billAmount: row.totalOutstanding }
+    });
+    const phoneRes = formatWhatsAppUrl(whatsappPhoneFor(customer), msg);
+    if (phoneRes.validPhone && phoneRes.url) {
+      window.open(phoneRes.url, '_blank');
+      // SISP-138: a successfully opened WhatsApp draft IS the contact —
+      // stamp it (silent: the opened tab is the feedback). An invalid
+      // phone never reaches this line.
+      applyContactStamp(custId, 'whatsapp', { silent: true });
+    } else {
+      onToast?.(`Invalid or missing phone number for #${customer.customerNumber}.`);
+    }
+  };
+
+  if (listEl) {
+    listEl.addEventListener('click', e => {
       const waadaBtn = e.target.closest('.defaulter-waada-btn');
       if (waadaBtn) {
         openWaadaDialog(waadaBtn.dataset.custId);
         return;
       }
 
-      const waBtn = e.target.closest('.defaulter-wa-btn');
-      if (waBtn) {
-        const custId = waBtn.dataset.custId;
-        const customer = (getState().customers || []).find(c => c.id === custId);
-        const row = currentData?.accounts.find(a => a.id === custId);
-        if (customer && row) {
-          const msg = buildDefaulterWhatsAppMessage({ customer, defaulterRow: row });
-          const phoneRes = formatWhatsAppUrl(whatsappPhoneFor(customer), msg);
-          if (phoneRes.validPhone && phoneRes.url) {
-            window.open(phoneRes.url, '_blank');
-            // SISP-138: a successfully opened WhatsApp draft IS the
-            // contact — stamp it (silent: the opened tab is the
-            // feedback). An invalid phone never reaches this line.
-            applyContactStamp(custId, 'whatsapp', { silent: true });
-          } else {
-            onToast?.(`Invalid or missing phone number for #${customer.customerNumber}.`);
-          }
-        }
+      const politeBtn = e.target.closest('.defaulter-reminder-polite');
+      if (politeBtn) {
+        openReminderDraft(politeBtn.dataset.custId, 'overdue');
+        return;
+      }
+
+      const finalBtn = e.target.closest('.defaulter-reminder-final');
+      if (finalBtn) {
+        openReminderDraft(finalBtn.dataset.custId, 'disconnection');
+        return;
+      }
+
+      // Top Defaulters Modal Fix item 1 (2026-11-13): Collect closes
+      // this modal FIRST (the Profile-button precedent below), then
+      // opens Quick Collect for the customer. Closing first means the
+      // QC modal opens on its own — no nested-dialog trap (the QC fix
+      // item 14 trap needed a dialog opened inside another dialog).
+      const collectBtn = e.target.closest('.defaulter-collect-btn');
+      if (collectBtn) {
+        const custId = collectBtn.dataset.custId;
+        if (modal.close) modal.close();
+        else modal.hidden = true;
+        if (window.quickCollectModalController?.selectAndOpen) window.quickCollectModalController.selectAndOpen(custId);
+        else onToast?.('Payment screen unavailable — try again.');
         return;
       }
 
       // SISP-138: Mark-contacted button toggles its channel picker.
       const contactBtn = e.target.closest('.defaulter-contact-btn');
       if (contactBtn) {
-        const picker = contactBtn.closest('tr')?.querySelector('.defaulter-contact-picker');
+        const picker = contactBtn.closest('.defaulter-card')?.querySelector('.defaulter-contact-picker');
         if (picker) {
           picker.hidden = !picker.hidden;
           contactBtn.setAttribute('aria-expanded', picker.hidden ? 'false' : 'true');
@@ -1311,7 +1367,6 @@ export function setupTopDefaultersModal(state, {
   });
 
   if (closeBtn) closeBtn.addEventListener('click', () => { modal.close?.() || (modal.hidden = true); });
-  if (closeSecondaryBtn) closeSecondaryBtn.addEventListener('click', () => { modal.close?.() || (modal.hidden = true); });
 
   return {
     open: () => {

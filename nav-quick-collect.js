@@ -6073,8 +6073,63 @@ export function setupQuickCollectModal({
   // an area saves it to the customer's profile (mohalla, canonical
   // spelling) through updateCustomerProfile and shows it on this receipt.
   // Picking 'Unassigned' changes nothing — the profile area is never
-  // wiped from here. (A closure flag, not a dataset marker, so mock-DOM
-  // elements without dataset still set up cleanly.)
+  // wiped from here.
+  //
+  // Sharafat 6: the select used to write the profile the moment it
+  // changed — a mis-tap while fixing the receipt silently rewrote the
+  // customer's recorded mohalla, with only a toast and no undo.
+  // Nothing is written now until the operator confirms (the shared
+  // in-app confirm, same as the duplicate-TID fallback); a confirmed
+  // change updates the receipt and the profile together, and its toast
+  // carries an Undo that puts the old mohalla back on both. Picking the
+  // area already shown, or 'Unassigned', changes nothing. (A closure
+  // flag, not a dataset marker, so mock-DOM elements without dataset
+  // still set up cleanly.)
+  //
+  // The confirmed write — and the undo that reverses it. previousMohalla
+  // is the profile's mohalla as it stood when the change was picked, so
+  // the undo restores exactly that ('' when the profile had none).
+  function applyAreaChange(stored, previousMohalla) {
+    try {
+      const nextState = updateCustomerProfile(getState(), activeCustomerId, { mohalla: stored });
+      if (typeof onSaveState === 'function') onSaveState(nextState);
+      activeReceipt = { ...activeReceipt, area: stored };
+      // Polish 6 (B): the combined split card reads its area from the
+      // split receipt, not from the top-level receipt, so sync it too —
+      // otherwise the re-render would show the old area on that card.
+      if (activeReceipt.splitTender) {
+        activeReceipt = { ...activeReceipt, splitTender: { ...activeReceipt.splitTender, area: stored } };
+      }
+      renderActiveReceiptCard();
+      if (typeof onToast === 'function') onToast(t('qc_toast_area_updated', null, { area: stored }), {
+        type: 'success',
+        title: t('qc_toast_area_updated_title'),
+        actionLabel: t('qcpkg_undo'),
+        duration: 8000,
+        onAction: () => {
+          try {
+            const restoredState = updateCustomerProfile(getState(), activeCustomerId, { mohalla: previousMohalla });
+            if (typeof onSaveState === 'function') onSaveState(restoredState);
+            const restoredCustomer = restoredState?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+            const restoredArea = restoredCustomer?.mohalla || restoredCustomer?.area || 'Unassigned';
+            activeReceipt = { ...activeReceipt, area: restoredArea };
+            if (activeReceipt.splitTender) {
+              activeReceipt = { ...activeReceipt, splitTender: { ...activeReceipt.splitTender, area: restoredArea } };
+            }
+            renderActiveReceiptCard();
+            if (typeof onToast === 'function') onToast(t('qc_toast_area_updated', null, { area: restoredArea }), { type: 'success', title: t('qc_toast_area_updated_title') });
+          } catch (err) {
+            if (typeof onToast === 'function') onToast(err.message || t('qc_toast_area_update_failed'), { type: 'error' });
+            renderActiveReceiptCard();
+          }
+        },
+      });
+    } catch (err) {
+      if (typeof onToast === 'function') onToast(err.message || t('qc_toast_area_update_failed'), { type: 'error' });
+      renderActiveReceiptCard();
+    }
+  }
+
   if (receiptCardContainer && !areaSelectWired) {
     areaSelectWired = true;
     receiptCardContainer.addEventListener('change', (event) => {
@@ -6083,22 +6138,25 @@ export function setupQuickCollectModal({
       const raw = String(select.value ?? '').trim();
       if (!raw) { renderActiveReceiptCard(); return; }
       const stored = canonicalMohalla(raw)?.stored ?? raw;
-      try {
-        const nextState = updateCustomerProfile(getState(), activeCustomerId, { mohalla: stored });
-        if (typeof onSaveState === 'function') onSaveState(nextState);
-        activeReceipt = { ...activeReceipt, area: stored };
-        // Polish 6 (B): the combined split card reads its area from the
-        // split receipt, not from the top-level receipt, so sync it too —
-        // otherwise the re-render would show the old area on that card.
-        if (activeReceipt.splitTender) {
-          activeReceipt = { ...activeReceipt, splitTender: { ...activeReceipt.splitTender, area: stored } };
-        }
-        renderActiveReceiptCard();
-        if (typeof onToast === 'function') onToast(t('qc_toast_area_updated', null, { area: stored }), { type: 'success', title: t('qc_toast_area_updated_title') });
-      } catch (err) {
-        if (typeof onToast === 'function') onToast(err.message || t('qc_toast_area_update_failed'), { type: 'error' });
-        renderActiveReceiptCard();
-      }
+      // The select shows the receipt's area: picking it again is a
+      // no-op, compared canonically (the receipt may carry 'Sodaa'
+      // where the option value is the canonical 'SODAA').
+      const currentArea = canonicalMohalla(activeReceipt.area)?.stored ?? String(activeReceipt.area ?? '').trim();
+      if (stored === currentArea) { renderActiveReceiptCard(); return; }
+      const receiptAtChange = activeReceipt;
+      const customer = getState()?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+      const previousMohalla = String(customer?.mohalla ?? '');
+      const ask = (typeof window !== 'undefined' && typeof window.appConfirm === 'function')
+        ? window.appConfirm({ tone: 'warning', title: t('qc_area_confirm_title'), message: t('qc_area_confirm_message', null, { area: stored }), confirmLabel: t('qc_area_confirm_btn') })
+        : Promise.resolve(false);
+      ask.then((ok) => {
+        // A declined (or unavailable) confirm writes nothing and puts
+        // the select back on the receipt's area. The operator may have
+        // moved on to another receipt while the dialog was open — a
+        // stale answer must not rewrite that receipt's area.
+        if (!ok || activeReceipt !== receiptAtChange) { renderActiveReceiptCard(); return; }
+        applyAreaChange(stored, previousMohalla);
+      });
     });
   }
 

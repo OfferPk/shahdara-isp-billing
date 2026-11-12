@@ -1,4 +1,5 @@
 import { canonicalMohalla, DEFAULT_MOHALLAS } from './phase3.js';
+import { recoveryMohallaRank } from './owner-insights.js';
 import { fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
 import { identitySearchMatches } from './core.js';
 import { customerMatchesAreaFilter } from './area-operations.js';
@@ -120,8 +121,10 @@ const CANONICAL_ORDER = new Map(DEFAULT_MOHALLAS.map((name, index) => [canonical
  * mohalla/area set are counted nowhere — they belong to no mohalla.
  * Non-canonical areas (e.g. HAVELI) still earn their own card under their
  * stored name, because the owner's rule is "cards only where users are".
- * Order: the 15 canonical mohallas in the owner's list order first, then
- * any extra areas by count (desc) and name.
+ * Order: the numbered mohallas 1–12 first, in order (Mohalla Numbering),
+ * then any extra area by count (desc) and name. A mohalla not in the
+ * numbered list (KISHTII, PULL SIDE, CHUDRIYAA, "end side farm house")
+ * sorts after #12; HAVELI is #12 ("HAWELI OR END POINT").
  *
  * @returns {Array<{key: string, label: string, stored: string, count: number, canonical: boolean}>}
  */
@@ -136,9 +139,11 @@ export function buildMohallaUserCounts(customers) {
     if (existing) existing.count += 1;
     else groups.set(canon.key, { key: canon.key, label: canon.label, stored: canon.stored, count: 1, canonical: CANONICAL_ORDER.has(canon.key) });
   }
+  // Mohalla Numbering: the numbered 1–12 first, in order; a mohalla not
+  // in the list sorts after #12, by count (desc) then name.
   return [...groups.values()].sort((a, b) => {
-    const aOrder = CANONICAL_ORDER.has(a.key) ? CANONICAL_ORDER.get(a.key) : Number.POSITIVE_INFINITY;
-    const bOrder = CANONICAL_ORDER.has(b.key) ? CANONICAL_ORDER.get(b.key) : Number.POSITIVE_INFINITY;
+    const aOrder = recoveryMohallaRank(a.key)?.number ?? Number.POSITIVE_INFINITY;
+    const bOrder = recoveryMohallaRank(b.key)?.number ?? Number.POSITIVE_INFINITY;
     if (aOrder !== bOrder) return aOrder - bOrder;
     return b.count - a.count || a.label.localeCompare(b.label);
   });

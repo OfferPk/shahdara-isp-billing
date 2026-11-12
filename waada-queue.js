@@ -262,6 +262,65 @@ export function remainderWaadaPreviousOf(payment) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Sharafat 3: SISP-34 cleared-waada restore for the delete-undo paths.
+// Recording a FULL payment auto-clears the customer's promise (SISP-3)
+// and stamps the cleared promise onto that payment as clearedWaada
+// (core.addPayment). Only voiding the payment restored it — the
+// five-second delete-undo never did, so undoing a full payment left
+// the promise gone with no payment behind it. These readers mirror
+// voidPayment's restore discipline exactly: the stamp is data, the
+// restore happens only while no newer promise exists, and a damaged
+// stamp (no usable date) restores nothing.
+// ---------------------------------------------------------------------------
+
+/**
+ * Reads the SISP-34 cleared-waada stamp a full payment carries
+ * (payment.clearedWaada = { promiseDate, promiseAmount, promiseNote },
+ * written by core.addPayment when the payment cleared the customer's
+ * promise). Returns a validated { promiseDate, promiseAmount,
+ * promiseNote } or null — the undo paths trust only this reader,
+ * never the raw stamp. Unlike the remainder-waada reader, no amount
+ * is required: a promise with no recorded amount still clears and
+ * still restores, exactly as voidPayment treats it.
+ */
+export function clearedWaadaOf(payment) {
+  const stamp = payment?.clearedWaada;
+  if (!stamp || typeof stamp !== 'object') return null;
+  const promiseDate = typeof stamp.promiseDate === 'string' ? stamp.promiseDate.trim() : '';
+  if (!isValidWaadaDate(promiseDate)) return null;
+  return {
+    promiseDate,
+    promiseAmount: stamp.promiseAmount ?? null,
+    promiseNote: typeof stamp.promiseNote === 'string' ? stamp.promiseNote : ''
+  };
+}
+
+/**
+ * Restores the promise a cleared-waada stamp describes onto a customer,
+ * exactly as voidPayment does it: the stamped date (trimmed), the
+ * stamped amount only when the stamp carries one, the stamped note
+ * only when it is a non-empty string. Returns a NEW customer object;
+ * the input is never mutated. Returns null — and restores nothing —
+ * when the stamp holds no usable date, or when the customer already
+ * carries a live promise (a newer promise set after the payment is
+ * never clobbered by undoing the old one).
+ */
+export function restoreClearedWaada(customer, stamp) {
+  if (!customer || typeof customer !== 'object' || !stamp || typeof stamp !== 'object') return null;
+  const promiseDate = typeof stamp.promiseDate === 'string' ? stamp.promiseDate.trim() : '';
+  if (!isValidWaadaDate(promiseDate)) return null;
+  if (typeof customer.promiseDate === 'string' && customer.promiseDate.trim() !== '') return null;
+  const next = { ...customer, promiseDate };
+  if (stamp.promiseAmount !== null && stamp.promiseAmount !== undefined && stamp.promiseAmount !== '') {
+    next.promiseAmount = stamp.promiseAmount;
+  }
+  if (typeof stamp.promiseNote === 'string' && stamp.promiseNote !== '') {
+    next.promiseNote = stamp.promiseNote;
+  }
+  return next;
+}
+
 /**
  * Plan N: stamp a profile-form partial payment exactly as Quick Collect
  * does (SISP-126). Returns a NEW customer object — the payment inside

@@ -136,6 +136,8 @@ import {
   remainderWaadaOf,
   remainderWaadaPreviousOf,
   isRemainderWaadaCurrent,
+  clearedWaadaOf,
+  restoreClearedWaada,
   REMAINDER_WAADA_NOTE
 } from './waada-queue.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
@@ -5175,7 +5177,11 @@ export function setupQuickCollectModal({
       ticketCharges,
       addonCharges,
       hasWaiver: !!lateFeeWaiverOf(savedPayment),
-      hasWaadaStamp: !!remainderWaadaOf(savedPayment),
+      // Sharafat 3: a cleared waada counts as a touched promise
+      // too — reversing the money alone would leave it cleared
+      // with no payment behind it. The five-second undo restores
+      // it; the reversal is never offered (Plan 532 note says why).
+      hasWaadaStamp: !!remainderWaadaOf(savedPayment) || !!clearedWaadaOf(savedPayment),
     });
     // Plan 532: when the reversal is not offered, the note says why
     // only the five-second undo is available.
@@ -6137,6 +6143,12 @@ export function setupQuickCollectModal({
         ?.bills?.find(b => b.month === month)?.payments?.find(p => p.id === paymentId);
       const undoWaadaStamp = remainderWaadaOf(doomedPayment);
       const undoWaadaPrevious = remainderWaadaPreviousOf(doomedPayment);
+      // Sharafat 3: capture the doomed payment's cleared-waada stamp
+      // BEFORE the delete too — a full payment auto-clears the
+      // customer's promise (SISP-3) and stamps it on the payment
+      // (SISP-34); undoing the collection must put that promise
+      // back, exactly as voiding the payment does.
+      const undoClearedWaada = clearedWaadaOf(doomedPayment);
       // Polish #11: the package-rollback stamp this payment's follow
       // left on it — captured here for the same reason, before the
       // delete takes it.
@@ -6148,6 +6160,13 @@ export function setupQuickCollectModal({
       if (splitLegs && splitLegs.length > 0) {
         let workingTickets = loadTickets();
         let workingState = state;
+        // Sharafat 3: a split that fully paid also auto-clears the
+        // promise — the stamp rides the leg that completed the
+        // payment. Capture it BEFORE either leg is deleted.
+        const splitClearedWaada = splitLegs
+          .map((leg) => clearedWaadaOf(state?.customers?.find((c) => c.id === customerId)
+            ?.bills?.find((b) => b.month === month)?.payments?.find((p) => p.id === leg.paymentId)))
+          .find((stamp) => stamp !== null) ?? null;
         for (const leg of [...splitLegs].reverse()) {
           const legLines = Array.isArray(leg.ticketCharges) ? leg.ticketCharges : [];
           if (legLines.length > 0) {
@@ -6159,6 +6178,16 @@ export function setupQuickCollectModal({
           }
         }
         saveTickets(workingTickets);
+        // Sharafat 3: both legs are gone — put the cleared promise
+        // back, only while no newer promise exists (a promise set
+        // after the split is never clobbered).
+        if (splitClearedWaada) {
+          const custAfterSplit = workingState.customers.find((c) => c.id === customerId);
+          const restoredSplit = custAfterSplit ? restoreClearedWaada(custAfterSplit, splitClearedWaada) : null;
+          if (restoredSplit) {
+            workingState = { ...workingState, customers: workingState.customers.map((c) => (c.id === customerId ? restoredSplit : c)) };
+          }
+        }
         if (typeof onSaveState === 'function') {
           onSaveState(workingState);
         }
@@ -6226,6 +6255,17 @@ export function setupQuickCollectModal({
             : clearCustomerWaada(custAfter);
           nextState = { ...nextState, customers: nextState.customers.map(c => c.id === customerId ? restored : c) };
         }
+      }
+      // Sharafat 3: if this payment cleared the customer's promise
+      // when it was recorded (SISP-3), undoing it puts that promise
+      // back — exactly as voiding the payment does, and only while
+      // no newer promise exists (restoreClearedWaada refuses when
+      // the customer already carries one, so a promise set after
+      // the payment is never clobbered).
+      if (undoClearedWaada) {
+        const custAfter = nextState.customers.find(c => c.id === customerId);
+        const restored = custAfter ? restoreClearedWaada(custAfter, undoClearedWaada) : null;
+        if (restored) nextState = { ...nextState, customers: nextState.customers.map(c => c.id === customerId ? restored : c) };
       }
       // Polish #11: roll back the package follow this payment caused —
       // only while the live package is still exactly the follow's

@@ -1330,10 +1330,15 @@ base grid grows from three columns to four. The ≤800px and ≤620px
 rules already wrap the group into two columns, so they need no
 change — the four buttons land 2×2 there, with More actions below. */
 .profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px;margin-top:19px;padding-top:16px;border-top:1px solid #dce9e2}
-.profile-action-group>button{min-height:44px;touch-action:manipulation}
+.profile-action-group>button{min-height:44px;touch-action:manipulation;white-space:nowrap;min-width:0}
+/* LIVE FIX 1: every Row 1 button stays one line at the same 44px tap
+target — the Delete button used to wrap to two lines ("Delete /
+customer") while the others were one line, and the group could sit
+under the floating scroll-top button (fixed, bottom 74px + 40px) with
+no scroll room below it. The ≤620px rule below adds the clearance. */
 .profile-action-group .current-payment-shortcut{min-height:48px;justify-self:stretch;padding-inline:15px;font-size:12px;font-weight:700}
 .profile-action-group .secondary-button{min-height:44px}
-.profile-action-group .text-button.danger{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 10px;border:1px solid #edd8d2;border-radius:9px;background:#fffafa;font-size:11px;line-height:1.2;text-align:center;text-decoration:none;white-space:normal}
+.profile-action-group .text-button.danger{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 10px;border:1px solid #edd8d2;border-radius:9px;background:#fffafa;font-size:11px;line-height:1.2;text-align:center;text-decoration:none;white-space:nowrap}
 .profile-action-group .text-button.danger:hover{border-color:#dca69a;background:#fff4f1;text-decoration:none}
 .customer-current-bill-summary{margin:17px 0 0;padding:16px 0 0;border:0;border-top:1px solid #dce9e2;border-radius:0;background:transparent}
 .current-bill-heading{margin-bottom:10px}
@@ -1664,10 +1669,20 @@ change — the four buttons land 2×2 there, with More actions below. */
 .customer-lifetime-grid .customer-lifetime-basis{margin-top:5px;color:#5c6e66;font-size:10px;font-weight:400;line-height:1.5;overflow-wrap:anywhere}
 
 /* Phase 10 · advisory duplicate-customer review */
-#addCustomerDialog:has(#addCustomerForm){max-height:calc(100dvh - 24px);overflow-y:auto}
+#addCustomerDialog:has(#addCustomerForm){max-height:calc(100dvh - 24px);overflow-y:auto;overflow-x:hidden}
 .new-customer-fields{display:grid;gap:7px;width:100%;min-width:0;margin:0;padding:0;border:0}
+/* LIVE FIX 2: the sheet overflowed the phone — the long `.optional-label`
+   spans inside every field label never wrapped (the global
+   `white-space: nowrap` at §3.1), forcing the fieldset wider than the
+   dialog, so labels clipped on the right and the right-aligned Save row
+   was pushed off-screen. Labels wrap inside this dialog only; the grid
+   children get min-width: 0 so nothing can force the track wide; the
+   actions stick to the bottom (backup-modal pattern) so Save stays
+   visible while the sheet scrolls. */
+#addCustomerDialog .optional-label{white-space:normal}
+.new-customer-fields>*{min-width:0}
 .new-customer-fields .field-label{margin-top:3px}
-.new-customer-fields .modal-actions{margin-top:12px}
+.new-customer-fields .modal-actions{margin-top:12px;position:sticky;bottom:0;background:#fff;padding-top:9px}
 .duplicate-customer-review{margin-top:14px;padding:15px;border:1px solid #ead9b2;border-radius:13px;background:#fff9eb;color:var(--ink)}
 .duplicate-customer-review h3{margin:0;font:700 18px Manrope,sans-serif}
 .duplicate-customer-guidance{margin:8px 0 12px;color:#685b43;font-size:13px;line-height:1.5}
@@ -8738,6 +8753,33 @@ html, body {
 
 .qc-meta-val.zero-balance {
   color: #16a34a;
+}
+
+/* LIVE FIX 3: the receipt's Mobile Number row — a saved number shows
+   green (the card's success-green token, same as the zero balance),
+   and the inline editor's input + error + Save/Cancel actions. No new
+   hex: #16a34a and #dc2626 are already used in this file. */
+.qc-meta-val.qc-phone-saved {
+  color: #16a34a;
+}
+
+.qc-phone-input {
+  min-height: 44px;
+  margin: 2px 0 6px;
+}
+
+.qc-phone-error {
+  display: block;
+  color: #dc2626;
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.qc-phone-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
 }
 
 .qc-success-actions {

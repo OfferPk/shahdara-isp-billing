@@ -77,13 +77,16 @@ test.describe('Issue #213: Home Screen Overload & Navigation Redesign', () => {
     await page.keyboard.press('Escape');
     await expect(addCustDialog).toBeHidden();
 
-    // 3. Dues list -> Dues Recovery view
+    // 3. Dues list -> the Top Defaulters modal (the customer dues
+    // list), NOT the Dues Recovery screen (LIVE FIX 4).
     const duesBtn = page.locator('#homeActionDuesList');
     await expect(duesBtn).toBeVisible();
     await expect(duesBtn).toContainText('Dues list');
     await duesBtn.click();
-    await expect(page).toHaveURL(/#\/recovery$/);
-    await expect(page.locator('#duesRecoveryPanel')).toBeVisible();
+    await expect(page.locator('#topDefaultersModal')).toBeVisible();
+    await expect(page).not.toHaveURL(/#\/recovery$/);
+    await page.locator('#closeTopDefaultersModalBtn').click();
+    await expect(page.locator('#topDefaultersModal')).toBeHidden();
 
     // Return Home
     await page.goto('/#/home');

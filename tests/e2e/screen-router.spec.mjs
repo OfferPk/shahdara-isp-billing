@@ -139,9 +139,14 @@ test.describe('Screen router (#212)', () => {
   test('Home tiles still work and route tiles open their screen', async ({ page }) => {
     const errors = trackErrors(page);
     await page.goto('/');
+    // LIVE FIX 4: the Dues list tile opens the Top Defaulters modal
+    // (the customer dues list), not the Dues Recovery screen — no
+    // screen navigation happens at all.
     await page.locator('#homeActionDuesList').click();
-    await expectScreen(page, 'recovery');
-    await page.locator('#srScreenHeader [data-sr-home]').click();
+    await expect(page.locator('#topDefaultersModal')).toBeVisible();
+    await expect(page.locator('#srScreenHeader')).toBeHidden();
+    await page.locator('#closeTopDefaultersModalBtn').click();
+    await expect(page.locator('#topDefaultersModal')).toBeHidden();
     await page.locator('#quickActionAddCustomer').click();
     await expect(page.locator('#addCustomerDialog')).toBeVisible();
     await page.locator('#addCustomerDialog .close-button').click();

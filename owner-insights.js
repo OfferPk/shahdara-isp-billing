@@ -624,8 +624,60 @@ export function answerOwnerCommand(state, query, referenceDate = new Date()) {
 }
 
 
+/** Dues Recovery Overhaul — the user's fixed numbered mohalla order
+ *  for the recovery filter (the later Mohalla Numbering item reuses
+ *  this same order app-wide): 1 CHARYAA … 12 HAWELI OR END POINT.
+ *  A mohalla not in the list sorts after #12. Keys are canonicalMohalla
+ *  keys; spelling variants that canonicalise to the same mohalla
+ *  share a rank (CHAMYAA/CHAMYAAA, THALI/THALII, BANI/BANII — the
+ *  aliases in phase3.js fold BANI and CHAMYAA to BANII/CHAMYAAA).
+ *  Haweli and End Point are ONE entry #12; "end side farm house"
+ *  stays separate (Sharafat 76) and sorts after #12. */
+export const RECOVERY_MOHALLA_ORDER=Object.freeze([
+  {number:1,label:'CHARYAA',keys:['charyaa']},
+  {number:2,label:'GANGALL',keys:['gangall']},
+  {number:3,label:'BARRIAN',keys:['barrian']},
+  {number:4,label:'CHAMYAA',keys:['chamyaa','chamyaaa']},
+  {number:5,label:'MALLA',keys:['malla']},
+  {number:6,label:'PALALIYAA',keys:['palaliyaa']},
+  {number:7,label:'THALI',keys:['thali','thalii']},
+  {number:8,label:'NAKAR',keys:['nakar']},
+  {number:9,label:'BANI',keys:['bani','banii']},
+  {number:10,label:'JABBIYAA',keys:['jabbiyaa']},
+  {number:11,label:'SODAA',keys:['sodaa']},
+  {number:12,label:'HAWELI OR END POINT',keys:['haweli','end point','endpoint','end-point']},
+]);
+export function recoveryMohallaRank(area) {
+  const canon=canonicalMohalla(area);
+  const key=canon?.key??null;
+  if(!key)return null;
+  const entry=RECOVERY_MOHALLA_ORDER.find(row=>row.keys.includes(key));
+  return entry?{number:entry.number,label:entry.label}:null;
+}
+
+/** Dues Recovery Overhaul — the recovery card shows an actionable tag
+ *  instead of "Health: Insufficient history": what the collector
+ *  should do next, from the scorer row alone. Two or more unpaid
+ *  bills outrank everything (the collector chases the oldest first);
+ *  a single bill more than 30 days overdue is arrears; a customer
+ *  with a good health score and no late receipt is a regular payer
+ *  who is simply late this once; anything else is a first month due.
+ *  Returns {tag, tone} — tone maps to the ds-chip variant. */
+export function recoveryHealthTag(row) {
+  const openBills=typeof row?.openBillCount==='number'?row.openBillCount:0;
+  const overdue=typeof row?.longestOverdueDays==='number'?row.longestOverdueDays:null;
+  const score=row?.health?.score??null;
+  const late=typeof row?.latePaymentCount==='number'?row.latePaymentCount:0;
+  if(openBills>=2)return{tag:`${openBills} Months Unpaid`,tone:'overdue'};
+  if(overdue!==null&&overdue>30)return{tag:'Overdue Arrears',tone:'overdue'};
+  if(score!==null&&score>=80&&late===0)return{tag:'Regular Payer',tone:'paid'};
+  return{tag:'1st Month Due',tone:'info'};
+}
+
 export function buildSmartDuesRecovery(state,referenceDate=new Date(),allocations=calculatePaymentAllocations(state)) {
   const rows=[];
+  const currentMonth=monthFor(referenceDate);
+  const today=dateFor(referenceDate);
   for(const customer of state.customers){
     const open=(customer.bills??[]).filter(bill=>validPrice(bill.dueAmount)).map(bill=>({bill,balance:Math.max(0,allocations.forMonth(customer.id,bill.month)?.balanceDueCents??cents(bill.dueAmount))})).filter(row=>row.balance>0);
     if(!open.length)continue;
@@ -651,14 +703,46 @@ export function buildSmartDuesRecovery(state,referenceDate=new Date(),allocation
       latePayments:Math.min(15,behavior.latePaymentCount*3),
       customerValue:monthlyValue===null?0:monthlyValue>=5000?10:monthlyValue>=2500?7:monthlyValue>=1000?4:1
     };
-    const priorityScore=Object.values(components).reduce((sum,value)=>sum+value,0);
-    const group=priorityScore>=65?'High Priority':priorityScore>=35?'Medium Priority':'Low Priority';
+    const rawScore=Object.values(components).reduce((sum,value)=>sum+value,0);
     const oldestBill=open.sort((a,b)=>(a.bill.dueDate??a.bill.month).localeCompare(b.bill.dueDate??b.bill.month))[0].bill;
+    const oldestBillMonth=oldestBill.month;
+    // Dues Recovery Overhaul — High-priority floor: previous-month
+    // arrears (the oldest open bill is from before this month, or the
+    // oldest due is more than 30 days overdue), multiple unpaid bills,
+    // or a broken/overdue Waada (the SISP-3 promiseDate on the customer
+    // record, which a full payment auto-clears — a promise whose date
+    // has passed while the customer still owes) each force High
+    // Priority at the 75-point floor, even when the five components
+    // sum lower. The components themselves are unchanged, so the
+    // floor is visible as priorityScore above the component sum and
+    // is spelled out in the reasons. The group bar moves with it:
+    // High ≥75 (was ≥65); Medium 35–74; Low <35. QC-2 tiers read the
+    // same shared group, so QC-2 cards move with the scorer.
+    const promiseDate=typeof customer.promiseDate==='string'?customer.promiseDate.trim():'';
+    const waadaValid=/^\d{4}-\d{2}-\d{2}$/.test(promiseDate);
+    const waadaDue=waadaValid&&promiseDate<=today;
+    const waadaOverdue=waadaValid&&promiseDate<today;
+    const signalText=[];
+    if(oldestBillMonth<currentMonth)signalText.push(`arrears from ${oldestBillMonth}`);
+    else if(longestOverdueDays!==null&&longestOverdueDays>30)signalText.push(`${longestOverdueDays} days overdue`);
+    if(open.length>=2)signalText.push(`${open.length} unpaid bills`);
+    if(waadaOverdue)signalText.push(`Waada overdue since ${promiseDate}`);
+    const highPriorityFloor=signalText.length>0;
+    const priorityScore=highPriorityFloor?Math.max(rawScore,75):rawScore;
+    const group=priorityScore>=75?'High Priority':priorityScore>=35?'Medium Priority':'Low Priority';
     const reasons=[`Outstanding ${pkr(billDuesCents)} (+${components.amount} amount points).`,longestOverdueDays===null?'Saved due date not available.':`${longestOverdueDays} days overdue (+${components.overdue} points).`,behavior.health.score===null?'Payment history is insufficient; neutral history points applied.':`Payment health ${behavior.health.score}/100 (+${components.history} history points).`,`${behavior.latePaymentCount} recorded late receipt${behavior.latePaymentCount===1?'':'s'} (+${components.latePayments} points).`,monthlyValue===null?'Monthly customer value not recorded.':`Saved monthly value ${pkr(cents(monthlyValue))} (+${components.customerValue} value points).`];
-    rows.push({customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,package:customer.packageSpeed||'Not recorded',area:customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',archived:customer.archived===true,phone:customer.phone||'',outstanding:amount(totalOutstandingCents),outstandingCents:totalOutstandingCents,billDuesCents,manualBaqayaCents,billDues:amount(billDuesCents),manualBaqaya:amount(manualBaqayaCents),openBillCount:open.length,oldestDueDate:oldestBill.dueDate??null,longestOverdueDays,latePaymentCount:behavior.latePaymentCount,health:behavior.health,monthlyValue,priorityScore,group,components,reasons});
+    if(highPriorityFloor)reasons.push(`High-priority floor: ${signalText.join('; ')} — score raised to 75 (High).`);
+    // Arrears vs current-month split for the summary bar: open bills
+    // from before this month are arrears; the manual baqaya is old by
+    // nature, so it joins arrears; this month's open bills (and any
+    // future-dated ones) are the current-month figure.
+    const arrearsCents=open.reduce((sum,row)=>sum+(row.bill.month<currentMonth?row.balance:0),0)+manualBaqayaCents;
+    const currentMonthCents=open.reduce((sum,row)=>sum+(row.bill.month>=currentMonth?row.balance:0),0);
+    const healthTag=recoveryHealthTag({openBillCount:open.length,longestOverdueDays,health:behavior.health,latePaymentCount:behavior.latePaymentCount});
+    rows.push({customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,package:customer.packageSpeed||'Not recorded',area:customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',archived:customer.archived===true,phone:customer.phone||'',outstanding:amount(totalOutstandingCents),outstandingCents:totalOutstandingCents,billDuesCents,manualBaqayaCents,billDues:amount(billDuesCents),manualBaqaya:amount(manualBaqayaCents),openBillCount:open.length,oldestDueDate:oldestBill.dueDate??null,oldestBillMonth,longestOverdueDays,latePaymentCount:behavior.latePaymentCount,health:behavior.health,healthTag,monthlyValue,priorityScore,group,components,reasons,arrearsCents,currentMonthCents,arrears:amount(arrearsCents),currentMonthDue:amount(currentMonthCents),waadaDue,waadaOverdue,promiseDate:waadaValid?promiseDate:null,highPriorityFloor,highPrioritySignals:signalText});
   }
   const groups=['High Priority','Medium Priority','Low Priority'].map(name=>{const customers=rows.filter(row=>row.group===name).sort((a,b)=>b.priorityScore-a.priorityScore||b.outstandingCents-a.outstandingCents);return{name,customers,count:customers.length,recoverableAmount:amount(customers.reduce((sum,row)=>sum+row.outstandingCents,0))};});
-  return{asOf:dateFor(referenceDate),groups,totalCustomers:rows.length,totalRecoverable:amount(rows.reduce((sum,row)=>sum+row.outstandingCents,0)),formula:'Outstanding amount (6–30 points) + overdue days (0–25) + payment history (0–20; neutral if insufficient) + late receipts (0–15) + saved monthly value (0–10). High ≥65; Medium 35–64; Low <35. Due dates and profile value are never inferred.'};
+  return{asOf:dateFor(referenceDate),groups,totalCustomers:rows.length,totalRecoverable:amount(rows.reduce((sum,row)=>sum+row.outstandingCents,0)),totalArrears:amount(rows.reduce((sum,row)=>sum+row.arrearsCents,0)),totalArrearsCents:rows.reduce((sum,row)=>sum+row.arrearsCents,0),totalCurrentMonth:amount(rows.reduce((sum,row)=>sum+row.currentMonthCents,0)),totalCurrentMonthCents:rows.reduce((sum,row)=>sum+row.currentMonthCents,0),formula:'Outstanding amount (6–30 points) + overdue days (0–25) + payment history (0–20; neutral if insufficient) + late receipts (0–15) + saved monthly value (0–10). High ≥75; Medium 35–74; Low <35. Previous-month arrears, 2+ unpaid bills, or an overdue Waada raise the score to the 75-point High floor. Due dates and profile value are never inferred.'};
 }
 
 

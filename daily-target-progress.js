@@ -108,22 +108,22 @@ export function dailyTargetProgress(collectedTotal, targetAmount) {
 }
 
 /**
- * "Day target PKR 50,000 · collected PKR 12,000 · PKR 38,000 to go
- * (24%)" when a target is set, or "Today collected: PKR 12,000 ·
- * no day target set" when none is — said plainly, never hidden
- * behind a blank. Plain English, like the other live lines on that
- * screen.
+ * QC Modal Fix: the Today segment of the picker's ONE compact
+ * summary line — "Today: PKR 12,000", with " · 24%" while a day
+ * target is set and " · ✓" once it is reached. The old sentences
+ * ("Today collected: PKR 12,000 · no day target set", "Day target
+ * PKR 50,000 · collected PKR 12,000 · PKR 38,000 to go (24%)") are
+ * gone: the banner shows Today + Round on a single line, so the
+ * words have to be short. The full target detail is NOT lost — it
+ * lives on the line's title and the bar below it, so the operator
+ * still sees the target and the remainder.
  */
 export function dailyTargetProgressText(progress) {
   const p = progress && typeof progress === 'object' ? progress : {};
   const collected = formatDailyTargetProgressAmount(num(p.collected));
-  if (!p.targetSet) return `Today collected: ${collected} · no day target set`;
-  const target = formatDailyTargetProgressAmount(num(p.target));
-  if (p.targetReached) {
-    return `Day target ${target} · collected ${collected} · target reached (${num(p.progressPct)}%)`;
-  }
-  return `Day target ${target} · collected ${collected} · ` +
-    `${formatDailyTargetProgressAmount(num(p.remaining))} to go (${num(p.progressPct)}%)`;
+  if (!p.targetSet) return `Today: ${collected}`;
+  if (p.targetReached) return `Today: ${collected} · ✓`;
+  return `Today: ${collected} · ${num(p.progressPct)}%`;
 }
 
 // The progress bar, rendered from one progress object. Amounts are
@@ -132,10 +132,19 @@ export function dailyTargetProgressText(progress) {
 // no bar at all — only the collected total line — so the screen
 // never shows progress against a target nobody set. The bar track
 // and fill reuse the route progress classes, so no new bar styling
-// is introduced here.
+// is introduced here. QC Modal Fix: the line is the compact
+// one-line text, and the full target detail (target + remainder)
+// rides on the line's title, so condensing the banner loses no
+// information — the operator still reads it on a long press.
 export function dailyTargetProgressHtml(progress) {
   const p = progress && typeof progress === 'object' ? progress : {};
-  const line = `<p class="dtp-line">${escapeHtml(dailyTargetProgressText(p))}</p>`;
+  const detail = !p.targetSet
+    ? ''
+    : p.targetReached
+      ? `Day target ${formatDailyTargetProgressAmount(num(p.target))} · target reached`
+      : `Day target ${formatDailyTargetProgressAmount(num(p.target))} · ${formatDailyTargetProgressAmount(num(p.remaining))} to go`;
+  const title = detail === '' ? '' : ` title="${escapeHtml(detail)}"`;
+  const line = `<p class="dtp-line"${title}>${escapeHtml(dailyTargetProgressText(p))}</p>`;
   if (!p.targetSet) {
     return `<div class="dtp-daily-target-progress" role="region" aria-label="Daily target progress">${line}</div>`;
   }

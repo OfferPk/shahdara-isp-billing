@@ -6659,8 +6659,21 @@ function profileReadonlyField(label, value, wide = false, copyField = '') {
 // renders immediately after its first row (the phone row), so the operator
 // finds Call/WhatsApp beside the number instead of halfway down the page.
 function profileInfoGroupMarkup(heading, rows, afterFirstRowHtml = '') {
-  const fields = rows.map(([label, value, wide, copyField]) => profileReadonlyField(label, value, wide, copyField));
-  if (afterFirstRowHtml) fields.splice(1, 0, afterFirstRowHtml);
+  // Profile Polish A (8) — auto-sort: filled rows on top, unfilled
+  // rows below. A row is unfilled when its value is the bare empty
+  // dash, or a dash with an explanatory note ("— (missing …)").
+  // The order inside each half stays the declared order (stable
+  // partition). The optional block still travels with the FIRST row
+  // (the phone row for Contact): it splices right after that row
+  // wherever the sort put it, so Call/WhatsApp stay beside the
+  // number even when the number itself is the empty row.
+  const isUnfilledRow = (row) => typeof row[1] === 'string' && row[1].startsWith(PROFILE_EMPTY_DASH);
+  const sortedRows = [...rows.filter((row) => !isUnfilledRow(row)), ...rows.filter(isUnfilledRow)];
+  const fields = sortedRows.map(([label, value, wide, copyField]) => profileReadonlyField(label, value, wide, copyField));
+  if (afterFirstRowHtml) {
+    const anchorIndex = rows.length ? sortedRows.indexOf(rows[0]) : -1;
+    fields.splice(anchorIndex >= 0 ? anchorIndex + 1 : 0, 0, afterFirstRowHtml);
+  }
   return `<section class="profile-info-group"><h4>${escapeHtml(heading)}</h4><dl class="profile-readonly-grid">${fields.join('')}</dl></section>`;
 }
 function customerLifetimeValueMarkup(lifetime) {
@@ -9179,7 +9192,7 @@ function renderCurrentBillSummary(customer) {
   // while anything is owed (DS §6.2); amounts keep the same size.
   const netDueClass = summary.balanceDueCents === null ? '' : summary.balanceDueCents > 0 ? 'is-due' : 'is-settled';
   const currentStatusKey = { paid: 'prof_current_status_paid', pending: 'prof_current_status_pending', partial: 'prof_current_status_partial', 'not-set': 'prof_not_set' }[summary.status];
-  $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>${t('prof_current_heading', null, { month: displayMonthName(month) })}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_current_help_label')}" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">${t('prof_current_help')}</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_monthly_bill')}</span><strong>${summary.billAmount === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.billAmount))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_received')}</span><strong>${summary.receiptCount?escapeHtml(formatAmount(summary.receivedAmount)):t('prof_current_no_receipts')}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_status')}</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(currentStatusKey ? t(currentStatusKey) : summary.statusLabel)}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_net_due')}</span><strong class="${netDueClass}">${summary.balanceDueCents === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.balanceDueCents / 100))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_unused_credit')}</span><strong>${unusedCreditCents?escapeHtml(formatAmount(unusedCreditCents/100)):t('prof_none_recorded')}</strong></article>${ticketChargesPending > 0 ? `<article class="current-bill-stat ds-stat-box"><span>${t('prof_current_ticket_charges')}</span><strong>${escapeHtml(formatAmount(ticketChargesPending))}</strong></article>` : ''}${boostChargesPending > 0 ? `<article class="current-bill-stat ds-stat-box"><span>${t('boost_current_charges')}</span><strong>${escapeHtml(formatAmount(boostChargesPending))}</strong></article>` : ''}</div>${summary.fifo && (summary.fifo.previousArrears > 0 || summary.fifo.kistTotal > 0) ? `<div class="current-bill-grid" aria-label="${t('prof_fifo_aria')}"><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_arrears')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingArrears))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_package')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingPackage))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_kist')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingKist))}</strong></article></div>` : ''}`;
+  $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3 class="current-bill-heading-pill">${t('prof_current_heading', null, { month: displayMonthName(month) })}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_current_help_label')}" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">${t('prof_current_help')}</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_monthly_bill')}</span><strong>${summary.billAmount === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.billAmount))}</strong></article>${summary.receiptCount ? `<article class="current-bill-stat ds-stat-box"><span>${t('prof_current_received')}</span><strong>${escapeHtml(formatAmount(summary.receivedAmount))}</strong></article>` : ''}<article class="current-bill-stat ds-stat-box"><span>${t('prof_current_status')}</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(currentStatusKey ? t(currentStatusKey) : summary.statusLabel)}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_net_due')}</span><strong class="${netDueClass}">${summary.balanceDueCents === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.balanceDueCents / 100))}</strong></article>${unusedCreditCents ? `<article class="current-bill-stat ds-stat-box"><span>${t('prof_current_unused_credit')}</span><strong>${escapeHtml(formatAmount(unusedCreditCents/100))}</strong></article>` : ''}${ticketChargesPending > 0 ? `<article class="current-bill-stat ds-stat-box"><span>${t('prof_current_ticket_charges')}</span><strong>${escapeHtml(formatAmount(ticketChargesPending))}</strong></article>` : ''}${boostChargesPending > 0 ? `<article class="current-bill-stat ds-stat-box"><span>${t('boost_current_charges')}</span><strong>${escapeHtml(formatAmount(boostChargesPending))}</strong></article>` : ''}</div>${summary.fifo && (summary.fifo.previousArrears > 0 || summary.fifo.kistTotal > 0) ? `<div class="current-bill-grid" aria-label="${t('prof_fifo_aria')}"><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_arrears')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingArrears))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_package')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingPackage))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_kist')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingKist))}</strong></article></div>` : ''}`;
 }
 // Owner feature (2026-10-29): Manual Baqaya profile flows. The
 // section lives in the Manual Baqaya tab (mounted from #manualBaqayaSection);
@@ -9399,10 +9412,25 @@ function renderDetail() {
   const derivedOpenSuspension = loadSuspensions().find((entry) => entry.customerId === customer.id && entry.status === 'open') ?? null;
   const derivedServiceState = profileServiceState(customer, { today: localDate(), openSuspension: derivedOpenSuspension });
   const serviceStatusBadge = $('#profileServiceStatusBadge');
-  serviceStatusBadge.className = `profile-service-status profile-service-status-${derivedServiceState.modifier}`;
-  serviceStatusBadge.textContent = derivedServiceState.label;
+  // Profile Polish A (5) — the header showed "Active" (the derived
+  // service pill) AND "Profile: Active" (the archive pill) for the
+  // same live profile: the same word twice. When the profile is live
+  // AND the derived service state is Active, the two say the same
+  // thing — show ONE Active pill with a Facebook-style blue verified
+  // tick, and hide the archive pill. Every other combination keeps
+  // both pills: an archived-since date, or profile-active versus
+  // service-offline, is genuinely different information.
+  const isSingleActivePill = !customer.archived && derivedServiceState.state === 'active';
+  serviceStatusBadge.className = `profile-service-status profile-service-status-${derivedServiceState.modifier}${isSingleActivePill ? ' profile-service-status-verified' : ''}`;
+  if (isSingleActivePill) {
+    serviceStatusBadge.innerHTML = `${escapeHtml(derivedServiceState.label)}<span class="profile-verified-tick" aria-hidden="true">✓</span>`;
+  } else {
+    serviceStatusBadge.textContent = derivedServiceState.label;
+  }
   serviceStatusBadge.setAttribute('aria-label', t('prof_service_badge_derived_aria', null, { label: derivedServiceState.label }));
-  $('#archiveStateBadge').textContent = profileArchiveLabel(customer.archived, customer.archived ? (customer.archivedAt ? humanLocalDateTime(customer.archivedAt) : t('prof_archive_date_norec')) : '');
+  const archiveStateBadge = $('#archiveStateBadge');
+  archiveStateBadge.hidden = isSingleActivePill;
+  archiveStateBadge.textContent = profileArchiveLabel(customer.archived, customer.archived ? (customer.archivedAt ? humanLocalDateTime(customer.archivedAt) : t('prof_archive_date_norec')) : '');
   $('#archiveCustomerButton').hidden = customer.archived;
   $('#unarchiveCustomerButton').hidden = !customer.archived;
   // Profile "Clear dues" (2026-11-10): archived customers cannot

@@ -235,16 +235,22 @@ test('the one-screen HTML carries customer, amount, method, and save on one scre
   assert.match(html, new RegExp(QUICK_COLLECT_ONE_SCREEN_BACK_TEXT));
 });
 
-test('the one-screen HTML lists every customer and every method as options', () => {
+// QC Modal Fix: the native selects are gone — the customers are
+// combobox options and the methods are 1-tap pills. The HTML still
+// lists every customer and every method, only the controls changed.
+test('the one-screen HTML lists every customer as a combobox option and every method as a pill', () => {
   const html = quickCollectOneScreenHtml({ customers: customers(), methods: METHODS });
   assert.match(html, /Customer One \(#1\)/);
   assert.match(html, /Customer Two \(#2\)/);
   assert.match(html, /customer three \(#3\)/);
+  assert.match(html, /data-qos-customer-id="CUST-1"/);
+  assert.match(html, /data-qos-customer-id="CUST-2"/);
+  assert.match(html, /data-qos-customer-id="CUST-3"/);
   for (const method of METHODS) {
-    assert.match(html, new RegExp(`<option value="${method}">${method}</option>`));
+    assert.match(html, new RegExp(`data-qos-method="${method}"`));
   }
-  assert.match(html, new RegExp(`<option value="">${QUICK_COLLECT_ONE_SCREEN_CHOOSE_CUSTOMER_TEXT}</option>`));
-  assert.match(html, new RegExp(`<option value="">${QUICK_COLLECT_ONE_SCREEN_CHOOSE_METHOD_TEXT}</option>`));
+  assert.doesNotMatch(html, /<select/);
+  assert.doesNotMatch(html, /<option/);
 });
 
 test('the one-screen HTML honours a selected customer, amount, and method', () => {
@@ -255,9 +261,11 @@ test('the one-screen HTML honours a selected customer, amount, and method', () =
     amountText: '2000',
     method: 'JazzCash',
   });
-  assert.match(html, /<option value="CUST-2" selected>/);
-  assert.match(html, /<option value="JazzCash" selected>/);
+  assert.match(html, /id="qosOneScreenCustomer" type="hidden" value="CUST-2"/);
+  assert.match(html, /value="Customer Two \(#2\)"/);
+  assert.match(html, /data-qos-method="JazzCash"[^>]*aria-checked="true"|aria-checked="true"[^>]*data-qos-method="JazzCash"/);
   assert.match(html, /value="2000"/);
+  assert.match(html, /✓ Save Payment \(PKR 2,000\)/);
 });
 
 test('the one-screen HTML escapes customer names, never raw markup', () => {
@@ -272,8 +280,8 @@ test('the one-screen HTML escapes customer names, never raw markup', () => {
 test('the one-screen HTML with no customers still offers the save screen, not a guessed customer', () => {
   const html = quickCollectOneScreenHtml({ customers: [], methods: METHODS });
   assert.match(html, /id="qosOneScreenCustomer"/);
-  assert.match(html, new RegExp(`<option value="">${QUICK_COLLECT_ONE_SCREEN_CHOOSE_CUSTOMER_TEXT}</option>`));
-  assert.doesNotMatch(html, /<option value="CUST-/);
+  assert.match(html, /id="qosOneScreenCustomer" type="hidden" value=""/);
+  assert.doesNotMatch(html, /data-qos-customer-id="CUST-/);
 });
 
 // The module records nothing itself: it is import-free, touches no

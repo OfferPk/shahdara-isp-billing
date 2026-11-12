@@ -272,15 +272,21 @@ test('plan 543 (REPRO): archived customers are absent from the one-screen custom
   assert.deepEqual(options.map((option) => option.value), ['CUST-1', 'CUST-3']);
 });
 
-test('plan 543 (REPRO): the rendered one-screen dropdown never offers the archived customer', async () => {
+test('plan 543 (REPRO): the rendered one-screen combobox never offers the archived customer', async () => {
   const now = new Date();
   const month = getPakistanLocalDate(now).slice(0, 7);
   const h = plan543Controller(plan543State(now, month));
   try {
     await openOneScreen(h);
-    const select = h.stepOneScreen.querySelector('#qosOneScreenCustomer');
-    assert.ok(select, 'customer select exists');
-    assert.deepEqual(select.options.map((option) => option.value), ['', 'seed-001', 'seed-002']);
+    const search = h.stepOneScreen.querySelector('#qosOneScreenCustomerSearch');
+    assert.ok(search, 'customer combobox search exists');
+    // QC Modal Fix: the customer control is a searchable combobox
+    // now, not a select — its options are the <li> choices in the
+    // rendered HTML, read by their data attribute. The archived
+    // seed-003 is absent from them; the two live customers are
+    // present, dues-first then name.
+    const offered = [...h.stepOneScreen.innerHTML.matchAll(/data-qos-customer-id="([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(offered, ['seed-001', 'seed-002']);
   } finally {
     h.restore();
   }

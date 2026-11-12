@@ -131,12 +131,22 @@ test('§8.5 receipt card: merged row, DD/MM/YYYY next due, Amount Collected once
 });
 
 // 6. Area pill: the save path, the empty-choice guard, ≤ 32px tall.
+// Sharafat 6 moved the save behind a confirm: the change handler asks
+// window.appConfirm first and only a confirmed answer calls
+// applyAreaChange, which still saves via updateCustomerProfile +
+// onSaveState — so the save-path pins follow the write into that
+// helper instead of asserting it inline in the handler (same path,
+// same calls, now gated by the confirm).
 test('§8.6 area pill: delegated save path, empty choice never wipes, pill is 30px', () => {
   const handler = quickCollectSrc.slice(quickCollectSrc.indexOf("'[data-qc-area-select]'"), quickCollectSrc.indexOf("'[data-qc-area-select]'") + 1200);
-  assert.ok(handler.includes('updateCustomerProfile(getState(), activeCustomerId, { mohalla: stored })'), 'area change must save via updateCustomerProfile');
-  assert.ok(handler.includes('onSaveState(nextState)'), 'area change must call onSaveState');
   assert.ok(handler.includes("if (!raw) { renderActiveReceiptCard(); return; }"), 'empty choice must re-render only, never wipe the profile area');
   assert.ok(handler.includes('renderActiveReceiptCard()'), 'area change must re-render the card');
+  assert.ok(handler.includes('window.appConfirm'), 'area change must ask the confirm before saving');
+  const answer = quickCollectSrc.slice(quickCollectSrc.indexOf('ask.then', quickCollectSrc.indexOf("'[data-qc-area-select]'")));
+  assert.ok(answer.includes('applyAreaChange(stored, previousMohalla)'), 'a confirmed answer must apply the change');
+  const apply = quickCollectSrc.slice(quickCollectSrc.indexOf('function applyAreaChange'), quickCollectSrc.indexOf('function applyAreaChange') + 1200);
+  assert.ok(apply.includes('updateCustomerProfile(getState(), activeCustomerId, { mohalla: stored })'), 'area change must save via updateCustomerProfile');
+  assert.ok(apply.includes('onSaveState(nextState)'), 'area change must call onSaveState');
   const areaSelect = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-select {');
   assert.ok(areaSelect.includes('height: 30px'), 'area pill must be 30px tall (≤ 32px)');
   assert.ok(areaSelect.includes('min-height: 0'), 'area pill must beat the 44px select floor');

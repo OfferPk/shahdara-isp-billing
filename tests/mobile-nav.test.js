@@ -13622,9 +13622,13 @@ test('Quick Collect: executeQuickCollection creates immutable payment and return
 
   assert.equal(step1.receipt.success, true);
   assert.equal(step1.receipt.amount, 800);
-  assert.equal(step1.receipt.newBalanceDue, 1200); // 2000 - 800
-  assert.equal(step1.receipt.newTotalDues, 1200);
-  assert.equal(step1.receipt.isSettled, false);
+  // User decision 2026-11-12: the partial payment sets the package
+  // to the amount paid and reprices the month's bill to it, so the
+  // month is fully paid (no 1,200 remainder) — the receipt still
+  // carries the 800 collected and the settlement flag flips to true.
+  assert.equal(step1.receipt.newBalanceDue, 0); // was 2000 - 800 = 1200
+  assert.equal(step1.receipt.newTotalDues, 0);
+  assert.equal(step1.receipt.isSettled, true);
   assert.equal(step1.receipt.paidBy, 'Brother');
   assert.match(step1.receipt.receiptNumber, /^RCPT-301-202609-01$/);
 

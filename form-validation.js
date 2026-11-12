@@ -3,7 +3,7 @@
  * Local-only, accessible, no external dependencies.
  */
 import { buildPayrollSummary, paymentSenderLabel } from './core.js';
-import { EXPENSE_CATEGORIES, canonicalMohalla } from './phase3.js';
+import { EXPENSE_CATEGORIES, canonicalMohalla, compareMohallaAreas } from './phase3.js';
 import { areaFilterKey, customerInArea } from './area-operations.js';
 import { t } from './nav-language.js';
 import { documentFooterHtml } from './document-branding.js';
@@ -339,10 +339,14 @@ export function sortCustomerRoster(customers, { sortBy = 'number-asc', billingMo
         return String(a.name || '').localeCompare(String(b.name || ''));
       case 'name-desc':
         return String(b.name || '').localeCompare(String(a.name || ''));
+      // Mohalla Numbering: the mohalla sort is the user's fixed numbered
+      // order (1 CHARYAA … 12 HAWELI OR END POINT), not A–Z — a mohalla
+      // not in the list sorts after #12; ties inside one mohalla keep
+      // customer-number order, so the roster reads as mohalla blocks.
       case 'mohalla-asc':
-        return String(a.mohalla || a.area || '').localeCompare(String(b.mohalla || b.area || ''));
+        return compareMohallaAreas(a.mohalla || a.area || '', b.mohalla || b.area || '') || (Number(a.customerNumber) || 0) - (Number(b.customerNumber) || 0);
       case 'mohalla-desc':
-        return String(b.mohalla || b.area || '').localeCompare(String(a.mohalla || a.area || ''));
+        return compareMohallaAreas(b.mohalla || b.area || '', a.mohalla || a.area || '') || (Number(b.customerNumber) || 0) - (Number(a.customerNumber) || 0);
       case 'balance-desc': {
         const balA = getCustomerMonthBalance(a, billingMonth, allocations);
         const balB = getCustomerMonthBalance(b, billingMonth, allocations);
@@ -407,7 +411,7 @@ export function getUniqueCustomerAreas(customers) {
     const a = (c.mohalla || c.area || '').trim();
     if (a) set.add(a);
   }
-  return [...set].sort((a, b) => a.localeCompare(b));
+  return [...set].sort(compareMohallaAreas);
 }
 
 /**
@@ -418,7 +422,9 @@ export function getUniqueCustomerAreas(customers) {
  * spelling. Callers may pass keyOf/displayOf to group by canonical identity
  * instead (the mohalla canonicalizer), in which case the option value is
  * the canonical label. Customers without an area value are skipped.
- * Returns [{value,label,count}] sorted by label, where label is "Name (N)".
+ * Returns [{value,label,count}] in the numbered mohalla order
+ * (1 CHARYAA … 12 HAWELI OR END POINT; unlisted areas after #12),
+ * where label is "Name (N)".
  */
 export function groupAreasWithCounts(customers, areaOf = c => (c.mohalla || c.area || '').trim(), keyOf = value => value.replace(/\s+/g, ' ').toLowerCase(), displayOf = value => value) {
   const list = Array.isArray(customers) ? customers : [];
@@ -431,7 +437,7 @@ export function groupAreasWithCounts(customers, areaOf = c => (c.mohalla || c.ar
     if (group) group.count += 1;
     else groups.set(key, { value: displayOf(raw), count: 1 });
   }
-  return [...groups.values()].map(group => ({ ...group, label: `${group.value} (${group.count})` })).sort((a, b) => a.label.localeCompare(b.label));
+  return [...groups.values()].map(group => ({ ...group, label: `${group.value} (${group.count})` })).sort((a, b) => compareMohallaAreas(a.value, b.value));
 }
 
 /**

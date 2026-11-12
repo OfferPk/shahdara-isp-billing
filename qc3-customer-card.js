@@ -50,12 +50,18 @@ export function qc3MonthlyPackage(source, catalogue) {
  * tel: link for the recorded phone, and the maps URL for the recorded
  * GPS pin. Each field is null when its data is missing — the
  * renderers show the honest disabled / em-dash state, never a guess.
+ * QC Modal Fix: the package NAME too (the customer's own
+ * packageSpeed label, '' when none is recorded) — the picker card
+ * subtitle reads "Mohalla • Package Name", so the name comes from
+ * the same once-computed entry as the figure, never re-derived at
+ * render time. A missing name is '', never a guessed package.
  */
 export function qc3CardActions(source, catalogue) {
   const customer = source && typeof source === 'object' ? source : {};
   const target = contactActionTargets(customer.phone);
   return {
     monthlyPackage: qc3MonthlyPackage(customer, catalogue),
+    packageName: typeof customer.packageSpeed === 'string' ? customer.packageSpeed.trim() : '',
     callHref: target?.tel ?? null,
     mapsUrl: googleMapsUrl(customer),
   };

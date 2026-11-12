@@ -75,6 +75,16 @@ function escapeMissingFieldsHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+// Profile Polish B (12) — the missing-fields bar tone: red while
+// more than half the fields are still missing, yellow once the
+// majority is filled. Internal only: the module exports no scoring
+// function (Plan 363), so the tone is computed here, not exported.
+function missingFieldsBarTone(missingCount, total) {
+  if (!Number.isFinite(total) || total <= 0) return null;
+  const safeMissing = Number.isFinite(missingCount) && missingCount > 0 ? Math.min(missingCount, total) : 0;
+  return safeMissing / total > 0.5 ? 'red' : 'yellow';
+}
+
 // The checklist section HTML for the profile. `missing` is the array
 // from missingProfileFields; `labels` maps each control id to the
 // display name the form itself shows (a missing label falls back to
@@ -99,5 +109,12 @@ export function missingFieldsChecklistHtml(missing, labels, texts) {
   // itself. The summary carries the heading and the count, so the
   // operator sees how many fields are missing without opening it;
   // expanding still shows the same jump buttons in the same order.
-  return `<section class="mfc-checklist" aria-label="${escapeMissingFieldsHtml(heading)}"><details class="mfc-details"><summary class="mfc-summary">${escapeMissingFieldsHtml(heading)} (${items.length})</summary><ul class="mfc-list">${rows}</ul></details></section>`;
+  // Profile Polish B (12) — the count is a pill holding the plain
+  // number (no parens), plus a red/yellow bar of the missing share
+  // when the caller passes the counted total; without a total the
+  // bar is omitted and the pill still shows.
+  const barTone = missingFieldsBarTone(items.length, texts?.total);
+  const barPercent = barTone === null ? 0 : Math.round((items.length / texts.total) * 100);
+  const bar = barTone === null ? '' : `<span class="mfc-bar" role="progressbar" aria-valuenow="${barPercent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeMissingFieldsHtml(heading)}"><span class="mfc-bar-fill mfc-bar-fill-${barTone}" style="width:${barPercent}%"></span></span>`;
+  return `<section class="mfc-checklist" aria-label="${escapeMissingFieldsHtml(heading)}"><details class="mfc-details"><summary class="mfc-summary">${escapeMissingFieldsHtml(heading)} <span class="mfc-count-pill">${items.length}</span>${bar}</summary><ul class="mfc-list">${rows}</ul></details></section>`;
 }

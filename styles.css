@@ -15471,6 +15471,34 @@ real pills. No new hex anywhere. */
 .phv-explainer{margin:8px 0;padding:10px 12px;border:1px solid #adc9f1;border-radius:12px;background:#e5efff;color:#174b87;font-size:12px;line-height:1.5}
 .phv-none{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px}
 .stv-primary{display:inline-flex;align-items:center;justify-self:start;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px}
+/* Profile Polish D (16)–(17) — Service & Package in pill style.
+ * (16) The Service and lifecycle groups share ONE pill in the service
+ * teal (the ID-pill slot-6 palette #e7f2ec / #0e5b4d / #9acbad — no new
+ * hex): same padding, same label/value sizes as the plain readonly
+ * field, full words wrap inside (nothing clipped). Tappable fields
+ * get a pointer cursor and a visible keyboard focus. The speed-boost
+ * log rows are service pills too, in the same teal; the Add boost
+ * button is normal size (justify-self:start) instead of stretching
+ * the full form width. These boost rules sit AFTER the SISP-106 block
+ * on purpose: that block's no-hex test slices up to
+ * .boost-add-form input:focus, so no hex may appear before it.
+ * (17) The package-change preview texts take the info-blue pill
+ * palette (#e5efff / #174b87 / #adc9f1, Polish C): the long explainer
+ * is an info note (a one-line pill would wrap badly), the kept-preview
+ * line is a real wrapping pill, and the "Proposed package" label words
+ * are a compact pill chip. No new hex anywhere. */
+.profile-info-group--service .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec}
+.profile-info-group--service .profile-readonly-field dt{color:#0e5b4d}
+.profile-info-group--service .profile-readonly-field dd{color:#0e5b4d}
+.profile-readonly-field--tap{cursor:pointer}
+.profile-readonly-field--tap:focus-visible{outline:3px solid #9acbad;outline-offset:2px}
+.profile-boost-section .profile-boost-list li{padding:8px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec}
+.profile-boost-section .profile-boost-list li span{color:#0e5b4d}
+.profile-boost-section .profile-boost-list li span:first-child{color:#0e5b4d}
+.boost-add-form #profileBoostAddBtn{justify-self:start}
+.pcp-explainer{margin:8px 0;padding:10px 12px;border:1px solid #adc9f1;border-radius:12px;background:#e5efff;color:#174b87;font-size:12px;line-height:1.5}
+.pcp-kept-pill{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.pcp-field-pill{display:inline-flex;align-items:center;padding:2px 8px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;font-weight:700}
 .mvh-none{color:#5c6e66;font-size:12px}
 [data-theme="dark"] .mvh-annotations li,[data-theme="dark"] .mvh-annotation-date,[data-theme="dark"] .mvh-none{color:var(--dk-muted)}
 [data-theme="dark"] .hhl-open{color:var(--dk-ink)}

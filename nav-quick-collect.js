@@ -941,7 +941,13 @@ export function executeQuickCollection(state, {
   // second connection of a two-connection customer, named on the
   // payment and its receipt so the pair of payments in one visit
   // says which connection each belongs to.
-  connection
+  connection,
+  // Package-due fix (user decision 2026-11-12): false skips the
+  // auto-package bill reprice — the batch, group-waterfall and
+  // split-tender settlement flows pass false so their partial
+  // remainders stay due. A direct single collection omits it and
+  // reprices the bill to the taken fee.
+  repriceBill
 }, referenceDate = new Date()) {
   if (!customerId) throw new Error('Customer ID is required.');
   const numAmount = Number(amount);
@@ -1159,13 +1165,17 @@ export function executeQuickCollection(state, {
   // Auto package follow (owner feature, 2026-10-29): when this collect
   // created-and-settled a month that was not priced yet, the fee taken
   // for the month becomes the customer's package (core decides from the
-  // pre-payment state; a payment toward an already-priced bill and an
-  // advance-tagged collection never move the package).
+  // pre-payment state; an advance-tagged collection never moves the
+  // package). User decision 2026-11-12: a payment toward an
+  // already-priced bill moves the package too, and the bill is
+  // repriced to the taken fee — unless the caller passes
+  // repriceBill: false (the batch, group-waterfall and split-tender
+  // settlement flows), so their partial remainders stay due.
   let autoPackage = null;
   if (kind !== 'advance') {
     const addedPayment = nextState.customers.find(c => c.id === customerId)?.bills?.find(b => b.month === targetMonth)?.payments?.find(p => !beforePaymentIds.has(p.id));
     if (addedPayment) {
-      const followed = autoPackageFromPayment(state, nextState, customerId, targetMonth, addedPayment.id, referenceDate);
+      const followed = autoPackageFromPayment(state, nextState, customerId, targetMonth, addedPayment.id, referenceDate, { repriceBill });
       nextState = followed.nextState;
       autoPackage = followed.autoPackage;
     }
@@ -5805,13 +5815,14 @@ export function setupQuickCollectModal({
     const receiptCustomer = getState()?.customers?.find(c => c.id === activeReceipt.customerId);
     const receiptWhatsappPhone = receiptCustomer ? whatsappPhoneFor(receiptCustomer) : '';
     // QC receipt-modal overhaul (§4.3.1): the merged Still-owed /
-    // Next-due row needs the next due date — the earliest due date among
-    // bills that still carry a balance (Plan 434's computation), rendered
-    // with formatQcReceiptDate (DD/MM/YYYY, PR #1330) so it matches the
-    // card's Date & Method row. When nothing is owed, the host-supplied
-    // fallback applies (the next bill month's due date under the
-    // customer's own cycle, Polish #22) — so a full payment shows the
-    // next due date, never a hardcoded 5th and never an invented bill.
+    // Next-due row needs the next due date — the host-supplied
+    // fallback (the next bill month's due date under the customer's
+    // own cycle, Polish #22), always (user decision 2026-11-12):
+    // the next due date is the 5th of the next month after the bill
+    // month just paid, never the earliest overdue date — the amount
+    // still owed is the Still-owed figure. Rendered with
+    // formatQcReceiptDate (DD/MM/YYYY, PR #1330) so it matches the
+    // card's Date & Method row.
     const postSaveState = getState();
     const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeReceipt.customerId) ?? null;
     const fallbackDueDate = typeof nextDueDateFallback === 'function' && postSaveCustomer
@@ -6029,12 +6040,11 @@ export function setupQuickCollectModal({
   // save just issued and the customer's own post-save record. It
   // shows only: rendering posts nothing and changes no record. The
   // still-owed figure is the receipt's own payable remainder; the
-  // next due date is the earliest due date among bills that still
-  // carry a balance, from the allocation engine's own figures. When
-  // nothing is owed, the host-supplied fallback applies instead —
-  // the next bill month's due date under the customer's own cycle
-  // (Polish #22) — so a full payment shows Dec 5, never a
-  // hardcoded 5th and never an invented bill. The collect-again
+  // next due date is the host-supplied fallback, always — the next
+  // bill month's due date under the customer's own cycle (Polish #22),
+  // so a payment shows Dec 5, never a hardcoded 5th and never an
+  // invented bill (user decision 2026-11-12: never the earliest
+  // overdue date). The collect-again
   // tap reopens the payment form for the same customer; it records
   // nothing by itself.
   let nextStepsWired = false;

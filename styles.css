@@ -11928,6 +11928,31 @@ html, body {
   background: #128c7e;
 }
 
+/* Dues-list tile live fix (2026-11-12): the footer held ten action
+   buttons that wrapped into a wall on a phone and pushed the customer
+   dues list off the viewport (only a clipped sliver of one row stayed
+   visible). The actions now live in a collapsed <details> — one
+   "Actions" toggle in the footer — so the list is the primary content
+   and the actions stay available but secondary. Tokens only, no new
+   hex. */
+.defaulters-actions-details {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.defaulters-actions-summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.defaulters-actions-summary::-webkit-details-marker {
+  display: none;
+}
+
+.defaulters-actions-details .footer-actions-left {
+  margin-top: 8px;
+}
+
 /* Dark Mode Overrides */
 [data-theme="dark"] .top-defaulters-modal {
   background: #0f172a;

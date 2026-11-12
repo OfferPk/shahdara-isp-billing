@@ -42,17 +42,32 @@ const positiveAmount = value => {
 const cents = value => Math.round(Number(value) * 100);
 const paymentOrder = (left, right) => String(left?.date ?? '').localeCompare(String(right?.date ?? ''));
 
-// SISP-128: "Last 3 Payments" mini-history. Readable date in the house
-// style (app.js humanDate: Intl medium date, Pakistan time) — used ONLY
-// as the receipt-reference fallback, exactly like the Recent Payments
-// card (PR #471): a payment with no stored receipt number is referenced
-// by its readable date, never by an invented number.
-const humanDateLabel = (date) => {
-  try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'Asia/Karachi' })
-      .format(new Date(`${date}T00:00:00Z`));
-  } catch { return date; }
-};
+// SISP-128: "Last 3 Payments" mini-history. A payment with no stored
+// receipt number carries NO label at all (2026-11-12 fix): the old
+// readable-date fallback (Intl medium date, the Recent Payments card's
+// PR #471 precedent) printed the row's date twice in two formats on
+// every surface, because history rows already print the date first.
+// No number is ever invented here.
+//
+// historyRowLabel is the guard for rows built before that fix (their
+// stored receiptLabel is the medium date): a label that IS the row's
+// own date — day-first shape, or a medium date that parses back to it
+// in local time — is dropped; any other label (a real receipt number)
+// passes through unchanged.
+export function historyRowLabel(row) {
+  const label = typeof row?.receiptLabel === 'string' ? row.receiptLabel.trim() : '';
+  if (!label) return '';
+  const date = String(row?.date ?? '');
+  const dayFirst = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (dayFirst && label === `${dayFirst[3]}/${dayFirst[2]}/${dayFirst[1]}`) return '';
+  const parsed = Date.parse(label);
+  if (!Number.isNaN(parsed)) {
+    const parsedDate = new Date(parsed);
+    const ymd = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`;
+    if (ymd === date) return '';
+  }
+  return label;
+}
 
 /** Bilingual block heading, from the dictionary in both languages. */
 export function receiptHistoryHeading() {
@@ -84,7 +99,8 @@ export function receiptHistoryHeading() {
  *    that is the net cash, exactly what the profile history shows).
  *  - receiptRef is the reference the record itself carries — stored
  *    receiptNumber, else permanentReceiptNumber, else ''. receiptLabel
- *    falls back to the readable date; NO number is ever generated here.
+ *    is the same reference, or '' when the record stored none — never
+ *    a date, never a generated number.
  *
  * @returns {Array<{date, amount, method, receiptRef, receiptLabel}>}
  *   newest first, at most 3 rows.
@@ -130,7 +146,7 @@ export function buildReceiptPaymentHistory(customer, currentPayment = null, curr
       amount: Number.isFinite(amount) ? amount : 0,
       method: text(entry.payment.method),
       receiptRef,
-      receiptLabel: receiptRef || humanDateLabel(date),
+      receiptLabel: receiptRef,
       sequence: entry.sequence
     });
   }

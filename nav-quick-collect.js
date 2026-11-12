@@ -6169,10 +6169,28 @@ export function setupQuickCollectModal({
           .find((stamp) => stamp !== null) ?? null;
         for (const leg of [...splitLegs].reverse()) {
           const legLines = Array.isArray(leg.ticketCharges) ? leg.ticketCharges : [];
+          // Sharafat 4: same for boost charges — they live on the
+          // customer in the working state, so they reopen there
+          // before the delete, mirroring the single-payment undo
+          // below (core refuses to delete a boost-settling payment
+          // otherwise, exactly as it refuses a ticket-settling one).
+          const legAddonLines = Array.isArray(leg.addonCharges) ? leg.addonCharges : [];
           if (legLines.length > 0) {
             const reverted = unsettleTicketChargesForPayment(workingTickets, { id: leg.paymentId, ticketCharges: legLines });
             workingTickets = reverted.tickets;
-            workingState = deletePayment(workingState, customerId, month, leg.paymentId, new Date(), { ticketChargesReverted: true });
+          }
+          if (legAddonLines.length > 0) {
+            const cust = workingState.customers.find((c) => c.id === customerId);
+            if (cust) {
+              const { customer: reopenedCustomer } = unsettleAddonChargesForPayment(cust, { id: leg.paymentId, addonCharges: legAddonLines });
+              workingState = { ...workingState, customers: workingState.customers.map((c) => (c.id === customerId ? reopenedCustomer : c)) };
+            }
+          }
+          if (legLines.length > 0 || legAddonLines.length > 0) {
+            workingState = deletePayment(workingState, customerId, month, leg.paymentId, new Date(), {
+              ...(legLines.length > 0 ? { ticketChargesReverted: true } : {}),
+              ...(legAddonLines.length > 0 ? { addonChargesReverted: true } : {})
+            });
           } else {
             workingState = deletePayment(workingState, customerId, month, leg.paymentId);
           }
@@ -6832,8 +6850,13 @@ export function setupQuickCollectModal({
             customerName: legReceipt2.customerName,
             ticketCharges: [],
             splitLegs: [
-              { paymentId: legReceipt1.paymentId, ticketCharges: legReceipt1.ticketCharges ?? [] },
-              { paymentId: legReceipt2.paymentId, ticketCharges: legReceipt2.ticketCharges ?? [] }
+              // Sharafat 4: each leg's settled boost lines ride along
+              // too — the undo branch reopens them before deleting
+              // the leg, mirroring the ticket lines above (without
+              // them a split that settled a boost could never undo:
+              // core refuses the delete).
+              { paymentId: legReceipt1.paymentId, ticketCharges: legReceipt1.ticketCharges ?? [], addonCharges: legReceipt1.addonCharges ?? [] },
+              { paymentId: legReceipt2.paymentId, ticketCharges: legReceipt2.ticketCharges ?? [], addonCharges: legReceipt2.addonCharges ?? [] }
             ]
           };
           if (undoBtn) {

@@ -183,8 +183,13 @@ function compareCustomers(a, b) {
   return str(a.customerName).localeCompare(str(b.customerName));
 }
 
-function compareMohallas(a, b) {
+function compareMohallas(a, b, compareAreas = null) {
   if (b.total !== a.total) return b.total - a.total;
+  // Mohalla Numbering: the amount stays the primary rank; ties break
+  // by the caller's mohalla order when given (the app passes the
+  // numbered order), otherwise by label — the module stays
+  // import-free, so the order is supplied, never copied here.
+  if (typeof compareAreas === 'function') return compareAreas(a.label, b.label);
   return str(a.label).localeCompare(str(b.label));
 }
 
@@ -211,7 +216,7 @@ function compareMohallas(a, b) {
  * `valid` is false (and every total is 0) when asOfMonth is not a
  * valid YYYY-MM value; the caller must not render an invalid view.
  */
-export function buildReceivablesAgeing(entries, asOfMonth) {
+export function buildReceivablesAgeing(entries, asOfMonth, compareAreas = null) {
   const emptyBuckets = () => {
     const out = {};
     for (const bucket of AGEING_BUCKETS) {
@@ -319,7 +324,7 @@ export function buildReceivablesAgeing(entries, asOfMonth) {
     billCount += bucket.billCount;
   }
   const unagedAmount = unaged.reduce((sum, item) => sum + item.amount, 0);
-  const mohallaTotals = [...mohallaMap.values()].sort(compareMohallas);
+  const mohallaTotals = [...mohallaMap.values()].sort((a, b) => compareMohallas(a, b, compareAreas));
   const mohallaSum = mohallaTotals.reduce((sum, row) => sum + row.total, 0);
   return {
     valid: true,

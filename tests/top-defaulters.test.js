@@ -321,7 +321,6 @@ test('setupTopDefaultersModal - handles simulated DOM controller events', async 
     },
     dashboardOpenTopDefaultersBtn: { addEventListener: (evt, cb) => { mockElements._openCb = cb; } },
     closeTopDefaultersModalBtn: { addEventListener: (evt, cb) => { mockElements._closeCb = cb; } },
-    closeSecondaryBtn: { addEventListener: () => {} },
     topDefaultersSearchInput: { value: '', addEventListener: (evt, cb) => { mockElements._searchCb = cb; } },
     topDefaultersAreaSelect: {
       value: 'all',
@@ -335,9 +334,11 @@ test('setupTopDefaultersModal - handles simulated DOM controller events', async 
     topDefaultersKpiConcentration: { textContent: '' },
     topDefaultersKpiTotalDebt: { textContent: '' },
     topDefaultersKpiCriticalCount: { textContent: '' },
-    topDefaultersTableBody: {
+    // Top Defaulters Modal Fix item 1 (2026-11-13): the wide table is
+    // gone — the list host is now the card list, not a tbody.
+    topDefaultersList: {
       innerHTML: '',
-      addEventListener: (evt, cb) => { mockElements._tableClickCb = cb; }
+      addEventListener: (evt, cb) => { mockElements._listClickCb = cb; }
     },
     topDefaultersEmptyState: { hidden: true },
     topDefaultersChartContainer: { innerHTML: '' },
@@ -386,13 +387,13 @@ test('setupTopDefaultersModal - handles simulated DOM controller events', async 
     assert.equal(mockElements.topDefaultersKpiConcentration.textContent, '100%');
     assert.equal(mockElements.topDefaultersKpiCriticalCount.textContent, 3);
     assert.ok(mockElements.topDefaultersChartContainer.innerHTML.includes('<svg'));
-    assert.ok(mockElements.topDefaultersTableBody.innerHTML.includes('Muhammad Tariq'));
+    assert.ok(mockElements.topDefaultersList.innerHTML.includes('Muhammad Tariq'));
 
     // 2. Test search filter trigger
     mockElements.topDefaultersSearchInput.value = 'Tariq';
     mockElements._searchCb();
-    assert.ok(mockElements.topDefaultersTableBody.innerHTML.includes('Muhammad Tariq'));
-    assert.ok(!mockElements.topDefaultersTableBody.innerHTML.includes('Abdul Rehman'));
+    assert.ok(mockElements.topDefaultersList.innerHTML.includes('Muhammad Tariq'));
+    assert.ok(!mockElements.topDefaultersList.innerHTML.includes('Abdul Rehman'));
 
     // Reset search
     mockElements.topDefaultersSearchInput.value = '';
@@ -400,27 +401,39 @@ test('setupTopDefaultersModal - handles simulated DOM controller events', async 
 
     // 3. Test View Profile click
     const c1Id = state.customers[0].id;
-    mockElements._tableClickCb({
+    mockElements._listClickCb({
       target: {
         closest: (sel) => sel === '.defaulter-view-btn' ? { dataset: { custId: c1Id } } : null
       }
     });
     assert.equal(filteredCustomerId, c1Id);
 
-    // 4. Test WhatsApp reminder click
-    mockElements._tableClickCb({
+    // 4. Test Polite Reminder click — opens the 'overdue' wa.me draft.
+    // Top Defaulters Modal Fix item 1 (2026-11-13): the generic
+    // WhatsApp button is replaced by the two stage buttons.
+    mockElements._listClickCb({
       target: {
-        closest: (sel) => sel === '.defaulter-wa-btn' ? { dataset: { custId: c1Id } } : null
+        closest: (sel) => sel === '.defaulter-reminder-polite' ? { dataset: { custId: c1Id } } : null
       }
     });
     assert.ok(openedUrl.includes('api.whatsapp.com') || openedUrl.includes('wa.me'));
+    assert.ok(decodeURIComponent(openedUrl).includes('Overdue Payment Notice'), 'Polite Reminder opens the overdue draft');
 
-    // 5. Test Copy Briefing
+    // 5. Test Final Notice click — opens the 'disconnection' wa.me draft.
+    mockElements._listClickCb({
+      target: {
+        closest: (sel) => sel === '.defaulter-reminder-final' ? { dataset: { custId: c1Id } } : null
+      }
+    });
+    assert.ok(openedUrl.includes('api.whatsapp.com') || openedUrl.includes('wa.me'));
+    assert.ok(decodeURIComponent(openedUrl).includes('FINAL NOTICE'), 'Final Notice opens the final-notice draft');
+
+    // 6. Test Copy Briefing
     await mockElements._copyBriefingCb();
     assert.ok(clipboardText.includes('SHAHDARA BROADBAND - TOP DEFAULTERS EXECUTIVE BRIEFING'));
     assert.equal(toastMsg, 'Executive defaulters briefing copied to clipboard!');
 
-    // 6. Close modal
+    // 7. Close modal
     controller.close();
     assert.equal(mockElements.topDefaultersModal.open, false);
   } finally {
@@ -438,20 +451,36 @@ test('HTML and CSS - verify top defaulters modal elements and styles exist', () 
   assert.ok(html.includes('id="topDefaultersAreaSelect"'));
   assert.ok(html.includes('id="topDefaultersLimitSelect"'));
   assert.ok(html.includes('id="topDefaultersRiskSelect"'));
+  assert.ok(html.includes('id="topDefaultersWaadaSelect"'));
   assert.ok(html.includes('id="topDefaultersKpiTopDues"'));
   assert.ok(html.includes('id="topDefaultersChartContainer"'));
-  assert.ok(html.includes('id="topDefaultersTableBody"'));
+  // Top Defaulters Modal Fix item 1 (2026-11-13): the wide table is
+  // gone — the list host is the card list, not a tbody.
+  assert.ok(html.includes('id="topDefaultersList"'));
   assert.ok(html.includes('id="topDefaultersExportCsvBtn"'));
   assert.ok(html.includes('id="topDefaultersPrintA4Btn"'));
   assert.ok(html.includes('id="topDefaultersPrintThermalBtn"'));
   assert.ok(html.includes('id="topDefaultersCopyBriefingBtn"'));
+  // Top Defaulters Modal Fix item 2 (2026-11-13): the header close is
+  // the clean neutral ✕ (shared .close-btn class + Close aria-label,
+  // scoped .td-close-btn hook) — the bottom green Close is gone.
+  assert.match(html, /<button id="closeTopDefaultersModalBtn" class="close-btn td-close-btn"[^>]*>✕<\/button>/);
+  assert.ok(!html.includes('id="closeTopDefaultersSecondaryBtn"'), 'bottom Close must be removed');
 
   const css = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
   assert.ok(css.includes('.top-defaulters-modal'));
   assert.ok(css.includes('.defaulters-kpi-grid'));
   assert.ok(css.includes('.defaulters-chart-wrapper'));
   assert.ok(css.includes('.unpaid-month-tag'));
-  assert.ok(css.includes('.defaulter-wa-btn'));
+  // Top Defaulters Modal Fix item 1 (2026-11-13): the generic WhatsApp
+  // button class is gone with the table — the card's action classes
+  // pin the new markup instead.
+  assert.ok(css.includes('.defaulter-card'));
+  assert.ok(css.includes('.defaulter-reminder-polite'));
+  assert.ok(css.includes('.defaulter-reminder-final'));
+  assert.ok(css.includes('.defaulter-collect-btn'));
+  assert.ok(css.includes('.defaulter-filter-grid'));
+  assert.ok(css.includes('.defaulters-action-group'));
   assert.ok(css.includes('[data-theme="dark"] .top-defaulters-modal'));
 });
 
@@ -493,7 +522,6 @@ test('setupTopDefaultersModal - re-opening an already-open dialog does not throw
     dashboardOpenTopDefaultersBtn: { addEventListener: (evt, cb) => { mockElements._openCb = cb; } },
     quickActionTopDefaulters: { addEventListener: (evt, cb) => { mockElements._quickOpenCb = cb; } },
     closeTopDefaultersModalBtn: stub(),
-    closeTopDefaultersSecondaryBtn: stub(),
     topDefaultersSearchInput: stub({ value: '' }),
     topDefaultersAreaSelect: stub({ value: 'all', options: [{ value: 'all' }], appendChild: () => {} }),
     topDefaultersLimitSelect: stub({ value: '20' }),
@@ -503,7 +531,7 @@ test('setupTopDefaultersModal - re-opening an already-open dialog does not throw
     topDefaultersKpiConcentration: { textContent: '' },
     topDefaultersKpiTotalDebt: { textContent: '' },
     topDefaultersKpiCriticalCount: { textContent: '' },
-    topDefaultersTableBody: { innerHTML: '', addEventListener: () => {} },
+    topDefaultersList: { innerHTML: '', addEventListener: () => {} },
     topDefaultersEmptyState: { hidden: true },
     topDefaultersChartContainer: { innerHTML: '' },
     topDefaultersExportCsvBtn: stub(),
@@ -535,13 +563,13 @@ test('setupTopDefaultersModal - re-opening an already-open dialog does not throw
     controller.open();
     assert.equal(mockModal.open, true);
     assert.equal(mockModal.showModalCalls, 1);
-    assert.ok(mockElements.topDefaultersTableBody.innerHTML.includes('Muhammad Tariq'));
+    assert.ok(mockElements.topDefaultersList.innerHTML.includes('Muhammad Tariq'));
 
     // 2. Second open while already open: must NOT throw, must NOT call
     // showModal again, and must still re-render the list.
     assert.doesNotThrow(() => controller.open());
     assert.equal(mockModal.showModalCalls, 1);
-    assert.ok(mockElements.topDefaultersTableBody.innerHTML.includes('Muhammad Tariq'));
+    assert.ok(mockElements.topDefaultersList.innerHTML.includes('Muhammad Tariq'));
 
     // 3. The open-trigger buttons are safe on a second click too.
     assert.doesNotThrow(() => mockElements._openCb());
@@ -553,30 +581,38 @@ test('setupTopDefaultersModal - re-opening an already-open dialog does not throw
     assert.equal(mockModal.open, false);
     controller.open();
     assert.equal(mockModal.showModalCalls, 2);
-    assert.ok(mockElements.topDefaultersTableBody.innerHTML.includes('Muhammad Tariq'));
+    assert.ok(mockElements.topDefaultersList.innerHTML.includes('Muhammad Tariq'));
   } finally {
     globalThis.document = originalDocument;
   }
 });
 
-// Dues-list tile live fix (2026-11-12): when the modal opened, the
-// customer dues list was buried below the KPI grid, the 220px chart
-// and the filters, and the footer held ten action buttons that
-// wrapped into a wall — only a clipped sliver of one row stayed
-// visible. The list is now the primary content: the filter toolbar
-// and table come first, the KPI grid and chart sit below them, and
-// the actions live in a collapsed <details> in the footer.
-test('HTML - dues list is the primary content: table first, actions collapsed', () => {
+// Top Defaulters Modal Fix (2026-11-13): the wide 8-column table is
+// replaced by full-width stacked cards, the 4 filter selects sit in a
+// 2×2 grid, the bottom green Close is removed (the header ✕ is the
+// only close), and the ten action buttons are grouped under 3
+// mini-labels in a compact 2-column grid. This test replaces the old
+// 'table first, actions collapsed' pin: the card list is the primary
+// content, the actions stay collapsed in the footer, and the removed
+// elements stay removed.
+test('HTML - card list is the primary content: filters first, actions grouped and collapsed, no bottom Close', () => {
   const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
   const modalStart = html.indexOf('id="topDefaultersModal"');
   assert.ok(modalStart >= 0, 'missing topDefaultersModal');
   const modalHtml = html.slice(modalStart, html.indexOf('id="prelockNoticeModal"', modalStart));
 
-  // The filter toolbar and the dues list come before the KPI grid and
+  // The filter toolbar and the card list come before the KPI grid and
   // the chart, so they are the first thing visible when the modal opens.
-  assert.ok(modalHtml.indexOf('id="topDefaultersSearchInput"') < modalHtml.indexOf('id="topDefaultersTableBody"'), 'filters must precede the table');
-  assert.ok(modalHtml.indexOf('id="topDefaultersTableBody"') < modalHtml.indexOf('id="topDefaultersKpiTopDues"'), 'table must precede the KPI grid');
-  assert.ok(modalHtml.indexOf('id="topDefaultersTableBody"') < modalHtml.indexOf('id="topDefaultersChartContainer"'), 'table must precede the chart');
+  assert.ok(modalHtml.indexOf('id="topDefaultersSearchInput"') < modalHtml.indexOf('id="topDefaultersList"'), 'filters must precede the card list');
+  assert.ok(modalHtml.indexOf('id="topDefaultersList"') < modalHtml.indexOf('id="topDefaultersKpiTopDues"'), 'card list must precede the KPI grid');
+  assert.ok(modalHtml.indexOf('id="topDefaultersList"') < modalHtml.indexOf('id="topDefaultersChartContainer"'), 'card list must precede the chart');
+
+  // The 4 filter selects sit in a 2×2 grid below the full-width search.
+  assert.ok(modalHtml.includes('class="defaulter-filter-grid"'), 'filters must use the 2×2 grid');
+  const gridStart = modalHtml.indexOf('class="defaulter-filter-grid"');
+  for (const id of ['topDefaultersAreaSelect', 'topDefaultersLimitSelect', 'topDefaultersRiskSelect', 'topDefaultersWaadaSelect']) {
+    assert.ok(modalHtml.indexOf(`id="${id}"`) > gridStart, `${id} must be inside the filter grid`);
+  }
 
   // The ten action buttons live in a collapsed <details> (no open
   // attribute), so they never push the list off the phone viewport.
@@ -597,17 +633,242 @@ test('HTML - dues list is the primary content: table first, actions collapsed', 
     assert.ok(pos > detailsStart && pos < detailsEnd, `${id} must be inside the actions <details>`);
   }
 
-  // Close stays outside the <details>, always visible.
-  const closePos = modalHtml.indexOf('id="closeTopDefaultersSecondaryBtn"');
-  assert.ok(closePos > detailsEnd, 'Close must stay outside the actions <details>');
+  // The drawer is grouped under 3 mini-labels in a compact 2-column
+  // grid: Follow-up + Print/Export side by side, Router Scripts
+  // full-width below.
+  for (const label of ['Follow-up', 'Print / Export', 'Router Scripts']) {
+    assert.ok(modalHtml.includes(`>${label}<`), `missing Actions group label "${label}"`);
+  }
+  assert.ok(modalHtml.includes('class="defaulters-action-groups"'), 'missing 2-column groups grid');
+  assert.ok(modalHtml.includes('defaulters-action-group--wide'), 'Router Scripts group must span both columns');
+  // Follow-up group order is Prelock, Hide Contacted, Lock Due.
+  assert.ok(modalHtml.indexOf('id="topDefaultersPrelockNoticeBtn"') < modalHtml.indexOf('id="topDefaultersHideContactedBtn"'));
+  assert.ok(modalHtml.indexOf('id="topDefaultersHideContactedBtn"') < modalHtml.indexOf('id="topDefaultersLockDueBtn"'));
+
+  // The bottom green Close is removed: the header ✕ is the only close.
+  assert.ok(!modalHtml.includes('id="closeTopDefaultersSecondaryBtn"'), 'bottom Close must be removed');
+  assert.match(modalHtml, /<button id="closeTopDefaultersModalBtn" class="close-btn td-close-btn"[^>]*>✕<\/button>/, 'header ✕ is the only close');
   assert.ok(modalHtml.includes('defaulters-actions-summary'), 'actions toggle must exist');
 
-  // The collapsed-actions styles exist and introduce no new hex.
+  // The card + grouped-actions styles exist and introduce no new hex.
   const css = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
   assert.ok(css.includes('.defaulters-actions-details'), 'missing .defaulters-actions-details CSS');
   assert.ok(css.includes('.defaulters-actions-summary'), 'missing .defaulters-actions-summary CSS');
+  assert.ok(css.includes('.defaulter-card'), 'missing .defaulter-card CSS');
+  assert.ok(css.includes('.defaulter-filter-grid'), 'missing .defaulter-filter-grid CSS');
+  assert.ok(css.includes('.defaulters-action-groups'), 'missing .defaulters-action-groups CSS');
+  assert.ok(css.includes('/* Top Defaulters Modal Fix'), 'missing Top Defaulters Modal Fix CSS block marker');
   const blockStart = css.indexOf('/* Dues-list tile live fix');
-  assert.ok(blockStart >= 0, 'missing Dues-list tile CSS block marker');
-  const block = css.slice(blockStart, css.indexOf('/* Dark Mode Overrides */', blockStart));
-  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(block), 'Dues-list tile CSS must reuse tokens only, no new hex');
+  const tdBlockStart = css.indexOf('/* Top Defaulters Modal Fix');
+  assert.ok(blockStart >= 0 && tdBlockStart > blockStart, 'missing CSS block markers');
+  // The Dues-list tile block stays hex-free (its original discipline).
+  const duesBlock = css.slice(blockStart, tdBlockStart);
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(duesBlock), 'Dues-list tile CSS must reuse tokens only, no new hex');
+  // The Top Defaulters block reuses only hex already present elsewhere
+  // in styles.css — no new colour (the 614-hex ratchet is the
+  // backstop, and this pins the block itself: every hex in it must
+  // occur outside it).
+  const tdBlock = css.slice(tdBlockStart, css.indexOf('/* Dark Mode Overrides */', tdBlockStart));
+  const restCss = css.slice(0, tdBlockStart) + css.slice(css.indexOf('/* Dark Mode Overrides */', tdBlockStart));
+  const restHex = new Set(restCss.match(/#[0-9a-fA-F]{3,8}\b/g) || []);
+  for (const hex of tdBlock.match(/#[0-9a-fA-F]{3,8}\b/g) || []) {
+    assert.ok(restHex.has(hex), `Top Defaulters CSS must reuse existing hex only, found new ${hex}`);
+  }
+});
+
+// Top Defaulters Modal Fix item 1 (2026-11-13): one full-width stacked
+// card per defaulter replaces the wide 8-column table. The card's top
+// row is '#rank · #ID NAME (Mohalla)' left with the bold red due +
+// overdue days right; the Waada status pill is the middle row (only
+// when a promise exists); the bottom row is Polite Reminder / Final
+// Notice / Collect, and the retained Waada / Mark-contacted / Profile
+// actions ride in a secondary row.
+test('Card markup - stacked card renders rank, name, mohalla, red due, Waada pill and the 3-button bottom row', () => {
+  const state = createSampleBillingState();
+  // Far-future promise → 'promised' tier; long-past promise → 'broken'
+  // tier. Both dates are placeholders for the tier, not real promises.
+  state.customers[0].promiseDate = '2099-01-05';
+  state.customers[1].promiseDate = '2020-01-05';
+  // No mohalla recorded → the card must omit the parens entirely
+  // (never '(Shahdara)' — that is the redundant city column being
+  // removed).
+  state.customers[2].mohalla = '';
+
+  const stub = (extra = {}) => ({ addEventListener: () => {}, ...extra });
+  const mockElements = {
+    topDefaultersModal: { showModal: () => { mockElements.topDefaultersModal.open = true; }, close: () => { mockElements.topDefaultersModal.open = false; }, open: false, hidden: true },
+    dashboardOpenTopDefaultersBtn: { addEventListener: () => {} },
+    quickActionTopDefaulters: { addEventListener: () => {} },
+    closeTopDefaultersModalBtn: stub(),
+    topDefaultersSearchInput: stub({ value: '' }),
+    topDefaultersAreaSelect: stub({ value: 'all', options: [{ value: 'all' }], appendChild: () => {} }),
+    topDefaultersLimitSelect: stub({ value: '20' }),
+    topDefaultersRiskSelect: stub({ value: 'all' }),
+    topDefaultersWaadaSelect: stub({ value: 'all' }),
+    topDefaultersKpiTopDues: { textContent: '' },
+    topDefaultersKpiConcentration: { textContent: '' },
+    topDefaultersKpiTotalDebt: { textContent: '' },
+    topDefaultersKpiCriticalCount: { textContent: '' },
+    topDefaultersList: { innerHTML: '', addEventListener: () => {} },
+    topDefaultersEmptyState: { hidden: true },
+    topDefaultersChartContainer: { innerHTML: '' },
+    topDefaultersExportCsvBtn: stub(),
+    topDefaultersPrintA4Btn: stub(),
+    topDefaultersPrintThermalBtn: stub(),
+    topDefaultersCopyBriefingBtn: stub(),
+    topDefaultersLockDueBtn: stub({ textContent: '', classList: { toggle: () => {} }, setAttribute: () => {} }),
+    topDefaultersPrelockNoticeBtn: stub(),
+    topDefaultersHideContactedBtn: stub({ classList: { toggle: () => {} }, setAttribute: () => {} }),
+    topDefaultersMikrotikLockBtn: stub(),
+    topDefaultersMikrotikRestoreBtn: stub(),
+    topDefaultersZoneSheetBtn: stub(),
+    topDefaultersMikrotikCopyBtn: stub()
+  };
+
+  const originalDocument = globalThis.document;
+  try {
+    globalThis.document = {
+      getElementById: (id) => mockElements[id] || null,
+      createElement: (tag) => ({ tag, options: [], appendChild: () => {} })
+    };
+
+    const controller = setupTopDefaultersModal(() => state, {});
+    assert.ok(controller);
+    controller.open();
+    const html = mockElements.topDefaultersList.innerHTML;
+
+    // No table rows any more — one card per defaulter. With the real
+    // today as the reference date all three fixture customers are
+    // critical (the KPI test pins criticalCount 3), so every card
+    // carries the critical class.
+    assert.ok(!html.includes('<tr'), 'card list must not render table rows');
+    assert.equal((html.match(/class="defaulter-card /g) || []).length, 3, 'one card per defaulter');
+    assert.ok(html.includes('class="defaulter-card critical"'), 'critical customer renders a card');
+    assert.ok(html.includes('Muhammad Tariq') && html.includes('Abdul Rehman') && html.includes('Zahid Hussain'), 'all three defaulters render cards');
+
+    // Top row: '#rank · #ID NAME (Mohalla)' left, red due + days right.
+    assert.ok(html.includes('#1'), 'rank renders');
+    assert.ok(html.includes('#1</strong> Muhammad Tariq'), 'customer number + name render');
+    assert.ok(html.includes('(Main Bazaar)'), 'mohalla renders in parens');
+    assert.ok(html.includes('PKR 6,500'), 'outstanding renders');
+    assert.ok(html.includes('d overdue'), 'overdue days render');
+    // Months and last payment survive in the meta line.
+    assert.ok(html.includes('unpaid-month-tag'), 'unpaid month tags render');
+    assert.ok(html.includes('Last: 2026-02-15'), 'last payment renders');
+
+    // The redundant 'Shahdara' city is gone: no parens fallback, no
+    // Area cell at all.
+    assert.ok(!html.includes('(Shahdara)'), 'empty mohalla must not print (Shahdara)');
+    assert.ok(!html.includes('Shahdara Town'), 'area column must be gone');
+
+    // Middle row: Waada pill only when a promise exists.
+    assert.ok(html.includes('Waada: 2099-01-05'), 'promised Waada pill renders');
+    assert.ok(html.includes('Waada Expired: 2020-01-05'), 'broken Waada pill renders');
+
+    // Bottom row: Polite Reminder / Final Notice / Collect.
+    assert.ok(html.includes('defaulter-reminder-polite'), 'Polite Reminder button renders');
+    assert.ok(html.includes('defaulter-reminder-final'), 'Final Notice button renders');
+    assert.ok(html.includes('defaulter-collect-btn'), 'Collect button renders');
+    assert.ok(html.includes('🟢 Polite Reminder'), 'Polite Reminder label renders');
+    assert.ok(html.includes('🟠 Final Notice'), 'Final Notice label renders');
+    assert.ok(html.includes('💵 Collect'), 'Collect label renders');
+
+    // Secondary row: the retained Waada / Mark-contacted / Profile.
+    assert.ok(html.includes('defaulter-waada-btn'), 'Waada button survives');
+    assert.ok(html.includes('defaulter-contact-btn'), 'Mark-contacted button survives');
+    assert.ok(html.includes('defaulter-view-btn'), 'Profile button survives');
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+// Top Defaulters Modal Fix item 1 (2026-11-13): Collect closes this
+// modal FIRST (the Profile-button precedent), then opens Quick Collect
+// for the customer via selectAndOpen. When the QC controller is not
+// available the operator gets a toast instead of a dead tap.
+test('Collect - closes the modal first, then opens Quick Collect for the customer', () => {
+  const state = createSampleBillingState();
+  const c1Id = state.customers[0].id;
+
+  const stub = (extra = {}) => ({ addEventListener: () => {}, ...extra });
+  let closeCalls = 0;
+  let selectedId = null;
+  let toastMsg = '';
+  const mockElements = {
+    topDefaultersModal: {
+      showModal: () => { mockElements.topDefaultersModal.open = true; },
+      close: () => { closeCalls += 1; mockElements.topDefaultersModal.open = false; },
+      open: false,
+      hidden: true
+    },
+    dashboardOpenTopDefaultersBtn: { addEventListener: () => {} },
+    quickActionTopDefaulters: { addEventListener: () => {} },
+    closeTopDefaultersModalBtn: stub(),
+    topDefaultersSearchInput: stub({ value: '' }),
+    topDefaultersAreaSelect: stub({ value: 'all', options: [{ value: 'all' }], appendChild: () => {} }),
+    topDefaultersLimitSelect: stub({ value: '20' }),
+    topDefaultersRiskSelect: stub({ value: 'all' }),
+    topDefaultersWaadaSelect: stub({ value: 'all' }),
+    topDefaultersKpiTopDues: { textContent: '' },
+    topDefaultersKpiConcentration: { textContent: '' },
+    topDefaultersKpiTotalDebt: { textContent: '' },
+    topDefaultersKpiCriticalCount: { textContent: '' },
+    topDefaultersList: {
+      innerHTML: '',
+      addEventListener: (evt, cb) => { mockElements._listClickCb = cb; }
+    },
+    topDefaultersEmptyState: { hidden: true },
+    topDefaultersChartContainer: { innerHTML: '' },
+    topDefaultersExportCsvBtn: stub(),
+    topDefaultersPrintA4Btn: stub(),
+    topDefaultersPrintThermalBtn: stub(),
+    topDefaultersCopyBriefingBtn: stub(),
+    topDefaultersLockDueBtn: stub({ textContent: '', classList: { toggle: () => {} }, setAttribute: () => {} }),
+    topDefaultersPrelockNoticeBtn: stub(),
+    topDefaultersHideContactedBtn: stub({ classList: { toggle: () => {} }, setAttribute: () => {} }),
+    topDefaultersMikrotikLockBtn: stub(),
+    topDefaultersMikrotikRestoreBtn: stub(),
+    topDefaultersZoneSheetBtn: stub(),
+    topDefaultersMikrotikCopyBtn: stub()
+  };
+
+  const originalDocument = globalThis.document;
+  const originalWindow = globalThis.window;
+  try {
+    globalThis.document = {
+      getElementById: (id) => mockElements[id] || null,
+      createElement: (tag) => ({ tag, options: [], appendChild: () => {} })
+    };
+    globalThis.window = {
+      quickCollectModalController: { selectAndOpen: (id) => { selectedId = id; } }
+    };
+
+    const controller = setupTopDefaultersModal(() => state, {
+      onToast: (msg) => { toastMsg = msg; }
+    });
+    controller.open();
+    assert.equal(mockElements.topDefaultersModal.open, true);
+
+    mockElements._listClickCb({
+      target: {
+        closest: (sel) => sel === '.defaulter-collect-btn' ? { dataset: { custId: c1Id } } : null
+      }
+    });
+    assert.equal(closeCalls, 1, 'Collect closes this modal first');
+    assert.equal(mockElements.topDefaultersModal.open, false, 'modal is closed');
+    assert.equal(selectedId, c1Id, 'Quick Collect opens for the tapped customer');
+
+    // No QC controller → a toast, not a dead tap.
+    delete globalThis.window.quickCollectModalController;
+    mockElements.topDefaultersModal.open = true;
+    mockElements._listClickCb({
+      target: {
+        closest: (sel) => sel === '.defaulter-collect-btn' ? { dataset: { custId: c1Id } } : null
+      }
+    });
+    assert.equal(toastMsg, 'Payment screen unavailable — try again.');
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.window = originalWindow;
+  }
 });

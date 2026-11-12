@@ -205,19 +205,33 @@ test('wiring: a programmatic amount set re-computes the change — concession, w
   }
 });
 
-test('wiring: the submit path never reads the cash field — the calculator posts nothing', () => {
+test('wiring: the calculator still posts nothing — only the Sharafat 7 submit guard reads the cash field, and only to refuse a shortfall', () => {
+  // Sharafat 7: the submit handler used to never read the cash
+  // field — that was the bug this batch fixes (a PKR 3,000
+  // collection could post while the box said PKR 2,000). The
+  // calculator itself still posts nothing: it only computes the
+  // line text. The ONLY submit-path reads of the cash field are
+  // the Sharafat 7 guard's three lines — the shortfall read, the
+  // refusal, and the stale-error clear — and the guard refuses,
+  // never posts.
   const start = wiringSrc.indexOf("paymentForm?.addEventListener('submit'");
   assert.ok(start > -1, 'the submit handler must exist');
   const handler = wiringSrc.slice(start);
-  assert.ok(!handler.includes('cashReceivedInput'), 'the cash field must stay out of the submit path');
-  // The only lines that ever name the cash field: the grab, the
-  // render, the cash listener, the form-open clear, and the
-  // Plan 537 hide-clear in renderCashChange (the count moves from
-  // 5 to 7 because the new line names the field twice — the guard
-  // and the assignment — exactly like the form-open clear line;
-  // the intent — the submit path never reads the cash field — is
-  // unchanged).
-  assert.equal((wiringSrc.match(/cashReceivedInput/g) || []).length, 7);
+  const reads = (handler.match(/cashReceivedInput/g) || []).length;
+  assert.equal(reads, 3, `expected the three Sharafat 7 guard lines to name the cash field in the submit handler, found ${reads}`);
+  assert.ok(handler.includes('cashChangeShortfallCents(cashReceivedInput?.value, amountInput?.value)'), 'the shortfall is read from the cash field');
+  assert.ok(handler.includes("showQuickCollectFieldError(cashReceivedInput, 'quickCollectCashReceivedError'"), 'the refusal names the cash field');
+  assert.ok(handler.includes("clearQuickCollectFieldError(cashReceivedInput, 'quickCollectCashReceivedError');"), 'the stale-error clear names the cash field');
+  // The guard refuses only — no recording call sits beside it.
+  const guardIdx = handler.indexOf('const cashShortfallCents = isCashPaymentMethod(methodVal)');
+  assert.ok(guardIdx > -1, 'the Sharafat 7 guard must exist');
+  const guardBlock = handler.slice(guardIdx, guardIdx + 1000);
+  assert.ok(!guardBlock.includes('executeQuickCollection'), 'the guard records nothing');
+  assert.ok(!guardBlock.includes('executeSplitTenderCollection'), 'the guard records no split either');
+  // The count moves from 7 to 10 for the three new guard lines
+  // only; the intent — the calculator posts nothing, and the cash
+  // field is read nowhere else — is unchanged.
+  assert.equal((wiringSrc.match(/cashReceivedInput/g) || []).length, 10);
 });
 
 test('page: the calculator box, cash input, and change line live in the amount field group', () => {

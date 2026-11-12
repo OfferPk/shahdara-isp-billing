@@ -200,9 +200,12 @@ test('plan 495: headings reuse the view heading level, keys and styling', () => 
   // The view renders its group headings as h4 inside .profile-info-group
   // (app.js profileInfoGroupMarkup); the form sections reuse that class,
   // so the heading treatment is identical and no new colour is introduced.
+  // Profile Polish D (16) — the section tag takes an optional extraClass
+  // interpolation now, so the literal '<section class="profile-info-group"><h4>'
+  // no longer appears verbatim; the section + h4 structure is unchanged.
   const appJs = read('app.js');
   assert.ok(
-    appJs.includes('<section class="profile-info-group"><h4>'),
+    appJs.includes('<section class="profile-info-group') && appJs.includes('"><h4>${escapeHtml(heading)}</h4>'),
     'view group markup must stay section + h4',
   );
   const styles = read('styles.css');

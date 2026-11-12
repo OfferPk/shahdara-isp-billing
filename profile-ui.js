@@ -581,7 +581,7 @@ export function pngReceiptButtonMarkup(customerId, month, paymentId, customerNum
 // (fieldModeCustomerStatus) — no second balance computation lives
 // here; this helper only owns the markup so the label/i18n stay put.
 export function speakDueButtonMarkup(customerNumber) {
-  return `<button class="secondary-button speak-due-button" type="button" data-speak-due aria-label="${t('speak_due_aria', null, { number: customerNumber })}"><span class="ds-action-icon" data-ds-icon="Volume2" aria-hidden="true"></span>${t('speak_due_btn')}</button>`;
+  return `<button class="secondary-button speak-due-button profile-info-btn-speak" type="button" data-speak-due aria-label="${t('speak_due_aria', null, { number: customerNumber })}"><span class="ds-action-icon" data-ds-icon="Volume2" aria-hidden="true"></span>${t('speak_due_btn')}</button>`;
 }
 
 /** Bind each actual receipt only to its owning profile's saved number and identity. */
@@ -1409,7 +1409,7 @@ export function upsellProfileHintHtml(candidate, formatAmountFn = (n) => String(
 // host binds #profileWelcomeSlipButton clicks to the welcome-slip modal
 // (welcome-agreement-slip.js builders, wired in app.js).
 export function welcomeSlipButtonMarkup() {
-  return `<button id="profileWelcomeSlipButton" class="secondary-button" type="button"><span class="ds-action-icon" data-ds-icon="FileText" aria-hidden="true"></span>${t('welcome_btn')}</button>`;
+  return `<button id="profileWelcomeSlipButton" class="secondary-button profile-info-btn-welcome" type="button"><span class="ds-action-icon" data-ds-icon="FileText" aria-hidden="true"></span>${t('welcome_btn')}</button>`;
 }
 
 /**

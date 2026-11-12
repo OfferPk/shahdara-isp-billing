@@ -191,41 +191,47 @@ test('acceptance: with no target stored, the same fixture shows the total with n
 
 // --- Line text ---
 
-test('text: a target day reads target, collected, remainder, and percent in plain words', () => {
+// QC Modal Fix: the Today segment of the ONE compact summary line
+// ("Today: PKR X • Round: N") — short, because the bar shows Today
+// + Round on a single line. The full target detail (target +
+// remainder) is NOT lost: it rides on the line's title and the bar
+// below it, so the operator still reads it on a long press.
+test('text: a target day reads collected and percent, compactly', () => {
   assert.equal(
     dailyTargetProgressText(dailyTargetProgress(12000, 50000)),
-    'Day target PKR 50,000 · collected PKR 12,000 · PKR 38,000 to go (24%)',
+    'Today: PKR 12,000 · 24%',
   );
 });
 
 test('text: a reached target says so plainly', () => {
   assert.equal(
     dailyTargetProgressText(dailyTargetProgress(50000, 50000)),
-    'Day target PKR 50,000 · collected PKR 50,000 · target reached (100%)',
+    'Today: PKR 50,000 · ✓',
   );
 });
 
-test('text: a day with no target shows the total and says no target is set', () => {
+test('text: a day with no target shows the total, compactly', () => {
   assert.equal(
     dailyTargetProgressText(dailyTargetProgress(12000, null)),
-    'Today collected: PKR 12,000 · no day target set',
+    'Today: PKR 12,000',
   );
   assert.equal(
     dailyTargetProgressText(dailyTargetProgress(0, null)),
-    'Today collected: PKR 0 · no day target set',
+    'Today: PKR 0',
   );
 });
 
 test('text: a missing progress object never reads as a blank', () => {
-  assert.equal(dailyTargetProgressText(null), 'Today collected: PKR 0 · no day target set');
-  assert.equal(dailyTargetProgressText({}), 'Today collected: PKR 0 · no day target set');
+  assert.equal(dailyTargetProgressText(null), 'Today: PKR 0');
+  assert.equal(dailyTargetProgressText({}), 'Today: PKR 0');
 });
 
 // --- Bar markup ---
 
-test('html: a target day renders the bar at the right width with the plain-words line', () => {
+test('html: a target day renders the bar at the right width with the compact line and the full detail on its title', () => {
   const html = dailyTargetProgressHtml(dailyTargetProgress(12000, 50000));
-  assert.ok(html.includes('Day target PKR 50,000 · collected PKR 12,000 · PKR 38,000 to go (24%)'), 'missing plain-words line');
+  assert.ok(html.includes('Today: PKR 12,000 · 24%'), 'missing compact Today line');
+  assert.ok(html.includes('title="Day target PKR 50,000 · PKR 38,000 to go"'), 'missing full target detail on the line title');
   assert.ok(html.includes('class="route-progress-track"'), 'missing bar track');
   assert.ok(html.includes('class="route-progress-fill"'), 'missing bar fill');
   assert.ok(html.includes('style="width: 24%;"'), 'bar width must match the progress percentage');
@@ -234,7 +240,7 @@ test('html: a target day renders the bar at the right width with the plain-words
 
 test('html: a day with no target renders the total with no bar at all', () => {
   const html = dailyTargetProgressHtml(dailyTargetProgress(12000, null));
-  assert.ok(html.includes('Today collected: PKR 12,000 · no day target set'), 'missing collected-total line');
+  assert.ok(html.includes('Today: PKR 12,000'), 'missing collected-total line');
   assert.ok(!html.includes('route-progress-track'), 'no-target day must not render a bar track');
   assert.ok(!html.includes('route-progress-fill'), 'no-target day must not render a bar fill');
   assert.ok(!html.includes('width:'), 'no-target day must not set a bar width');

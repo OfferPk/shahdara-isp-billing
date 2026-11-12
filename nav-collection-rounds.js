@@ -17,6 +17,7 @@ export const FIELD_ROUTE_NOTES_KEY = 'shahdara_field_route_notes';
 export const FIELD_ROUTE_OUTCOMES_KEY = 'shahdara_field_route_outcomes';
 export const FIELD_ROUTE_ORDER_KEY = 'shahdara_field_route_order';
 import { sequenceRouteStops } from './route-sequencing.js';
+import { compareMohallaAreas } from './owner-insights.js';
 import { buildDayTargetProgress, getDayTarget, setDayTarget, clearDayTarget } from './day-target.js';
 import { fieldViewRouteOutcomeButtons } from './field-view.js';
 import { loadPreferredCollectionDayList, preferredCollectionDayForCustomer, preferredCollectionDayLineHtml } from './preferred-collection-day.js';
@@ -722,8 +723,9 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
   // Plan 1: sequenced order is computed by the pure route-sequencing
   // module (mohalla groups, Waada-broken first), not by this switch —
   // it replaces, never edits, the stops the builder just computed.
+  // Mohalla Numbering: group ties break by the numbered mohalla order.
   if (sortBy === 'sequenced') {
-    filteredStops = sequenceRouteStops(filteredStops, { todayStr: dateStr }).stops;
+    filteredStops = sequenceRouteStops(filteredStops, { todayStr: dateStr, compareAreas: compareMohallaAreas }).stops;
   } else filteredStops.sort((a, b) => {
     if (sortBy === 'manual' || (sortBy === 'custom' && customOrderMap.size > 0)) {
       const idxA = customOrderMap.has(a.id) ? customOrderMap.get(a.id) : 999999;

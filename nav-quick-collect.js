@@ -33,6 +33,7 @@ import {
   paymentSenderLabel,
   prepayTermsOf,
   whatsappPhoneFor,
+  receiptPhoneSaveField,
   listTransactions
 } from './core.js';
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
@@ -2102,24 +2103,11 @@ export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MO
  * @param {Object} receipt
  * @returns {string}
  */
-/**
- * LIVE FIX 3: which profile field the receipt's inline phone editor
- * writes to. The row displays ONE number — whatsappPhone when it is
- * the number shown, else the primary phone — so the editor saves back
- * into the field that produced the displayed number; a customer with
- * no number at all writes the primary `phone` (the profile edit's
- * Phone field). Never guesses a number: it only names the field.
- *
- * @param {Object|null} customer
- * @param {string} displayedPhone — the number the row currently shows
- * @returns {'whatsappPhone'|'phone'}
- */
-export function receiptPhoneSaveField(customer, displayedPhone) {
-  const shown = String(displayedPhone ?? '').trim();
-  const wp = String(customer?.whatsappPhone ?? '').trim();
-  if (shown && wp && wp === shown) return 'whatsappPhone';
-  return 'phone';
-}
+/** LIVE FIX 3: which profile field the receipt's inline phone editor
+ *  writes to — now defined in core.js beside whatsappPhoneFor so the
+ *  Dues Recovery card's inline Add Phone reuses the same rule; this
+ *  module re-exports it so the Live Fix 1 test import keeps working. */
+export { receiptPhoneSaveField };
 
 export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText, editingPhone = false, phoneEditValue = '', phoneEditError = '' } = {}) {
   // Plan 565: the card reads the same canonical remaining figure as

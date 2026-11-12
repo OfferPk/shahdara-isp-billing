@@ -67,12 +67,18 @@ test('priority score, group and reasons ignore the baqaya (QC-2 tiers do not mov
   assert.deepEqual(aliWith.components, aliWithout.components);
 });
 
-test('recovery card carries the Add-amount button and the breakdown line', () => {
+test('recovery card carries the Collect button, the health tag and the breakdown line', () => {
   const ownerUi = readFileSync(new URL('../owner-ui.js', import.meta.url), 'utf8');
-  assert.ok(ownerUi.includes('data-additional-pending'), 'recovery card button opens the existing Additional Pending dialog');
-  assert.ok(ownerUi.includes("t('recovery_add_amount')"), 'button label is the new recovery_add_amount key');
+  // Dues Recovery Overhaul §4: the recovery card's ＋ Add amount
+  // button is renamed to Collect and opens the payment collection
+  // pre-filled with the outstanding balance (it no longer opens the
+  // Additional Pending dialog — that dialog is still reachable from
+  // the customer card). The bill + baqaya breakdown line stays.
+  assert.ok(ownerUi.includes('data-recovery-collect'), 'recovery card Collect button opens the payment collection');
+  assert.ok(ownerUi.includes("t('recovery_collect')"), 'Collect label is the new recovery_collect key');
+  assert.ok(ownerUi.includes('openCollect'), 'collection opener is wired through setupOwnerCenter');
+  assert.ok(!ownerUi.includes('data-additional-pending'), 'the recovery card no longer carries the Add-amount button');
   assert.ok(ownerUi.includes("t('addpend_breakdown'"), 'breakdown line reuses the existing addpend_breakdown key');
-  assert.ok(ownerUi.includes('openAdditionalPendingDialog'), 'dialog opener is wired through setupOwnerCenter');
   assert.equal(TRANSLATIONS.en.recovery_add_amount, '＋ Add amount');
   assert.equal(TRANSLATIONS.ur.recovery_add_amount, '＋ رقم شامل کریں');
 });
@@ -86,5 +92,5 @@ test('the Additional Pending dialog save refreshes the owner view', () => {
   assert.ok(handlerStart >= 0, 'dialog submit handler exists');
   const handler = app.slice(handlerStart, app.indexOf("$('#saveMohallaButton')", handlerStart));
   assert.ok(handler.includes('refreshOwnerCenter()'), 'dialog save calls refreshOwnerCenter()');
-  assert.ok(app.includes('openAdditionalPendingDialog,switchView'), 'setupOwnerCenter receives the dialog opener');
+  assert.ok(app.includes('openCollect:'), 'setupOwnerCenter receives the Collect opener');
 });

@@ -502,6 +502,24 @@ export function whatsappPhoneFor(customer) {
   return whatsapp || primary;
 }
 
+/** Which profile field an inline phone save writes back to (Live Fix 1,
+ *  reused by the Dues Recovery card's inline Add Phone): the field
+ *  that produced the displayed number — a displayed whatsappPhone
+ *  saves back to whatsappPhone, a displayed primary phone saves back
+ *  to phone; no number at all writes the primary `phone` (the profile
+ *  edit's Phone field). Never guesses a number: it only names the field.
+ *
+ * @param {Object|null} customer
+ * @param {string} displayedPhone — the number the row currently shows
+ * @returns {'whatsappPhone'|'phone'}
+ */
+export function receiptPhoneSaveField(customer, displayedPhone) {
+  const shown = String(displayedPhone ?? '').trim();
+  const wp = String(customer?.whatsappPhone ?? '').trim();
+  if (shown && wp && wp === shown) return 'whatsappPhone';
+  return 'phone';
+}
+
 export function addCustomer(state, name, referenceDate = new Date(), options = {}) {
   const cleaned = String(name ?? '').trim();
   if (!cleaned) throw new Error('Enter a customer name.');

@@ -1470,18 +1470,39 @@ no scroll room below it. The ≤620px rule below adds the clearance. */
 .recovery-group-heading span{font-size:11px;color:var(--muted);text-align:right}
 .recovery-customer-list{display:grid;gap:8px}
 .recovery-customer-card{background:#fff;padding:11px}
-.recovery-customer-head{align-items:center}
-.recovery-customer-head strong{font-size:12px;overflow-wrap:anywhere}
-.recovery-customer-head span{font-size:10px;color:var(--muted);text-align:right}
-.recovery-customer-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:10px 0}
-.recovery-customer-metrics>span{display:grid;gap:3px;font-size:9px;color:var(--muted)}
-.recovery-customer-metrics strong{color:var(--ink);font-size:11px;overflow-wrap:anywhere}
+.recovery-customer-head{align-items:flex-start}
+.recovery-customer-identity{display:grid;gap:3px;min-width:0}
+.recovery-customer-identity strong{font-size:12px;overflow-wrap:anywhere}
+.recovery-customer-identity>span{font-size:10px;color:var(--muted)}
+.recovery-amount{display:grid;gap:3px;justify-items:end;text-align:right;min-width:0}
+.recovery-amount>strong{font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.recovery-age-badge{font-size:10px;font-weight:700;color:var(--color-overdue)}
+.recovery-baqaya-line{font-size:9px;color:var(--muted)}
+.recovery-phone-line{margin:8px 0 0;font-size:11px;color:var(--color-paid);font-weight:700}
+.recovery-phone-line span{font-variant-numeric:tabular-nums}
 .recovery-reasons{font-size:10px;color:var(--muted)}
 .recovery-reasons ul{padding-left:19px;line-height:1.5}
-.recovery-customer-actions{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin-top:10px}
-.recovery-customer-actions label{min-width:170px;max-width:220px}
-.recovery-whatsapp{display:inline-flex;align-items:center;text-decoration:none}
-.recovery-no-contact{font-size:10px;color:var(--muted);align-self:center}
+.recovery-customer-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.recovery-customer-actions .secondary-button{min-height:44px;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recovery-collect-btn{border-color:var(--green);background:var(--mint);color:var(--green);font-weight:700}
+.recovery-whatsapp-row{display:flex;gap:8px;align-items:end;margin-top:8px}
+.recovery-whatsapp-row label{display:grid;gap:5px;color:#52685f;font-size:11px;font-weight:700;flex:1 1 50%;min-width:0}
+.recovery-whatsapp-row select{min-width:0;min-height:44px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:8px 11px;color:var(--ink);font:500 14px 'DM Sans',sans-serif;width:100%}
+.recovery-whatsapp{flex:1 1 50%;min-width:0;justify-content:center;min-height:44px;text-decoration:none}
+.recovery-no-contact{font-size:10px;color:var(--muted);align-self:center;flex:1 1 50%;min-width:0}
+.recovery-add-phone{flex:1 1 50%;min-width:0;min-height:44px;justify-content:center}
+.recovery-phone-editor{flex:1 1 50%;min-width:0;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.recovery-phone-editor input{flex:1 1 110px;min-width:0;min-height:44px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:8px 10px;color:var(--ink);font:500 13px 'DM Sans',sans-serif}
+.recovery-phone-editor .form-error{flex:1 1 100%;margin:0}
+.recovery-summary-bar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 10px}
+.recovery-summary-stat{display:grid;gap:3px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:9px 11px;min-width:0}
+.recovery-summary-stat span{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--muted)}
+.recovery-summary-stat strong{font-size:13px;color:var(--ink);overflow-wrap:anywhere}
+.recovery-filter-row{position:sticky;top:calc(var(--topbar-height,66px) + 132px);z-index:15;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fbfdfc;box-shadow:0 6px 20px rgba(22,52,43,.08);margin-bottom:10px}
+.recovery-search input,.recovery-mohalla select{width:100%;min-width:0;min-height:44px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:8px 11px;color:var(--ink);font:500 13px 'DM Sans',sans-serif}
+.recovery-priority-pills{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.recovery-priority-pills button{min-height:36px;padding:0 12px;border:1px solid #dce6e1;border-radius:999px;background:#fff;color:#36574b;font:700 12px 'DM Sans',sans-serif;cursor:pointer}
+.recovery-priority-pills button[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:#fff}
 .customer-health-badge{display:inline-flex;align-self:flex-start;margin-top:5px;padding:5px 8px;border-radius:999px;background:#eef4f1;color:#52685f;font-size:10px;font-weight:700}
 .health-good{background:#e8f5ed;color:#19704e}.health-risk{background:#fff5df;color:#9a5e06}.health-critical{background:#ffebea;color:#a3342d}
 .customer-health-reasons{margin:0 9px 6px;padding:0 8px;color:#62766d;font-size:10px;line-height:1.45}
@@ -1572,11 +1593,17 @@ no scroll room below it. The ≤620px rule below adds the clearance. */
   .owner-result-value{font-size:12px;text-align:right}
   .recovery-group-heading{align-items:flex-start;flex-direction:column;gap:4px}
   .recovery-group-heading span{text-align:left}
-  .recovery-customer-head{align-items:flex-start;flex-direction:column;gap:3px}
-  .recovery-customer-head span{text-align:left}
-  .recovery-customer-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .recovery-customer-actions{align-items:stretch;flex-direction:column}
-  .recovery-customer-actions label{max-width:none;width:100%}
+  /* Dues Recovery Overhaul: the compact card keeps its header row at
+     mobile widths; the right-hand amount keeps a 48px safe margin so
+     the floating scroll-top button (40px, right edge) never covers
+     it, and the panel gets 126px of bottom clearance (the D-T6 rule)
+     so the last card scrolls clear of the floating button and the
+     bottom nav. */
+  .recovery-amount{margin-right:48px}
+  #duesRecoveryPanel{padding-bottom:126px}
+  .recovery-summary-bar{grid-template-columns:1fr}
+  .recovery-filter-row{grid-template-columns:1fr;top:calc(var(--topbar-height,66px) + 140px)}
+  .recovery-whatsapp-row select{font-size:16px}
   .recovery-customer-actions .secondary-button,.recovery-whatsapp{justify-content:center;min-height:44px}
   .saved-closing-card,.recovery-group,.recovery-customer-card{padding:10px}
 }

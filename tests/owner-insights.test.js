@@ -149,7 +149,8 @@ test('dues recovery groups only recorded positive balances, explains its score, 
   assert.ok(result.totalRecoverable>0);
   assert.equal(result.groups.reduce((sum,group)=>sum+group.recoverableAmount,0),result.totalRecoverable);
   assert.equal(result.groups.reduce((sum,group)=>sum+group.count,0),1);
-  assert.match(result.formula,/High ≥65; Medium 35–64; Low <35/);
+  assert.match(result.formula,/High ≥75; Medium 35–74; Low <35/);
+  assert.match(result.formula,/75-point High floor/);
   assert.ok(result.groups.find(group=>group.count)?.customers[0].reasons.length>=4);
 });
 

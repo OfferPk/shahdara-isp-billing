@@ -1,13 +1,17 @@
 // QC-2 — Priority indicator on collection cards + oldest-first sort
 // toggle + high-balance tiers. The 0–100 buildSmartDuesRecovery score
-// already exists (High ≥65 / Medium 35–64 / Low <35, with verbatim
-// reasons), but it is computed and shown only in the owner view —
-// never where collection happens. QC-2 surfaces it, unchanged, on
-// the Quick Collect picker cards and the Field Mode cards: tier badge
-// + the scorer's own first reason, plus high-balance tier labels.
-// No new scoring, no re-ranking the score does not already rank. A
-// card with no scorer row (no open priced bill — e.g. baqaya-only)
-// shows NO tier, never a guessed value.
+// already exists (High ≥75 / Medium 35–74 / Low <35, with verbatim
+// reasons; the Dues Recovery Overhaul raised High from ≥65 and added
+// the 75-point floor for arrears, 2+ unpaid bills or an overdue
+// Waada — a card that was High at 65–74 without one of those signals
+// is Medium now, and Long Four (56, 2 bills, 97 days overdue) is
+// High at the floor), but it is computed and shown only in the owner
+// view — never where collection happens. QC-2 surfaces it, unchanged,
+// on the Quick Collect picker cards and the Field Mode cards: tier
+// badge + the scorer's own first reason, plus high-balance tier
+// labels. No new scoring, no re-ranking the score does not already
+// rank. A card with no scorer row (no open priced bill — e.g.
+// baqaya-only) shows NO tier, never a guessed value.
 //
 // Oldest-first sort: a real working control above the picker search
 // that orders the dues list by oldest unpaid bill month (oldest due
@@ -60,8 +64,9 @@ const qc2 = async () => {
 //   -> 30 amount + 25 overdue (66d) + 15 history (health 25) + 0 late
 //   + 10 value = 80 High; 3 open bills, oldest 2026-09-05.
 // Long Four: Aug+Sep @ 1000, monthly 1000
-//   -> 12 + 25 (97d) + 15 + 0 + 4 = 56 Medium; 2 open bills,
-//   97 days overdue (both high-balance tiers).
+//   -> 12 + 25 (97d) + 15 + 0 + 4 = 56 raw, floored to 75 High (2 open
+//   bills and 97 days overdue both trigger the High-priority floor);
+//   both high-balance tiers.
 // Medium Two: Nov @ 10000, monthly 2500
 //   -> 24 + 5 (5d) + 10 (insufficient history) + 0 + 7 = 46 Medium.
 // Low Three: Nov @ 1000, monthly 500
@@ -102,11 +107,11 @@ function scorerRows(state) {
 // --- Relative-month picker fixture (render tests) ---------------------
 // Same shape as the scorer fixture, but months relative to the real
 // clock so the tiers hold whenever the test runs: High always High
-// (73–80), Medium always Medium (46–58), Low always Low (23–28),
-// Long always Medium 56 with both high-balance tiers. The Low bill
-// is due on the 28th so its overdue days stay 0–3 (never past the
-// 30-day overdue step); the Long bills sit 3–4 months back so the
-// oldest is always 90+ days overdue.
+// (75–80, floored), Medium always Medium (46–58), Low always Low
+// (23–28), Long always High 75 at the floor with both high-balance
+// tiers. The Low bill is due on the 28th so its overdue days stay
+// 0–3 (never past the 30-day overdue step); the Long bills sit 3–4
+// months back so the oldest is always 90+ days overdue.
 const now = new Date();
 const pkt = new Date(now.getTime() + 5 * 3600 * 1000);
 const monthOffset = (n) => {
@@ -160,13 +165,19 @@ test('scorer pins: exact scores and tiers for the four fixture customers', () =>
   assert.equal(rows['High One'].priorityScore, 80);
   assert.equal(rows['High One'].group, 'High Priority');
   assert.deepEqual(rows['High One'].components, { amount: 30, overdue: 25, history: 15, latePayments: 0, customerValue: 10 });
-  assert.equal(rows['Long Four'].priorityScore, 56);
-  assert.equal(rows['Long Four'].group, 'Medium Priority');
+  // Dues Recovery Overhaul: Long Four's raw 56 is floored to 75 High
+  // — 2 unpaid bills and 97 days overdue both trigger the floor.
+  // The components are unchanged (the floor is not a component), and
+  // the floor reason is spelled out on the row.
+  assert.equal(rows['Long Four'].priorityScore, 75);
+  assert.equal(rows['Long Four'].group, 'High Priority');
+  assert.equal(rows['Long Four'].highPriorityFloor, true);
+  assert.ok(rows['Long Four'].reasons.some(reason => reason.startsWith('High-priority floor:')));
   assert.equal(rows['Medium Two'].priorityScore, 46);
   assert.equal(rows['Medium Two'].group, 'Medium Priority');
   assert.equal(rows['Low Three'].priorityScore, 28);
   assert.equal(rows['Low Three'].group, 'Low Priority');
-  assert.match(result.formula, /High ≥65; Medium 35–64; Low <35/);
+  assert.match(result.formula, /High ≥75; Medium 35–74; Low <35/);
 });
 
 test('scorer pins: reasons are verbatim sentences, settled and baqaya-only customers have no row', () => {
@@ -231,7 +242,7 @@ test('qc2 priority map flattens the scorer groups by customer id', async () => {
   assert.ok(byId instanceof Map);
   assert.equal(byId.size, 4);
   assert.equal(byId.get(rows['High One'].customerId).priorityScore, 80);
-  assert.equal(byId.get(rows['Long Four'].customerId).group, 'Medium Priority');
+  assert.equal(byId.get(rows['Long Four'].customerId).group, 'High Priority');
   assert.equal(mod.qc2PriorityByCustomerId(null).size, 0);
   assert.equal(mod.qc2PriorityByCustomerId({}).size, 0);
   assert.equal(mod.qc2PriorityByCustomerId({ groups: 'nope' }).size, 0);

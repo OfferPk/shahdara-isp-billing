@@ -1462,12 +1462,14 @@ does not move. */
 subtle muted dash, never as a loud missing-value warning. */
 .profile-empty-value{color:var(--muted)}
 .archive-state-badge{background:#f1f5f2;color:#536a60}
-/* Profile "Clear dues" (2026-11-10): the header action group gains a
-fourth Row 1 button (Edit / Clear dues / Delete / Archive), so the
-base grid grows from three columns to four. The ≤800px and ≤620px
-rules already wrap the group into two columns, so they need no
-change — the four buttons land 2×2 there, with More actions below. */
-.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px;margin-top:19px;padding-top:16px;border-top:1px solid #dce9e2}
+/* Profile Polish B (10): the header action group gains a fifth Row 1
+button (Edit / Clear dues / Delete / Wada / Record payment) — Archive
+moves down into More Actions > Payments — so the base grid grows from
+four columns to five. The ≤800px and ≤620px rules already wrap the
+group into two columns, so they need no change: the five buttons land
+3+2 there, with Record payment still spanning the full row, and More
+actions below. */
+.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto;align-items:center;gap:8px;margin-top:19px;padding-top:16px;border-top:1px solid #dce9e2}
 .profile-action-group>button{min-height:44px;touch-action:manipulation;white-space:nowrap;min-width:0}
 /* LIVE FIX 1: every Row 1 button stays one line at the same 44px tap
 target — the Delete button used to wrap to two lines ("Delete /
@@ -1486,6 +1488,50 @@ a pill, like the Active pill: same pill geometry, neutral tones (it
 is a heading, not a status, so it does not take the green). All
 colours already exist in this sheet. */
 .current-bill-heading-pill{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #d8e6de;border-radius:999px;background:#eef3f0;color:#254a3b}
+/* Profile Polish B (11) — the four Customer information card buttons
+(QR Khata Card, Print card, Speak Due, Welcome Slip) sit in one group
+already; each now takes its own colour from the customer-id pill
+palette, so the operator can tell them apart at a glance. All colours
+already exist in this sheet. */
+.profile-view-actions .profile-info-btn-qr{background:#e7f2ec;color:#0e5b4d;border-color:#9acbad}
+.profile-view-actions .profile-info-btn-print{background:#e5efff;color:#174b87;border-color:#adc9f1}
+.profile-view-actions .profile-info-btn-speak{background:#fef3c7;color:#704600;border-color:#e7c77e}
+.profile-view-actions .profile-info-btn-welcome{background:#fee2e2;color:#b91c1c;border-color:#dc9478}
+.profile-view-actions>button:hover{filter:brightness(.96)}
+/* Profile Polish B (12) — the fields-filled counter is a pill with a
+small colourful progress bar; the bar tone follows the same bands as
+the health colours (70%+ green, 40–69% yellow, below 40% red). The
+missing-fields pill shows the plain count, with a red/yellow bar: red
+while more than half the fields are still missing, yellow once the
+majority is filled. */
+.profile-completion-counter{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.profile-completion-pill{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #d8e6de;border-radius:999px;background:#eef3f0;color:#254a3b;font-weight:700;font-size:12px}
+.profile-completion-bar{display:inline-block;width:120px;height:8px;border-radius:999px;background:#eef3f0;overflow:hidden}
+.profile-completion-fill{display:block;height:100%;border-radius:999px}
+.profile-completion-fill-green{background:#5fa876}
+.profile-completion-fill-yellow{background:#e7c77e}
+.profile-completion-fill-red{background:#dc9478}
+.mfc-count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:24px;padding:2px 8px;border:1px solid #dc9478;border-radius:999px;background:#fee2e2;color:#b91c1c;font-weight:700}
+.mfc-bar{display:inline-block;width:120px;height:8px;border-radius:999px;background:#eef3f0;overflow:hidden;vertical-align:middle;margin-left:8px}
+.mfc-bar-fill{display:block;height:100%;border-radius:999px}
+.mfc-bar-fill-red{background:#dc9478}
+.mfc-bar-fill-yellow{background:#e7c77e}
+/* Profile Polish B (13) — the four Info-tab quick actions share one
+merged group already; each now takes its own colour from the same pill
+palette. */
+.pqa-btn-payment{background:#dcfce7;color:#145b38;border-color:#5fa876}
+.pqa-btn-fault{background:#fee2e2;color:#b91c1c;border-color:#dc9478}
+.pqa-btn-message{background:#e5efff;color:#174b87;border-color:#adc9f1}
+.pqa-btn-balance{background:#fef3c7;color:#704600;border-color:#e7c77e}
+/* Profile Polish B (14) — the at-a-glance strip's four figures (Dues,
+Package, Last payment, Next due) render as pills, one colour each from
+the pill palette. The strip container keeps its inline style; only the
+stat cells become pills. */
+.phs-pill{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid;border-radius:999px}
+.phs-pill-dues{background:#fee2e2;color:#b91c1c;border-color:#dc9478}
+.phs-pill-package{background:#e5efff;color:#174b87;border-color:#adc9f1}
+.phs-pill-last-payment{background:#dcfce7;color:#145b38;border-color:#5fa876}
+.phs-pill-next-due{background:#fef3c7;color:#704600;border-color:#e7c77e}
 .current-bill-grid{gap:8px}
 .current-bill-stat{min-height:70px;border-color:#e0ebe5;box-shadow:0 3px 10px rgba(27,68,51,.035)}
 .current-bill-stat>span{font-size:10px;letter-spacing:.05px}

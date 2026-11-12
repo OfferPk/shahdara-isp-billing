@@ -163,7 +163,9 @@ test('filter pills: one row at 12.5px, Emerald active, short High label', () => 
   const dark = ruleBlock(stylesSrc, '[data-theme="dark"] #quickCollectModal .quick-collect-filter-chip.is-active {');
   assert.ok(dark.includes('background: var(--ds-brand)'), 'the dark active pill must be DS-0 Emerald too');
   // The pill text is shortened so All (95) never wraps; the map key follows.
-  assert.ok(html.includes('High ≥ 2k (<span id="quickCollectHighDuesCount">0</span>)'), 'the pill must read "High ≥ 2k", not "High Dues ≥ 2k"');
+  // QC Modal Fix item 9: counts are small rounded counter badges,
+  // not parens — the count lives in its own .qc-count-badge span.
+  assert.ok(html.includes('High ≥ 2k <span class="qc-count-badge" id="quickCollectHighDuesCount">0</span>'), 'the pill must read "High ≥ 2k" with a counter badge, not parens');
   assert.equal(VISIBLE_TEXT_UR['High ≥ 2k'], 'زیادہ ≥ 2k', 'the UR map key must follow the shortened pill');
   assert.ok(!('High Dues ≥ 2k' in VISIBLE_TEXT_UR), 'the old long pill key must be gone from the map');
   // The focus ring goes Emerald with the pill — scoped to the QC
@@ -244,29 +246,38 @@ test('round total + today collected share one compact 2-column ds-stat-box banne
   assert.ok(cell.includes('padding: 8px 10px'), 'the banner cells must use the compact directory-strip padding');
 });
 
-test('end-of-day summary + new customer share one 2-column 40px button row', () => {
+test('end-of-day summary is a single full-width Day Summary button; New customer is gone', () => {
+  // QC Modal Fix item 2: "+ New customer" is REMOVED — the modal
+  // is strictly for fast cash collection — and the summary button
+  // is now a single full-width "📊 Day Summary" (its label
+  // overflowed before). The expanded summary still sits full-width
+  // BELOW the row, never a cell.
   const rowAt = html.indexOf('class="qc-picker-actions-row"');
   assert.ok(rowAt >= 0, 'the picker actions row wrapper must exist');
   const edsAt = html.indexOf('id="edsEndOfDaySummaryButton"', rowAt);
-  const ncaAt = html.indexOf('id="ncaNewCustomerButton"', rowAt);
-  assert.ok(edsAt > rowAt && ncaAt > edsAt, 'both buttons must sit inside the row, summary first');
-  // The expanded summary stays full-width BELOW the row, never a cell.
+  assert.ok(edsAt > rowAt, 'the summary button must sit inside the row');
+  assert.ok(!html.includes('id="ncaNewCustomerButton"'), 'the New customer button must be gone');
   const summaryAt = html.indexOf('id="edsEndOfDaySummary"');
-  assert.ok(summaryAt > html.indexOf('</div>', ncaAt), 'the summary region must sit after the row closes');
+  assert.ok(summaryAt > html.indexOf('</div>', edsAt), 'the summary region must sit after the row closes');
   assert.ok(!html.includes('id="qc-picker-actions-row"'), 'the row wrapper must not be a new element id');
   const row = ruleBlock(stylesSrc, '.qc-picker-actions-row {');
-  assert.ok(row.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)'), 'the actions row must be two equal columns');
+  assert.ok(row.includes('grid-template-columns: minmax(0, 1fr)'), 'the actions row must be a single full-width column');
   const btn = ruleBlock(stylesSrc, '.qc-picker-actions-row .secondary-button {');
-  assert.ok(btn.includes('min-height: 40px !important'), 'the row buttons must be 40px (the global 44px floor needs !important to beat)');
-  assert.ok(btn.includes('height: 40px'), 'the row buttons must be exactly 40px tall');
-  // The 🌙 becomes the Moon ds-icon; the label is unchanged.
-  assert.ok(html.includes('data-ds-icon="Moon"'), 'the summary button must use the Moon ds-icon');
-  assert.ok(!html.includes('🌙 End-of-day summary'), 'no 🌙 may remain on the summary button');
-  // The footer mode-switcher emoji become ds-icons too.
-  assert.ok(html.includes('data-ds-icon="Zap"'), 'one-screen payment must use the Zap ds-icon');
-  assert.ok(html.includes('data-ds-icon="ClipboardList"'), 'switch to ledger must use the ClipboardList ds-icon');
-  assert.ok(!html.includes('⚡ One-screen payment'), 'no ⚡ may remain on the one-screen button');
-  assert.ok(!html.includes('📋 Switch to Full Ledger'), 'no 📋 may remain on the switch button');
+  assert.ok(btn.includes('min-height: 40px !important'), 'the row button must be 40px (the global 44px floor needs !important to beat)');
+  assert.ok(btn.includes('height: 40px'), 'the row button must be exactly 40px tall');
+  // The label is the user's compact "📊 Day Summary" — the Moon
+  // ds-icon and the overflowing "End-of-day summary" label are gone.
+  assert.ok(html.includes('📊 Day Summary'), 'the summary button must read "📊 Day Summary"');
+  // The expanded summary REGION keeps its full aria-label — only
+  // the button label is shortened, so the check is the button text.
+  assert.ok(!html.includes('End-of-day summary</button>'), 'no overflowing "End-of-day summary" button label may remain');
+  // The footer mode-switcher labels are the user's compact ones
+  // ("⚡ Quick Entry" / "📋 Full Ledger") — the old ds-icon
+  // switcher labels are gone.
+  assert.ok(html.includes('⚡ Quick Entry'), 'the one-screen button must read "⚡ Quick Entry"');
+  assert.ok(html.includes('📋 Full Ledger'), 'the switch button must read "📋 Full Ledger"');
+  assert.ok(!html.includes('⚡ One-screen payment'), 'no old one-screen label may remain');
+  assert.ok(!html.includes('📋 Switch to Full Ledger'), 'no old ledger label may remain');
   // The visible-text map keys follow the emoji (no-emoji keys now).
   assert.equal(VISIBLE_TEXT_UR['Switch to Full Ledger & Transactions Table'], 'مکمل لیجر و لین دین جدول پر جائیں');
   assert.ok(!('📋 Switch to Full Ledger & Transactions Table' in VISIBLE_TEXT_UR), 'the old 📋 ledger key must be gone');
@@ -333,9 +344,12 @@ test('unpaid cards: badge left of the name, priority pill top-right, figures as 
   assert.ok(rightContent.includes('Medium priority'), 'the right column must label the tier');
   assert.ok(!rightContent.includes('qc3-figures'), 'the figures must not sit inside the right column anymore');
   assert.ok(!rightContent.includes('Outstanding'), 'the Outstanding figure must not sit on Row 1 anymore');
-  // The scorer reason stays under the name, before the right column.
-  const reasonAt = first.indexOf('2 months unpaid (+20 points).');
-  assert.ok(reasonAt > first.indexOf('qc-cust-meta') && reasonAt < rightAt, 'the reason must stay under the name');
+  // QC Modal Fix item 3: the scorer reason is GONE from the picker
+  // card — the subtitle line is now "Mohalla • Package Name", so
+  // the card stays compact. The reason still renders in Field Mode
+  // (field-mode.js), only the picker card drops it.
+  assert.ok(!first.includes('2 months unpaid (+20 points).'), 'the scorer reason must be gone from the picker card');
+  assert.ok(first.includes('BARRIAN'), 'the subtitle must carry the mohalla');
   // The dues figure itself stays — exactly once, fully labelled, in
   // the KPI row (the clipped Row-1 rendering is what was deleted).
   assert.ok(first.includes('Outstanding'), 'the Outstanding label must stay in the KPI row');
@@ -356,11 +370,18 @@ test('unpaid cards: Call / Location / Collect are ds-icons SVGs, Collect is soli
   assert.ok(html.includes('data-qc3-action="call"'), 'Call must still be marked as a card action');
   assert.ok(html.includes('data-qc3-action="location"'), 'Location must still be marked as a card action');
   assert.ok(html.includes('data-qc3-action="collect"'), 'Collect must still be an explicit button');
-  assert.ok(html.includes('Collect</button>'), 'Collect must still be labelled');
+  // QC Modal Fix item 4: the Collect label names the amount
+  // ("Collect PKR 3,000"), so the operator sees the figure on the
+  // button itself — a settled customer still shows plain "Collect".
+  assert.ok(html.includes('Collect PKR 3,000</button>'), 'Collect must label the amount to collect');
   const collect = ruleBlock(stylesSrc, '.qc3-collect {');
-  assert.ok(collect.includes('background: var(--ds-brand)'), 'Collect must be a solid Emerald primary CTA');
+  // QC Modal Fix item 6: Collect is the user's emerald gradient,
+  // not the old solid Emerald — the tonal palette lives in
+  // tokens.css (--qc-collect-from / --qc-collect-to).
+  assert.ok(collect.includes('linear-gradient'), 'Collect must be the emerald gradient');
+  assert.ok(collect.includes('var(--qc-collect-from)'), 'Collect must start from the collect token');
   assert.ok(collect.includes('color: var(--white)'), 'Collect text must be white on the Emerald');
-  assert.ok(collect.includes('font-weight: 700'), 'Collect must be bold');
+  assert.ok(collect.includes('font-weight: 600'), 'Collect must be weight 600 per the user palette');
   assert.ok(!collect.includes('var(--green)'), 'the old green outline accent must be gone from Collect');
 });
 

@@ -87,7 +87,7 @@ import {
   recentQuickPickHtml
 } from './recent-quick-pick.js';
 import { rememberedPaymentMethod } from './remembered-method.js';
-import { cashChangeLineText } from './cash-change-calculator.js';
+import { cashChangeLineText, cashChangeShortfallCents, formatCashChangeAmount } from './cash-change-calculator.js';
 import { splitTotalLineText } from './split-total.js';
 import {
   createDoubleTapSaveGuard,
@@ -6696,6 +6696,29 @@ export function setupQuickCollectModal({
         largeCashApproverInput?.focus();
         return;
       }
+      // Sharafat 7: the cash change calculator is display-only — the
+      // cash-received figure it shows was never checked at submit, so
+      // a PKR 3,000 collection could post while the box said PKR
+      // 2,000. A cash payment with a typed cash-received figure below
+      // the amount is refused here, before the confirm summary, in
+      // the same position as the large-cash check above: the operator
+      // fixes the amount or the cash figure and resubmits. No figure
+      // typed means no check — the box is optional — and non-cash
+      // methods are unaffected. A split never reaches this check:
+      // the box hides (and the field clears, Plan 537) while the
+      // split toggle is checked.
+      const cashShortfallCents = isCashPaymentMethod(methodVal)
+        ? cashChangeShortfallCents(cashReceivedInput?.value, amountInput?.value)
+        : null;
+      if (cashShortfallCents !== null) {
+        const cashShortfallMsg = `Cash received is ${formatCashChangeAmount(cashShortfallCents)} less than the amount — collect the full amount or correct the cash-received figure.`;
+        if (!showQuickCollectFieldError(cashReceivedInput, 'quickCollectCashReceivedError', cashShortfallMsg)
+          && typeof onToast === 'function') {
+          onToast(cashShortfallMsg, { type: 'error' });
+        }
+        return;
+      }
+      clearQuickCollectFieldError(cashReceivedInput, 'quickCollectCashReceivedError');
       // Plan 536: the split validations run here, before the confirm
       // summary — in the same position as the large-cash check
       // above. A bad split is refused on the form step instead of

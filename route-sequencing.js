@@ -72,6 +72,10 @@ const CANONICAL_MOHALLAS = Object.freeze([
   'CHARYAA', 'GANGALL', 'KISHTII', 'BARRIAN', 'THALII', 'CHAMYAAA',
   'PALALIYAA', 'MALLA', 'NAKAR', 'BANII', 'SODAA', 'PULL SIDE',
   'JABBIYAA', 'MOHALLA CHUDRIYAA', 'MOHALLA end side farm house',
+  // Sharafat 76 (owner decision 2026-11-12): END POINT is the 16th
+  // mohalla — Haweli and End Point are one mohalla (#12 in the
+  // numbered display order). "end side farm house" stays separate.
+  'END POINT',
 ]);
 
 function num(value) {
@@ -214,6 +218,11 @@ export function sequenceRouteStops(stops = [], options = {}) {
 
   const groups = Array.from(groupMap.values()).sort((a, b) => {
     if (b.pendingDue !== a.pendingDue) return b.pendingDue - a.pendingDue;
+    // Mohalla Numbering: the pending amount stays the primary rank;
+    // ties break by the caller's mohalla order when given (the app
+    // passes the numbered order), otherwise by label — the module
+    // stays import-free, so the order is supplied, never copied here.
+    if (typeof options.compareAreas === 'function') return options.compareAreas(a.label, b.label);
     return a.label.localeCompare(b.label);
   });
   const groupRank = new Map(groups.map((group, index) => [group.key, index]));

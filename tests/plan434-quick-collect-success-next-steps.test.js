@@ -80,17 +80,20 @@ test('format: money in the app min-0 style', () => {
   assert.equal(formatSuccessNextStepsAmount(0), '0');
 });
 
-test('next due date: earliest due date among bills that still carry a balance', () => {
-  const due = successNextStepsNextDueDate(postSaveCustomer(), allocationsFor({ '2026-10': 100000, '2026-11': 0 }));
-  assert.equal(due, '2026-10-05');
+// User decision 2026-11-12: the next due date is the 5th of the next
+// month after the bill month just paid — never the earliest overdue
+// date. An open balance is the Still-owed figure, not a date.
+test('next due date: an open balance never moves the date — the fallback wins', () => {
+  const due = successNextStepsNextDueDate(postSaveCustomer(), allocationsFor({ '2026-10': 100000, '2026-11': 0 }), '2026-12-05');
+  assert.equal(due, '2026-12-05');
 });
 
-test('next due date: a settled bill contributes nothing, the next open bill wins', () => {
-  const due = successNextStepsNextDueDate(postSaveCustomer(), allocationsFor({ '2026-10': 0, '2026-11': 300000 }));
-  assert.equal(due, '2026-11-05');
+test('next due date: an open November balance still reads the December fallback, not November 5', () => {
+  const due = successNextStepsNextDueDate(postSaveCustomer(), allocationsFor({ '2026-10': 0, '2026-11': 300000 }), '2026-12-05');
+  assert.equal(due, '2026-12-05');
 });
 
-test('next due date: no open bill with a due date means no date, never a guess', () => {
+test('next due date: no fallback means no date, never a guess', () => {
   assert.equal(successNextStepsNextDueDate(postSaveCustomer(), allocationsFor({ '2026-10': 0, '2026-11': 0 })), null);
   const noDate = postSaveCustomer();
   delete noDate.bills[0].dueDate;
@@ -103,8 +106,11 @@ test('next due date: no open bill with a due date means no date, never a guess',
   assert.equal(successNextStepsNextDueDate({ id: '' }, allocationsFor({})), null);
 });
 
-test('next due date: an allocation lookup that throws means no date', () => {
+// The ledger is never consulted for the date, so a broken allocation
+// lookup cannot move it — the fallback still wins.
+test('next due date: the allocations are never read, so a throwing lookup cannot move the date', () => {
   const throwing = { forMonth: () => { throw new Error('no ledger'); } };
+  assert.equal(successNextStepsNextDueDate(postSaveCustomer(), throwing, '2026-12-05'), '2026-12-05');
   assert.equal(successNextStepsNextDueDate(postSaveCustomer(), throwing), null);
 });
 
@@ -181,15 +187,17 @@ test('from receipt: a non-strict next due date reads as no date, never a guessed
   assert.equal(next.fullyPaid, false);
 });
 
-test('acceptance: still owed and next due date match the customer record on the same fixture', () => {
+// User decision 2026-11-12: the next due date is the fallback (the 5th
+// of the next month), even with an open balance — the still-owed figure
+// is what matches the customer record, not the date.
+test('acceptance: still owed matches the customer record and the next due date is the fallback, on the same fixture', () => {
   const customer = postSaveCustomer();
   const allocations = allocationsFor({ '2026-10': 100000, '2026-11': 0 });
-  const due = successNextStepsNextDueDate(customer, allocations);
+  const due = successNextStepsNextDueDate(customer, allocations, '2026-12-05');
   const next = successNextStepsFromReceipt(receipt(), due);
   assert.equal(next.stillOwed, 1000);
   assert.equal(next.stillOwedCents, allocations.forMonth('c1', '2026-10').balanceDueCents);
-  assert.equal(next.nextDueDate, '2026-10-05');
-  assert.equal(next.nextDueDate, customer.bills[0].dueDate);
+  assert.equal(next.nextDueDate, '2026-12-05');
   assert.equal(next.amountPaid, 2000);
   assert.equal(next.fullyPaid, false);
 });

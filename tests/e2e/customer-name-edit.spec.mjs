@@ -3,8 +3,10 @@
  * Plan 494: one name-edit path, not two. The profile header's Edit name
  * button opens the full edit form at the name field — there is no separate
  * inline editor any more. Renaming Test Customer 07 -> ALI MNA through
- * the form's Save profile updates the heading, the avatar initials, the
- * customer list, and survives a reload. Empty names are rejected by the
+ * the form's Save profile updates the heading, the customer list,
+ * and survives a reload. (Customer Card Polish, user decision
+ * 2026-11-12: the profile header avatar is removed, so there are no
+ * avatar initials to check any more.) Empty names are rejected by the
  * form's own validation (updateCustomerProfile throws), with the red
  * error banner shown and the name unchanged.
  */
@@ -62,7 +64,8 @@ test.describe('Customer rename from the profile header', () => {
     await page.locator('#profileNameInput').fill('ALI MNA');
     await page.locator('#saveMohallaButton').click();
     await expect(page.locator('#detailName')).toHaveText('ALI MNA');
-    await expect(page.locator('#profileAvatar')).toHaveText('AM');
+    // Customer Card Polish: the profile header avatar is gone.
+    await expect(page.locator('#profileAvatar')).toHaveCount(0);
     await expect(page.locator('#toast')).toContainText('Customer profile saved');
 
     // The list shows the new name too, and it persists across reload.

@@ -390,16 +390,21 @@ test('customer profile uses an identity-first card with separate manual service 
   // moved up from the (removed) danger zone. Profile redesign D6
   // REMOVES + New customer from the header (Row 1 = Edit / Archive /
   // Delete only), so the card test pins the remaining two here.
-  for (const id of ['profileAvatar','detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','editProfileButton','deleteCustomerButton','archiveCustomerButton','unarchiveCustomerButton','customerCurrentBillSummary']) {
+  // Customer Card Polish (user decision 2026-11-12): the profile
+  // header DP is removed, "abhi k lye" — profileAvatar is NOT in the
+  // card any more, and renderDetail no longer sets it.
+  for (const id of ['detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','editProfileButton','deleteCustomerButton','archiveCustomerButton','unarchiveCustomerButton','customerCurrentBillSummary']) {
     assert.ok(card.includes(`id="${id}"`), `${id} remains inside the profile card`);
   }
+  assert.ok(!card.includes('id="profileAvatar"'), 'profile avatar is gone from the profile card');
+  assert.ok(!index.includes('id="profileAvatar"'), 'no profileAvatar anywhere in the page');
+  assert.ok(!app.includes("$('#profileAvatar')"), 'renderDetail no longer touches profileAvatar');
   assert.match(index, /class="customer-profile-card" aria-label="Customer profile card"/);
   assert.match(index, /class="profile-action-group" role="group" data-i18n-aria-label="prof_actions_aria" aria-label="Customer quick actions"/); // phase 3: group label keyed for Urdu
   // Plan 510: the static service badge reads "Not chosen", not "Not set"
   // — "Not set" read as if the service itself were unset.
   assert.match(index, /id="profileServiceStatusBadge"[^>]*Manual service status: Not chosen; not monitored/);
   assert.ok(index.indexOf('id="customerCurrentBillSummary"') < index.indexOf('id="profileTabBilling"'), 'current-bill summary precedes the section tabs');
-  assert.match(app, /profileAvatar'\)\.textContent = initials\(customer\.name\)/);
   assert.match(app, /profileServiceStatusBadge'[\s\S]*?profile-service-status-\$\{derivedServiceState\.modifier\}/); // profile redesign: the badge class follows the DERIVED state, not the stored status
   assert.match(app, /t\('prof_service_badge_derived_aria'/); // profile redesign: service badge aria renders the derived-state key via t()
   assert.match(styles, /\.profile-action-group>button\{min-height:44px/);

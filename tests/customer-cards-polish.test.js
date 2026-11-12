@@ -1,12 +1,17 @@
 // Customer Cards Polish (sequence step 3, user request 2026-11-10):
-// the final sizing/token pass on the PR #1334 compact cards — 44px
-// avatar, 18px name via the --text-card-name token, an ID pill around
-// CUSTOMER #N, and the two metrics boxes converted to design-system
-// tokens (background/border/radius/label/value colours). Geometry the
-// polish must NOT move: stat boxes keep their 56px min-height and
-// 7px 9px padding; the card gains NO toggle, button or control — the
-// service badge stays a read-only pill and service control stays in
-// the Profile Form (user-locked, D6).
+// the final sizing/token pass on the PR #1334 compact cards — 18px
+// name via the --text-card-name token, an ID pill around CUSTOMER #N,
+// and the two metrics boxes converted to design-system tokens
+// (background/border/radius/label/value colours). Geometry the polish
+// must NOT move: stat boxes keep their 56px min-height and 7px 9px
+// padding; the card gains NO toggle, button or control — the service
+// badge stays a read-only pill and service control stays in the
+// Profile Form (user-locked, D6).
+//
+// Customer Card Polish (user request 2026-11-12): the 44px avatar is
+// REMOVED from the card — the user asked for no DP, "abhi k lye" (for
+// now). The avatar CSS rule stays only because its #245e4c is counted
+// in the §8.9 614-hex pin; the markup must carry no avatar at all.
 //
 // Fixtures are generic placeholders only — no real customer data.
 import { test } from 'node:test';
@@ -26,20 +31,19 @@ assert.ok(cardStart > -1, 'customerCardMarkup exists');
 const cardEnd = app.indexOf('\n}\n', cardStart);
 const card = app.slice(cardStart, cardEnd);
 
-test('polish: card avatar is 44px (was 40px)', () => {
-  assert.match(
-    styles,
-    /\.customer-card-heading \.avatar \{[^}]*width: 44px;[^}]*height: 44px;/s,
-    'card avatar 44x44'
-  );
+test('polish: card avatar is removed — no DP tile in the card markup', () => {
+  // Customer Card Polish (user decision 2026-11-12): no DP on the
+  // Customers list cards (and none in the profile header either).
+  assert.ok(!card.includes('<span class="avatar"'), 'no avatar tile in the card template');
+  assert.ok(!card.includes('initials(customer.name)'), 'no initials rendered on the card');
 });
 
 test('polish: card name is 18px via the --text-card-name token', () => {
   assert.match(tokens, /--text-card-name: 18px;/, 'token is 18px');
   assert.match(
     styles,
-    /\.customer-card-heading \.customer-name \{[^}]*font-size: var\(--text-card-name\);/s,
-    'card name uses the token, not a literal size'
+    /\.customer-card-heading \.customer-name-pill \{[^}]*font-size: var\(--text-card-name\);/s,
+    'card name pill uses the token, not a literal size'
   );
 });
 
@@ -86,11 +90,16 @@ test('polish: no toggle or new control added to the card', () => {
   // Unpaid Cards adds ONE more allowed button: the green Clear dues
   // button in the payment row, shown only under the "Unpaid This
   // Month" pill (data-clear-dues-card, wired in renderCustomers).
+  // Customer Card Polish (user request 2026-11-12) adds one more: the
+  // open hint itself becomes a pill-style button. It adds NO new
+  // action — the tap opens the profile through the existing rows-div
+  // target, and the button carries no data-customer-id of its own, so
+  // selectCustomer fires exactly once.
   const buttonClasses = [...card.matchAll(/<button[^>]*class="([^"]*)"/g)].map(m => m[1]);
   assert.ok(buttonClasses.length > 0, 'card buttons found');
   for (const cls of buttonClasses) {
     assert.ok(
-      cls.includes('customer-select') || cls.includes('additional-pending-btn') || cls.includes('archived-unarchive-button') || cls.includes('customer-card-clear-dues'),
+      cls.includes('customer-select') || cls.includes('additional-pending-btn') || cls.includes('archived-unarchive-button') || cls.includes('customer-card-clear-dues') || cls.includes('customer-card-open-hint'),
       `no new button class on the card: ${cls}`
     );
   }

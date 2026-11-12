@@ -869,6 +869,10 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   gap: 10px;
   min-width: 0;
 }
+/* Customer Card Polish: the heading avatar rule stays even though no
+   avatar is rendered any more (user decision 2026-11-12) — its #245e4c
+   is counted in the §8.9 ratchet (styles.css pinned at 614 distinct
+   hex), so deleting the rule would drop the pin. */
 .customer-card-heading .avatar {
   width: 44px;
   height: 44px;
@@ -903,9 +907,23 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .customer-id-pill-5 { background: #fee2e2; color: #b91c1c; border-color: #dc9478; }
 .customer-id-pill-6 { background: #e7f2ec; color: #0e5b4d; border-color: #9acbad; }
 .customer-id-pill-7 { background: #fff0e8; color: #8a2b12; border-color: #dc9478; }
-.customer-card-heading .customer-name {
+/* Customer Card Polish: the name is a pill in the same style as the
+   Customer N pill, slightly larger — 18px via --text-card-name (the
+   ID pill text is 9px) and a touch more padding. It is FLEXIBLE: the
+   pill sizes to the name (white-space normal, overflow-wrap anywhere,
+   max-width 100%), so a long name grows the pill instead of clipping.
+   The rotation colour is shared with the ID pill (the same
+   customer-id-pill-N class), so the pair reads as one identity. */
+.customer-card-heading .customer-name-pill {
+  display: inline-block;
+  max-width: 100%;
+  padding: 3px 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--radius-pill);
+  background: var(--ds-nested);
   color: var(--ink);
   font-size: var(--text-card-name);
+  font-weight: 700;
   line-height: 1.25;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -981,16 +999,25 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .customer-card-stat-tenure > span { color: #174b87; }
 .customer-card-stat-tenure strong { color: #174b87; }
 .customer-card-stat-tenure small { color: #174b87; }
+/* Customer Card Polish: the open hint is ONE pill-style button — the
+   label and the arrow together in one pill. The tap still opens the
+   profile through the rows div, as before; the button carries no
+   data-customer-id of its own, so selectCustomer fires exactly once.
+   Colours reuse the teal palette already in this sheet — no new hex. */
 .customer-card-open-hint {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 8px;
+  width: 100%;
   margin-top: 10px;
-  padding-top: 9px;
-  border-top: 1px solid #edf2ef;
+  padding: 8px 12px;
+  border: 1px solid #9acbad;
+  border-radius: var(--radius-pill);
+  background: #e7f2ec;
   color: #0e5b4d;
-  font-size: 10px;
-  font-weight: 700;
+  font: 700 11px 'DM Sans', sans-serif;
+  cursor: pointer;
 }
 /* BOTTOM rows: label left, value right, one line each. The rows div is a
    tap target too (it carries data-customer-id, bound by renderCustomers);
@@ -1400,6 +1427,11 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .customer-profile-card::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,#0e5b4d,#75b895 62%,#d9eee1)}
 .detail-title-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:18px;min-width:0}
 .profile-identity-block{display:flex;align-items:center;gap:15px;min-width:0}
+/* Customer Card Polish: the profile-avatar rule stays even though the
+   header avatar is gone (user decision 2026-11-12) — its #c8e2d3,
+   #e5f4eb, #cfe9da and #14563f are counted in the §8.9 ratchet
+   (styles.css pinned at 614 distinct hex), so deleting the rule would
+   drop the pin. */
 .profile-avatar{display:grid;place-items:center;flex:0 0 62px;width:62px;height:62px;border:1px solid #c8e2d3;border-radius:19px;background:linear-gradient(145deg,#e5f4eb,#cfe9da);color:#14563f;font:800 20px/1 'DM Sans',system-ui,sans-serif;letter-spacing:.4px;box-shadow:inset 0 1px #fff}
 .profile-identity-copy{min-width:0}
 .detail-number{margin:0 0 5px;color:#527264;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
@@ -1609,6 +1641,20 @@ no scroll room below it. The ≤620px rule below adds the clearance. */
 .customer-health-reasons{margin:0 9px 6px;padding:0 8px;color:#62766d;font-size:10px;line-height:1.45}
 .customer-health-reasons summary,.customer-health-summary summary{cursor:pointer;font-weight:700}
 .customer-health-reasons ul,.customer-health-summary ul{padding-left:18px}
+/* Customer Card Polish: the five health reasons open as pills — one
+   colour each, in the fixed scoreCustomer order (Payment regularity,
+   Due-date history, Outstanding, Partial installments, Average
+   settlement delay). Every colour reuses an ID-pill slot already in
+   this sheet (yellow, green, blue, red, teal) — no new hex. The list
+   itself is a wrapping flex row, so the pills flow instead of
+   stacking as a bulleted list. */
+.customer-health-reasons ul{display:flex;flex-wrap:wrap;gap:6px;padding-left:0;list-style:none}
+.customer-health-reason-pill{display:inline-block;padding:3px 9px;border:1px solid var(--ds-line);border-radius:var(--radius-pill);white-space:normal;overflow-wrap:anywhere}
+.customer-health-reason-pill-0{background:#fef3c7;color:#704600;border-color:#e7c77e}
+.customer-health-reason-pill-1{background:#dcfce7;color:#145b38;border-color:#5fa876}
+.customer-health-reason-pill-2{background:#e5efff;color:#174b87;border-color:#adc9f1}
+.customer-health-reason-pill-3{background:#fee2e2;color:#b91c1c;border-color:#dc9478}
+.customer-health-reason-pill-4{background:#e7f2ec;color:#0e5b4d;border-color:#9acbad}
 .customer-health-summary{margin:10px 0;padding:11px 13px;background:#f7faf8;border:1px solid #e7eeea;border-radius:10px;font-size:12px;line-height:1.5}
 .customer-health-summary details{margin-top:6px;color:var(--muted);font-size:10px}
 @media(max-width:900px){.owner-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.comparison-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.closing-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}

@@ -150,7 +150,7 @@ test('complaints tab mounts existing incident records and empty state without a 
   assert.doesNotMatch(helper, /localStorage|STORAGE_KEY|incidents\s*=\s*\[\]/);
 });
 
-test('saved-phone shortcuts require an explicit international number for WhatsApp and never guess a country code', () => {
+test('saved-phone shortcuts normalise a Pakistani mobile to +92 for WhatsApp and never guess a country code for anything else', () => {
   assert.equal(contactActionTargets(''), null);
   assert.equal(contactActionTargets('   '), null);
   assert.equal(contactActionTargets('extension only'), null);
@@ -158,7 +158,13 @@ test('saved-phone shortcuts require an explicit international number for WhatsAp
     tel:'tel:+923001234567',
     whatsapp:'https://wa.me/923001234567'
   });
-  assert.deepEqual(contactActionTargets('0300-1234567'), { tel:'tel:03001234567', whatsapp:null });
+  // Dues Recovery Overhaul: a saved 03xx Pakistani mobile normalises
+  // to +92 for the WhatsApp link (the same rule the receipt share
+  // already used) — calls still dial the saved local form, and a
+  // number that is neither international nor a Pakistani mobile
+  // still gets no WhatsApp link.
+  assert.deepEqual(contactActionTargets('0300-1234567'), { tel:'tel:03001234567', whatsapp:'https://wa.me/923001234567' });
+  assert.equal(contactActionTargets('0511234567').whatsapp, null);
   assert.equal(contactActionTargets('+92 300 123 4567 ext 9'), null);
   assert.equal(contactActionTargets('+9999999999999999').whatsapp, null);
   // Plan 511 — the Call/WhatsApp anchors moved from an inline template
@@ -311,11 +317,18 @@ test('missing or invalid saved phone returns a profile-field route instead of ta
   const receipt = { customerId:'synthetic-owner', amount:10, date:'2026-09-12', method:'Cash', month:'2026-09', customerNumber:1 };
   const missing = resolveReceiptWhatsAppAction({ id:'synthetic-owner', name:'Synthetic Customer', customerNumber:1, phone:'' }, receipt);
   assert.deepEqual(missing, { type:'phone-required', hasSavedPhone:false });
-  for (const phone of ['0300-1234567', 'not-a-number', '+92 300 123 4567 ext 9']) {
+  for (const phone of ['not-a-number', '+92 300 123 4567 ext 9']) {
     const action = resolveReceiptWhatsAppAction({ id:'synthetic-owner', name:'Synthetic Customer', customerNumber:1, phone }, receipt);
     assert.deepEqual(action, { type:'phone-required', hasSavedPhone:true });
   }
-  assert.equal(createReceiptWhatsAppDraft('0300-1234567', { ...receipt, customerName:'Synthetic Customer' }), null);
+  // Dues Recovery Overhaul: a saved 03xx number is a usable WhatsApp
+  // number now (normalised to +92), so it drafts instead of asking
+  // for a phone; only a genuinely unusable number still routes to
+  // the phone field.
+  const local = resolveReceiptWhatsAppAction({ id:'synthetic-owner', name:'Synthetic Customer', customerNumber:1, phone:'0300-1234567' }, receipt);
+  assert.equal(local.type, 'draft');
+  assert.match(local.draft.url, /^https:\/\/wa\.me\/923001234567\?text=/);
+  assert.ok(createReceiptWhatsAppDraft('0300-1234567', { ...receipt, customerName:'Synthetic Customer' }));
   assert.equal(createReceiptWhatsAppDraft('not-a-number', { ...receipt, customerName:'Synthetic Customer' }), null);
   assert.match(app, /data-edit-receipt-phone=/);
   assert.match(app, /function editCustomerPhoneFromReceipt\(customerId\)/);
@@ -413,10 +426,15 @@ test('follow-up center drafts all four customer-bound WhatsApp templates for rev
     assert.equal(url.origin,'https://wa.me');
     assert.equal(url.searchParams.get('text'),draft.message);
   }
-  assert.equal(createWhatsAppFollowupDraft('0300-1234567',customer,details,'friendly'),null);
+  // Dues Recovery Overhaul: a saved 03xx number drafts now (it
+  // normalises to +92); only an unknown template or a confirmation
+  // without a real payment still returns null.
+  const localDraft=createWhatsAppFollowupDraft('0300-1234567',customer,details,'friendly');
+  assert.ok(localDraft,'a saved 03xx number drafts after normalisation');
+  assert.match(localDraft.url,/^https:\/\/wa\.me\/923001234567\?text=/);
   assert.equal(createWhatsAppFollowupDraft('+92 300 123 4567',customer,details,'unknown'),null);
   assert.equal(createWhatsAppFollowupDraft('+92 300 123 4567',customer,details,'payment-confirmation'),null,'confirmation requires a real saved payment amount and date');
-  assert.match(ownerUi,/Review WhatsApp draft/);
+  assert.match(ownerUi,/recovery_send_whatsapp/);
   assert.match(ownerUi,/data-recovery-template/);
   assert.doesNotMatch(ownerUi,/fetch\s*\(|sendBeacon|window\.open\s*\(|sendText|autoSend/i);
 });

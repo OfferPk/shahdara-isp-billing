@@ -297,8 +297,11 @@ test('phase B Req 3: contact and location rows dash empty values', () => {
 test('phase B Req 3: service package dashes; the state rows keep their stored labels', () => {
   const frags = groupFragments();
   const service = fragmentSlice(frags, 'service', 'money');
-  assert.ok(service.includes("[t('prof_field_isp'), profileEmptyText(customer.ispProvider)]"), 'isp must dash when empty');
-  assert.ok(service.includes("[t('prof_field_package'), profileEmptyText(customer.packageSpeed)]"), 'package must dash when empty');
+  // Profile Polish D (16) — the service rows carry a fifth tuple
+  // element now (the tap target: the edit-form control id). The value
+  // expressions — the pinned intent — are unchanged.
+  assert.ok(service.includes("[t('prof_field_isp'), profileEmptyText(customer.ispProvider), false, '', 'ispProviderInput']"), 'isp must dash when empty');
+  assert.ok(service.includes("[t('prof_field_package'), profileEmptyText(customer.packageSpeed), false, '', 'packageSpeedInput']"), 'package must dash when empty');
   assert.ok(service.includes('manualServiceStatusLabel(customer.serviceStatus)'), 'service status row keeps the STORED label, not the derived pill');
   assert.ok(service.includes('pauseSummary.detail'), 'vacation hold row keeps its state label');
   assert.ok(service.includes('shieldSummary.detail'), 'do-not-suspend shield row keeps its state label');
@@ -320,8 +323,11 @@ test('phase B Req 3: money rows dash empty values; profit names the missing comp
 test('phase B Req 3: lifecycle and install rows dash empty values', () => {
   const frags = groupFragments();
   const lifecycle = fragmentSlice(frags, 'lifecycle', 'install');
-  assert.ok(lifecycle.includes("[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH]"), 'expiry must dash when empty');
-  assert.ok(lifecycle.includes("[t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH]"), 'cancellation date must dash when empty');
+  // Profile Polish D (16) — the lifecycle rows carry a fifth tuple
+  // element now (the tap target: the edit-form control id). The value
+  // expressions — the pinned intent — are unchanged.
+  assert.ok(lifecycle.includes("[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH, false, '', 'expiryDateInput']"), 'expiry must dash when empty');
+  assert.ok(lifecycle.includes("[t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH, false, '', 'cancellationDateInput']"), 'cancellation date must dash when empty');
   const install = fragmentSlice(frags, 'install', 'network');
   assert.ok(install.includes("[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH]"), 'connection start must dash when empty');
   assert.ok(install.includes("[t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)]"), 'connection fee must dash when empty');

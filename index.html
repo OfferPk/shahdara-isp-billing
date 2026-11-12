@@ -7350,6 +7350,17 @@
             <button type="button" class="tx-pill" data-tx-pill="partial" aria-pressed="false">Partial (0)</button>
           </div>
         </div>
+        <!-- Unpaid Cards: the Recent receipts finder — a quick path over
+             the local ledger. Blank box shows the 10 most recent
+             receipts; typing a name, phone, or customer ID narrows it
+             across the whole ledger. Each row reopens the receipt or
+             re-sends it (WhatsApp text / PNG screenshot). -->
+        <section class="receipt-finder" aria-labelledby="receiptFinderHeading">
+          <div class="receipt-finder-head"><h3 id="receiptFinderHeading" data-i18n="receipt_finder_heading">Recent receipts</h3><p class="receipt-finder-note" data-i18n="receipt_finder_note">Find any receipt — reopen it or send it again.</p></div>
+          <input id="receiptFinderSearch" type="search" autocomplete="off" placeholder="Find a receipt — customer name, phone, or customer ID" data-i18n-placeholder="receipt_finder_search_placeholder" data-i18n-aria-label="receipt_finder_search_aria" aria-label="Find a receipt by customer name, phone, or customer ID">
+          <p id="receiptFinderCount" class="receipt-finder-count" role="status" aria-live="polite"></p>
+          <ul id="receiptFinderResults" class="receipt-finder-results" aria-label="Recent receipts"></ul>
+        </section>
         <div class="tx-summary-row">
           <div id="transactionSummaryBar" class="transaction-summary-bar" aria-live="polite">
             <span class="tx-summary-item"><span class="tx-summary-label">Filtered total:</span> <strong id="txSummaryTotal">PKR 0</strong></span>

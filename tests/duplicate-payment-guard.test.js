@@ -62,6 +62,7 @@ import {
   paymentRecordedAtMs,
   findRecentDuplicate,
   duplicatePaymentBypassKey,
+  duplicateTidBypassKey,
   duplicatePaymentAgoText,
   buildDuplicatePaymentConfirmOptions,
   askDuplicatePayment
@@ -284,6 +285,20 @@ test('bypass key: stable for the same decision, different for a different duplic
   assert.notEqual(keyA, duplicatePaymentBypassKey('cust-1', 2500, 'Cash', dupA));
   assert.notEqual(keyA, duplicatePaymentBypassKey('cust-1', 3000, 'Easypaisa', dupA));
   assert.equal(duplicatePaymentBypassKey('cust-1', 3000, 'Cash', null), '');
+});
+
+// Sharafat 8: the duplicate-TID bypass key — customer + TID +
+// amount + method. A bypass armed for one customer (or amount,
+// or method) never matches another: the same TID re-used for a
+// different customer, amount or method still warns.
+test('Sharafat 8 TID bypass key: stable for the same decision, different for a different customer, TID, amount or method', () => {
+  const keyA = duplicateTidBypassKey('cust-1', 'TID-001', 1000, 'Easypaisa');
+  assert.equal(keyA, duplicateTidBypassKey('cust-1', 'TID-001', 1000, 'Easypaisa'));
+  assert.equal(keyA, duplicateTidBypassKey('cust-1', '  TID-001  ', '1000', 'Easypaisa'), 'the TID is trimmed and the amount is read in cents, so a re-typed form matches');
+  assert.notEqual(keyA, duplicateTidBypassKey('cust-2', 'TID-001', 1000, 'Easypaisa'), 'another customer is a different decision');
+  assert.notEqual(keyA, duplicateTidBypassKey('cust-1', 'TID-002', 1000, 'Easypaisa'), 'another TID is a different decision');
+  assert.notEqual(keyA, duplicateTidBypassKey('cust-1', 'TID-001', 2000, 'Easypaisa'), 'another amount is a different decision');
+  assert.notEqual(keyA, duplicateTidBypassKey('cust-1', 'TID-001', 1000, 'JazzCash'), 'another method is a different decision');
 });
 
 /* ------------------------------ i18n / UI ------------------------------ */

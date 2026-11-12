@@ -42,9 +42,39 @@
 #bulkCollectModal .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 #bulkCollectModal h2 { margin: 2px 0 0; font: 700 1.25rem Manrope, system-ui, sans-serif; }
 
+/* Item 5: a clean neutral ✕ close, scoped to THIS button only. The shared
+   48px red-circle rule (components.css) and the phone universal rule
+   (styles.css) are untouched — the double ID + !important mirrors the QC
+   fix §4.1.4 precedent for a header close that keeps its close class.
+   Same 36×36 slate treatment as the QC help-guide close. */
+#bulkCollectModal #closeBulkCollectBtn.bc-close-btn {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  border-radius: 50% !important;
+  background: var(--color-slate-100) !important;
+  color: var(--color-slate-700) !important;
+  font-size: 18px !important;
+  flex-shrink: 0 !important;
+}
+
 /* Batch settings: one compact row (date · default method · note). The method is the
    default for lines added afterwards; each line can pick its own (QC-10). */
 .bc-settings { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 170px) minmax(0, 1fr); gap: var(--space-2); }
+/* Bulk Collect Modal Fix item 1: the settings live behind a 1-line summary bar
+   (date · method · collector) that expands on tap, so the pick list gets the
+   height. The three controls stay in the DOM — only their row is hidden. */
+.bc-settings-summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  min-height: 44px; padding: 0 12px; border: 1px solid var(--line, #dce6e1); border-radius: var(--radius-sm);
+  background: var(--surface-soft, #f6f9f7); color: var(--ink, #172e29);
+  font-size: 0.85rem; font-weight: 700; font-family: inherit; text-align: left; cursor: pointer;
+}
+.bc-settings-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-summary-caret { flex: 0 0 auto; color: var(--muted, #586e65); font-size: 0.8rem; transition: transform .15s; }
+.bulk-collect-card:not(.bc-settings-open) .bc-settings { display: none; }
+.bulk-collect-card.bc-settings-open .bc-summary-caret { transform: rotate(180deg); }
 .bc-field { display: grid; gap: var(--space-1); min-width: 0; color: var(--muted, #546b61); font-size: 0.72rem; font-weight: 700; }
 .bc-optional { font-weight: 500; opacity: .8; }
 .bc-field input, .bc-field select {
@@ -61,9 +91,22 @@
   width: 100%; min-height: 52px; padding: 0 14px 0 42px !important; font-size: 17px; font-weight: 600;
   border: 2px solid var(--green, #0e5b4d); border-radius: 12px; background: var(--surface, #fff); color: var(--ink, #172e29);
 }
-.bc-search-input:focus { outline: 3px solid color-mix(in srgb, var(--green, #0e5b4d) 35%, transparent); outline-offset: 1px; }
+/* Item 5: one clean theme border on focus, no double ring. The ID+class
+   selector beats the global .modal input:focus rule (and the dark
+   input:focus rule only sets border/outline colours, never the style),
+   so the 3px light-green outline never renders on this input. */
+#bulkCollectSearch.bc-search-input:focus { outline: none; border-color: var(--color-emerald); box-shadow: none; }
 .bc-hint { margin: 0; font-size: 0.72rem; color: var(--muted, #586e65); }
 @media (pointer: coarse) { .bc-hint { display: none; } }
+
+/* Mohalla filter pills (item 4): one horizontally scrollable chip row under
+   the search bar. The chips reuse the global .quick-collect-filter-chip
+   (styles.css) with its .qc-count-badge counts; only the row layout and
+   the compact 36px height are Bulk's own. */
+#bulkCollectMohallaPills:empty { display: none; }
+.bc-mohalla-pills { display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; padding: 2px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.bc-mohalla-pills::-webkit-scrollbar { display: none; }
+.bc-mohalla-pills .quick-collect-filter-chip { flex: 0 0 auto; min-height: 36px; }
 
 /* Results: each row has its own amount box + Add */
 /* The result list is the only part that shrinks, so the batch list + Save always stay on screen. */
@@ -73,7 +116,7 @@
 .bc-list-caption { flex: 0 0 auto; margin: 0 2px 2px; font-size: 0.75rem; font-weight: 700; color: var(--muted, #586e65); }
 .bc-row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px;
-  min-height: 60px; padding: var(--space-2) 10px; min-width: 0; flex: 0 0 auto;
+  min-height: 52px; padding: 8px 10px; min-width: 0; flex: 0 0 auto;
   border: 1px solid var(--line, #e2e8f0); border-radius: 12px; background: var(--surface, #fff); color: var(--ink, #172e29);
 }
 .bc-row:focus-within { border-color: var(--green, #0e5b4d); box-shadow: inset 0 0 0 1px var(--green, #0e5b4d); }
@@ -84,31 +127,25 @@
 .bc-row-meta { font-size: 0.75rem; color: var(--muted, #586e65); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bc-row-badges { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .bc-badge { display: inline-block; padding: 2px var(--space-2); border-radius: var(--radius-pill); font-size: 0.72rem; font-weight: 800; }
-.bc-badge-due { background: var(--color-danger-bg); color: var(--color-danger-strong); }
-.bc-badge-nobill { background: #eef2f1; color: #44564f; }
-.bc-badge-paid { background: #e3f4ea; color: #145b37; }
 .bc-badge-added { background: var(--mint, #e6f3ee); color: var(--green-dark, #094338); }
 .bc-row-entry { display: flex; align-items: center; gap: 6px; }
 .bc-amount {
-  width: 112px; min-height: 48px; padding: 0 10px; font-size: 17px; font-weight: 700; text-align: right;
+  width: 84px; min-height: 44px; padding: 0 8px; font-size: 17px; font-weight: 700; text-align: right;
   border: 1px solid var(--line, #cbd5e1); border-radius: var(--radius-sm); background: var(--surface-soft, #f6f9f7); color: var(--ink, #172e29);
 }
 .bc-amount:focus { outline: 3px solid color-mix(in srgb, var(--green, #0e5b4d) 35%, transparent); border-color: var(--green, #0e5b4d); background: var(--surface, #fff); }
 .bc-amount::placeholder { font-size: 13px; font-weight: 600; color: var(--muted, #8a9a94); }
-.bc-row-add { min-height: 48px; min-width: 64px; padding: 0 14px; font-size: 0.95rem; font-weight: 800; border-radius: var(--radius-sm); }
+.bc-row-add { min-height: 44px; min-width: 56px; padding: 0 10px; font-size: 0.95rem; font-weight: 800; border-radius: var(--radius-sm); }
 
-/* QC-10: each pick row carries its own method select (the batch Method above is the
-   default for lines not changed individually). Compact so the amount stays visible. */
-.bc-method {
-  flex: 0 1 128px; min-width: 0; max-width: 140px; min-height: 48px; padding: 0 6px;
-  font-size: var(--text-md); font-weight: 700;
-  border: 1px solid var(--line, #cbd5e1); border-radius: var(--radius-sm);
-  background: var(--surface-soft, #f6f9f7); color: var(--ink, #172e29);
-}
-.bc-method:focus { outline: 3px solid color-mix(in srgb, var(--green, #0e5b4d) 35%, transparent); border-color: var(--green, #0e5b4d); background: var(--surface, #fff); }
+/* Review lines keep their own method select (QC-10): the method can still
+   be picked per line here, before Save. The picker rows no longer carry
+   one (item 2) — the old picker-row method-select rules are gone with it. */
 
-/* "In this batch" list, directly above Save */
+/* "In this batch" list, directly above Save. Empty (item 3): the whole
+   block hides — no tall placeholder box, no disabled Undo — so the pick
+   list gets the height. The sticky footer below stays visible. */
 .bc-review { display: grid; gap: 6px; padding-top: var(--space-1); border-top: 1px solid var(--line, #dce6e1); }
+.bc-review.bc-review--empty { display: none; }
 .bc-review-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .bc-review-head h3 { margin: 0; font: 800 1rem Manrope, system-ui, sans-serif; color: var(--ink, #172e29); }
 .bc-count { margin-left: 6px; padding: 2px var(--space-2); border-radius: var(--radius-pill); background: var(--mint, #e6f3ee); color: var(--green-dark, #094338); font: 700 0.75rem 'DM Sans', system-ui, sans-serif; }
@@ -116,7 +153,7 @@
 .bc-review-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 150px; overflow-y: auto; }
 .bc-review-item {
   display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: var(--space-2); min-width: 0;
-  padding: var(--space-2) 10px; border: 1px solid var(--line, #dce6e1); border-radius: var(--radius-sm); background: var(--surface-soft, #f6f9f7); color: var(--ink, #172e29);
+  padding: 6px 10px; border: 1px solid var(--line, #dce6e1); border-radius: var(--radius-sm); background: var(--surface-soft, #f6f9f7); color: var(--ink, #172e29);
 }
 .bc-review-main { display: grid; min-width: 0; font-size: 0.9rem; }
 .bc-review-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -134,7 +171,6 @@
   min-height: 44px; min-width: 44px; padding: 0 10px; border-radius: 9px; cursor: pointer;
   border: 1px solid #f3c4c0; background: #fff5f4; color: var(--color-danger); font-weight: 700; font-size: 0.78rem;
 }
-.bc-review-empty { padding: 10px; text-align: center; font-size: 0.82rem; color: var(--muted, #586e65); }
 .bc-status { margin: 0; padding: var(--space-2) 10px; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600; background: var(--mint, #e6f3ee); color: var(--green-dark, #094338); }
 .bc-status[data-kind="error"] { background: #fff1f0; color: var(--color-danger); }
 .bc-footer {
@@ -168,10 +204,13 @@
   .bc-review-list { max-height: 118px; }
   .bc-search-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .bc-settings .bc-note { grid-column: 1 / -1; }
-  .bc-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }
-  .bc-row-entry { width: 100%; }
-  .bc-amount { flex: 1 1 auto; width: auto; min-width: 0; }
-  .bc-row-add { flex: 0 0 auto; min-width: 84px; }
+  /* Item 2: the 1-line row HOLDS at phone widths — the old stack (entry
+     under the name) is exactly what clipped the amount + Add off the
+     bottom. The amount narrows instead; the name truncates. */
+  .bc-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .bc-row-entry { width: auto; }
+  .bc-amount { flex: 0 0 auto; width: 76px; min-width: 0; }
+  .bc-row-add { flex: 0 0 auto; min-width: 56px; }
   /* QC-10: review lines go 2x2 (name + amount / method + Remove) so the method
      select stays tappable and untruncated at 360px. */
   .bc-review-item { grid-template-columns: minmax(0, 1fr) auto; }
@@ -183,12 +222,9 @@
 
 [data-theme="dark"] .bc-row, [data-theme="dark"] .bc-review-item { background: var(--surface, #14241f); border-color: var(--line, #253d35); }
 [data-theme="dark"] .bc-amount { background: #0f1d19; border-color: #335247; }
-[data-theme="dark"] .bc-method, [data-theme="dark"] .bc-review-method { background: #0f1d19; border-color: #335247; }
+[data-theme="dark"] .bc-review-method { background: #0f1d19; border-color: #335247; }
 [data-theme="dark"] .bc-amount:focus { background: #0b1714; }
 [data-theme="dark"] #bulkCollectSearch.bc-search-input { background: #0f1d19; border-color: var(--green, #29b88f); }
-[data-theme="dark"] .bc-badge-due { background: var(--color-danger-bg); color: var(--color-danger); }
-[data-theme="dark"] .bc-badge-nobill { background: #24332e; color: #c3d3cc; }
-[data-theme="dark"] .bc-badge-paid { background: var(--dk-surface-2); color: var(--dk-accent); }
 [data-theme="dark"] .bc-badge-added, [data-theme="dark"] .bc-count, [data-theme="dark"] .bc-status { background: var(--color-brand-soft); color: var(--dk-accent); }
 [data-theme="dark"] .bc-status[data-kind="error"] { background: var(--color-danger-bg); color: #ffb4ab; }
 [data-theme="dark"] .bc-dup-grid { background: var(--color-warning-bg); }

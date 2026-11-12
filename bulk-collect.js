@@ -9,9 +9,12 @@
  * (executeQuickCollection → core addPayment), then saves once via the app's onSaveState.
  *
  * Method, per line (QC-10): the batch Method is the DEFAULT for lines added afterwards;
- * each pick row and each review line carries its own method select, and changing a line's
+ * each review line carries its own method select, and changing a line's
  * own method overrides it for that line only (lineMethod / applyBatchMethod). The batch
- * total still sums every line; batchTotals already splits it byMethod.
+ * total still sums every line; batchTotals already splits it byMethod. The picker rows
+ * carry no method select (Bulk Collect Modal Fix item 2): the compact row is amount +
+ * Add only, and the line takes the batch default until the operator picks otherwise
+ * on the review line.
  *
  * Duplicates (same customer twice in the batch, or a payment already recorded for that
  * customer on the batch date) are blocked with an "Already added" popup unless confirmed.
@@ -19,6 +22,11 @@
  * Isolated module: builds its own dialogs, opens from the Quick Collect picker, the
  * #/bulk-collect hash, and never replaces existing handlers.
  */
+import {
+  filterQuickCollectByMohalla,
+  quickCollectMohallaPendingCounts
+} from './quick-collect-mohalla-filter.js';
+import { DEFAULT_MOHALLAS, canonicalMohalla, sortMohallaNamesByNumberedOrder } from './phase3.js';
 import { PAYMENT_METHODS } from './core.js';
 import { dsIcon } from './ds-icons.js';
 import {
@@ -270,10 +278,13 @@ function buildDialogs(doc) {
           <p class="eyebrow">FIELD RECOVERY · BATCH</p>
           <h2 id="bulkCollectTitle">Bulk Collect Cash</h2>
         </div>
-        <button id="closeBulkCollectBtn" class="close-button" type="button" aria-label="Close bulk collect">↩</button>
+        <button id="closeBulkCollectBtn" class="close-button bc-close-btn" type="button" aria-label="Close bulk collect">✕</button>
       </div>
 
-      <div class="bc-settings" role="group" aria-label="Batch settings (method is the default for new lines)">
+      <button id="bulkCollectSettingsToggle" class="bc-settings-summary" type="button" aria-expanded="false" aria-controls="bulkCollectSettings">
+        <span id="bulkCollectSettingsText" class="bc-settings-text">📅 — · 💵 Cash · 👤 Collector</span><span class="bc-summary-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="bc-settings" id="bulkCollectSettings" role="group" aria-label="Batch settings (method is the default for new lines)">
         <label class="bc-field bc-date">Date
           <input id="bulkCollectDate" type="date" required>
         </label>
@@ -281,7 +292,7 @@ function buildDialogs(doc) {
           <select id="bulkCollectMethod"></select>
         </label>
         <label class="bc-field bc-note"><span>Collected by / location <span class="bc-optional">(optional)</span></span>
-          <input id="bulkCollectNote" type="text" maxlength="120" placeholder="e.g. Saad · Jia Musa round">
+          <input id="bulkCollectNote" type="text" maxlength="120" placeholder="e.g. Saad · Chamyaa / Shahdara round">
         </label>
       </div>
 
@@ -295,9 +306,11 @@ function buildDialogs(doc) {
         <p id="bulkCollectHint" class="bc-hint">Type to search all customers · Enter jumps to the amount · Enter again adds.</p>
       </div>
 
+      <div id="bulkCollectMohallaPills"></div>
+
       <div id="bulkCollectPickList" class="bc-pick-list" role="list" aria-label="Customers" aria-live="polite"></div>
 
-      <div class="bc-review">
+      <div class="bc-review" id="bulkCollectReview">
         <div class="bc-review-head">
           <h3>In this batch <span id="bulkCollectCount" class="bc-count">0 customers</span></h3>
           <button id="bulkCollectUndoBtn" class="secondary-button" type="button" disabled>↶ Undo</button>
@@ -329,31 +342,78 @@ function buildDialogs(doc) {
   while (wrap.firstElementChild) doc.body.appendChild(wrap.firstElementChild);
 }
 
-const STATUS_BADGE = {
-  due: c => `<span class="bc-badge bc-badge-due">Due ${esc(pkr(c.totalDues))}</span>`,
-  'no-bill': () => '<span class="bc-badge bc-badge-nobill">No bill set</span>',
-  paid: () => '<span class="bc-badge bc-badge-paid">Paid</span>'
-};
-
 /** <option> list for PAYMENT_METHODS with `selected` marked (QC-10). */
 export function methodOptionsHtml(selected) {
   return PAYMENT_METHODS.map(m => `<option value="${esc(m)}"${m === selected ? ' selected' : ''}>${esc(m)}</option>`).join('');
 }
 
-/** One picker row: info + its own method select + amount + Add (QC-10). */
-export function pickRowHtml(c, { amountValue = '', method = 'Cash' } = {}) {
+/** The 1-line batch-settings summary: `📅 11/13/2026 · 💵 Cash · 👤 Collector`.
+ *  The date is the batch date (YYYY-MM-DD) shown M/D/YYYY; an empty note
+ *  reads "Collector". Pure, so the collapsed bar and its tests agree. */
+export function bulkSettingsSummaryText({ date = '', method = 'Cash', note = '' } = {}) {
+  const d = String(date ?? '').trim();
+  const shown = /^\d{4}-\d{2}-\d{2}$/.test(d)
+    ? `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}/${d.slice(0, 4)}`
+    : (d || '—');
+  const who = String(note ?? '').trim() || 'Collector';
+  return `📅 ${shown} · 💵 ${method || 'Cash'} · 👤 ${who}`;
+}
+
+/** Mohalla filter pills for the Bulk picker, from the same counts the
+ *  Quick Collect picker uses (quickCollectMohallaPendingCounts): "All"
+ *  first with the whole pool's count, then one pill per mohalla that
+ *  actually has customers in the pool, in numbered order. A pill with
+ *  nothing pending is never rendered — the pool, not a hardcoded list,
+ *  decides which streets appear. `selected` is a mohalla key ('' = All).
+ *  An empty pool renders no pills at all. */
+export function bulkMohallaPillsHtml(counts, selected = '') {
+  const safe = counts && typeof counts === 'object' ? counts : {};
+  const rows = Array.isArray(safe.rows) ? safe.rows : [];
+  const totalCount = Number(safe.totalCount) || 0;
+  if (totalCount === 0 && !rows.some(r => (Number(r?.count) || 0) > 0)) return '';
+  const sel = String(selected ?? '').trim();
+  const pill = (key, label, count, active) =>
+    `<button type="button" class="quick-collect-filter-chip bc-mohalla-pill${active ? ' is-active' : ''}" data-bulk-mohalla="${esc(key)}" aria-pressed="${active ? 'true' : 'false'}">${esc(label)} <span class="qc-count-badge">${count}</span></button>`;
+  const out = [pill('', 'All', totalCount, sel === '')];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const count = Number(row.count) || 0;
+    if (count === 0) continue;
+    const label = canonicalMohalla(row.mohalla)?.label ?? String(row.mohalla ?? '').trim();
+    if (!label) continue;
+    out.push(pill(row.key, label, count, sel !== '' && sel === row.key));
+  }
+  return `<div class="bc-mohalla-pills" role="group" aria-label="Filter by mohalla">${out.join('')}</div>`;
+}
+
+/** The picker's second line: `Mohalla · Due PKR X` for a due row, the
+ *  area plus the status words for no-bill / paid rows. The due figure
+ *  lives HERE only — the old Due badge is gone, so the due is never
+ *  printed twice on one row. */
+export function bulkRowMetaHtml(c) {
+  const area = String(c?.area ?? '').trim() || 'Unassigned';
+  const status = c?.status === 'due' ? `Due ${pkr(c.totalDues)}` : c?.status === 'no-bill' ? 'No bill set' : 'Paid';
+  return `${esc(area)} · ${esc(status)}`;
+}
+
+/** One picker row: info + amount + Add on ONE line (Bulk Collect Modal
+ *  Fix item 2). The per-row method select is gone by design: at phone
+ *  widths it left no room for the amount and pushed Add below the fold.
+ *  The method for a new line is the batch default (summary bar); a
+ *  per-line method can still be picked on the review line before Save
+ *  (QC-10, reviewItemHtml) — see the PR body. */
+export function pickRowHtml(c, { amountValue = '' } = {}) {
   return `<div class="bc-row${c.inBatch ? ' is-in-batch' : ''}" role="listitem" data-bulk-row="${esc(c.id)}">
         <div class="bc-row-info">
           <span class="bc-row-name"><span class="bc-row-num">#${esc(c.customerNumber)}</span> ${esc(c.name)}</span>
-          <span class="bc-row-meta">${esc(c.area)}${c.phone ? ' · ' + esc(c.phone) : ''}</span>
-          <span class="bc-row-badges">${STATUS_BADGE[c.status](c)}${c.inBatch ? '<span class="bc-badge bc-badge-added">In batch ✓</span>' : ''}</span>
+          <span class="bc-row-meta">${bulkRowMetaHtml(c)}</span>
+          ${c.inBatch ? '<span class="bc-row-badges"><span class="bc-badge bc-badge-added">In batch ✓</span></span>' : ''}
         </div>
         <div class="bc-row-entry">
-          <select class="bc-method" data-bulk-method="${esc(c.id)}" aria-label="Payment method for ${esc(c.name)}">${methodOptionsHtml(method)}</select>
           <input class="bc-amount" type="number" inputmode="decimal" min="0" step="0.01" enterkeyhint="done"
                  value="${esc(amountValue)}" placeholder="${c.status === 'due' ? '0' : 'Enter amount'}"
                  data-bulk-amount="${esc(c.id)}" aria-label="Amount for ${esc(c.name)} (PKR)">
-          <button type="button" class="primary-button bc-row-add" data-bulk-add="${esc(c.id)}" aria-label="Add ${esc(c.name)} to batch">Add</button>
+          <button type="button" class="primary-button bc-row-add" data-bulk-add="${esc(c.id)}" aria-label="Add ${esc(c.name)} to batch">+ Add</button>
         </div>
       </div>`;
 }
@@ -381,11 +441,16 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   const $ = id => doc.getElementById(id);
   const modal = $('bulkCollectModal');
   const dupDialog = $('bulkDuplicateDialog');
+  const card = modal.querySelector('.bulk-collect-card');
+  const settingsToggle = $('bulkCollectSettingsToggle');
+  const settingsText = $('bulkCollectSettingsText');
   const dateInput = $('bulkCollectDate');
   const methodSelect = $('bulkCollectMethod');
   const noteInput = $('bulkCollectNote');
   const searchInput = $('bulkCollectSearch');
+  const pillsEl = $('bulkCollectMohallaPills');
   const pickList = $('bulkCollectPickList');
+  const reviewBlock = $('bulkCollectReview');
   const reviewList = $('bulkCollectReviewList');
   const undoBtn = $('bulkCollectUndoBtn');
   const saveBtn = $('bulkCollectSaveBtn');
@@ -399,7 +464,7 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   let resolveDup = null;
   const typed = new Map(); // customerId -> amount typed in its row (kept across re-renders)
   let batchMethod = 'Cash'; // batch Method select: the default for lines added afterwards (QC-10)
-  const pickedMethods = new Map(); // customerId -> method chosen on its pick row (kept across re-renders)
+  let mohallaFilter = ''; // mohalla key ('') = All; a pill narrows the picker to one street
   const touchedEntries = new Set(); // entry ids whose method the operator picked: never follow the batch default
 
   // The page toast sits under the top-layer dialog, so messages are shown inside the dialog.
@@ -419,28 +484,36 @@ export function setupBulkCollect({ win = window, doc = document, getController =
 
   function renderPicker() {
     const st = state();
-    if (!st) { pickList.innerHTML = ''; return; }
+    if (!st) { pickList.innerHTML = ''; pillsEl.innerHTML = ''; return; }
     const query = searchInput.value;
-    const { rows, mode, total } = searchCustomersForBatch(st, batch, query);
+    // Counts come from the FULL pool the picker renders (no 60-row cap),
+    // so a pill count never disagrees with the list its mohalla produces.
+    const { rows: pool, mode } = searchCustomersForBatch(st, batch, query, { limit: 100000 });
+    const counts = quickCollectMohallaPendingCounts(pool, sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS), mohallaFilter);
+    pillsEl.innerHTML = bulkMohallaPillsHtml(counts, mohallaFilter);
+    const rows = mohallaFilter ? filterQuickCollectByMohalla(pool, mohallaFilter) : pool;
+    const shown = rows.slice(0, 60);
     if (!rows.length) {
       const noFee = countCustomersWithoutFee(st);
       pickList.innerHTML = String(query).trim()
         ? `<div class="qc-empty-state" role="status"><span class="qc-empty-icon" aria-hidden="true">🔍</span><h4>No customer matches “${esc(query.trim())}”</h4><p>Search by name, mobile number, area or customer #.</p></div>`
-        : batch.entries.length
-          ? `<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">✅</span><h4>Sab customers batch mein add ho gaye</h4><p>Review the batch below and tap Save.</p></div>`
-          : noFee ? renderQuickCollectNeedsSetupHtml(noFee, { showAll: false })
-            : `<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">✅</span><h4>${esc(BULK_ALL_COLLECTED_TEXT)}</h4></div>`;
+        : mohallaFilter
+          ? `<div class="qc-empty-state" role="status"><span class="qc-empty-icon" aria-hidden="true">📍</span><h4>No pending customers in ${esc(canonicalMohalla(mohallaFilter)?.label ?? mohallaFilter)}</h4><p>Tap All above to see every street.</p></div>`
+          : batch.entries.length
+            ? `<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">✅</span><h4>Sab customers batch mein add ho gaye</h4><p>Review the batch below and tap Save.</p></div>`
+            : noFee ? renderQuickCollectNeedsSetupHtml(noFee, { showAll: false })
+              : `<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">✅</span><h4>${esc(BULK_ALL_COLLECTED_TEXT)}</h4></div>`;
       return;
     }
     const head = mode === 'pending'
-      ? `<p class="bc-list-caption">Pending customers (${total}) · search to find anyone else</p>`
+      ? `<p class="bc-list-caption">Pending customers (${rows.length}) · search to find anyone else</p>`
       : mode === 'all'
-        ? `<p class="bc-list-caption">${allModeCaption(st, total)}</p>`
-        : `<p class="bc-list-caption">${total} match${total === 1 ? '' : 'es'}${total > rows.length ? ` · showing ${rows.length}, keep typing` : ''}</p>`;
-    pickList.innerHTML = head + rows.map(c => {
+        ? `<p class="bc-list-caption">${allModeCaption(st, rows.length)}</p>`
+        : `<p class="bc-list-caption">${rows.length} match${rows.length === 1 ? '' : 'es'}${rows.length > shown.length ? ` · showing ${shown.length}, keep typing` : ''}</p>`;
+    pickList.innerHTML = head + shown.map(c => {
       const d = entryDefaults(st, batch, c.id);
       const value = typed.has(c.id) ? typed.get(c.id) : (d.amount > 0 ? String(d.amount) : '');
-      return pickRowHtml(c, { amountValue: value, method: lineMethod(pickedMethods.get(c.id), batchMethod) });
+      return pickRowHtml(c, { amountValue: value });
     }).join('');
   }
 
@@ -448,13 +521,46 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     const t = batchTotals(batch);
     $('bulkCollectTotal').textContent = pkr(t.total);
     $('bulkCollectCount').textContent = `${t.count} customer${t.count === 1 ? '' : 's'}`;
-    reviewList.innerHTML = batch.entries.length ? batch.entries.slice().reverse().map(reviewItemHtml).join('') : '<li class="bc-review-empty">Nothing added yet — find a customer above and tap Add.</li>';
+    // Empty batch: the whole "In this batch" block hides (placeholder
+    // box AND the disabled Undo), so the pick list gets the height.
+    // The sticky footer (total + Save) stays visible below it.
+    if (!batch.entries.length) {
+      reviewBlock.classList.add('bc-review--empty');
+      reviewList.innerHTML = '';
+    } else {
+      reviewBlock.classList.remove('bc-review--empty');
+      reviewList.innerHTML = batch.entries.slice().reverse().map(reviewItemHtml).join('');
+    }
     undoBtn.disabled = !canUndo(batch);
     saveBtn.disabled = t.count === 0;
     saveBtn.textContent = t.count ? `Save ${t.count} payment${t.count === 1 ? '' : 's'} · ${pkr(t.total)}` : 'Save payments';
   }
 
   const renderAll = () => { renderPicker(); renderReview(); };
+
+  // The collapsed 1-line batch summary (item 1): date · method · collector.
+  // The three controls stay in the DOM behind the toggle, so all existing
+  // wiring and tests keep working; only their row is hidden.
+  function syncSettingsSummary() {
+    settingsText.textContent = bulkSettingsSummaryText({ date: dateInput.value || batch.date, method: methodSelect.value || 'Cash', note: noteInput.value });
+  }
+  settingsToggle.addEventListener('click', () => {
+    const open = card.classList.toggle('bc-settings-open');
+    settingsToggle.setAttribute('aria-expanded', String(open));
+    if (open) dateInput.focus({ preventScroll: true });
+  });
+  noteInput.addEventListener('input', syncSettingsSummary);
+  syncSettingsSummary();
+
+  // Mohalla pills (item 4): tap a street to narrow the picker; tapping
+  // the active pill (or All) clears the filter.
+  pillsEl.addEventListener('click', e => {
+    const pill = e.target.closest('[data-bulk-mohalla]');
+    if (!pill) return;
+    const key = pill.getAttribute('data-bulk-mohalla') || '';
+    mohallaFilter = (key && key !== mohallaFilter) ? key : '';
+    renderAll();
+  });
 
   function showDuplicate(fields, duplicate) {
     const amount = duplicate.kind === 'batch' ? duplicate.entry.amount : duplicate.payment.amount;
@@ -497,8 +603,10 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     const st = state();
     if (!st) return;
     const box = amountBox(id);
-    const rowMethod = pickList.querySelector(`[data-bulk-method="${CSS.escape(id)}"]`);
-    const fields = { ...entryDefaults(st, batch, id), amount: Number(box?.value), method: rowMethod?.value || methodSelect.value || 'Cash', note: noteInput.value };
+    // No per-row method any more (compact row, item 2): the line takes
+    // the batch default; the operator can still pick per line on the
+    // review line before Save (QC-10).
+    const fields = { ...entryDefaults(st, batch, id), amount: Number(box?.value), method: lineMethod(null, methodSelect.value || 'Cash'), note: noteInput.value };
     let res;
     try {
       res = addEntry(batch, st, fields);
@@ -513,10 +621,6 @@ export function setupBulkCollect({ win = window, doc = document, getController =
       return;
     }
     batch = res.batch;
-    // A method picked on the row stays picked: the new entry must not follow a
-    // later batch-default change (QC-10). The row itself starts fresh next time.
-    if (pickedMethods.has(id)) touchedEntries.add(res.added.id);
-    pickedMethods.delete(id);
     typed.delete(id);
     say(`✓ ${res.added.name} · ${pkr(res.added.amount)} added · batch ${pkr(batchTotals(batch).total)}`, 'success');
     nextCustomer();
@@ -541,13 +645,6 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   pickList.addEventListener('input', e => {
     const box = e.target.closest('[data-bulk-amount]');
     if (box) typed.set(box.getAttribute('data-bulk-amount'), box.value);
-  });
-  // Per-line method (QC-10): changing a row's own select overrides the batch
-  // default for that customer only. No re-render: the select already shows it.
-  pickList.addEventListener('change', e => {
-    const sel = e.target.closest('[data-bulk-method]');
-    if (!sel) return;
-    pickedMethods.set(sel.getAttribute('data-bulk-method'), sel.value);
   });
   pickList.addEventListener('keydown', e => {
     const box = e.target.closest('[data-bulk-amount]');
@@ -594,10 +691,12 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   methodSelect.addEventListener('change', () => {
     batchMethod = methodSelect.value || 'Cash';
     batch = applyBatchMethod(batch, batchMethod, touchedEntries);
+    syncSettingsSummary();
     renderAll();
   });
   dateInput.addEventListener('change', () => {
     batch = { ...batch, date: dateInput.value || getPakistanLocalDate() };
+    syncSettingsSummary();
     renderAll();
   });
 
@@ -611,7 +710,6 @@ export function setupBulkCollect({ win = window, doc = document, getController =
       controller.commitState(nextState);
       batch = createBatch(batch.date);
       typed.clear();
-      pickedMethods.clear();
       touchedEntries.clear();
       searchInput.value = '';
       renderAll();
@@ -626,6 +724,7 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     if (!batch.entries.length) batch = createBatch(today);
     dateInput.max = today;
     dateInput.value = batch.date;
+    syncSettingsSummary();
     say('');
     const qc = getController();
     if (qc?.isOpen?.()) qc.close();

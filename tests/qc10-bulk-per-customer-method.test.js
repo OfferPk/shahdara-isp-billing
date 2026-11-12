@@ -83,24 +83,25 @@ test('applyBatchMethod updates only untouched lines (touched lines keep their me
   assert.throws(() => applyBatchMethod(b, 'Bitcoin'), /valid payment method/);
 });
 
-test('pickRowHtml renders a per-line method select with the line method selected', () => {
+test('pickRowHtml renders the compact 1-line row: amount + Add, no per-line method select (Bulk Collect Modal Fix item 2)', () => {
   const pickRowHtml = need('pickRowHtml');
   const row = { id: 'a', customerNumber: 1, name: 'Customer 1', area: 'Jia Musa', phone: '03000000001', status: 'due', totalDues: 2000, inBatch: false };
-  const html = pickRowHtml(row, { amountValue: '2000', method: 'JazzCash' });
-  assert.match(html, /<select class="bc-method" data-bulk-method="a" aria-label="Payment method for Customer 1">/);
-  for (const m of PAYMENT_METHODS) assert.ok(html.includes(`<option value="${m}"`), `missing option ${m}`);
-  assert.match(html, /<option value="JazzCash" selected>/);
+  const html = pickRowHtml(row, { amountValue: '2000' });
+  // The per-row method select is gone by design: at phone widths it left
+  // no room for the amount and pushed Add below the fold. The line takes
+  // the batch default; per-line method lives on the review line (below).
+  assert.ok(!html.includes('<select'), 'no per-row method select on the compact row');
+  assert.ok(!html.includes('bc-method'), 'no method-select class');
   assert.match(html, /<input class="bc-amount"[^>]*value="2000"[^>]*data-bulk-amount="a"/);
-  assert.match(html, /<button[^>]*data-bulk-add="a"[^>]*>Add<\/button>/);
-  assert.match(html, /Due PKR 2,000/);
-  // Default: no method given, the batch default (Cash) is selected.
-  assert.match(pickRowHtml(row, { amountValue: '' }), /<option value="Cash" selected>/);
+  assert.match(html, /<button[^>]*data-bulk-add="a"[^>]*>\+ Add<\/button>/);
+  assert.ok(html.includes('Jia Musa · Due PKR 2,000'), 'Mohalla · Due on the second line');
+  assert.equal((html.match(/PKR 2,000/g) || []).length, 1, 'the due is printed exactly once (no badge + meta duplication)');
 });
 
 test('pickRowHtml escapes customer text (no raw markup leaks into the row)', () => {
   const pickRowHtml = need('pickRowHtml');
   const row = { id: 'x', customerNumber: 9, name: 'A <B> & "C"', area: 'Jia Musa', phone: '', status: 'paid', totalDues: 0, inBatch: false };
-  const html = pickRowHtml(row, { amountValue: '', method: 'Cash' });
+  const html = pickRowHtml(row, { amountValue: '' });
   assert.ok(!html.includes('<B>'), 'raw <B> must not appear');
   assert.ok(html.includes('A &lt;B&gt; &amp; &quot;C&quot;'), 'escaped name');
 });
@@ -144,10 +145,12 @@ test('batchTotals splits the total by method across mixed lines', () => {
   assert.deepEqual(batchTotals(b), { count: 3, total: 4300, byMethod: { Cash: 2000, JazzCash: 1500, Easypaisa: 800 } });
 });
 
-test('bulk-collect.css carries rules for the per-line selects', () => {
+test('bulk-collect.css carries rules for the per-line selects that remain', () => {
   const css = read('bulk-collect.css');
-  assert.ok(css.includes('.bc-method'), 'missing .bc-method rule');
+  // Review lines keep their method select (QC-10); picker rows no longer
+  // carry one (Bulk Collect Modal Fix item 2), so its rules are gone too.
   assert.ok(css.includes('.bc-review-method'), 'missing .bc-review-method rule');
+  assert.ok(!css.includes('.bc-method'), '.bc-method rules must be gone with the picker-row select');
 });
 
 // ---- Pins: existing Bulk Collect behaviour that QC-10 must not change ----

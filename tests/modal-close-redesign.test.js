@@ -62,10 +62,11 @@ test('modal close redesign: every dialog close button shows the back arrow', () 
   let checked = 0;
   for (const [name, source] of sources) {
     for (const { glyph, id } of closeButtonsIn(source)) {
-      // QC Modal Fix item 14: the help guide popup is the ONE
-      // documented exception — user-specified standard ✕ close
-      // (see the audit test's DIALOG_CLOSE_EXCEPTIONS).
-      if (id === 'helpGuideCloseBtn') continue;
+      // Documented exceptions — user-specified standard ✕ closes
+      // (see the audit test's DIALOG_CLOSE_EXCEPTIONS): the help guide
+      // popup (QC Modal Fix item 14) and the Bulk Collect modal
+      // (Bulk Collect Modal Fix item 5).
+      if (id === 'helpGuideCloseBtn' || id === 'closeBulkCollectBtn') continue;
       checked += 1;
       assert.equal(glyph, '↩', `${name}: dialog close button must show ↩, found ${JSON.stringify(glyph)}`);
     }

@@ -108,7 +108,14 @@ test('bulk + tag share one 2-column 52px card row, found or created by class', (
   assert.ok(!html.includes('id="qc-top-actions"'), 'the row must not be a new element id');
   // Icons: the emoji become ds-icons; the labels are unchanged.
   assert.ok(bulkSrc.includes("dsIcon('HandCoins', 18)"), 'bulk must use the HandCoins ds-icon, not 💵');
-  assert.ok(!bulkSrc.includes('💵'), 'no 💵 may remain in bulk-collect.js');
+  // The open button itself carries no 💵 — scoped to its line, as the
+  // tag button is scoped below. A whole-file ban no longer holds: the
+  // Bulk Collect Modal Fix (item 1) puts the user-specified '📅 date ·
+  // 💵 Cash · 👤 Collector' text on the collapsed settings summary bar
+  // (bulkSettingsSummaryText), which is a different surface from the
+  // picker open button.
+  const bulkButtonLine = bulkSrc.split('\n').find((line) => line.includes("dsIcon('HandCoins', 18)"));
+  assert.ok(bulkButtonLine && !bulkButtonLine.includes('💵'), 'no 💵 may remain on the bulk open button');
   assert.ok(tagSrc.includes("dsIcon('Tag', 18)"), 'tag must use the Tag ds-icon, not 🔖');
   // The sheet keeps its own 🔖 badges inside the sheet (title,
   // "First month free" rows, empty state) — only the picker open

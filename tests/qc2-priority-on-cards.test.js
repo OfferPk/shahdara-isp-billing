@@ -338,19 +338,32 @@ test('picker oldest-first toggle reorders by oldest unpaid bill month, and back'
   assert.deepEqual(back.customers.map((c) => c.name), ['High One', 'Medium Two', 'Long Four', 'Baqaya Six', 'Low Three']);
 });
 
-test('picker cards carry the tier badge and the scorer reason verbatim', () => {
+// QC Modal Fix: the scorer reason is GONE from the picker card —
+// it printed the truncated "Outstanding PKR X (+X amount…)" line
+// under the name. The subtitle is "Mohalla • Package Name" now
+// (these fixtures record neither, so it reads "Not recorded"), and
+// the High-balance tag says why a Medium-scored card at PKR 10,000
+// sits in the High ≥ 2k filter. The scorer itself is unchanged:
+// the reason text still exists on its row (pinned above) and in
+// Field Mode, which keeps rendering it.
+test('picker cards carry the tier badge, never the scorer reason, and the Mohalla • Package subtitle', () => {
   const state = pickerState();
   const cards = cardSegments(renderQuickCollectPickerHtml(state, '', 'all-dues').html);
   const byName = {};
   for (const c of cards) byName[c.name] = c;
   assert.ok(byName['High One'].html.includes('ds-chip--danger'), 'High card must carry the danger badge');
   assert.ok(byName['High One'].html.includes('High priority'), 'High card must label the tier');
-  assert.ok(byName['High One'].html.includes('Outstanding PKR 60,000 (+30 amount points).'), 'High card must show the scorer reason verbatim');
+  assert.ok(!byName['High One'].html.includes('Outstanding PKR 60,000 (+30 amount points).'), 'the truncated scorer reason is gone from the picker card');
   assert.ok(byName['Medium Two'].html.includes('ds-chip--warning'), 'Medium card must carry the warning badge');
   assert.ok(byName['Medium Two'].html.includes('Medium priority'), 'Medium card must label the tier');
   assert.ok(byName['Low Three'].html.includes('Low priority'), 'Low card must label the tier');
   assert.ok(!byName['Low Three'].html.includes('ds-chip--danger') && !byName['Low Three'].html.includes('ds-chip--warning'), 'Low card must use the neutral badge');
-  assert.ok(byName['Long Four'].html.includes('Outstanding PKR 2,000 (+12 amount points).'), 'Long card must show its own reason');
+  assert.ok(!byName['Long Four'].html.includes('Outstanding PKR 2,000 (+12 amount points).'), 'Long card must not show its scorer reason either');
+  assert.ok(byName['High One'].html.includes('>Not recorded<'), 'subtitle falls back to Not recorded with no mohalla or package recorded');
+  assert.ok(byName['High One'].html.includes('High balance ≥2k'), 'High-dues High card carries the High-balance tag');
+  assert.ok(byName['Medium Two'].html.includes('High balance ≥2k'), 'Medium-scored card at PKR 10,000 carries the tag — that is why it sits in the High filter');
+  assert.ok(byName['Long Four'].html.includes('High balance ≥2k'), 'card at exactly PKR 2,000 carries the tag');
+  assert.ok(!byName['Low Three'].html.includes('High balance ≥2k'), 'PKR 1,000 card carries no High-balance tag');
 });
 
 test('picker cards carry the high-balance tier labels and the card accent', () => {

@@ -51,7 +51,8 @@ import {
   isDigitalPaymentMethod,
   validatePayment,
   calculatePaymentAllocations,
-  monthsForHistory
+  monthsForHistory,
+  manualBaqayaOutstandingCents
 } from './core.js';
 import { buildPaymentReceipt, RECEIPT_URDU_NOTE } from './receipt.js';
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
@@ -81,6 +82,16 @@ import { overpaymentChoiceOf, overpaymentChoiceLineText } from './overpayment-ch
 import { excessCashNoteOf, excessCashNoteLineText } from './excess-cash-note.js';
 import { brandHeaderContentHtml, documentFooterHtml } from './document-branding.js';
 import { receiptCodeForReceipt, verificationStampText } from './receipt-verifier.js';
+// Sharafat 2: the pending-charge readers for the combined status —
+// the same three the single receipt's canonical payable remainder
+// (Plan 565, nav-quick-collect.js:1186) sums. complaint-tickets.js
+// imports only root-cause-advisor / nav-language / commercial-sla
+// and speed-addon.js only core / pause-billing, neither of which
+// leads back here, so there is no cycle; both modules are already in
+// the bundle through nav-quick-collect.js, so the 25-file perf budget
+// is untouched.
+import { billedTicketChargesPending } from './complaint-tickets.js';
+import { addonChargesPending } from './speed-addon.js';
 
 export const SPLIT_TENDER_LEG_COUNT = 2;
 
@@ -447,7 +458,14 @@ export function executeSplitTenderCollection(state, spec, { execute, referenceDa
     receipts: [first.receipt, second.receipt],
     nextTickets: second.nextTickets ?? first.nextTickets,
     splitGroupId: groupId,
-    combinedReceipt: buildSplitTenderReceipt(stamped, clean.customerId, groupId)
+    // Sharafat 2: the post-settlement ticket list — the legs settle
+    // ticket charges from the remainder after bill dues, so only the
+    // list the recorder returns still shows the charges that are
+    // genuinely pending; the pre-settlement spec list would count
+    // charges the split just settled as still pending. When neither
+    // leg returned one, nothing was settled, so the spec list (or
+    // null when the caller passed none) is the accurate one.
+    combinedReceipt: buildSplitTenderReceipt(stamped, clean.customerId, groupId, second.nextTickets ?? first.nextTickets ?? spec?.tickets ?? null)
   };
 }
 
@@ -478,8 +496,24 @@ export function splitPaymentsOf(state, customerId, groupId) {
  * voided, and are excluded from the total (SISP-34 rule). The balance
  * is the allocation engine's live total dues across the customer's
  * bills, so a reprint always reflects the ledger as saved NOW.
+ *
+ * Sharafat 2: the STATUS is the canonical payable remainder (Plan
+ * 565) — bill dues plus pending ticket/addon/baqaya charges — not
+ * bill dues alone. A split that pays every bill but leaves a ticket
+ * charge pending used to print PAID; it now reads PARTIAL on every
+ * surface that reads this status. The ticket list lives outside the
+ * ledger state, so the caller passes it (the recorder passes the
+ * post-settlement list); without one the ticket term is 0 and the
+ * status still counts addon + baqaya, which read off the customer
+ * record in state. `balanceDueCents` keeps its bill-dues meaning —
+ * the printed Balance Due line and the Bluetooth slip read it — and
+ * the remainder itself is carried as `payableRemainingCents` so the
+ * card can show what is still owed instead of "Fully paid".
+ *
+ * @param {Array|null} [tickets=null] — the customer's ticket list,
+ *   post-settlement when the recorder calls (see executeSplitTenderCollection).
  */
-export function buildSplitTenderReceipt(state, customerId, groupId) {
+export function buildSplitTenderReceipt(state, customerId, groupId, tickets = null) {
   const customer = (state && Array.isArray(state.customers) ? state.customers : []).find(c => c.id === customerId);
   if (!customer) throw new Error(`Customer ${customerId} not found.`);
   const entries = splitPaymentsOf(state, customerId, groupId);
@@ -491,6 +525,18 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
     const summary = allocations.forMonth(customerId, bill.month);
     if (summary?.balanceDueCents && summary.balanceDueCents > 0) totalDuesCents += summary.balanceDueCents;
   }
+  // Sharafat 2: the same four terms the single receipt's
+  // payableRemaining sums (nav-quick-collect.js:1186), read off the
+  // SAVED state — boosts the legs settled are marked paid on the
+  // customer record and baqaya stamps sit on the leg records, so
+  // both read post-settlement here; the ticket term needs the list
+  // the caller passes. All in integer cents.
+  const ticketChargesPendingCents = Array.isArray(tickets)
+    ? Math.round(billedTicketChargesPending(tickets, customerId) * 100)
+    : 0;
+  const addonChargesPendingCents = Math.round(addonChargesPending(customer) * 100);
+  const manualBaqayaPendingCents = manualBaqayaOutstandingCents(customer) || 0;
+  const payableRemainingCents = totalDuesCents + ticketChargesPendingCents + addonChargesPendingCents + manualBaqayaPendingCents;
 
   const legTaxes = [];
   const legs = entries.map(({ leg, payment, bill }) => {
@@ -588,7 +634,14 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
     totalReceivedCents,
     totalReceived: totalReceivedCents / 100,
     balanceDueCents: totalDuesCents,
-    status: legs.every(leg => leg.voided) ? 'VOID' : (totalDuesCents <= 0 ? 'PAID' : 'PARTIAL')
+    // Sharafat 2: the canonical payable remainder in integer cents
+    // (bill dues + pending ticket/addon/baqaya) — the single
+    // receipt's payableRemaining, so the card can show what is still
+    // owed. The status reads it, never bill dues alone: a split that
+    // settles every bill while any charge is pending is PARTIAL, and
+    // only a split with nothing left pending reads PAID.
+    payableRemainingCents,
+    status: legs.every(leg => leg.voided) ? 'VOID' : (payableRemainingCents <= 0 ? 'PAID' : 'PARTIAL')
   };
 }
 
@@ -885,7 +938,15 @@ export function splitBadgeMarkup(payment) {
  */
 export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { nextDueDateText, chargesPending } = {}) {
   if (!combined) return '';
-  const remaining = combined.balanceDueCents / 100;
+  // Sharafat 2: the still-owed row counts the canonical payable
+  // remainder (bill dues + pending ticket/addon/baqaya) — a split
+  // that settles every bill while a charge is pending reads "Still
+  // owed PKR X", never "Fully paid". Hand-built combined objects
+  // without the field fall back to the bill dues, exactly as before.
+  const payableCents = typeof combined.payableRemainingCents === 'number' && Number.isFinite(combined.payableRemainingCents)
+    ? Math.round(combined.payableRemainingCents)
+    : combined.balanceDueCents;
+  const remaining = payableCents / 100;
   const legRows = combined.legs.map(leg => `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))} · ${escapeHtml(leg.method)}${leg.voided ? ` (${escapeHtml(t('split_voided_leg'))})` : ''}</span>

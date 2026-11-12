@@ -6706,8 +6706,16 @@ export function setupQuickCollectModal({
         }
         // The fully-paid guard applies to a split exactly as to a normal
         // collection (a split is two ordinary payments, never advance).
+        // Sharafat 5: the split guard carries the same three exemptions
+        // as the single-payment guard above — billed tickets, addon
+        // charges and manual baqaya. Before this, a split against a
+        // fully-paid bill with a pending boost charge or baqaya was
+        // refused while the same money as a single payment was
+        // accepted.
         if (normalPaymentBlockReason(state, activeCustomerId, monthVal) === 'fully-paid'
-          && billedTicketChargesPending(loadTickets(), activeCustomerId) <= 0) {
+          && billedTicketChargesPending(loadTickets(), activeCustomerId) <= 0
+          && addonChargesPending(state.customers.find(c => c.id === activeCustomerId)) <= 0
+          && manualBaqayaOutstandingCents(state.customers.find(c => c.id === activeCustomerId)) <= 0) {
           if (typeof onToast === 'function') onToast(t('adv_blocked_paid'), { type: 'error' });
           return;
         }

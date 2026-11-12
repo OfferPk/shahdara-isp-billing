@@ -1,12 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { addPayment, saveBillMonth, calculatePaymentAllocations } from '../core.js';
 import {
   createBatch, findDuplicate, addEntry, removeEntry, undoLast, canUndo, batchTotals,
-  pendingForBatch, isAllCollected, entryDefaults, commitBatch, searchCustomersForBatch
+  pendingForBatch, isAllCollected, entryDefaults, commitBatch, searchCustomersForBatch,
+  bulkSettingsSummaryText, bulkMohallaPillsHtml, bulkRowMetaHtml, pickRowHtml
 } from '../bulk-collect.js';
+import { quickCollectMohallaPendingCounts } from '../quick-collect-mohalla-filter.js';
+import { DEFAULT_MOHALLAS, sortMohallaNamesByNumberedOrder } from '../phase3.js';
 import { getPendingCollectionCustomers, renderQuickCollectPickerHtml, executeQuickCollection, countCustomersWithoutFee } from '../nav-quick-collect.js';
 import { customersWithoutFee, assignPackage, generateBillsNow } from '../collect-setup.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const read = file => readFileSync(path.join(__dirname, '..', file), 'utf8');
 
 const now = new Date();
 const month = new Date(now.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 7); // PKT — the app derives the billing month in Asia/Karachi; plain toISOString() (UTC) is a month behind between 00:00–05:00 PKT on the 1st
@@ -310,4 +319,125 @@ test('a customer with no bill can be paid with a manually entered amount', () =>
   const firstCustomer = res.nextState.customers.find(c => c.id === 'seed-1');
   const paid = firstCustomer.bills.flatMap(bill => bill.payments ?? []).reduce((t, p) => t + Number(p.amount), 0);
   assert.equal(paid, 750);
+});
+
+// ---- Bulk Collect Modal Fix (2026-11-13): summary bar, compact rows, pills ----
+
+test('bulkSettingsSummaryText: date M/D/YYYY · method · collector (empty note reads Collector)', () => {
+  assert.equal(
+    bulkSettingsSummaryText({ date: '2026-11-13', method: 'Cash', note: '' }),
+    '📅 11/13/2026 · 💵 Cash · 👤 Collector'
+  );
+  assert.equal(
+    bulkSettingsSummaryText({ date: '2026-01-05', method: 'JazzCash', note: 'Saad · Chamyaa round' }),
+    '📅 1/5/2026 · 💵 JazzCash · 👤 Saad · Chamyaa round'
+  );
+  assert.equal(bulkSettingsSummaryText({ date: '', method: '', note: '' }), '📅 — · 💵 Cash · 👤 Collector');
+});
+
+test('bulkRowMetaHtml: Mohalla · Due PKR X, never the due twice', () => {
+  assert.equal(bulkRowMetaHtml({ area: 'Jia Musa', status: 'due', totalDues: 2000 }), 'Jia Musa · Due PKR 2,000');
+  assert.equal(bulkRowMetaHtml({ area: 'Begum Kot', status: 'no-bill', totalDues: 0 }), 'Begum Kot · No bill set');
+  assert.equal(bulkRowMetaHtml({ area: 'Chamyaa', status: 'paid', totalDues: 0 }), 'Chamyaa · Paid');
+  assert.equal(bulkRowMetaHtml({ area: '', status: 'due', totalDues: 500 }), 'Unassigned · Due PKR 500');
+  assert.ok(!bulkRowMetaHtml({ area: 'A <B>', status: 'due', totalDues: 100 }).includes('<B>'), 'area is escaped');
+});
+
+test('pickRowHtml: compact 1-line row — amount + Add, no method select, due once', () => {
+  const row = { id: 'a', customerNumber: 33, name: 'Customer 33', area: 'Chamyaa', phone: '03000000033', status: 'due', totalDues: 3000, inBatch: false };
+  const html = pickRowHtml(row, { amountValue: '3000' });
+  assert.ok(!html.includes('<select'), 'no per-row method select on the compact row');
+  assert.ok(!html.includes('bc-method'), 'no method-select class');
+  assert.match(html, /<input class="bc-amount"[^>]*value="3000"[^>]*data-bulk-amount="a"/);
+  assert.match(html, /<button[^>]*data-bulk-add="a"[^>]*>\+ Add<\/button>/);
+  assert.ok(html.includes('#33</span>'), 'customer number shown');
+  assert.ok(html.includes('Customer 33'), 'name shown');
+  assert.ok(html.includes('Chamyaa · Due PKR 3,000'), 'Mohalla · Due on the second line');
+  assert.equal((html.match(/PKR 3,000/g) || []).length, 1, 'the due is printed exactly once');
+  // In-batch rows keep the flag badge; everything else stays one row.
+  const flagged = pickRowHtml({ ...row, inBatch: true }, { amountValue: '' });
+  assert.ok(flagged.includes('In batch ✓'), 'in-batch flag kept');
+  assert.ok(flagged.includes('is-in-batch'), 'in-batch class kept');
+});
+
+test('pickRowHtml escapes customer text (no raw markup leaks into the row)', () => {
+  const row = { id: 'x', customerNumber: 9, name: 'A <B> & "C"', area: 'Jia Musa', phone: '', status: 'paid', totalDues: 0, inBatch: false };
+  const html = pickRowHtml(row, { amountValue: '' });
+  assert.ok(!html.includes('<B>'), 'raw <B> must not appear');
+  assert.ok(html.includes('A &lt;B&gt; &amp; &quot;C&quot;'), 'escaped name');
+  assert.ok(html.includes('Jia Musa · Paid'), 'paid status in the meta line');
+});
+
+function mohallaPool() {
+  // Two pending in Chamyaa, one in Kishtii, one in Barrian paid in full.
+  let s = { customers: [
+    { id: 'm1', customerNumber: 1, name: 'Customer 1', mohalla: 'CHAMYAAA', area: 'CHAMYAAA', archived: false, bills: [] },
+    { id: 'm2', customerNumber: 2, name: 'Customer 2', mohalla: 'CHAMYAAA', area: 'CHAMYAAA', archived: false, bills: [] },
+    { id: 'm3', customerNumber: 3, name: 'Customer 3', mohalla: 'KISHTII', area: 'KISHTII', archived: false, bills: [] },
+    { id: 'm4', customerNumber: 4, name: 'Customer 4', mohalla: 'BARRIAN', area: 'BARRIAN', archived: false, bills: [] },
+  ] };
+  s = saveBillMonth(s, 'm1', { month, dueAmount: 2000, status: 'pending' });
+  s = saveBillMonth(s, 'm2', { month, dueAmount: 1000, status: 'pending' });
+  s = saveBillMonth(s, 'm3', { month, dueAmount: 3000, status: 'pending' });
+  s = saveBillMonth(s, 'm4', { month, dueAmount: 1500, status: 'pending' });
+  s = addPayment(s, 'm4', month, { date: '2026-10-01', amount: 1500, method: 'Cash' }); // paid in full
+  return getPendingCollectionCustomers(s, '', 'all-dues');
+}
+
+test('bulkMohallaPillsHtml: All + one pill per mohalla in the pool, numbered order, counts from the pool', () => {
+  const pool = mohallaPool();
+  assert.deepEqual(pool.map(r => r.id).sort(), ['m1', 'm2', 'm3'], 'pool is the pending list');
+  const counts = quickCollectMohallaPendingCounts(pool, sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS), '');
+  const html = bulkMohallaPillsHtml(counts, '');
+  assert.match(html, /data-bulk-mohalla=""[^>]*aria-pressed="true">All <span class="qc-count-badge">3<\/span>/);
+  assert.match(html, /data-bulk-mohalla="chamyaaa"[^>]*>Chamyaaa <span class="qc-count-badge">2<\/span>/);
+  assert.match(html, /data-bulk-mohalla="kishtii"[^>]*>Kishtii <span class="qc-count-badge">1<\/span>/);
+  assert.ok(!html.includes('Barrian'), 'a mohalla with nothing pending gets no pill');
+  assert.ok(html.indexOf('Chamyaaa') < html.indexOf('Kishtii'), 'numbered order (Chamyaa #4 before unlisted Kishtii)');
+  // Selecting a pill marks it active; the count badges reuse the QC chip style.
+  const picked = bulkMohallaPillsHtml(counts, 'kishtii');
+  assert.match(picked, /data-bulk-mohalla="kishtii"[^>]*aria-pressed="true"/);
+  assert.match(picked, /class="quick-collect-filter-chip bc-mohalla-pill is-active"/);
+  assert.ok(picked.includes('class="quick-collect-filter-chip bc-mohalla-pill"'), 'pills reuse the global filter chip');
+});
+
+test('bulkMohallaPillsHtml: an empty pool renders no pills', () => {
+  assert.equal(bulkMohallaPillsHtml({ rows: [], totalCount: 0 }, ''), '');
+  assert.equal(bulkMohallaPillsHtml(null, ''), '');
+});
+
+test('PIN: location placeholder is the Chamyaa / Shahdara round (item 1)', () => {
+  const src = read('bulk-collect.js');
+  assert.ok(src.includes('placeholder="e.g. Saad · Chamyaa / Shahdara round"'), 'new placeholder');
+  assert.ok(!src.includes('e.g. Saad · Jia Musa round'), 'old placeholder is gone');
+});
+
+test('PIN: the empty batch hides the whole review block (no placeholder box, no Undo)', () => {
+  const src = read('bulk-collect.js');
+  assert.ok(src.includes("reviewBlock.classList.add('bc-review--empty')"), 'empty batch hides the review block');
+  assert.ok(!src.includes('Nothing added yet'), 'the tall empty placeholder is gone');
+  assert.ok(read('bulk-collect.css').includes('.bc-review.bc-review--empty { display: none; }'), 'collapse rule exists');
+  assert.ok(!read('bulk-collect.css').includes('.bc-review-empty'), 'dead empty-placeholder rule is gone');
+});
+
+test('PIN: neutral ✕ close is scoped to #closeBulkCollectBtn (item 5)', () => {
+  const src = read('bulk-collect.js');
+  assert.ok(src.includes('id="closeBulkCollectBtn" class="close-button bc-close-btn"'), 'shared class kept, own hook added');
+  assert.ok(src.includes('aria-label="Close bulk collect">✕</button>'), '✕ glyph with Close label');
+  const css = read('bulk-collect.css');
+  assert.ok(css.includes('#bulkCollectModal #closeBulkCollectBtn.bc-close-btn'), 'scoped override exists');
+  assert.ok(css.includes('background: var(--color-slate-100) !important;'), 'neutral slate background');
+  assert.ok(css.includes('color: var(--color-slate-700) !important;'), 'neutral slate glyph');
+});
+
+test('PIN: search focus is one clean theme border, no double ring (item 5)', () => {
+  const css = read('bulk-collect.css');
+  assert.ok(css.includes('#bulkCollectSearch.bc-search-input:focus { outline: none; border-color: var(--color-emerald);'), 'ID-scoped focus rule');
+  assert.ok(!css.includes('.bc-search-input:focus { outline: 3px solid color-mix'), 'the 3px outline rule is gone');
+});
+
+test('PIN: picker rows hold one line at phone widths (item 2)', () => {
+  const css = read('bulk-collect.css');
+  assert.ok(css.includes('.bc-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }'), 'phone rows stay 1-line');
+  assert.ok(!css.includes('.bc-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-2); }'), 'the old stacking rule is gone');
 });

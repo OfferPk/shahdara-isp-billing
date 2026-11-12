@@ -8,6 +8,7 @@ import {
   renderMohallaBars
 } from '../dashboard-mohalla-bars.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from '../phase3.js';
+import { sortMohallaNamesByNumberedOrder } from '../owner-insights.js';
 import { TRANSLATIONS } from '../nav-language.js';
 
 const REF_DATE = new Date('2026-11-08T12:00:00Z');
@@ -173,14 +174,17 @@ test('mohalla bars: each mohalla\'s two figures match that mohalla\'s own record
 
 test('mohalla bars: rows follow the canonical list in order with unassigned last, and the totals equal the sums', () => {
   const summary = calculateMohallaBars(buildFixture(), REF_DATE);
-  // Owner 5-part fix: CHARYAA and CHAMYAAA are separate, so the 15
-  // defaults stay 15 distinct canonical rows, plus the unassigned
-  // row last.
+  // Owner 5-part fix: CHARYAA and CHAMYAAA are separate, so the 16
+  // defaults stay 16 distinct canonical rows, plus the unassigned
+  // row last. Mohalla Numbering (Sharafat 76): END POINT is the
+  // 16th default, and the rows read in the numbered order
+  // (1 CHARYAA … 12 HAWELI OR END POINT), not the default-list order.
   const canonicalLabels = [...new Set(DEFAULT_MOHALLAS.map((name) => mohallaLabel(name)))];
-  assert.equal(canonicalLabels.length, 15, 'no fold: CHARYAA and CHAMYAAA are separate');
+  assert.equal(canonicalLabels.length, 16, 'no fold: CHARYAA and CHAMYAAA are separate');
+  const numberedLabels = sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS).map((name) => mohallaLabel(name));
   assert.deepEqual(
     summary.rows.map((row) => row.label),
-    [...canonicalLabels, 'Unassigned']
+    [...numberedLabels, 'Unassigned']
   );
   assert.equal(summary.mohallaCount, canonicalLabels.length + 1);
   assert.equal(summary.totalCollectedCents, 380000);
@@ -198,7 +202,7 @@ test('mohalla bars: rows follow the canonical list in order with unassigned last
 test('mohalla bars: a business with no customers still shows every mohalla at zero, never a blank', () => {
   const summary = calculateMohallaBars({ customers: [] }, REF_DATE);
   const canonicalCount = new Set(DEFAULT_MOHALLAS.map((name) => canonicalMohalla(name).key)).size;
-  assert.equal(canonicalCount, 15, 'no fold: CHARYAA and CHAMYAAA are separate');
+  assert.equal(canonicalCount, 16, 'no fold: CHARYAA and CHAMYAAA are separate');
   assert.equal(summary.month, MONTH);
   assert.equal(summary.rows.length, canonicalCount);
   assert.equal(summary.mohallaCount, canonicalCount);
@@ -229,7 +233,7 @@ test('mohalla bars render: PKR figures, line, and bar widths land in the view', 
   };
   renderMohallaBars(doc, summary);
   assert.equal(els.mdbMohallaTotal.textContent, 'PKR 5,400');
-  assert.equal(els.mdbMohallaLine.textContent, 'PKR 3,800 collected this month · 16 mohallas');
+  assert.equal(els.mdbMohallaLine.textContent, 'PKR 3,800 collected this month · 17 mohallas');
   const html = els.mdbMohallaRows.innerHTML;
   assert.ok(html.includes(mohallaLabel('CHARYAA')), 'Charyaa row lands (its own row)');
   assert.ok(html.includes('Collected PKR 1,000 · Still due PKR 3,500'), 'Charyaa figures land');

@@ -349,7 +349,14 @@ test('phase A summaries: seven shells, each with a heading and a one-line summar
     const call = shells[section];
     assert.ok(call.includes(`profileDetailSectionHtml({ key: '${key}'`), `${key} shell must name its key`);
     assert.ok(call.includes(`heading: t('prof_sec_${key}')`), `${key} heading must use its prof_sec_ key`);
-    assert.ok(call.includes('summary: `'), `${key} summary must be a template literal`);
+    if (key === 'service') {
+      // Profile Polish C (15) — the Service header is the status pill,
+      // not a text summary: it passes summaryHtml (the word-only pill)
+      // instead of a template-literal summary.
+      assert.ok(call.includes('summaryHtml: profileServiceStatusPillHtml(serviceState, { wordOnly: true })'), 'service summary must be the word-only status pill');
+    } else {
+      assert.ok(call.includes('summary: `'), `${key} summary must be a template literal`);
+    }
     assert.ok(call.includes('open: profileSectionOpenFor('), `${key} open state must come from the store`);
   }
 });

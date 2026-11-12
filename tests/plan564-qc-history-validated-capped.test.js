@@ -29,6 +29,12 @@
  *  - SCOPE: nav-quick-collect.js history block only. No change to
  *    buildReceiptPaymentHistory (already validates + caps at 3) or to
  *    the profile draft.
+ *  - 2026-11-12 dates fix (WhatsApp "Last 3 Payments" live bug): a
+ *    number-less history row printed its date twice — DD/MM/YYYY first,
+ *    then the old receiptLabel fallback (Intl medium date). The
+ *    fallback is gone (receiptLabel is '' without a stored number)
+ *    and the draft drops any label that is the row's own date, so a
+ *    row prints exactly `• <DD/MM/YYYY> · PKR <amount> · <method>`.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -164,4 +170,18 @@ test('plan564: a row with only date and amount prints those two parts', () => {
   const text = qcText([{ date: '2026-09-18', amount: 1500 }]);
   // Date-format fix: the date prints DD/MM/YYYY now.
   assert.ok(text.includes('• 18/09/2026 · PKR 1,500'), text);
+});
+
+/* ---------------- BEHAVIOUR: a number-less row never prints its date twice ---------------- */
+
+test('plan564: a no-number history row prints its date once, never doubled', () => {
+  const text = qcText([row('2026-09-18', 3000, 'Cash', '')]);
+  assert.ok(text.includes('• 18/09/2026 · PKR 3,000 · Cash'), text);
+  assert.ok(!text.includes('Sep 18'), text);
+});
+
+test('plan564: a stale medium-date label is dropped, not printed twice', () => {
+  const text = qcText([row('2026-10-06', 3000, 'JazzCash', 'Oct 6, 2026')]);
+  assert.ok(text.includes('• 06/10/2026 · PKR 3,000 · JazzCash'), text);
+  assert.ok(!text.includes('Oct 6, 2026'), text);
 });

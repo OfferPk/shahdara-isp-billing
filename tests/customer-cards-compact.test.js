@@ -89,9 +89,12 @@ test('cards: service badge is the bare word only, with the full status in its ar
   assert.ok(card.includes("const serviceStatus = ['active', 'offline', 'not-set'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set'"), 'unknown/missing status falls back to not-set, never an undefined class');
 });
 
-test('cards: number line reads CUSTOMER #N with the badges preserved', () => {
-  assert.ok(card.includes("t('cust_card_customer_number'"), 'number line uses the CUSTOMER #N key');
-  assert.equal(TRANSLATIONS.en.cust_card_customer_number, 'CUSTOMER #{number}');
+test('cards: number line reads Customer N with the badges preserved', () => {
+  // Unpaid Cards: the pill reads "Customer N" — no "#", per the
+  // user's spec (the old "CUSTOMER #N" string is retired, not just
+  // restyled). The key and the badges around it are unchanged.
+  assert.ok(card.includes("t('cust_card_customer_number'"), 'number line uses the Customer N key');
+  assert.equal(TRANSLATIONS.en.cust_card_customer_number, 'Customer {number}');
   assert.match(TRANSLATIONS.ur.cust_card_customer_number, /[\u0600-\u06FF]/, 'Urdu number line carries Urdu script');
   for (const kept of ['cust_card_archived', 'free-connection-badge', 'prepaidUntilBadgeHtml', 'suspensionShieldBadgeHtml', 'loyaltyBadgeHtml', 'sameNameBadgeHtml', 'manualBaqayaCardBadgeMarkup']) {
     assert.ok(card.includes(kept), `number-line badge preserved: ${kept}`);

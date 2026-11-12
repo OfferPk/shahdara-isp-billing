@@ -27,6 +27,7 @@
 
 import { calculatePaymentAllocations, formatPKR } from './core.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla, pktMonth } from './phase3.js';
+import { sortMohallaNamesByNumberedOrder } from './owner-insights.js';
 import { escapeHtml } from './dashboard-daily-closing.js';
 import { t } from './nav-language.js';
 
@@ -71,7 +72,11 @@ export function calculateMohallaBars(state, referenceDate) {
   const month = pktMonth(referenceDate);
   const canonicalKeys = canonicalMohallaKeys();
   const rowsByKey = new Map();
-  for (const name of DEFAULT_MOHALLAS) {
+  // Mohalla Numbering: the bars read in the numbered order (1 CHARYAA …
+  // 12 HAWELI OR END POINT), then the mohallas outside the list
+  // (KISHTII, PULL SIDE, CHUDRIYAA, "end side farm house") in their
+  // existing relative order; unassigned stays last.
+  for (const name of sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS)) {
     const resolved = canonicalMohalla(name);
     rowsByKey.set(resolved.key, {
       key: resolved.key,

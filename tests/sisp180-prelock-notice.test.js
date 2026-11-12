@@ -214,8 +214,13 @@ test('markup + wiring: footer button, dialog, token CSS, app.js setup', () => {
   assert.match(html, /id="prelockNoticeModal"/, 'queue dialog present');
   assert.match(html, /id="prelockNoticeList"/, 'queue list host present');
   assert.match(html, /id="prelockNoticeLangSelect"/, 'language select present');
-  // The button sits beside the Lock Due filter it pairs with.
-  assert.ok(html.indexOf('id="topDefaultersLockDueBtn"') < html.indexOf('id="topDefaultersPrelockNoticeBtn"'));
+  // The button sits in the Follow-up group it pairs with. Top
+  // Defaulters Modal Fix item 3 (2026-11-13) regrouped the drawer:
+  // the Follow-up group order is now Prelock, Hide Contacted, Lock Due
+  // — the old Lock Due < Prelock order is gone by design, and the
+  // assertion below pins the NEW order instead of fighting it.
+  assert.ok(html.indexOf('id="topDefaultersPrelockNoticeBtn"') < html.indexOf('id="topDefaultersHideContactedBtn"'), 'Follow-up group: Prelock precedes Hide Contacted');
+  assert.ok(html.indexOf('id="topDefaultersHideContactedBtn"') < html.indexOf('id="topDefaultersLockDueBtn"'), 'Follow-up group: Hide Contacted precedes Lock Due');
   assert.ok(html.indexOf('id="topDefaultersPrelockNoticeBtn"') < html.indexOf('id="topDefaultersMikrotikLockBtn"'));
 
   assert.match(css, /\.prelock-row\s*\{/, 'row styles present');

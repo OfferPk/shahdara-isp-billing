@@ -102,9 +102,11 @@ test('mohalla headcounts group spelling variants and skip empty areas', () => {
   const rankingGroups = groupAreasWithCounts([
     { zone: 'North' }, { mohalla: '', zone: 'North' }, { mohalla: 'Bani' }, { mohalla: '', zone: '' },
   ], customer => customer.mohalla?.trim() || customer.zone?.trim() || 'Area not recorded');
+  // Mohalla Numbering: Bani is #9 in the fixed order, so it reads
+  // first; the two areas outside the list follow alphabetically.
   assert.deepEqual(rankingGroups, [
-    { value: 'Area not recorded', count: 1, label: 'Area not recorded (1)' },
     { value: 'Bani', count: 1, label: 'Bani (1)' },
+    { value: 'Area not recorded', count: 1, label: 'Area not recorded (1)' },
     { value: 'North', count: 2, label: 'North (2)' },
   ]);
 });

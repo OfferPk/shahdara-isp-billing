@@ -50,7 +50,9 @@ test('business analytics offers local trend charts and a month/date-filtered Are
 test('WhatsApp recovery remains owner-triggered and offers templates without background sending',()=>{
   for(const template of ['friendly','overdue','final','payment-confirmation'])assert.ok(ui.includes(template));
   assert.match(ui,/target="_blank" rel="noopener noreferrer"/);
-  assert.match(ui,/Review WhatsApp draft/);
+  // Dues Recovery Overhaul §4: the draft link is now a green Send
+  // WhatsApp button (recovery_send_whatsapp), not "Review WhatsApp draft".
+  assert.match(ui,/recovery_send_whatsapp/);
   assert.match(ui,/data-open-recovery-customer/);
   assert.doesNotMatch(ui,/fetch\s*\(|sendBeacon|window\.open\s*\(|sendText|autoSend/i);
 });

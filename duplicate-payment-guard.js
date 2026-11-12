@@ -162,6 +162,19 @@ export function duplicatePaymentBypassKey(customerId, amount, method, duplicate)
   return [String(customerId ?? ''), String(centsOf(amount) ?? ''), String(method ?? ''), String(duplicate.paymentId ?? '')].join('|');
 }
 
+/**
+ * Sharafat 8: a stable key identifying ONE duplicate-TID bypass
+ * decision — this customer, this TID, this amount, this method.
+ * Surfaces store the key after a confirmed "Save anyway" and skip
+ * the duplicate warning only while the key still matches: the same
+ * TID for a different customer, amount or method warns again, and
+ * a fresh customer form clears it (nav-quick-collect.js). A raw
+ * TID alone used to stay armed across customers in a session.
+ */
+export function duplicateTidBypassKey(customerId, txnId, amount, method) {
+  return [String(customerId ?? ''), String(txnId ?? '').trim(), String(centsOf(amount) ?? ''), String(method ?? '')].join('|');
+}
+
 /** "just now" / "3 min ago" for the prompt, via the dupguard_* keys. */
 export function duplicatePaymentAgoText(elapsedMs, lang = null) {
   const minutes = Math.max(0, Math.floor(Number(elapsedMs || 0) / 60000));

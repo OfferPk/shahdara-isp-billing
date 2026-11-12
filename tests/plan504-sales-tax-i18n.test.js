@@ -70,8 +70,12 @@ test('Plan 504: the amount stays PKR only (Rs)', () => {
 });
 
 test('Plan 504: sibling Service-group keys still resolve (no dict damage)', () => {
-  assert.equal(t('prof_field_package', 'en'), 'Package / speed');
-  assert.equal(t('prof_field_package', 'ur'), 'پیکیج / رفتار');
+  // Profile Polish D (16) — the service labels drop the slash: the
+  // user asked for 'ISP provider' (no slash), and 'Package speed' is
+  // the same rule in the user's own words for the grouped field. The
+  // keys are unchanged; only the displayed words change.
+  assert.equal(t('prof_field_package', 'en'), 'Package speed');
+  assert.equal(t('prof_field_package', 'ur'), 'پیکیج رفتار');
   assert.equal(t('prof_field_selling', 'en'), 'Monthly selling amount');
   assert.equal(t('prof_field_selling', 'ur'), 'ماہانہ فروخت رقم');
 });

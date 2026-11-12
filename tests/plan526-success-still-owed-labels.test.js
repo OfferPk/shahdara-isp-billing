@@ -248,14 +248,18 @@ test('wiring: the receipt card still reads the payable remainder — the merged 
   // carrying the live-state WhatsApp resolution (whatsappPhone first,
   // else the primary phone) — the signature changed, the card builder
   // and its canonical remaining figure did not.
+  // LIVE FIX 1 (2026-11-12): the signature grew three more options
+  // for the inline phone editor (editingPhone, phoneEditValue,
+  // phoneEditError) — the builder and its canonical remaining figure
+  // still did not change.
   // QC receipt-modal overhaul (§4.3.2, decision (j)): the builder takes
   // a third option, nextDueDateText, for the merged Still-owed +
   // Next-due row; the Polish 21 settle/partial badge is gone entirely
   // (the merged row + the still-owes pill state the settled/partial
   // state now), so no 'Settle in Full' / 'Partial Payment' text may
   // remain anywhere in the controller.
-  assert.ok(wiringSrc.includes('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText } = {})'), 'missing receipt card');
-  const start = wiringSrc.indexOf('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText } = {})');
+  assert.ok(wiringSrc.includes('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText, editingPhone = false, phoneEditValue = \'\', phoneEditError = \'\' } = {})'), 'missing receipt card');
+  const start = wiringSrc.indexOf('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText, editingPhone = false, phoneEditValue = \'\', phoneEditError = \'\' } = {})');
   // The builder is a top-level export function — slice to the next
   // top-level function, not a fixed length (the merged row sits near
   // the builder's end).

@@ -9,19 +9,24 @@
 // or offered to add it: renderQuickCollectReceiptCardHtml never
 // printed a phone row at all.
 //
+// LIVE FIX 1 (2026-11-12) changed the add path: "Add number" /
+// "Change" now opens an INLINE editor on the card itself (input +
+// Save / Cancel) that writes through updateCustomerProfile — the
+// profile edit is no longer opened from this row. A saved number
+// shows GREEN (qc-phone-saved) with a Change button.
+//
 // Pins:
 //  - the card carries a "Mobile Number" row immediately after the
 //    Customer row;
-//  - a saved number shows as plain text, like the other values;
+//  - a saved number shows GREEN, with a Change button (no Add number);
 //  - a whatsappPhone-only customer shows that number — the row is
 //    resolved via whatsappPhoneFor from live state, falling back to
 //    the receipt's stamped primary phone, never receipt.phone alone;
 //  - no usable number anywhere reads "Not saved" with a small
 //    secondary "Add number" button (only when the receipt carries a
 //    customerId — without one there is nobody to edit);
-//  - the button invokes the edit path with focus 'phone' (the same
-//    path as the warnNoPhone toast action: closeModal, then
-//    onEditCustomer(customerId, { focus: 'phone' }) after 350ms);
+//  - the Add number / Change button opens the inline editor on the
+//    card (the modal stays open; the profile editor never opens);
 //  - the other card rows are unchanged, and the WhatsApp draft is
 //    untouched (the new label stays card-only).
 // Pattern-fake data only: Test Customer, RCPT-12-202611-01,
@@ -87,27 +92,35 @@ test('REPRO: the success card carries a Mobile Number row immediately after the 
   assert.ok(dateAt > phoneAt, 'Mobile Number must sit before the Date & Method row');
 });
 
-test('a saved primary phone shows as plain text, with no "Not saved" and no button', () => {
+test('a saved primary phone shows GREEN, with a Change button and no "Not saved"', () => {
+  // LIVE FIX 1: a saved number shows green (qc-phone-saved, the
+  // card's success-green token) with a Change button that opens the
+  // inline editor — it no longer reads as plain text with no button.
   const html = renderQuickCollectReceiptCardHtml(baseReceipt({ phone: FAKE_PHONE }));
   const row = phoneRowOf(html);
   assert.ok(row, 'phone row present');
   assert.ok(row.includes(FAKE_PHONE), 'saved number shown');
   assert.ok(!row.includes('Not saved'), 'no "Not saved" when a number is saved');
   assert.ok(!html.includes('data-qc-add-phone'), 'no Add number button when a number is saved');
-  assert.ok(row.includes('qc-meta-val'), 'number reads as plain text like the other values');
+  assert.ok(row.includes('qc-phone-saved'), 'saved number shows green');
+  assert.ok(row.includes('data-qc-edit-phone'), 'a Change button opens the inline editor');
+  assert.ok(row.includes('qc-meta-val'), 'number reads as a receipt value like the other rows');
 });
 
-test('a whatsappPhone-only customer shows that number — the row never reads receipt.phone alone', () => {
+test('a whatsappPhone-only customer shows that number GREEN, with a Change button', () => {
   // The receipt stamps the primary phone only (nav-quick-collect.js
   // receipt.phone), so a customer whose number lives in whatsappPhone
   // would read "Not saved" from the stamp alone. The live-state
   // resolution (whatsappPhoneFor) is passed in as the option.
+  // LIVE FIX 1: the saved number shows green with a Change button.
   const html = renderQuickCollectReceiptCardHtml(baseReceipt({ phone: '' }), { whatsappPhone: FAKE_PHONE });
   const row = phoneRowOf(html);
   assert.ok(row, 'phone row present');
   assert.ok(row.includes(FAKE_PHONE), 'whatsappPhone shown');
   assert.ok(!row.includes('Not saved'), 'no "Not saved" when whatsappPhone is saved');
   assert.ok(!html.includes('data-qc-add-phone'), 'no Add number button when whatsappPhone is saved');
+  assert.ok(row.includes('qc-phone-saved'), 'saved number shows green');
+  assert.ok(row.includes('data-qc-edit-phone'), 'a Change button opens the inline editor');
 });
 
 test('the live whatsappPhone wins over a different stamped primary phone', () => {
@@ -294,8 +307,13 @@ function fixtureState(patch = {}) {
 
 const MONTH = getPakistanLocalDate(new Date()).slice(0, 7);
 
-test('the rendered card on a real no-phone payment shows "Not saved" + the button, and the button opens the profile editor with the phone focused', async () => {
-  await withController(fixtureState(), async ({ controller, getEl, editCalls, getState }) => {
+test('the rendered card on a real no-phone payment shows "Not saved" + the button, and the button opens the INLINE editor on the card', async () => {
+  // LIVE FIX 1: the button no longer opens the profile editor with
+  // the phone focused — it opens an inline input + Save / Cancel on
+  // the card itself. The modal stays open and onEditCustomer is never
+  // called from this row; typing a number and tapping Save writes it
+  // to the profile and the card shows it green.
+  await withController(fixtureState(), async ({ controller, getEl, editCalls, toasts, getState }) => {
     controller.open('seed-001');
     getEl('quickCollectAmountInput').value = '3000';
     getEl('quickCollectMethodSelect').value = 'Cash';
@@ -314,18 +332,28 @@ test('the rendered card on a real no-phone payment shows "Not saved" + the butto
     // delegated click with a target whose closest() matches the hook,
     // exactly as a real tap would.
     const fakeButton = {};
-    const fakeTarget = { closest: (sel) => (sel === '[data-qc-add-phone]' ? fakeButton : null) };
+    const fakeTarget = { closest: (sel) => (String(sel).includes('[data-qc-add-phone]') ? fakeButton : null) };
     await getEl('quickCollectReceiptCard').dispatch('click', { target: fakeTarget });
-    // The toast action's path waits 350ms before opening the editor.
-    await new Promise((resolve) => setTimeout(resolve, 450));
-    assert.equal(getEl('quickCollectModal').open, false, 'the QC modal closes first');
-    assert.equal(editCalls.length, 1, 'the editor opens exactly once');
-    assert.equal(editCalls[0].id, 'seed-001', 'the editor opens for the receipt customer');
-    assert.deepEqual(editCalls[0].opts, { focus: 'phone' }, 'the editor opens with the phone field focused');
+    const editHtml = getEl('quickCollectReceiptCard').innerHTML;
+    assert.ok(editHtml.includes('data-qc-phone-input'), 'the inline editor opens on the card');
+    assert.ok(editHtml.includes('data-qc-phone-save'), 'Save button present');
+    assert.equal(getEl('quickCollectModal').open, true, 'the QC modal stays OPEN — no jump to the profile edit');
+    assert.equal(editCalls.length, 0, 'the profile editor never opens');
+    const fakeInputTarget = { closest: (sel) => (sel === '[data-qc-phone-input]' ? {} : null), value: FAKE_PHONE };
+    await getEl('quickCollectReceiptCard').dispatch('input', { target: fakeInputTarget });
+    const fakeSaveTarget = { closest: (sel) => (sel === '[data-qc-phone-save]' ? {} : null) };
+    await getEl('quickCollectReceiptCard').dispatch('click', { target: fakeSaveTarget });
+    assert.equal(getState().customers[0].phone, FAKE_PHONE, 'the number is saved on the profile');
+    const savedHtml = getEl('quickCollectReceiptCard').innerHTML;
+    assert.ok(savedHtml.includes(FAKE_PHONE), 'card shows the saved number');
+    assert.ok(savedHtml.includes('qc-phone-saved'), 'saved number shows green');
+    assert.ok(toasts.some((t) => String(t.msg).includes('Mobile number saved')), 'success toast fires');
   });
 });
 
-test('the rendered card on a real whatsappPhone-only payment shows that number, with no button', async () => {
+test('the rendered card on a real whatsappPhone-only payment shows that number GREEN, with a Change button', async () => {
+  // LIVE FIX 1: the saved number shows green with a Change button
+  // (no Add number button — a number is already saved).
   await withController(fixtureState({ whatsappPhone: FAKE_PHONE }), async ({ controller, getEl, getState }) => {
     controller.open('seed-001');
     getEl('quickCollectAmountInput').value = '3000';
@@ -337,20 +365,34 @@ test('the rendered card on a real whatsappPhone-only payment shows that number, 
     assert.ok(cardHtml.includes(FAKE_PHONE), 'card shows the live whatsappPhone');
     assert.ok(!cardHtml.includes('Not saved'), 'no "Not saved" when whatsappPhone is saved');
     assert.ok(!cardHtml.includes('data-qc-add-phone'), 'no Add number button when a number is saved');
+    assert.ok(cardHtml.includes('qc-phone-saved'), 'saved number shows green');
+    assert.ok(cardHtml.includes('data-qc-edit-phone'), 'a Change button opens the inline editor');
   });
 });
 
-test('wiring source: the card container delegates the Add number click to the toast action\'s edit path', () => {
+test('wiring source: the card container delegates the Add number click to the INLINE editor, never to the profile edit', () => {
+  // LIVE FIX 1: the button no longer opens the profile editor (the
+  // old pin asserted onEditCustomer with focus 'phone' after 350ms).
+  // The delegation now opens the inline editor on the card and Save
+  // writes through updateCustomerProfile + onSaveState.
   const cardStart = quickCollectSrc.indexOf('export function renderQuickCollectReceiptCardHtml');
   const cardEnd = quickCollectSrc.indexOf('export function quickCollectShopChoices');
   const cardSrc = quickCollectSrc.slice(cardStart, cardEnd);
   assert.ok(cardSrc.includes('data-qc-add-phone'), 'the card markup carries the Add number hook');
-  // The delegation lives in the modal setup (it needs closeModal +
-  // onEditCustomer, which the pure renderer cannot see).
+  assert.ok(cardSrc.includes('data-qc-edit-phone'), 'the card markup carries the Change hook');
+  assert.ok(cardSrc.includes('qc-phone-saved'), 'a saved number carries the green class');
+  // The delegation lives in the modal setup (it needs the closure
+  // editor state + onSaveState, which the pure renderer cannot see).
   const setupStart = quickCollectSrc.indexOf('export function setupQuickCollectModal');
   const setupSrc = quickCollectSrc.slice(setupStart);
   assert.ok(setupSrc.includes("receiptCardContainer.addEventListener('click'"), 'the card container delegates clicks');
-  assert.ok(setupSrc.includes("closest?.('[data-qc-add-phone]')"), 'the delegation matches the Add number hook');
-  assert.ok(setupSrc.includes('onEditCustomer(customerId, { focus: \'phone\' })') || setupSrc.includes('onEditCustomer(activeReceipt.customerId, { focus: \'phone\' })'), 'the click opens the editor with the phone focused');
-  assert.ok(setupSrc.includes('setTimeout(() => onEditCustomer'), 'the editor opens after the modal closes (350ms, the toast action\'s path)');
+  assert.ok(setupSrc.includes("closest?.('[data-qc-add-phone], [data-qc-edit-phone]')"), 'the delegation matches the Add number / Change hooks');
+  assert.ok(setupSrc.includes("closest?.('[data-qc-phone-save]')"), 'the delegation matches the Save hook');
+  assert.ok(setupSrc.includes('updateCustomerProfile(getState(), activeReceipt.customerId'), 'Save writes through the canonical profile path');
+  assert.ok(setupSrc.includes('onSaveState(next)'), 'Save persists the updated state');
+  const blockStart = setupSrc.indexOf('// LIVE FIX 3: the success card');
+  const blockEnd = setupSrc.indexOf('function executeUndo()', blockStart);
+  const block = setupSrc.slice(blockStart, blockEnd);
+  assert.ok(block.length > 500, 'the inline-editor delegation block exists');
+  assert.ok(!block.includes('onEditCustomer'), 'the phone row never opens the profile editor');
 });

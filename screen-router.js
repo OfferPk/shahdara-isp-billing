@@ -54,7 +54,13 @@ const TAB_TO_SCREEN = Object.fromEntries(
     .filter(([_, s]) => Boolean(s.tab))
     .map(([name, s]) => [s.tab, name])
 );
-const TILE_TO_SCREEN = { quickActionRecordExpense: 'expenses', quickActionMonthlyReports: 'reports', quickActionAnalytics: 'analytics', homeActionDuesList: 'recovery' };
+// LIVE FIX 4: homeActionDuesList is NOT a route tile any more — the
+// Dues list tile opens the Top Defaulters modal (the customer dues
+// list), not the Dues Recovery screen. It must not appear here: the
+// router's delegation would navigate to '#/recovery' on the same tap
+// that opens the modal. Dues Recovery stays reachable from its own
+// drawer / more-menu entries.
+const TILE_TO_SCREEN = { quickActionRecordExpense: 'expenses', quickActionMonthlyReports: 'reports', quickActionAnalytics: 'analytics' };
 
 /** Parse a location hash into a route, or null when the hash is not a screen route. */
 export function parseRoute(hash = '') {

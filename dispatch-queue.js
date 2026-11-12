@@ -360,9 +360,12 @@ export function completeVisitFromQueue(list, ticketId, status = 'resolved') {
 }
 
 // Group a queue by mohalla for batching nearby jobs, preserving
-// queue order inside each group. Groups are in first-appearance
-// order; the Unassigned group, when present, comes last.
-export function groupQueueByMohalla(jobs) {
+// queue order inside each group. Groups read in the caller's mohalla
+// order when given (the app passes the numbered order), otherwise in
+// first-appearance order; the Unassigned group, when present, comes
+// last. The module stays import-free, so the order is supplied,
+// never copied here (Mohalla Numbering).
+export function groupQueueByMohalla(jobs, compareAreas = null) {
   const groups = [];
   const byKey = new Map();
   for (const job of Array.isArray(jobs) ? jobs : []) {
@@ -378,6 +381,7 @@ export function groupQueueByMohalla(jobs) {
   groups.sort((a, b) => {
     if (a.key === '__unassigned__') return 1;
     if (b.key === '__unassigned__') return -1;
+    if (typeof compareAreas === 'function') return compareAreas(a.label, b.label);
     return 0;
   });
   return groups;

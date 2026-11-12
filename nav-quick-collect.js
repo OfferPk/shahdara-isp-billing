@@ -451,11 +451,19 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
     // Apply filter criteria
     if (filterType === 'all-dues' && totalDues <= 0) continue;
     if (filterType === 'high-dues' && totalDues < 2000) continue;
-    // QC-12: the Paid view is the complement of the pending pool —
-    // customers with nothing outstanding (settled in full, or no
-    // bill yet). It reuses this same pool, so Paid and Unpaid always
-    // partition the whole customer list.
+    // Sharafat 9: the Paid view is only customers with at least one
+    // bill who are settled in full. A never-billed customer (no bill
+    // at all) was never "paid up" — listing them as paid hid the fact
+    // that they were never billed. A free connection is excluded too:
+    // it never owes anything, so it is never paid up either, even if
+    // it carries settled bills from before it went free. (QC-12 made
+    // Paid the complement of the pending pool, so Paid and Unpaid
+    // partitioned the whole list; that no longer holds — a
+    // never-billed customer is in neither pool, and stays visible
+    // under All.)
     if (filterType === 'paid' && totalDues > 0) continue;
+    if (filterType === 'paid' && bills.length === 0) continue;
+    if (filterType === 'paid' && customer.isFreeConnection === true) continue;
 
     // Apply search query
     if (normalizedQuery) {
@@ -510,6 +518,33 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
   });
 
   return list;
+}
+
+/** Sharafat 9: non-archived customers with no bill at all — the
+ * customers the Paid view now excludes, counted so the view can say
+ * how many it is hiding instead of silently dropping them. A free
+ * connection counts here too: it is never billed, so it has no bill.
+ *
+ * @param {Object} state
+ * @returns {number}
+ */
+export function countNeverBilledCustomers(state) {
+  return (state?.customers ?? []).filter((c) => !c.archived && (c.bills ?? []).length === 0).length;
+}
+
+/** Sharafat 9: the sentence the Paid view shows about the
+ * never-billed customers it excludes — empty when there are none,
+ * so the view renders exactly as before.
+ *
+ * @param {number} count
+ * @returns {string}
+ */
+function neverBilledNoteText(count) {
+  const n = Number(count) || 0;
+  if (n <= 0) return '';
+  return n === 1
+    ? '1 customer has never been billed — not shown as paid-up.'
+    : `${n} customers have never been billed — they are not shown as paid-up.`;
 }
 
 // QC-12: the bill-status dropdown above the picker search (Unpaid /
@@ -1826,6 +1861,18 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
     && filterType === 'paid'
     && !String(query ?? '').trim()
     && !quickCollectMohallaFilterKey(mohallaFilter);
+  // Sharafat 9: the Paid view excludes never-billed customers, with
+  // a count — the count is ledger-wide, so it only renders when no
+  // query and no mohalla narrow the list (the same conditions as
+  // the paid-empty state), never as a count of a narrowed list.
+  const neverBilled = filterType === 'paid' ? countNeverBilledCustomers(state) : 0;
+  const paidNote = filterType === 'paid'
+    && !String(query ?? '').trim()
+    && !quickCollectMohallaFilterKey(mohallaFilter)
+    ? neverBilledNoteText(neverBilled) : '';
+  const paidListNote = paidNote
+    ? `<p class="qc-paid-note">${escapeHtml(paidNote)}</p>`
+    : '';
   // SISP-77: same-name badges are computed against the FULL ledger (a
   // namesake with no dues still makes this pick ambiguous), then handed
   // to the list renderer keyed by customer id.
@@ -1840,7 +1887,7 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
     mohallaCounts,
     html: needsSetup
       ? renderQuickCollectNeedsSetupHtml(withoutFee)
-      : allCollected ? renderQuickCollectAllCollectedHtml() : paidEmpty ? renderQuickCollectPaidEmptyHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter, priorityById)
+      : allCollected ? renderQuickCollectAllCollectedHtml() : paidEmpty ? renderQuickCollectPaidEmptyHtml(neverBilled) : paidListNote + renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter, priorityById)
   };
 }
 
@@ -1849,14 +1896,23 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
  * The one-tap button returns to the Unpaid pool (same pattern as
  * the all-collected state's Show-all button).
  *
+ * Sharafat 9: the old line claimed "Everyone still has a bill to
+ * collect", which is false whenever a never-billed customer exists
+ * — and the Paid view now excludes them, so the pool can be empty
+ * while they exist. The line now says only what is true, and the
+ * never-billed count rides along when there is one.
+ *
+ * @param {number} [neverBilled=0]
  * @returns {string}
  */
-export function renderQuickCollectPaidEmptyHtml() {
+export function renderQuickCollectPaidEmptyHtml(neverBilled = 0) {
+  const note = neverBilledNoteText(neverBilled);
   return `
       <div class="qc-empty-state qc-paid-empty" role="status">
         <span class="qc-empty-icon" aria-hidden="true">🧾</span>
         <h4>No paid-up customers yet</h4>
-        <p>Everyone still has a bill to collect — switch the filter above to Unpaid to see who owes.</p>
+        <p>Nobody has a bill settled in full yet — switch the filter above to Unpaid to see who owes.</p>
+        ${note ? `<p>${escapeHtml(note)}</p>` : ''}
         <button type="button" class="secondary-button qc-show-all-btn" data-qc-show-unpaid>Show unpaid customers</button>
       </div>
     `;

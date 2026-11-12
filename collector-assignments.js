@@ -125,13 +125,14 @@ export function removeAssignment(list, mohallaOrId) {
   return rows.filter((entry) => entry.mohalla !== key && entry.id !== id);
 }
 
-/** Every mohalla assigned to one collector, sorted A–Z. */
-export function assignedMohallasForCollector(list, collector) {
+/** Every mohalla assigned to one collector, in the caller's mohalla order when given (the app passes the numbered order), otherwise A–Z. */
+export function assignedMohallasForCollector(list, collector, compareAreas = null) {
   const name = cleanText(collector).toLocaleLowerCase();
   if (!name) return [];
   const rows = normalizeAssignmentList(list).filter(
     (row) => row.collector.toLocaleLowerCase() === name,
   );
+  if (typeof compareAreas === 'function') return rows.map((row) => row.mohalla).sort(compareAreas);
   return rows.map((row) => row.mohalla).sort((a, b) => a.localeCompare(b));
 }
 
@@ -151,9 +152,10 @@ export function collectorsList(list) {
 
 /**
  * Every mohalla in the caller's full list that carries no assignment,
- * sorted A–Z. These stay visible to the owner view.
+ * in the caller's mohalla order when given (the app passes the numbered
+ * order), otherwise A–Z. These stay visible to the owner view.
  */
-export function unassignedMohallas(allMohallas, list) {
+export function unassignedMohallas(allMohallas, list, compareAreas = null) {
   const assigned = new Set(normalizeAssignmentList(list).map((row) => row.mohalla));
   const out = [];
   const seen = new Set();
@@ -163,6 +165,7 @@ export function unassignedMohallas(allMohallas, list) {
     seen.add(key);
     out.push(key);
   }
+  if (typeof compareAreas === 'function') return out.sort(compareAreas);
   return out.sort((a, b) => a.localeCompare(b));
 }
 
@@ -200,9 +203,11 @@ export function filterDispatchForCollector(queue, collector, assignments) {
   return filterForCollector(queue, collector, assignments);
 }
 
-/** The owner view: every assignment, sorted by mohalla A–Z. */
-export function assignmentsForOwner(list) {
-  return normalizeAssignmentList(list).sort((a, b) => a.mohalla.localeCompare(b.mohalla));
+/** The owner view: every assignment, in the caller's mohalla order when given (the app passes the numbered order), otherwise A–Z. */
+export function assignmentsForOwner(list, compareAreas = null) {
+  const rows = normalizeAssignmentList(list);
+  if (typeof compareAreas === 'function') return rows.sort((a, b) => compareAreas(a.mohalla, b.mohalla));
+  return rows.sort((a, b) => a.mohalla.localeCompare(b.mohalla));
 }
 
 /**
@@ -210,9 +215,9 @@ export function assignmentsForOwner(list) {
  * entries of a caller-supplied list fall in them, and the filtered
  * list itself. A blank collector previews the owner view.
  */
-export function collectorPreview(list, collector, items) {
-  const mohallas = assignedMohallasForCollector(list, collector);
-  const filtered = filterForCollector(items, collector, assignmentsForOwner(list));
+export function collectorPreview(list, collector, items, compareAreas = null) {
+  const mohallas = assignedMohallasForCollector(list, collector, compareAreas);
+  const filtered = filterForCollector(items, collector, assignmentsForOwner(list, compareAreas));
   return {
     collector: cleanText(collector),
     mohallas,
@@ -223,10 +228,10 @@ export function collectorPreview(list, collector, items) {
 }
 
 /** One-line summary of the assignment state. */
-export function assignmentSummaryText(list, allMohallas) {
+export function assignmentSummaryText(list, allMohallas, compareAreas = null) {
   const rows = normalizeAssignmentList(list);
   const collectors = collectorsList(list);
-  const unassigned = unassignedMohallas(allMohallas, list);
+  const unassigned = unassignedMohallas(allMohallas, list, compareAreas);
   const assignedWord = rows.length === 1 ? 'mohalla' : 'mohallas';
   const collectorWord = collectors.length === 1 ? 'collector' : 'collectors';
   const unassignedWord = unassigned.length === 1 ? 'mohalla' : 'mohallas';
@@ -242,8 +247,8 @@ function escapeCell(value) {
 }
 
 /** Assignment table HTML; an empty list says so plainly. */
-export function assignmentHtml(list) {
-  const rows = assignmentsForOwner(list);
+export function assignmentHtml(list, compareAreas = null) {
+  const rows = assignmentsForOwner(list, compareAreas);
   if (rows.length === 0) return '<p>No mohalla is assigned to a collector yet. Unassigned mohallas stay visible to the owner.</p>';
   const body = rows.map((row) => `<tr><td>${escapeCell(row.mohalla)}</td><td>${escapeCell(row.collector)}</td></tr>`).join('');
   return `<table><thead><tr><th>Mohalla</th><th>Assigned collector</th></tr></thead><tbody>${body}</tbody></table>`;
@@ -255,8 +260,8 @@ function csvCell(value) {
 }
 
 /** Assignment list as CSV rows, header first. */
-export function assignmentCsv(list) {
-  const rows = assignmentsForOwner(list);
+export function assignmentCsv(list, compareAreas = null) {
+  const rows = assignmentsForOwner(list, compareAreas);
   const lines = ['id,mohalla,collector'];
   for (const row of rows) lines.push([row.id, row.mohalla, row.collector].map(csvCell).join(','));
   return lines.join('\n');

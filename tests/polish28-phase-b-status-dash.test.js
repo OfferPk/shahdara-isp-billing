@@ -383,11 +383,18 @@ test('phase B summaries: S1 phone dashes, the name keeps its Not set fallback', 
   assert.ok(customer.includes("customer.name || customer.customerName || t('prof_not_set')"), 'S1 name is a required field — its fallback is not dashed');
 });
 
-test('phase B summaries: S2 carries the derived status as TEXT, not the pill html', () => {
+test('phase B summaries: S2 carries the derived status as a word-only pill (Polish C supersedes the text summary)', () => {
+  // Profile Polish C (15) supersedes this Phase B Req 3 decision for
+  // S2 only: the user asked the section header to show a SMALL pill
+  // with just the status word, so the Service summary is the word-only
+  // status pill via summaryHtml — no package speed, no "·" separator,
+  // no dated label. The escaped-text rule stands for the other six
+  // sections (pinned by the phase-A summaries test).
   const service = sectionSummaryLine('Service');
-  assert.ok(service.includes('serviceState.label'), 'S2 summary must read the derived status text');
-  assert.ok(service.includes('profileEmptyText(customer.packageSpeed)'), 'S2 summary must dash an empty package');
-  assert.ok(!service.includes('profileServiceStatusPillHtml'), 'the summary is escaped text — the pill html must never land in it');
+  assert.ok(service.includes('summaryHtml: profileServiceStatusPillHtml(serviceState, { wordOnly: true })'), 'S2 summary must be the word-only status pill');
+  assert.ok(!service.includes('summary: `'), 'S2 no longer carries a text summary');
+  assert.ok(!service.includes('serviceState.label'), 'S2 no longer reads the dated label');
+  assert.ok(!service.includes('profileEmptyText(customer.packageSpeed)'), 'S2 no longer shows the package speed in the header');
   assert.ok(!service.includes('manualServiceStatusLabel'), 'S2 summary no longer reads the stored label');
 });
 

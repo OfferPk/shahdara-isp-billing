@@ -43,10 +43,13 @@ test('polish: card name is 18px via the --text-card-name token', () => {
   );
 });
 
-test('polish: CUSTOMER #N is wrapped in an ID pill (badges stay outside it)', () => {
+test('polish: Customer N is wrapped in an ID pill (badges stay outside it)', () => {
+  // Unpaid Cards: the pill span now also carries the rotation class
+  // (customer-id-pill-N from customerIdPillClass, '' when the record
+  // has no number) — the class list, not the bare span, is asserted.
   assert.match(
     card,
-    /<span class="customer-id-pill">\$\{escapeHtml\(t\('cust_card_customer_number', null, \{ number: customer\.customerNumber \}\)\)\}<\/span>/,
+    /<span class="customer-id-pill(\$\{idPillClass \? ` \$\{idPillClass\}` : ''\})?">\$\{escapeHtml\(t\('cust_card_customer_number', null, \{ number: customer\.customerNumber \}\)\)\}<\/span>/,
     'number text wrapped in the pill span'
   );
   assert.match(styles, /\.customer-id-pill \{[^}]*border: 1px solid var\(--ds-line\);/s, 'pill border token');
@@ -80,11 +83,14 @@ test('polish: no toggle or new control added to the card', () => {
   // Pre-existing buttons only: the whole card is one open button (PR
   // #1334 design), the outstanding row keeps its ＋ Add amount button,
   // archived cards keep their unarchive button. No service toggle.
+  // Unpaid Cards adds ONE more allowed button: the green Clear dues
+  // button in the payment row, shown only under the "Unpaid This
+  // Month" pill (data-clear-dues-card, wired in renderCustomers).
   const buttonClasses = [...card.matchAll(/<button[^>]*class="([^"]*)"/g)].map(m => m[1]);
   assert.ok(buttonClasses.length > 0, 'card buttons found');
   for (const cls of buttonClasses) {
     assert.ok(
-      cls.includes('customer-select') || cls.includes('additional-pending-btn') || cls.includes('archived-unarchive-button'),
+      cls.includes('customer-select') || cls.includes('additional-pending-btn') || cls.includes('archived-unarchive-button') || cls.includes('customer-card-clear-dues'),
       `no new button class on the card: ${cls}`
     );
   }

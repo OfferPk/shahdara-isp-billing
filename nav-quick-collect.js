@@ -124,7 +124,7 @@ import {
 import { buildConcessionSuggestion, buildUptimeConcessionSuggestion, concessionBadgeText, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
 import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFeeWaiverOf, restoreWaivedLateFee } from './late-fee-waiver.js';
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
-import { findRecentDuplicate, duplicatePaymentBypassKey, askDuplicatePayment } from './duplicate-payment-guard.js';
+import { findRecentDuplicate, duplicatePaymentBypassKey, duplicateTidBypassKey, askDuplicatePayment } from './duplicate-payment-guard.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
 import { computePaymentDateChip, isFuturePaymentDate, paymentDateChipForDate } from './backdated-payment-helper.js';
 import {
@@ -2969,11 +2969,15 @@ export function setupQuickCollectModal({
   const dupReasonInput = document.getElementById('quickCollectDuplicateReasonInput');
   const dupProceedBtn = document.getElementById('quickCollectDuplicateProceedBtn');
   const dupCancelBtn = document.getElementById('quickCollectDuplicateCancelBtn');
-  let duplicateBypassedForTxn = null;
+  // Sharafat 8: the leg-1 duplicate's one confirmed bypass — the
+  // duplicateTidBypassKey (customer + TID + amount + method) the
+  // operator chose to save anyway, never the raw TID alone: a raw
+  // TID stayed armed across customers in a session, so the same
+  // TID for another customer sailed through with no warning.
+  let duplicateBypassedForTxnKey = null;
   // Plan 534: the leg-2 duplicate's one confirmed bypass — the
-  // leg-2 TID the operator chose to save anyway, with its reason,
-  // exactly like duplicateBypassedForTxn for leg 1.
-  let duplicateBypassedForLeg2Txn = null;
+  // leg-2 key, exactly like duplicateBypassedForTxnKey for leg 1.
+  let duplicateBypassedForLeg2TxnKey = null;
   // SISP-146: the double-tap guard's one confirmed bypass (key of
   // customer|amount|method|earlier payment id) — see the submit handler.
   let duplicatePaymentBypassedKey = null;
@@ -4692,6 +4696,16 @@ export function setupQuickCollectModal({
       if (senderNameInput) senderNameInput.value = '';
       if (senderDigitsInput) senderDigitsInput.value = '';
       if (overrideReasonInput) overrideReasonInput.value = '';
+      // Sharafat 8: the duplicate-TID bypasses are cleared with the
+      // fields — the programmatic clear above fires no `input`
+      // event, so the TID listeners below never run for a fresh
+      // customer form, and a bypass armed for the previous customer
+      // would otherwise stay armed into this one. The keying alone
+      // stops a cross-customer silence; clearing also stops a
+      // same-customer, same-figures re-entry from sailing through
+      // on a bypass armed for an earlier opening.
+      duplicateBypassedForTxnKey = null;
+      duplicateBypassedForLeg2TxnKey = null;
       if (overrideDetails) overrideDetails.open = false;
       // SISP-121: split always starts OFF for a fresh customer sheet.
       if (splitToggle) splitToggle.checked = false;
@@ -5230,8 +5244,8 @@ export function setupQuickCollectModal({
     // rest of the save — the next opening offers it afresh.
     secondConnectionRecorded = false;
     hideSecondConnectionStep();
-    duplicateBypassedForTxn = null;
-    duplicateBypassedForLeg2Txn = null;
+    duplicateBypassedForTxnKey = null;
+    duplicateBypassedForLeg2TxnKey = null;
     duplicatePaymentBypassedKey = null;
     // Plan 437: closing abandons any in-flight save — the guard can
     // never stay armed into the next opening.
@@ -5290,7 +5304,12 @@ export function setupQuickCollectModal({
   dupReasonInput?.addEventListener('input', syncDupProceed);
   dupProceedBtn?.addEventListener('click', () => {
     if (dupProceedBtn.disabled) { dupReasonInput?.focus(); return; }
-    duplicateBypassedForTxn = transactionIdInput ? transactionIdInput.value.trim() : '';
+    // Sharafat 8: arm the bypass as the key of THIS payment
+    // (customer + TID + amount + method, read live from the form,
+    // with the same 'Cash' fallback the submit handler uses) —
+    // never the raw TID, which used to silence the warning for
+    // any later customer re-using the TID in the session.
+    duplicateBypassedForTxnKey = duplicateTidBypassKey(activeCustomerId, transactionIdInput?.value, amountInput?.value, methodSelect?.value || 'Cash');
     if (dupWarningCard) dupWarningCard.hidden = true;
     if (paymentForm) {
       if (typeof paymentForm.requestSubmit === 'function') {
@@ -5302,13 +5321,13 @@ export function setupQuickCollectModal({
   });
 
   dupCancelBtn?.addEventListener('click', () => {
-    duplicateBypassedForTxn = null;
+    duplicateBypassedForTxnKey = null;
     if (dupWarningCard) dupWarningCard.hidden = true;
     transactionIdInput?.focus();
   });
 
   transactionIdInput?.addEventListener('input', () => {
-    duplicateBypassedForTxn = null;
+    duplicateBypassedForTxnKey = null;
     if (dupWarningCard) dupWarningCard.hidden = true;
   });
 
@@ -5324,7 +5343,11 @@ export function setupQuickCollectModal({
   leg2DupReasonInput?.addEventListener('input', syncLeg2DupProceed);
   leg2DupProceedBtn?.addEventListener('click', () => {
     if (leg2DupProceedBtn.disabled) { leg2DupReasonInput?.focus(); return; }
-    duplicateBypassedForLeg2Txn = splitTransactionIdInput ? splitTransactionIdInput.value.trim() : '';
+    // Sharafat 8: arm the leg-2 bypass as the key of THIS leg
+    // (customer + TID + amount + method, with the same
+    // 'Easypaisa' fallback the submit handler uses) — exactly
+    // like leg 1, never the raw TID.
+    duplicateBypassedForLeg2TxnKey = duplicateTidBypassKey(activeCustomerId, splitTransactionIdInput?.value, splitAmountInput?.value, splitMethodSelect?.value || 'Easypaisa');
     if (leg2DupCard) leg2DupCard.hidden = true;
     if (paymentForm) {
       if (typeof paymentForm.requestSubmit === 'function') {
@@ -5336,13 +5359,13 @@ export function setupQuickCollectModal({
   });
 
   leg2DupCancelBtn?.addEventListener('click', () => {
-    duplicateBypassedForLeg2Txn = null;
+    duplicateBypassedForLeg2TxnKey = null;
     if (leg2DupCard) leg2DupCard.hidden = true;
     splitTransactionIdInput?.focus();
   });
 
   splitTransactionIdInput?.addEventListener('input', () => {
-    duplicateBypassedForLeg2Txn = null;
+    duplicateBypassedForLeg2TxnKey = null;
     if (leg2DupCard) leg2DupCard.hidden = true;
   });
 
@@ -6588,7 +6611,11 @@ export function setupQuickCollectModal({
         }
         if (txnIdVal) {
           const dup = findDuplicatePaymentReference(state, txnIdVal);
-          if (dup && duplicateBypassedForTxn !== txnIdVal) {
+          // Sharafat 8: the warning is silenced only while the
+          // bypass key still matches THIS payment (same customer,
+          // TID, amount and method) — a bypass armed for another
+          // customer, amount or method warns again.
+          if (dup && duplicateBypassedForTxnKey !== duplicateTidBypassKey(activeCustomerId, txnIdVal, amountVal, methodVal)) {
             const dupDate = dup.date || dup.paymentDate || 'recently';
             const dupMonth = dup.month || dup.billMonth || 'unknown';
             const dupAmt = Number(dup.amount || 0).toLocaleString('en-PK');
@@ -6616,7 +6643,8 @@ export function setupQuickCollectModal({
               doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
               doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
               if (!ok) { transactionIdInput?.focus(); return; }
-              duplicateBypassedForTxn = txnIdVal;
+              // Sharafat 8: arm the bypass as the key of THIS payment, never the raw TID.
+              duplicateBypassedForTxnKey = duplicateTidBypassKey(activeCustomerId, txnIdVal, amountVal, methodVal);
               if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
             });
             saveGuardHeldForDialog = true;
@@ -6807,7 +6835,10 @@ export function setupQuickCollectModal({
         }
         if (leg2Txn) {
           const dup2 = findDuplicatePaymentReference(state, leg2Txn);
-          if (dup2 && duplicateBypassedForLeg2Txn !== leg2Txn) {
+          // Sharafat 8: the warning is silenced only while the
+          // leg-2 bypass key still matches THIS leg (same customer,
+          // TID, amount and method) — exactly like leg 1.
+          if (dup2 && duplicateBypassedForLeg2TxnKey !== duplicateTidBypassKey(activeCustomerId, leg2Txn, leg2Amount, leg2Method)) {
             const dup2Date = dup2.date || dup2.paymentDate || 'recently';
             const dup2Month = dup2.month || dup2.billMonth || 'unknown';
             const dup2Amt = Number(dup2.amount || 0).toLocaleString('en-PK');
@@ -6880,14 +6911,17 @@ export function setupQuickCollectModal({
           methodSnapshot = localStorage.getItem(QUICK_COLLECT_STORAGE_KEY);
         } catch { /* storage unavailable — nothing to snapshot */ }
         try {
-          const leg1Reference = (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim())
+          // Sharafat 8: the reason rides only while the bypass key
+          // still matches THIS payment — a stale key from another
+          // customer, amount or method never attaches its reason.
+          const leg1Reference = (duplicateBypassedForTxnKey && duplicateBypassedForTxnKey === duplicateTidBypassKey(activeCustomerId, txnIdVal, amountVal, methodVal) && (dupReasonInput?.value || '').trim())
             ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : ''))
             : overrideReasonVal;
           // Plan 534: leg 2's duplicate reason, exactly like leg 1's
           // above — the card's reason is recorded as leg 2's
           // reference override reason, joined with any override
           // reason the operator typed for leg 2.
-          const leg2Reference = (duplicateBypassedForLeg2Txn && leg2Txn === duplicateBypassedForLeg2Txn && (leg2DupReasonInput?.value || '').trim())
+          const leg2Reference = (duplicateBypassedForLeg2TxnKey && duplicateBypassedForLeg2TxnKey === duplicateTidBypassKey(activeCustomerId, leg2Txn, leg2Amount, leg2Method) && (leg2DupReasonInput?.value || '').trim())
             ? (leg2DupReasonInput.value.trim() + (leg2Override ? ` · ${leg2Override}` : ''))
             : leg2Override;
           const splitResult = executeSplitTenderCollection(state, {
@@ -7042,7 +7076,10 @@ export function setupQuickCollectModal({
         transactionId: txnIdVal,
         senderTitle: (senderNameInput?.value || '').trim(),
         senderDigits: (senderDigitsInput?.value || '').trim(),
-        referenceOverrideReason: (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim()) ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : '')) : overrideReasonVal,
+        // Sharafat 8: the reason rides only while the bypass key
+        // still matches THIS payment — a stale key from another
+        // customer, amount or method never attaches its reason.
+        referenceOverrideReason: (duplicateBypassedForTxnKey && duplicateBypassedForTxnKey === duplicateTidBypassKey(activeCustomerId, txnIdVal, amountVal, methodVal) && (dupReasonInput?.value || '').trim()) ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : '')) : overrideReasonVal,
         screenshot: currentScreenshotDataUrl,
         // SISP-126: the armed remainder-waada chip date (null unless the
         // collector tapped a date chip — Skip / untouched writes nothing).

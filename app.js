@@ -609,6 +609,8 @@ import { categoryTagMarkup, filterTransactionsByCategoryTag, transactionCategory
 import { urduNoteMarkup } from './urdu-note.js';
 import { crossPaymentNoteMarkup, crossPaymentsMadeBy, crossPaymentsMadeSectionHtml } from './cross-payment-note.js';
 import { normalizeReceiptNumber, findTransactionByReceiptNumber, receiptNumberSearchLineText, receiptNumberSearchRowMarkup } from './receipt-number-search.js';
+import { findReceipts } from './receipt-finder.js';
+import { customerIdPillClass, healthScoreBandClass } from './customer-card-style.js';
 import { billMonthChoiceOf, normalizeBillMonthChoice, billMonthSelectOptions, billMonthChoiceLineText } from './bill-month-selector.js?v=1.11.0';
 import { queueEntryTime } from './offline-queue-status.js';
 import { paymentMethodDetailMarkup, paymentMethodReferenceMarkup } from './payment-method-detail.js';
@@ -3603,6 +3605,13 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
   const healthValue = health?.score === null || !health ? t('cust_health_cat_insufficient') : `${health.score}/100 · ${CUST_HEALTH_CATS[health.category] ? t(CUST_HEALTH_CATS[health.category]) : health.category}`;
   const healthClass = health?.score === null || !health ? '' : `health-${(health.category ?? 'unknown').toLowerCase().replaceAll(' ', '-')}`;
   const healthReasons = (health?.reasons ?? []).map(reason => `<li>${escapeHtml(reason)}</li>`).join('');
+  // Unpaid Cards: the ID pill colour and the health band class (both
+  // pure helpers in customer-card-style.js), and the card Clear dues
+  // gate — the button shows only under the "Unpaid This Month" pill,
+  // for a customer who still owes this month's bill.
+  const idPillClass = customerIdPillClass(customer.customerNumber);
+  const healthBandClass = healthScoreBandClass(health?.score);
+  const showCardClearDues = !archived && customerRosterPill === 'unpaid' && billing.value === 'pending' && outstanding.totalCents > 0;
   const receiptValue = receipts.receiptCount ? formatAmount(receipts.total) : t('cust_card_no_receipts');
   const receiptCount = receipts.receiptCount ? (cardIsUr ? t('cust_card_recorded_receipts', null, { count: receipts.receiptCount }) : plural(receipts.receiptCount, 'recorded receipt')) : t('cust_card_no_payment_entries');
   const openLabel = t('cust_card_open_profile_title', null, { number: customer.customerNumber, name: customer.name, receipts: receiptValue, health: healthLabel, tenurePrimary: tenure.primary, tenureDetail: tenure.detail });
@@ -3610,7 +3619,7 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
   // gone from the card — the read-only badge above replaces it and the
   // set control lives in the profile edit form. The live-session line
   // is gone from the card too — it lives in the profile uptime panel.
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line"><span class="customer-id-pill">${escapeHtml(t('cust_card_customer_number', null, { number: customer.customerNumber }))}</span>${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''}${taggedFirstMonths(customer).map(tagged => ` <span class="free-connection-badge">🔖 ${t('cust_first_month_free')} — ${escapeHtml(formatReceiptMonth(tagged.month) ?? tagged.month)}</span>`).join('')} ${prepaidUntilBadgeHtml(state, customer)} ${suspensionShieldBadgeHtml(customer, localDate())} ${loyaltyBadgeHtml(customer)} ${sameNameBadgeHtml(state, customer)}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>${knownAsInlineHtml(customer, 'customer-known-as')}<span class="customer-card-subline">${escapeHtml(subline)}</span>${manualBaqayaCardBadgeMarkup(customer)}</span><span class="customer-service-badge customer-service-${serviceStatus}" aria-label="${escapeHtml(serviceAria)}">${escapeHtml(serviceLabel)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received_lifetime')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span></button><div class="customer-card-rows" data-customer-id="${escapeHtml(customer.id)}"><span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_payment')}</span><span class="customer-billing-badge ${billing.className}">${escapeHtml(chipText)}</span></span>${outstanding.totalCents > 0 ? `<span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_outstanding')}</span><span class="customer-card-row-value"><span class="customer-card-row-amount"><strong>${escapeHtml(formatAmount(outstanding.total))}</strong>${additionalButton}</span>${outstanding.manualBaqayaCents > 0 ? `<small class="customer-card-row-sub">${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(outstanding.billDues), additional: formatPKR(outstanding.manualBaqaya) }))}</small>` : ''}</span></span>` : ''}<span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_health')}</span><strong class="customer-card-health-value ${healthClass}">${escapeHtml(healthValue)}</strong></span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></div><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line"><span class="customer-id-pill${idPillClass ? ` ${idPillClass}` : ''}">${escapeHtml(t('cust_card_customer_number', null, { number: customer.customerNumber }))}</span>${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''}${taggedFirstMonths(customer).map(tagged => ` <span class="free-connection-badge">🔖 ${t('cust_first_month_free')} — ${escapeHtml(formatReceiptMonth(tagged.month) ?? tagged.month)}</span>`).join('')} ${prepaidUntilBadgeHtml(state, customer)} ${suspensionShieldBadgeHtml(customer, localDate())} ${loyaltyBadgeHtml(customer)} ${sameNameBadgeHtml(state, customer)}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>${knownAsInlineHtml(customer, 'customer-known-as')}<span class="customer-card-subline">${escapeHtml(subline)}</span>${manualBaqayaCardBadgeMarkup(customer)}</span><span class="customer-service-badge customer-service-${serviceStatus}" aria-label="${escapeHtml(serviceAria)}">${escapeHtml(serviceLabel)}</span></span><span class="customer-card-stats"><span class="customer-card-stat customer-card-stat-received"><span>${t('cust_card_actually_received_lifetime')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat customer-card-stat-tenure"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span></button><div class="customer-card-rows" data-customer-id="${escapeHtml(customer.id)}"><span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_payment')}</span>${showCardClearDues ? `<button type="button" class="customer-card-clear-dues" data-clear-dues-card="${escapeHtml(customer.id)}" aria-label="${escapeHtml(t('prof_action_clear_dues'))} — ${escapeHtml(customer.name)}">${escapeHtml(t('prof_action_clear_dues'))}</button>` : `<span class="customer-billing-badge ${billing.className}">${escapeHtml(chipText)}</span>`}</span>${outstanding.totalCents > 0 ? `<span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_outstanding')}</span><span class="customer-card-row-value"><span class="customer-card-row-amount"><span class="customer-billing-badge status-pending">${escapeHtml(formatAmount(outstanding.total))}</span>${additionalButton}</span>${outstanding.manualBaqayaCents > 0 ? `<small class="customer-card-row-sub">${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(outstanding.billDues), additional: formatPKR(outstanding.manualBaqaya) }))}</small>` : ''}</span></span>` : ''}<span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_health')}</span><strong class="customer-card-health-value ${healthClass}${healthBandClass ? ` ${healthBandClass}` : ''}">${escapeHtml(healthValue)}</strong></span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></div><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
@@ -3989,6 +3998,11 @@ function renderCustomers() {
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-set-service]').forEach(button => button.addEventListener('click', () => setManualServiceStatus(button.dataset.setService, button.dataset.serviceStatus)));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-additional-pending]').forEach(button => button.addEventListener('click', (event) => { event.stopPropagation(); openAdditionalPendingDialog(button.dataset.additionalPending); }));
+  // Unpaid Cards: the green Clear dues button on the card — it sits
+  // inside the rows div (a selectCustomer tap target), so the tap
+  // must stop propagation exactly like the Additional button, or the
+  // profile would open under the confirm dialog.
+  for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-clear-dues-card]').forEach(button => button.addEventListener('click', (event) => { event.stopPropagation(); clearCustomerDues(button.dataset.clearDuesCard, { button }); }));
   $('#archivedCustomerList').querySelectorAll('[data-unarchive-customer]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); restoreCustomer(button.dataset.unarchiveCustomer); }));
   renderNewCustomersPanel();
   updateNavigationBadges(state);
@@ -5713,6 +5727,11 @@ let transactionAmountMax = '';
 // screen; '' means no live search. The search only goes live at three
 // or more characters (see normalizeLiveLedgerSearch).
 let transactionLiveSearch = '';
+// Unpaid Cards: the Recent receipts finder's typed text; '' means no
+// search, so the finder shows the most recent receipts. The finder
+// goes live at two characters (see normalizeReceiptFinderQuery) — a
+// two-digit customer number is a complete customer ID.
+let receiptFinderQuery = '';
 // Plan 465: the refine box — the second term typed on the
 // Transactions screen; '' means no refine. The refine only goes
 // live at three or more characters (see normalizeLedgerRefine).
@@ -6350,6 +6369,48 @@ function renderTransactions() {
   // Transactions Screen Overhaul: the quick pills' counts and
   // pressed state always describe the ledger as recorded.
   syncTransactionQuickPills(listTransactions(state), todayKey);
+  renderReceiptFinder();
+}
+// Unpaid Cards: the Recent receipts finder — a quick path over the
+// local ledger on the Transactions screen. Blank box: the 10 most
+// recent receipts. Typed query (2+ chars): every matching receipt,
+// newest first, capped at 20. Each row reopens the receipt (print)
+// or re-sends it (WhatsApp text / PNG screenshot) with the same
+// builders the transaction rows use. The input lives outside the
+// results list, so re-rendering the results never steals focus.
+function receiptFinderRowHtml(transaction, customerIndex) {
+  const { customer, bill, payment } = resolveTransactionCustomer(transaction, customerIndex);
+  const pid = escapeHtml(transaction.paymentId);
+  const meta = `${escapeHtml(humanDate(transaction.date))} · ${escapeHtml(transaction.method)}${receiptNumberSearchRowMarkup(transaction, generateReceiptNumber)}`;
+  const main = `<span class="receipt-finder-main"><span class="receipt-finder-name">#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}</span><span class="receipt-finder-meta">${meta}</span></span><strong class="receipt-finder-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>`;
+  // A receipt whose customer, bill or payment no longer resolves
+  // still shows (it is ledger history) but carries no actions —
+  // there is nothing to reopen or re-send for it.
+  if (!customer || !bill || !payment) return `<li class="receipt-finder-row">${main}</li>`;
+  const receiptData = buildPaymentReceipt(customer, bill, payment);
+  const receiptBillStatus = receiptData?.status === 'PAID' ? 'paid' : receiptData?.status === 'PARTIAL' ? 'partial' : null;
+  const whatsapp = receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus: receiptBillStatus, status: receiptData?.status ?? null, billAmount: receiptData?.nominalPrice ?? null, balanceDueCents: receiptData?.balanceDueCents ?? null, ticketCharges: receiptData?.ticketCharges ?? [], salesTaxCents: receiptData?.salesTaxCents ?? null, area: receiptData?.area ?? null, advanceCredit: receiptData?.advanceCredit ?? null, waivedAmount: receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown: buildArrearsBreakdown(customer, (customer.bills ?? []).find((billEntry) => billEntry.month === transaction.month)), ...autoPackageFieldForDraft(payment) }, { askLabel: 'WhatsApp receipt' });
+  return `<li class="receipt-finder-row">${main}<span class="receipt-finder-actions"><button class="secondary-button" type="button" data-receipt-finder-open data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="${escapeHtml(t('receipt_finder_open'))} — ${escapeHtml(transaction.customerName)}">${escapeHtml(t('receipt_finder_open'))}</button>${whatsapp}${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}</span></li>`;
+}
+function renderReceiptFinder() {
+  const list = $('#receiptFinderResults');
+  const countEl = $('#receiptFinderCount');
+  if (!list) return;
+  const found = findReceipts(listTransactions(state), receiptFinderQuery, { deriveReceiptNumber: generateReceiptNumber });
+  const customerIndex = indexCustomers(state.customers);
+  list.innerHTML = found.rows.map(transaction => receiptFinderRowHtml(transaction, customerIndex)).join('');
+  if (countEl) {
+    const query = receiptFinderQuery.trim();
+    if (found.rows.length === 0) {
+      countEl.textContent = found.mode === 'search' ? t('receipt_finder_none', null, { query }) : t('receipt_finder_empty');
+    } else if (found.mode === 'search') {
+      countEl.textContent = t('receipt_finder_match', null, { count: found.total, query }) + (found.total > found.rows.length ? ` ${t('receipt_finder_more', null, { shown: found.rows.length, total: found.total })}` : '');
+    } else {
+      countEl.textContent = t('receipt_finder_recent', null, { count: found.rows.length });
+    }
+  }
+  list.querySelectorAll('[data-receipt-finder-open]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
+  list.querySelectorAll('[data-png-receipt]').forEach(button => button.addEventListener('click', () => downloadPngReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
 }
 function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', unpaid:'Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }
 // Urdu phase 4: Billing-screen status labels via t(). reportStatusLabel is
@@ -11511,7 +11572,21 @@ async function onPaymentSubmit(event) {
 async function clearDues() {
   const customer = selectedCustomer();
   if (!customer) return;
-  const button = $('#clearDuesButton');
+  return clearCustomerDues(customer.id, { button: $('#clearDuesButton') });
+}
+// Unpaid Cards: the same one-tap full settlement the profile's Clear
+// dues button runs, callable for ANY customer id — the customer
+// card's green button under the "Unpaid This Month" pill calls it
+// with the card's customer, so the operator never has to open the
+// profile. Same confirm dialog, same Plan 437 guard, same 5-minute
+// duplicate detector, same large-cash approval, same
+// executeQuickCollection — one collection path, two buttons.
+async function clearCustomerDues(customerId, { button = null } = {}) {
+  const customer = state.customers.find(entry => entry?.id === customerId);
+  if (!customer) {
+    toast('Could not find that customer — the roster may have changed. Please try again.', { type: 'error', title: 'Clear dues' });
+    return;
+  }
   const tickets = loadTickets();
   let defaults;
   try {
@@ -11573,12 +11648,17 @@ async function clearDues() {
     // payment — the caller persists them, or they stay pending.
     if (result.nextTickets) saveTickets(result.nextTickets);
     save();
-    renderDetail();
+    if (selectedCustomerId === customer.id) renderDetail();
+    // The card and the dashboard read the same ledger: refresh both,
+    // so the cleared card leaves the unpaid list and the dashboard
+    // shows the payment without a navigation round-trip.
+    renderCustomers();
+    renderDashboard();
     const receipt = result.receipt;
     // Plan 31: the profile payment just recorded goes into the audit log.
     if (receipt?.paymentId) recordAudit('payment_recorded', { recordRef: `${customer.id}/${receipt.month}/${receipt.paymentId}`, customerId: customer.id, customerName: customer.name || '', detail: `${formatAmount(receipt.amount)} · Cash` });
     const actions = receipt?.paymentId ? [
-      { label: 'Undo', onAction: () => { try { state = deletePayment(state, customer.id, receipt.month, receipt.paymentId); save(); if (selectedCustomerId === customer.id) renderDetail(); toast('Payment undone. Ledger restored.', { type: 'info', title: 'Undone' }); } catch (err) { toast(err.message); } } },
+      { label: 'Undo', onAction: () => { try { state = deletePayment(state, customer.id, receipt.month, receipt.paymentId); save(); if (selectedCustomerId === customer.id) renderDetail(); renderCustomers(); renderDashboard(); toast('Payment undone. Ledger restored.', { type: 'info', title: 'Undone' }); } catch (err) { toast(err.message); } } },
       { label: 'Receipt', onAction: () => printPaymentReceipt(customer.id, receipt.month, receipt.paymentId) }
     ] : [];
     toast(`${formatAmount(receipt.amount)} received from #${customer.customerNumber} ${customer.name} for ${monthName(receipt.month)} — dues cleared in full. ${clearDuesRemainderLine(receipt, formatAmount)}`, { type: 'success', title: 'Dues cleared', actions });
@@ -11586,8 +11666,9 @@ async function clearDues() {
     // draft on the profile's success view — same draft as Quick
     // Collect, with the tax line and the updated package (when the
     // follow fired). It shows until the operator sends or dismisses
-    // it, or it was already shared.
-    if (receipt?.paymentId) {
+    // it, or it was already shared. Only when that customer's
+    // profile is the open one — a card clear leaves no draft behind.
+    if (receipt?.paymentId && selectedCustomerId === customer.id) {
       profileShareDraftTarget = { customerId: customer.id, month: receipt.month, paymentId: receipt.paymentId, autoPackage: receipt.packageAutoSet ?? null };
       profileShareDraftDismissedFor = null;
       renderProfileShareDraft();
@@ -12285,6 +12366,7 @@ $('#transactionAmountMax').addEventListener('input', event => { transactionAmoun
 // bar at the top — the same keystrokes also match a reference and
 // an exact receipt number (see searchLedgerUnified).
 $('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+$('#receiptFinderSearch')?.addEventListener('input', event => { receiptFinderQuery = event.currentTarget.value; renderReceiptFinder(); });
 // Plan 465: the refine box — narrowing only the already-found list
 // on every keystroke; clearing the box (or dropping below three
 // characters) restores the full first list.
@@ -12399,6 +12481,9 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   // clearing restores the All pill as the preset in force.
   resetTransactionFilterState();
   transactionQuickPill = 'all';
+  receiptFinderQuery = '';
+  const receiptFinderInput = $('#receiptFinderSearch');
+  if (receiptFinderInput) receiptFinderInput.value = '';
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');
   if (reportSearch) reportSearch.value = '';

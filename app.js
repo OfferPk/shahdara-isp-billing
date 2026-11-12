@@ -9291,12 +9291,14 @@ function refreshZoneOptions() {
   list.innerHTML = zonesUnderArea(state.customers ?? [], $('#mohallaInput')?.value ?? '').map((zone) => `<option value="${escapeHtml(zone)}"></option>`).join('');
 }
 function renderDetail() {
-  // FIRST-LOAD SPLIT: start the lazy QA chunk load on first profile open.
-  ensureQaModals().catch(() => {});
   const customer = selectedCustomer();
   $('#welcomeState').hidden = !!customer;
   $('#customerDetail').hidden = !customer;
   if (!customer) return;
+  // FIRST-LOAD SPLIT: start the lazy QA chunk load on first profile open —
+  // only once a profile is actually open (the boot render has no customer,
+  // and a background preload must never toast — see ensureQaModals).
+  ensureQaModals().catch(() => {});
   // LIVE FIX 1: the Clear dues button is wired HERE, on every profile
   // render, behind a dataset guard — not once at module load. A
   // module-level binding attaches once and is lost if the node is ever
@@ -11503,7 +11505,10 @@ async function onPaymentSubmit(event) {
     // Auto package follow (owner feature, 2026-10-29): a payment that
     // created-and-settled an unpriced month moves the customer's package
     // to the fee taken for that month (core decides from the
-    // pre-payment state; priced-bill payments never move it).
+    // pre-payment state). User decision 2026-11-12: a payment toward
+    // an already-priced bill moves the package too, and the bill is
+    // repriced to the taken fee, so the month's due is counted against
+    // the package now in effect.
     let autoPackageNote = null;
     if (fifoAdded) {
       const followed = autoPackageFromPayment(stateBeforePayment, state, customerId, payMonth, fifoAdded.id);
@@ -43928,6 +43933,14 @@ export let dailyRegisterController;
 // dialog.showModal() directly (setup wires the internals in place), and
 // controller?.open() buttons no-op until setup lands, then work on the next
 // tap. The two window.* exposures move here too (they were boot-time before).
+// A failed load never toasts here: this loader is also the background
+// preload (renderDetail + first interaction), and a preload failure must
+// stay silent — the user did not ask for a QA modal. The two
+// user-triggered modal-open sites own the error toast on their own
+// .catch, so a real failure is still visible when the user actually
+// tries to open a QA modal. (Live fix 2026-11-12: a stale cached app.js
+// fetched a renamed chunk, 404'd, and toasted on every app open.)
+const QA_LOAD_FAILED_MESSAGE = 'QA certificates could not be loaded — try opening the profile again.';
 function ensureQaModals() {
   if (!qaModalsPromise) {
     qaModalsPromise = loadQaSetups().then((qa) => {
@@ -44130,7 +44143,6 @@ function ensureQaModals() {
           return true;
     }).catch((err) => {
       qaModalsPromise = null;
-      toast('QA certificates could not be loaded — try opening the profile again.');
       throw err;
     });
   }
@@ -46270,7 +46282,7 @@ if (typeof document !== 'undefined') {
   if (openCorrectnessBtn && !openCorrectnessBtn.dataset.wired) {
     openCorrectnessBtn.dataset.wired = 'true';
     openCorrectnessBtn.addEventListener('click', () => {
-      ensureQaModals().then(() => { billingCorrectnessModalController?.open(); }).catch(() => {});
+      ensureQaModals().then(() => { billingCorrectnessModalController?.open(); }).catch(() => { toast(QA_LOAD_FAILED_MESSAGE); });
     });
   }
   const mobileMoreCorrectnessBtn = $('#mobileMoreBillingCorrectnessBtn');
@@ -46279,7 +46291,7 @@ if (typeof document !== 'undefined') {
     mobileMoreCorrectnessBtn.addEventListener('click', () => {
       const moreMenu = $('#mobileMoreMenu');
       if (moreMenu) moreMenu.hidden = true;
-      ensureQaModals().then(() => { billingCorrectnessModalController?.open(); }).catch(() => {});
+      ensureQaModals().then(() => { billingCorrectnessModalController?.open(); }).catch(() => { toast(QA_LOAD_FAILED_MESSAGE); });
     });
   }
   const mobileMoreTargetBtn = $('#mobileMoreCollectionTargetBtn');

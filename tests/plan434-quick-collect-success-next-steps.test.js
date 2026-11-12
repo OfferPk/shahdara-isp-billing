@@ -304,7 +304,11 @@ test('wiring: the merged row renders on both success paths, single and split', (
   assert.match(wiringSrc, /const nextDueDateText = nextDueDate \? formatQcReceiptDate\(nextDueDate\) : null;/);
   assert.match(wiringSrc, /const chargesPending = successNextStepsChargesPending\(activeReceipt\);/);
   assert.match(wiringSrc, /renderSplitReceiptCardHtml\(activeReceipt\.splitTender, quickCollectAreaSelectHtml\(activeReceipt\.splitTender\.area\), \{ nextDueDateText, chargesPending \}\)/);
-  assert.match(wiringSrc, /renderQuickCollectReceiptCardHtml\(activeReceipt, \{ whatsappPhone: receiptWhatsappPhone, nextDueDateText \}\)/);
+  // LIVE FIX 1 (2026-11-12): the single-tender call also passes the
+  // inline phone editor's state now (editingPhone + the typed value +
+  // the validation error) — the nextDueDateText / whatsappPhone the
+  // pin watches still ride the same call, unchanged.
+  assert.match(wiringSrc, /renderQuickCollectReceiptCardHtml\(activeReceipt, \{ whatsappPhone: receiptWhatsappPhone, nextDueDateText, editingPhone, phoneEditValue: editingPhoneValue, phoneEditError \}\)/);
 });
 
 test('wiring: collect again reopens the form for the same customer and posts nothing', () => {

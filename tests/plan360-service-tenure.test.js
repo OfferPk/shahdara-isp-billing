@@ -346,10 +346,16 @@ test('styles: the tenure rules exist and reuse an existing colour only', () => {
   for (const cls of ['.stv-section', '.stv-primary', '.stv-detail']) {
     assert.ok(stylesSrc.includes(cls), `styles must define ${cls}`);
   }
+  // Profile Polish C (15) — the tenure line is an info pill, so .stv-
+  // lines may also use the pre-existing info-blue palette (#e5efff /
+  // #174b87 / #adc9f1, the same blue as .phs-pill-package). The
+  // preserved intent is "reuse an existing colour only": no hex outside
+  // this set may appear.
+  const STV_ALLOWED_HEX = new Set(['#5c6e66', '#e5efff', '#174b87', '#adc9f1']);
   const stvLines = stylesSrc.split('\n').filter((line) => line.includes('.stv-'));
   for (const line of stvLines) {
     for (const hex of line.match(/#[0-9a-fA-F]{3,8}/g) ?? []) {
-      assert.equal(hex.toLowerCase(), '#5c6e66', `stv rule must reuse an existing colour, found ${hex}`);
+      assert.ok(STV_ALLOWED_HEX.has(hex.toLowerCase()), `stv rule must reuse an existing colour, found ${hex}`);
     }
   }
 });

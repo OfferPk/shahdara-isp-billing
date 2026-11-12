@@ -162,6 +162,50 @@
   --ds-footer-bad: #fef2f2;
   --ds-radius: 12px;
   --ds-focus-ring: rgba(15, 83, 56, 0.12);
+
+  /* QC Modal Fix (2026-11-13, user-specified palette): the tonal
+     colours for the Quick Collect picker cards, filter pills and
+     one-screen entry view. These hexes are the user's exact values
+     (spec items 6–12); they live here as tokens per the #230 rule,
+     so styles.css keeps its 614-hex ratchet — no new hard-coded
+     colour enters any legacy stylesheet. Colours the palette shares
+     with an existing token are NOT redefined here: High bg #fef2f2
+     is --ds-footer-bad, High text #dc2626 is --ds-danger-strong,
+     Cash bg/text are --ds-success-bg/--ds-success, JazzCash text is
+     --ds-danger, the ID-badge/Easypaisa text #047857 is
+     --color-emerald-dark, the POS bg/border #f0fdf4/#86efac are
+     --ds-footer-good/--ds-success-border, the focus ring #10b981 is
+     --color-emerald, the scroll tint #f1f5f9 is --color-slate-100,
+     and the footer bar #f8fafc/#cbd5e1/#334155 are
+     --color-slate-50/--ds-border/--color-slate-700. */
+  --qc-blue-bg: #eff6ff;
+  --qc-blue-border: #bfdbfe;
+  --qc-blue-text: #1d4ed8;
+  --qc-amber-bg: #fff7ed;
+  --qc-amber-border: #fed7aa;
+  --qc-amber-text: #c2410c;
+  --qc-amber-soft-bg: #fffbeb;
+  --qc-amber-strong-border: #f59e0b;
+  --qc-amber-strong-text: #d97706;
+  --qc-collect-from: #16a34a;
+  --qc-high-border: #ef4444;
+  --qc-low-border: #0ea5e9;
+  --qc-low-bg: #f0f9ff;
+  --qc-low-text: #0284c7;
+  --qc-scroll-tint: #f2f6f4;
+  --qc-mint-bg: #ecfdf5;
+  --qc-mint-border: #a7f3d0;
+  --qc-mint-strong-text: #065f46;
+  --qc-emerald-text: #047857;
+  --qc-chip-full-border: #6ee7b7;
+  --qc-rose-bg: #fff1f2;
+  --qc-rose-border: #fecdd3;
+  --qc-rose-text: #be123c;
+  --qc-rose-strong-text: #e11d48;
+  --qc-indigo-bg: #eef2ff;
+  --qc-indigo-text: #4338ca;
+  --qc-purple-bg: #f5f3ff;
+  --qc-purple-text: #6d28d9;
 }
 
 [data-theme="dark"] {
@@ -238,6 +282,38 @@
   --ds-footer-good: #16362d;
   --ds-footer-bad: #3a1513;
   --ds-focus-ring: rgba(134, 220, 187, 0.12);
+
+  /* QC Modal Fix: dark values for the --qc-* family — nearest
+     existing dark token where no dark equivalent exists (DS-0
+     pattern); the light values are the user's exact palette. */
+  --qc-blue-bg: #26344d;
+  --qc-blue-border: #2d4a40;
+  --qc-blue-text: #d5e2ff;
+  --qc-amber-bg: #3a2c10;
+  --qc-amber-border: #2d4a40;
+  --qc-amber-text: #f6cf7a;
+  --qc-amber-soft-bg: #3a2c10;
+  --qc-amber-strong-border: #2d4a40;
+  --qc-amber-strong-text: #f6cf7a;
+  --qc-collect-from: #86dcbb;
+  --qc-high-border: #f87171;
+  --qc-low-border: #2d4a40;
+  --qc-low-bg: #182d27;
+  --qc-low-text: #d5e2ff;
+  --qc-scroll-tint: #182d27;
+  --qc-mint-bg: #16362d;
+  --qc-mint-border: #2d4a40;
+  --qc-mint-strong-text: #86dcbb;
+  --qc-emerald-text: #86dcbb;
+  --qc-chip-full-border: #2d4a40;
+  --qc-rose-bg: #3a1513;
+  --qc-rose-border: #2d4a40;
+  --qc-rose-text: #ffb4a8;
+  --qc-rose-strong-text: #ffb4a8;
+  --qc-indigo-bg: #26344d;
+  --qc-indigo-text: #d5e2ff;
+  --qc-purple-bg: #1d352e;
+  --qc-purple-text: #d5e2ff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -309,5 +385,36 @@
     --ds-footer-good: #16362d;
     --ds-footer-bad: #3a1513;
     --ds-focus-ring: rgba(134, 220, 187, 0.12);
+
+    /* QC Modal Fix: dark values for the --qc-* family — same
+       derivation as the [data-theme="dark"] block above. */
+    --qc-blue-bg: #26344d;
+    --qc-blue-border: #2d4a40;
+    --qc-blue-text: #d5e2ff;
+    --qc-amber-bg: #3a2c10;
+    --qc-amber-border: #2d4a40;
+    --qc-amber-text: #f6cf7a;
+    --qc-amber-soft-bg: #3a2c10;
+    --qc-amber-strong-border: #2d4a40;
+    --qc-amber-strong-text: #f6cf7a;
+    --qc-collect-from: #86dcbb;
+    --qc-high-border: #f87171;
+    --qc-low-border: #2d4a40;
+    --qc-low-bg: #182d27;
+    --qc-low-text: #d5e2ff;
+    --qc-scroll-tint: #182d27;
+    --qc-mint-bg: #16362d;
+    --qc-mint-border: #2d4a40;
+    --qc-mint-strong-text: #86dcbb;
+    --qc-emerald-text: #86dcbb;
+    --qc-chip-full-border: #2d4a40;
+    --qc-rose-bg: #3a1513;
+    --qc-rose-border: #2d4a40;
+    --qc-rose-text: #ffb4a8;
+    --qc-rose-strong-text: #ffb4a8;
+    --qc-indigo-bg: #26344d;
+    --qc-indigo-text: #d5e2ff;
+    --qc-purple-bg: #1d352e;
+    --qc-purple-text: #d5e2ff;
   }
 }

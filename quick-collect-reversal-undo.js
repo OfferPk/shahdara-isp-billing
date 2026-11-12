@@ -115,9 +115,13 @@ export function quickCollectReversalUndoIsPlainPayment(facts = {}) {
  * when the original cannot be reversed — no usable id, no finite
  * positive numeric amount (a null, empty, boolean, or string
  * amount is never read as a number, and never as zero), an amount
- * that is not clean to two decimals, no usable method, or no
- * strict date. The reason caps at 200 chars; a missing reason
- * reads as the plain default, never as an invented detail.
+ * that is not clean to two decimals, no usable method, no strict
+ * date, or a cleared waada (the original auto-cleared the
+ * customer's promise, and a money-only reversal would leave that
+ * promise cleared with no payment behind it — the five-second
+ * undo restores it instead). The reason caps at 200 chars; a
+ * missing reason reads as the plain default, never as an invented
+ * detail.
  */
 export function quickCollectReversalUndoFields(payment, options = {}) {
   if (!payment || typeof payment !== 'object') return null;
@@ -131,6 +135,16 @@ export function quickCollectReversalUndoFields(payment, options = {}) {
   if (!method) return null;
   const date = typeof options.date === 'string' ? options.date.trim() : '';
   if (!quickCollectReversalUndoIsStrictDate(date)) return null;
+  // Sharafat 3: a payment that cleared a waada is never reversed —
+  // only a stamp with a usable (strict) promise date counts, so a
+  // damaged stamp holding no restorable promise never blocks a
+  // reversal. This module stays import-free, so the stamp is read
+  // inline here, mirroring voidPayment's own stamp check.
+  const clearedStamp = payment.clearedWaada && typeof payment.clearedWaada === 'object'
+    ? payment.clearedWaada
+    : null;
+  if (clearedStamp && typeof clearedStamp.promiseDate === 'string'
+    && quickCollectReversalUndoIsStrictDate(clearedStamp.promiseDate.trim())) return null;
   const reason = cleanQuickCollectReversalUndoText(options.reason).slice(0, 200) || QUICK_COLLECT_REVERSAL_UNDO_REASON;
   return {
     date,

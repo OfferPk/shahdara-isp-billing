@@ -164,34 +164,39 @@ export function mohallaCostEstimateSheetTotal(sheet) {
   return clean.items.reduce((sum, item) => sum + item.amount, 0);
 }
 
-/** Estimate sheets by date, then mohalla, then id, so the same list always reads the same way. */
-export function mohallaCostEstimateSorted(list) {
+/** Estimate sheets by date, then mohalla, then id, so the same list always reads the same way. The mohalla tiebreak is the caller's order when given (the app passes the numbered mohalla order), otherwise A–Z — the module stays import-free, so the order is supplied, never copied here (Mohalla Numbering). */
+export function mohallaCostEstimateSorted(list, compareAreas = null) {
   const clean = normalizeMohallaCostEstimateList(list);
   return [...clean].sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-    if (a.mohalla.toLowerCase() !== b.mohalla.toLowerCase()) return a.mohalla.toLowerCase() < b.mohalla.toLowerCase() ? -1 : 1;
+    if (a.mohalla.toLowerCase() !== b.mohalla.toLowerCase()) {
+      if (typeof compareAreas === 'function') return compareAreas(a.mohalla, b.mohalla);
+      return a.mohalla.toLowerCase() < b.mohalla.toLowerCase() ? -1 : 1;
+    }
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
 }
 
 /** Estimate sheets for one mohalla, in date order; the mohalla match is case-insensitive. */
-export function mohallaCostEstimatesForMohalla(list, mohalla) {
+export function mohallaCostEstimatesForMohalla(list, mohalla, compareAreas = null) {
   const wanted = text(mohalla).toLowerCase();
   if (!wanted) return [];
-  return mohallaCostEstimateSorted(list).filter((sheet) => sheet.mohalla.toLowerCase() === wanted);
+  return mohallaCostEstimateSorted(list, compareAreas).filter((sheet) => sheet.mohalla.toLowerCase() === wanted);
 }
 
 /**
- * Mohallas in A-Z order, keeping the first spelling seen, so
- * "Mohalla A" and "mohalla a" never list as two mohallas.
+ * Mohallas in the caller's order when given (the app passes the
+ * numbered mohalla order), otherwise A–Z, keeping the first spelling
+ * seen, so "Mohalla A" and "mohalla a" never list as two mohallas.
  */
-export function mohallaCostEstimateMohallas(list) {
+export function mohallaCostEstimateMohallas(list, compareAreas = null) {
   const clean = normalizeMohallaCostEstimateList(list);
   const byLower = new Map();
   for (const sheet of clean) {
     const key = sheet.mohalla.toLowerCase();
     if (!byLower.has(key)) byLower.set(key, sheet.mohalla);
   }
+  if (typeof compareAreas === 'function') return [...byLower.values()].sort(compareAreas);
   return [...byLower.values()].sort((a, b) => (a.toLowerCase() < b.toLowerCase() ? -1 : 1));
 }
 
@@ -204,10 +209,10 @@ export function mohallaCostEstimateTotalEstimated(list) {
 }
 
 /** Plain-words summary: the count, the total estimated, and the latest sheet with its total. */
-export function mohallaCostEstimateSummaryText(list) {
+export function mohallaCostEstimateSummaryText(list, compareAreas = null) {
   const clean = normalizeMohallaCostEstimateList(list);
   if (!clean.length) return 'No mohalla cost estimate sheets recorded.';
-  const sorted = mohallaCostEstimateSorted(clean);
+  const sorted = mohallaCostEstimateSorted(clean, compareAreas);
   const total = mohallaCostEstimateTotalEstimated(clean);
   const latest = sorted[sorted.length - 1];
   const countWord = clean.length === 1 ? '1 estimate sheet' : `${clean.length} estimate sheets`;
@@ -237,14 +242,14 @@ export function mohallaCostEstimateEntryHtml(sheet) {
   return `<li>${escapeHtml(mohallaCostEstimateEntryText(clean))}</li>`;
 }
 
-export function mohallaCostEstimateAllHtml(list) {
-  const sorted = mohallaCostEstimateSorted(list);
+export function mohallaCostEstimateAllHtml(list, compareAreas = null) {
+  const sorted = mohallaCostEstimateSorted(list, compareAreas);
   if (!sorted.length) return '<p>No mohalla cost estimate sheets recorded.</p>';
   return `<ul>${sorted.map((sheet) => mohallaCostEstimateEntryHtml(sheet)).join('')}</ul>`;
 }
 
-export function mohallaCostEstimatesForMohallaHtml(list, mohalla) {
-  const sheets = mohallaCostEstimatesForMohalla(list, mohalla);
+export function mohallaCostEstimatesForMohallaHtml(list, mohalla, compareAreas = null) {
+  const sheets = mohallaCostEstimatesForMohalla(list, mohalla, compareAreas);
   if (!sheets.length) return '<p>No cost estimate sheets for that mohalla.</p>';
   return `<ul>${sheets.map((sheet) => mohallaCostEstimateEntryHtml(sheet)).join('')}</ul>`;
 }
@@ -254,8 +259,8 @@ function csvCell(value) {
   return /[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
 }
 
-export function mohallaCostEstimateCsv(list) {
-  const sorted = mohallaCostEstimateSorted(list);
+export function mohallaCostEstimateCsv(list, compareAreas = null) {
+  const sorted = mohallaCostEstimateSorted(list, compareAreas);
   const header = ['id', 'date', 'mohalla', 'estimator', 'items', 'total'].join(',');
   const rows = sorted.map((sheet) => {
     const items = sheet.items.map((item) => `${item.label}:${item.amount}`).join('; ');

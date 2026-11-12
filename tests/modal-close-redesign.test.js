@@ -30,7 +30,10 @@ function closeButtonsIn(source) {
   for (const m of source.matchAll(BUTTON_RE)) {
     const full = m[0];
     const openTag = full.slice(0, full.indexOf('>') + 1);
-    if (CLOSE_CLASS_RE.test(openTag) && CLOSE_LABEL_RE.test(openTag)) found.push(m[1]);
+    if (CLOSE_CLASS_RE.test(openTag) && CLOSE_LABEL_RE.test(openTag)) {
+      const id = (openTag.match(/id="([^"]*)"/) || [])[1] || '';
+      found.push({ glyph: m[1], id });
+    }
   }
   return found;
 }
@@ -58,7 +61,11 @@ test('modal close redesign: every dialog close button shows the back arrow', () 
   }
   let checked = 0;
   for (const [name, source] of sources) {
-    for (const glyph of closeButtonsIn(source)) {
+    for (const { glyph, id } of closeButtonsIn(source)) {
+      // QC Modal Fix item 14: the help guide popup is the ONE
+      // documented exception — user-specified standard ✕ close
+      // (see the audit test's DIALOG_CLOSE_EXCEPTIONS).
+      if (id === 'helpGuideCloseBtn') continue;
       checked += 1;
       assert.equal(glyph, '↩', `${name}: dialog close button must show ↩, found ${JSON.stringify(glyph)}`);
     }

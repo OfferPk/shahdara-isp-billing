@@ -25,6 +25,11 @@
 //   - #navDrawerClose (.nav-drawer-close): app navigation drawer chrome with
 //     its own nav.css design system (incl. dark + responsive rules).
 //   - .wdm-remove-btn: PR #453's documented channel-remove exception.
+//   - #helpGuideCloseBtn: QC Modal Fix item 14 (2026-11-13) — the ONE
+//     documented exception to the ↩ rule. The user specified a standard
+//     circular ✕ close for the help guide popup; it keeps the shared
+//     close class and a Close aria-label, only the glyph differs.
+//     See DIALOG_CLOSE_EXCEPTIONS below.
 //   - Footer action-row buttons (secondary/primary "Close" / "Cancel" /
 //     "Done") inside dialogs that already have a conforming header close:
 //     form actions, not the dialog's close glyph (cf. PR #490's approved
@@ -72,6 +77,16 @@ const idClose = (b) => /close/i.test(b.id);
 const conforming = (b) => b.sharedClass && b.text === '↩' && ariaClose(b);
 const closeIntent = (b) => b.sharedClass || b.dataClose || ariaClose(b) || idClose(b);
 
+// QC Modal Fix (2026-11-13, item 14): the ONE documented exception
+// to the ↩ close rule. The user specified a standard circular ✕
+// close for the help guide popup — the popup is a nested overlay
+// that must stay put, and the ✕ is its explicit dismiss control.
+// The button keeps the shared close class and a Close aria-label;
+// only the glyph differs from the unified ↩.
+const DIALOG_CLOSE_EXCEPTIONS = {
+  helpGuideDialog: 'QC Modal Fix item 14: user-specified standard ✕ close',
+};
+
 const sourceFiles = ['index.html', ...readdirSync(root).filter((f) => f.endsWith('.js'))];
 const sources = sourceFiles.map((name) => [name, read(name)]);
 
@@ -96,6 +111,18 @@ test('SISP-87 audit: every dialog in the tree renders the unified close button',
       const id = (openTag.match(/id="([^"]*)"/) || [])[1] || '(no id)';
       const buttons = [...block.matchAll(BUTTON_RE)].map((m) => parseButton(m[0]));
       const good = buttons.filter(conforming);
+      // QC Modal Fix item 14: the help guide popup is the one
+      // documented ↩ exception — its ✕ close (shared class + Close
+      // aria-label, ✕ glyph) counts as this dialog's conforming
+      // close, so the per-dialog invariant still holds.
+      const exception = DIALOG_CLOSE_EXCEPTIONS[id];
+      if (exception) {
+        const xclose = buttons.find((b) => b.id === 'helpGuideCloseBtn');
+        assert.ok(xclose && xclose.sharedClass && xclose.text === '✕' && ariaClose(xclose),
+          `${name}: dialog #${id} must carry the documented ✕ close (${exception})`);
+        conformingButtons += 1;
+        continue;
+      }
       conformingButtons += good.length;
       assert.ok(good.length >= 1, `${name}: dialog #${id} has no conforming ↩ close button (shared class + ↩ + Close aria-label)`);
       const firstIntent = buttons.find(closeIntent);
@@ -113,6 +140,9 @@ test('SISP-87 audit: every shared-class close button renders the back arrow with
     for (const m of source.matchAll(BUTTON_RE)) {
       const b = parseButton(m[0]);
       if (!b.sharedClass) continue;
+      // QC Modal Fix item 14: the help guide's ✕ close (see
+      // DIALOG_CLOSE_EXCEPTIONS) — the one documented ↩ exception.
+      if (b.id === 'helpGuideCloseBtn') continue;
       checked += 1;
       assert.equal(b.text, '↩', `${name}: .${b.cls} button #${b.id || '?'} must show ↩, found ${JSON.stringify(b.text)}`);
       assert.ok(ariaClose(b), `${name}: .${b.cls} button #${b.id || '?'} must carry a Close aria-label`);
@@ -143,6 +173,12 @@ const BARE_GLYPH_ALLOWLIST = [
   // not a close-button class, so the modal-close redesign scanner
   // (which matches close classes + Close labels) does not pick it up.
   { file: 'quick-collect-end-of-day-summary.js', id: 'edsEndOfDaySummaryClose', why: 'dismisses the expanded end-of-day summary panel inside the Quick Collect modal' },
+  // QC Modal Fix item 14: the ✕ on the help guide popup IS a dialog
+  // close — the one documented exception to the ↩ rule, classified
+  // here so the audit enumerates it exactly once. Its class is the
+  // shared .close-btn (plus its own .help-guide-close-btn hook), so
+  // the redesign scanner picks it up too (see its own exception).
+  { file: 'index.html', id: 'helpGuideCloseBtn', why: 'QC Modal Fix item 14: the help guide popup uses the user-specified standard circular ✕ close' },
   // Plan 459: the × on a saved filter row removes only that filter —
   // an item-level micro-control, never a dialog close.
   { file: 'saved-search-filters.js', cls: 'fcs-clear-recent-btn', why: 'removes one saved filter row' },

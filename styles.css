@@ -8239,10 +8239,16 @@ html, body {
   white-space: nowrap;
 }
 .qc3-collect {
-  background: var(--ds-brand);
-  border-color: var(--ds-brand);
+  /* QC Modal Fix item 6: the user's emerald gradient + shadow,
+     radius 10px, weight 600 — the tonal values live here (the one
+     .qc3-collect rule), the QC Fix block below only adds the
+     compact-row layout (flex + 40px height). */
+  background: linear-gradient(180deg, var(--qc-collect-from), var(--ds-success));
+  border-color: transparent;
   color: var(--white);
-  font-weight: 700;
+  font-weight: 600;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
 }
 
 /* QC-7: explicit 360px pass for the QC picker card row. The
@@ -9868,6 +9874,624 @@ html, body {
 
 [data-theme="dark"] #quickCollectModal .qc-meta-val {
   color: #f8fafc;
+}
+
+/* ==========================================================================
+   QC MODAL FIX (2026-11-13) — Quick Collect picker + one-screen entry
+   polish, from the user's running list (items 1–14). Token-only: every
+   colour below is a var() over tokens.css (--qc-* is the user's exact
+   palette, defined there per the #230 rule) — no new hex enters this
+   file, so the 614-hex ratchet stays green. The rgba shadows are the
+   user's specified values (Collect 0 4px 12px rgba(22,163,74,0.25),
+   help card 0 10px 25px rgba(0,0,0,0.15)); rgba carries no hex.
+   ========================================================================== */
+
+/* (1) The picker step clears the sticky modal heading: the search box
+   no longer sits under it. The summary bar is a single line, not a
+   sticky block, so it cannot overlap the cards on scroll. */
+.qc-step {
+  margin-top: 12px;
+}
+
+/* (1) ONE compact 1-line summary bar: "Today: PKR X • Round: N".
+   The two hosts keep their DOM order (round total first, then the
+   day target — plan445 pins it) and their live text; the bar lays
+   them out in one row, Today first, with a • between them. The day
+   target host renders display:contents, so its line joins the row
+   while its progress track drops to its own full-width row below. */
+.qc-round-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 0;
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--color-slate-100);
+}
+.qc-round-banner .ds-stat-box {
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.qc-round-banner .rtt-round-totals {
+  margin: 0;
+  order: 2;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.qc-round-banner .rtt-round-totals::before {
+  content: '•';
+  margin: 0 6px;
+  color: var(--text-muted, #64748b);
+}
+.qc-round-banner .dtp-daily-target-progress {
+  display: contents;
+}
+.qc-round-banner .dtp-line {
+  margin: 0;
+  order: 1;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.qc-round-banner .route-progress-track {
+  flex: 1 1 100%;
+  margin-top: 4px;
+}
+
+/* (2)+(10) The actions row is one button now: Day Summary spans the
+   row as a borderless tonal mint button. The "+ New customer" button
+   is gone from the markup, so the row is a single column. */
+.qc-picker-actions-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+.eds-summary-button {
+  margin: 0;
+  background: var(--qc-mint-bg);
+  border-color: transparent;
+  color: var(--qc-mint-strong-text);
+  font-weight: 600;
+}
+
+/* (9) High filter pill: rose tint. Counts are small rounded counter
+   badges, not parens. */
+.quick-collect-filter-chip.qc-filter-high {
+  background: var(--qc-rose-bg);
+  border-color: var(--qc-rose-border);
+  color: var(--qc-rose-text);
+}
+.qc-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  margin-inline-start: 4px;
+  border-radius: 999px;
+  background: var(--color-slate-100);
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.quick-collect-filter-chip.is-active .qc-count-badge {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* (9) Header ⓘ / ↩: unified 36×36 circular icon buttons. The
+   !important on the close button mirrors the §4.1.4 rule it
+   overrides (that rule carries !important on every property). */
+#quickCollectModal .help-info-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px !important;
+  background: var(--color-slate-100);
+  border-color: transparent;
+  color: var(--color-slate-700);
+}
+#quickCollectModal #closeQuickCollectModalBtn {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  background: var(--color-slate-100) !important;
+  border-color: transparent !important;
+  color: var(--color-slate-700) !important;
+}
+
+/* (8) Scroll container tint (#F1F5F9) over the modal card tint
+   (#F2F6F4); white cards with a soft shadow. */
+#quickCollectModal .quick-collect-card {
+  background: var(--qc-scroll-tint);
+}
+.qc-customer-list {
+  background: var(--color-slate-100);
+  border-radius: 8px;
+  padding: 6px;
+}
+.qc-customer-card.qc3-card {
+  background: var(--white);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+/* (7) Priority tier: 4px left accent + tier colours on the card, the
+   badge and the dues amount. The tier class rides on the card; the
+   badge class rides on the badge itself (beside the .ds-chip variant
+   it already carries). The tier background replaces the QC-2 inset
+   accent on tiered cards — one accent, not two. */
+.qc-customer-card.qc2-priority--high {
+  border-left: 4px solid var(--qc-high-border);
+  background: var(--ds-footer-bad);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+.qc-customer-card.qc2-priority--medium {
+  border-left: 4px solid var(--qc-amber-strong-border);
+  background: var(--qc-amber-soft-bg);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+.qc-customer-card.qc2-priority--low {
+  border-left: 4px solid var(--qc-low-border);
+  background: var(--qc-low-bg);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+.qc-customer-card.qc2-priority--high .qc-due-val:not(.qc-val-settled) {
+  color: var(--ds-danger-strong);
+}
+.qc-customer-card.qc2-priority--medium .qc-due-val:not(.qc-val-settled) {
+  color: var(--qc-amber-strong-text);
+}
+.qc-customer-card.qc2-priority--low .qc-due-val:not(.qc-val-settled) {
+  color: var(--qc-low-text);
+}
+.qc2-badge--high {
+  background: var(--ds-footer-bad);
+  color: var(--ds-danger-strong);
+}
+.qc2-badge--medium {
+  background: var(--qc-amber-soft-bg);
+  color: var(--qc-amber-strong-text);
+}
+.qc2-badge--low {
+  background: var(--qc-low-bg);
+  color: var(--qc-low-text);
+}
+
+/* (3)+(5) The card header's right column holds the priority badge
+   and the High-balance tag side by side. The tag says why a
+   Medium-scored card sits in the High ≥ 2k filter — it reads the
+   same shared threshold as the filter, so the two can never
+   disagree. */
+#quickCollectModal .qc-card-right {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.qc2-high-balance-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--ds-danger-strong);
+  background: var(--ds-footer-bad);
+  border: 1px solid var(--qc-high-border);
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+
+/* (8) #ID badge: emerald-tint pill inline with the name. */
+.qc-cust-num {
+  background: var(--qc-mint-bg);
+  border: 1px solid var(--qc-mint-border);
+  color: var(--qc-emerald-text);
+}
+
+/* (4)+(6) ONE compact action row: compact Call / Location icon
+   buttons left, the primary Collect button right, naming the amount
+   it will collect. The row wraps only when it must (a 360px card
+   cannot fit all three labels on one line — QC-7's wrap, never
+   truncate — so there Collect drops to its own full-width row). */
+.qc3-action-btn--icon {
+  flex: 0 0 auto;
+  min-height: 36px !important;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+.qc3-action-btn--call {
+  background: var(--qc-blue-bg);
+  border-color: var(--qc-blue-border);
+  color: var(--qc-blue-text);
+}
+.qc3-action-btn--location {
+  background: var(--qc-amber-bg);
+  border-color: var(--qc-amber-border);
+  color: var(--qc-amber-text);
+}
+.qc3-collect {
+  /* Layout only — the tonal values (gradient, radius, shadow,
+     weight) live in the base .qc3-collect rule above. */
+  flex: 1 1 auto;
+  min-height: 40px !important;
+}
+.qc3-collect:active {
+  transform: scale(0.98);
+}
+
+/* (2)+(10) The footer is ONE compact row: Quick Entry + Full Ledger
+   split 50/50 as a slate segmented bar. */
+.qc-picker-footer {
+  display: flex;
+  gap: 0;
+  margin: 8px 0 0;
+  padding: 3px;
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  background: var(--color-slate-50);
+}
+.qc-picker-footer .qc-footer-btn {
+  flex: 1 1 50%;
+  min-height: 40px !important;
+  margin: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-slate-700);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* (11) The one-screen amount display: POS-style, with a fixed PKR
+   badge and the emerald focus ring instead of the default blue. */
+.qos-amount-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--ds-footer-good);
+  border: 1.5px solid var(--ds-success-border);
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+.qos-pkr-badge {
+  flex: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--qc-mint-strong-text);
+  background: var(--qc-mint-bg);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+.qos-amount-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--qc-mint-strong-text);
+}
+.qos-amount-value:focus {
+  outline: 2px solid var(--color-emerald);
+  outline-offset: 1px;
+  border-color: var(--color-emerald);
+}
+
+/* (11) Preset chips with dynamic rupee labels: Full dues emerald,
+   Half dues amber, Package price blue. */
+.qab-amount-chip--full {
+  background: var(--qc-mint-bg);
+  border-color: var(--qc-chip-full-border);
+  color: var(--qc-emerald-text);
+  font-weight: 600;
+}
+.qab-amount-chip--half {
+  background: var(--qc-amber-soft-bg);
+  border-color: var(--ds-warning-border);
+  color: var(--ds-warning);
+  font-weight: 600;
+}
+.qab-amount-chip--package {
+  background: var(--qc-blue-bg);
+  border-color: var(--qc-blue-border);
+  color: var(--qc-blue-text);
+  font-weight: 600;
+}
+
+/* (11)+(13) The keypad keys are 42–44px with tighter gaps on the
+   one screen (the global button floor makes 42px compute to 44px);
+   the form step keeps its roomy 56px keys. The key KIND colours —
+   digits elevated white, C rose, backspace slate — apply to both
+   steps' keypads, because it is one shared component. */
+#quickCollectStepOneScreen .kpd-keypad {
+  gap: 6px;
+}
+#quickCollectStepOneScreen .kpd-key {
+  min-height: 44px;
+  padding: 8px;
+}
+.kpd-key--digit {
+  background: var(--white);
+  border-color: var(--ds-border);
+  color: var(--color-slate-700);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+.kpd-key--clear {
+  background: var(--qc-rose-bg);
+  border-color: var(--qc-rose-border);
+  color: var(--qc-rose-strong-text);
+}
+.kpd-key--backspace {
+  background: var(--ds-line);
+  border-color: var(--color-slate-700);
+  color: var(--color-slate-700);
+}
+
+/* (12) The searchable customer combobox: the search box carries the
+   emerald focus ring, and the option list is a card with the Mohalla
+   + Outstanding badge on each option. */
+.qos-combobox {
+  position: relative;
+}
+.qos-combobox-input:focus {
+  outline: 2px solid var(--color-emerald);
+  outline-offset: 1px;
+  border-color: var(--color-emerald);
+}
+.qos-combobox-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--modal-surface);
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.qos-combobox-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.qos-combobox-option:hover,
+.qos-combobox-option[aria-selected="true"] {
+  background: var(--color-slate-100);
+}
+.qos-option-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.qos-option-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-main, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qos-option-mohalla {
+  font-size: 0.78rem;
+  color: var(--text-muted, #64748b);
+}
+.qos-due-badge {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+.qos-due-badge--high {
+  background: var(--ds-footer-bad);
+  color: var(--ds-danger-strong);
+}
+.qos-due-badge--medium {
+  background: var(--qc-amber-soft-bg);
+  color: var(--qc-amber-strong-text);
+}
+.qos-due-badge--paid {
+  background: var(--ds-success-bg);
+  color: var(--ds-success);
+}
+
+/* (12) Payment method as colour-coded 1-tap pills. The checked pill
+   carries a ring; the shop row opens under the group pill. */
+.qos-method-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.qos-method-pill {
+  min-height: 40px !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ds-border);
+  background: var(--color-slate-100);
+  color: var(--color-slate-700);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.qos-method-pill[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--modal-surface), 0 0 0 4px currentColor;
+  font-weight: 700;
+}
+.qos-method--cash {
+  background: var(--ds-success-bg);
+  border-color: transparent;
+  color: var(--ds-success);
+}
+.qos-method--easypaisa {
+  background: var(--qc-mint-bg);
+  border-color: transparent;
+  color: var(--qc-emerald-text);
+}
+.qos-method--jazzcash {
+  background: var(--ds-footer-bad);
+  border-color: transparent;
+  color: var(--ds-danger);
+}
+.qos-method--indigo {
+  background: var(--qc-indigo-bg);
+  border-color: transparent;
+  color: var(--qc-indigo-text);
+}
+.qos-method--shop {
+  background: var(--qc-purple-bg);
+  border-color: transparent;
+  color: var(--qc-purple-text);
+}
+.qos-method--neutral {
+  background: var(--color-slate-100);
+  border-color: var(--ds-border);
+  color: var(--color-slate-700);
+}
+.qos-shop-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.qos-shop-pill {
+  background: var(--qc-purple-bg);
+  border-color: transparent;
+  color: var(--qc-purple-text);
+}
+
+/* (13) The save CTA is pinned at the bottom of the one screen, so
+   Customer → Amount → Method → Save fits with zero scrolling. */
+.qos-save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: 8px 0 0;
+  background: var(--modal-surface);
+}
+.qc-one-screen-save {
+  width: 100%;
+  min-height: 48px;
+  background: linear-gradient(180deg, var(--qc-collect-from), var(--ds-success));
+  border-color: transparent;
+  color: var(--white);
+  font-weight: 600;
+  font-size: 1rem;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+}
+.qc-one-screen-save:active {
+  transform: scale(0.98);
+}
+
+/* (14) The help guide popup is a stationary overlay on top of the
+   screen it was tapped from: a dimmed blurred backdrop, a white
+   16px card, a circular ✕ close, and a prominent Got-it button.
+   The doubled class beats the shared dialog.billing-modal
+   background rule, which comes later in the file. */
+dialog.help-guide-modal.billing-modal {
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+dialog.help-guide-modal::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.help-guide-modal .close-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  background: var(--color-slate-100);
+  color: var(--color-slate-700);
+  font-size: 18px;
+}
+.help-guide-footer {
+  display: flex;
+  padding-top: 12px;
+}
+.help-guide-got-it-btn {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 20px;
+  background: var(--qc-collect-from);
+  border-color: transparent;
+  color: var(--white);
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 8px;
+}
+
+/* QC Modal Fix — dark mode: the light-mode tints above are
+   overridden by the dark Quick Collect rules (ID specificity), so
+   each tinted surface gets its dark token value here, with the
+   same specificity, later in the file. The help card follows the
+   theme in dark mode (a white card would carry light text). */
+[data-theme="dark"] #quickCollectModal .qc-customer-card.qc2-priority--high {
+  background: var(--ds-footer-bad);
+}
+[data-theme="dark"] #quickCollectModal .qc-customer-card.qc2-priority--medium {
+  background: var(--qc-amber-soft-bg);
+}
+[data-theme="dark"] #quickCollectModal .qc-customer-card.qc2-priority--low {
+  background: var(--qc-low-bg);
+}
+[data-theme="dark"] #quickCollectModal .qc-cust-num {
+  background: var(--qc-mint-bg);
+  border-color: var(--qc-mint-border);
+  color: var(--qc-emerald-text);
+}
+[data-theme="dark"] #quickCollectModal .quick-collect-filter-chip.qc-filter-high {
+  background: var(--qc-rose-bg);
+  border-color: var(--qc-rose-border);
+  color: var(--qc-rose-text);
+}
+[data-theme="dark"] #quickCollectModal .qab-amount-chip--full {
+  background: var(--qc-mint-bg);
+  border-color: var(--qc-chip-full-border);
+  color: var(--qc-emerald-text);
+}
+[data-theme="dark"] #quickCollectModal .qab-amount-chip--half {
+  background: var(--qc-amber-soft-bg);
+  border-color: var(--ds-warning-border);
+  color: var(--ds-warning);
+}
+[data-theme="dark"] #quickCollectModal .qab-amount-chip--package {
+  background: var(--qc-blue-bg);
+  border-color: var(--qc-blue-border);
+  color: var(--qc-blue-text);
+}
+[data-theme="dark"] #quickCollectModal .kpd-key--digit {
+  background: var(--color-slate-100);
+  border-color: var(--ds-border);
+  color: var(--color-slate-700);
+}
+[data-theme="dark"] #quickCollectModal .kpd-key--clear {
+  background: var(--qc-rose-bg);
+  border-color: var(--qc-rose-border);
+  color: var(--qc-rose-strong-text);
+}
+[data-theme="dark"] #quickCollectModal .kpd-key--backspace {
+  background: var(--ds-line);
+  border-color: var(--color-slate-700);
+  color: var(--color-slate-700);
+}
+[data-theme="dark"] dialog.help-guide-modal.billing-modal {
+  background: var(--modal-surface);
 }
 
 /* Digital Payments: JazzCash / Easypaisa / Raast / Bank (Issue 224 - agent4) */

@@ -97,20 +97,24 @@ test('figures: inputs are never mutated', () => {
 });
 
 test('html: the three buttons render in order with their figures in the labels', () => {
+  // QC Modal Fix item 11: each chip carries its own kind class
+  // (--full / --half / --package) so the tonal colours can land
+  // per chip (emerald / amber / blue). Labels and amounts are
+  // unchanged; only the class list grows.
   assert.equal(
     oneScreenQuickAmountButtonsHtml(fixtureFigures()),
-    '<button type="button" class="qab-amount-chip" data-qab-amount="3000">Full dues (Rs 3,000)</button>'
-    + '<button type="button" class="qab-amount-chip" data-qab-amount="1500">Half dues (Rs 1,500)</button>'
-    + '<button type="button" class="qab-amount-chip" data-qab-amount="2000">Package price (Rs 2,000)</button>',
+    '<button type="button" class="qab-amount-chip qab-amount-chip--full" data-qab-amount="3000">Full dues (Rs 3,000)</button>'
+    + '<button type="button" class="qab-amount-chip qab-amount-chip--half" data-qab-amount="1500">Half dues (Rs 1,500)</button>'
+    + '<button type="button" class="qab-amount-chip qab-amount-chip--package" data-qab-amount="2000">Package price (Rs 2,000)</button>',
   );
 });
 
 test('html: a button with no known figure shows plain words and carries no amount', () => {
   assert.equal(
     oneScreenQuickAmountButtonsHtml({ full: null, half: null, package: null }),
-    '<button type="button" class="qab-amount-chip">Full dues</button>'
-    + '<button type="button" class="qab-amount-chip">Half dues</button>'
-    + '<button type="button" class="qab-amount-chip">Package price</button>',
+    '<button type="button" class="qab-amount-chip qab-amount-chip--full">Full dues</button>'
+    + '<button type="button" class="qab-amount-chip qab-amount-chip--half">Half dues</button>'
+    + '<button type="button" class="qab-amount-chip qab-amount-chip--package">Package price</button>',
   );
 });
 
@@ -176,7 +180,15 @@ test('wiring: the controller imports the one-screen quick amounts module', () =>
 test('wiring: the row is inserted after the one-screen amount field group', () => {
   const start = wiringSrc.indexOf('function bindOneScreenControls()');
   assert.notEqual(start, -1);
-  const block = wiringSrc.slice(start, start + 4000);
+  // QC Modal Fix item 12: the combobox + method-pills wiring now
+  // sits between the bind start and the quick-amount row, so the
+  // old fixed 4000-char window no longer reaches it. Slice to the
+  // next top-level function instead — the assertion is the same
+  // (the row is inserted after the amount field group), only the
+  // window is robust to the wiring above it growing.
+  const end = wiringSrc.indexOf('function submitOneScreenPayment()', start);
+  assert.notEqual(end, -1);
+  const block = wiringSrc.slice(start, end);
   assert.match(block, /qab-row/);
   assert.match(block, /closest\('\.qc-field-group'\)/);
   assert.match(block, /\.after\(quickAmountRow\)/);

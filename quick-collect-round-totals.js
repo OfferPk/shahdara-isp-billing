@@ -90,15 +90,16 @@ export function quickCollectRoundTotals(rows, roundStartMs) {
 }
 
 /**
- * "This round: 3 payments · PKR 9,000" for the round-total line, or
- * "This round: no payments yet" for an empty round — said plainly,
- * never hidden behind a blank. Plain English, like the other live
- * lines on that screen.
+ * QC Modal Fix: the round segment of the picker's ONE compact
+ * summary line — "Round: 3 · PKR 9,000", or "Round: 0" for an empty
+ * round. The old sentence ("This round: 3 payments · PKR 9,000")
+ * is gone: the banner shows Today + Round on a single line, so the
+ * words have to be short — the count is the payments count, and the
+ * figure is the round total, exactly as before, only shorter.
  */
 export function quickCollectRoundTotalsText(totals) {
   const count = Number(totals?.count);
   const total = Number(totals?.total);
-  if (!Number.isFinite(count) || count <= 0) return 'This round: no payments yet';
-  const word = count === 1 ? 'payment' : 'payments';
-  return `This round: ${count} ${word} · ${formatRoundTotalsAmount(Number.isFinite(total) ? total : 0)}`;
+  if (!Number.isFinite(count) || count <= 0) return 'Round: 0';
+  return `Round: ${count} · ${formatRoundTotalsAmount(Number.isFinite(total) ? total : 0)}`;
 }

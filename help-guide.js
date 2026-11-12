@@ -16,8 +16,15 @@
  *   every other string in the app is.
  * - The popup is ONE static <dialog id="helpGuideDialog"> in index.html,
  *   class "billing-modal" (the shared shell whose surface is
- *   var(--modal-surface)) with the unified red-circle ↩ close button
- *   (class="close-btn", PR #453 / SISP-87 conforming).
+ *   var(--modal-surface)) with the unified close button
+ *   (class="close-btn", PR #453 / SISP-87 conforming). QC Modal Fix:
+ *   the close is a standard circular ✕ (not the red ↩), and a
+ *   prominent "✓ Got it, Thanks" button dismisses the popup — the
+ *   dialog is a nested overlay (data-nested-dialog) that opens ON
+ *   TOP of the screen it was tapped from and never navigates away
+ *   from it: the #215 one-dialog rule used to close the host dialog
+ *   the moment this one opened, which is what sent the operator
+ *   back to Home when they tapped ⓘ in Quick Collect.
  * - Wiring is ONE delegated document click handler: any element with
  *   data-help="<topic>" opens the popup for that topic. Feature code
  *   only renders the button; it never wires its own listener.
@@ -38,6 +45,9 @@ export const HELP_DIALOG_ID = 'helpGuideDialog';
 export const HELP_TITLE_ID = 'helpGuideTitle';
 export const HELP_BODY_ID = 'helpGuideBody';
 export const HELP_CLOSE_ID = 'helpGuideCloseBtn';
+// QC Modal Fix: the prominent "Got it, Thanks" dismiss button at
+// the bottom of the guide popup.
+export const HELP_GOT_IT_ID = 'helpGuideGotItBtn';
 // Plan W — the searchable handbook index inside the same dialog.
 export const HELP_INDEX_ID = 'helpGuideIndex';
 export const HELP_SEARCH_ID = 'helpGuideSearch';
@@ -273,6 +283,13 @@ export function initHelpGuides(doc = null) {
   const handbookBtn = typeof root.getElementById === 'function' ? root.getElementById('handbookButton') : null;
   if (handbookBtn && typeof handbookBtn.addEventListener === 'function') {
     handbookBtn.addEventListener('click', () => openHandbookIndex(root));
+  }
+  // QC Modal Fix: the "Got it, Thanks" button dismisses the popup —
+  // the same close the ✕ does, so the operator always has an
+  // explicit, unmissable way out that never navigates anywhere.
+  const gotItBtn = typeof root.getElementById === 'function' ? root.getElementById(HELP_GOT_IT_ID) : null;
+  if (gotItBtn && typeof gotItBtn.addEventListener === 'function') {
+    gotItBtn.addEventListener('click', () => closeHelpGuide(root));
   }
   root.addEventListener('input', (event) => {
     const target = event && event.target;

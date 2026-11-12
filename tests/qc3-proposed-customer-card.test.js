@@ -143,13 +143,16 @@ test('qc3 card actions: location is the pin URL, null without a pin — never an
 test('qc3 card actions: one object per customer, monthly figure + call + location together', async () => {
   const mod = await qc3();
   const full = mod.qc3CardActions({ monthlySellingAmount: 3000, phone: '03012345678', gpsLat: 33.7, gpsLng: 73.1 }, BILL_PACKAGES);
+  // QC Modal Fix item 3: the card also carries the package name
+  // (its display label) for the "Mohalla • Package Name" subtitle.
   assert.deepEqual(full, {
     monthlyPackage: 3000,
+    packageName: '',
     callHref: 'tel:03012345678',
     mapsUrl: 'https://www.google.com/maps?q=33.7,73.1',
   });
   const bare = mod.qc3CardActions({ monthlySellingAmount: null, packageSpeed: '', phone: '' }, BILL_PACKAGES);
-  assert.deepEqual(bare, { monthlyPackage: null, callHref: null, mapsUrl: null });
+  assert.deepEqual(bare, { monthlyPackage: null, packageName: '', callHref: null, mapsUrl: null });
 });
 
 // --- Pins: the pool carries the card data --------------------------------
@@ -197,7 +200,10 @@ test('picker cards carry Call / Location / Collect — real links when the data 
   assert.ok(pinned.includes('href="https://www.google.com/maps?q=33.7,73.1"'), 'Location must open the recorded pin');
   assert.ok(pinned.includes('data-qc3-action="location"'), 'Location must be marked as a card action');
   assert.ok(pinned.includes('data-qc3-action="collect"'), 'Collect must be an explicit button');
-  assert.ok(pinned.includes('>Collect<') || pinned.includes('Collect</button>'), 'Collect must be labelled');
+  // QC Modal Fix item 4: the Collect label names the amount
+  // ("Collect PKR 3,000"), so the operator sees the figure on the
+  // button itself — a settled customer still shows plain "Collect".
+  assert.ok(pinned.includes('Collect PKR 3,000</button>'), 'Collect must label the amount to collect');
 });
 
 test('picker cards honestly disable Call without a phone and Location without a pin', () => {
@@ -284,12 +290,13 @@ test('qc3 card rules are token-only, action buttons are 44px tappable', () => {
     assert.ok(rest.includes(hex), `QC-3 CSS introduces new hex ${hex} — reuse tokens`);
   }
   assert.ok(added.includes('min-height: 44px'), 'action buttons must be 44px tappable');
-  // QC Cash Modal Overhaul: Collect is a solid Emerald primary CTA
-  // now (DS-0 --ds-brand background, white text, bold) instead of
-  // the --green outline accent, so it reads as the one primary
-  // action against the outline Call / Location buttons.
-  assert.ok(added.includes('var(--ds-brand)'), 'the Collect button must use the DS-0 brand token');
-  assert.ok(added.includes('background: var(--ds-brand)'), 'the Collect button must be solid Emerald, not an outline');
+  // QC Modal Fix item 6: Collect is the user's emerald gradient
+  // now (--qc-collect-from → --ds-success, white text, weight 600)
+  // instead of the solid DS-0 --ds-brand — the gradient is the one
+  // primary action against the outline Call / Location buttons.
+  assert.ok(added.includes('var(--qc-collect-from)'), 'the Collect button must use the collect token');
+  assert.ok(added.includes('var(--ds-success)'), 'the Collect button must end on the DS-0 success token');
+  assert.ok(added.includes('background: linear-gradient'), 'the Collect button must be the emerald gradient, not an outline');
   const wrapStart = stylesSrc.indexOf('.qc-customer-card.qc3-card');
   assert.ok(wrapStart >= 0, 'missing card wrapper rule (column layout)');
   const wrapBlock = stylesSrc.slice(wrapStart, stylesSrc.indexOf('}', wrapStart));

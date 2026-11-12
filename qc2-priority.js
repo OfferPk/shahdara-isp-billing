@@ -68,6 +68,29 @@ export const QC2_MULTI_MONTH_MIN_MONTHS = 2;
 export const QC2_LONG_OVERDUE_MIN_DAYS = 90;
 
 /**
+ * QC Modal Fix — the High-dues filter threshold in rupees, shared
+ * by the picker pool and the card: the "High ≥ 2k" filter lists a
+ * customer when totalDues reaches this figure, and the card shows
+ * its "High balance" tag for the same figure, so the badge and the
+ * filter can never disagree about who counts as High. The scorer
+ * tiers are untouched — a Medium-scored card at or above this
+ * figure keeps its Medium badge and gains the tag, which is what
+ * says why it sits in the High filter.
+ */
+export const QC2_HIGH_DUES_MIN_RUPEES = 2000;
+
+/**
+ * True when a customer's total dues reach the High-dues filter
+ * threshold. A missing or unusable figure is never High — it is
+ * not a number, never zero, never a threshold met.
+ */
+export function qc2HasHighBalance(totalDues) {
+  if (totalDues === null || totalDues === undefined || typeof totalDues === 'boolean' || totalDues === '') return false;
+  const dues = Number(totalDues);
+  return Number.isFinite(dues) && dues >= QC2_HIGH_DUES_MIN_RUPEES;
+}
+
+/**
  * Maps a sort control value to a sort order. Only 'oldest' selects
  * the oldest-first order; anything else — including unknown values —
  * falls back to the default highest-dues-first order, so a stray

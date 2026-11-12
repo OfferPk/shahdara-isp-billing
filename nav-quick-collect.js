@@ -56,9 +56,16 @@ import { getDayTarget } from './day-target.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
 import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
 import {
+  quickCollectOneScreenComboboxChoices,
+  quickCollectOneScreenComboboxFilter,
+  quickCollectOneScreenComboboxOptionHtml,
   quickCollectOneScreenDraft,
   quickCollectOneScreenHtml,
-  quickCollectOneScreenDuesText
+  quickCollectOneScreenDuesText,
+  quickCollectOneScreenMethodPills,
+  quickCollectOneScreenResolveMethod,
+  quickCollectOneScreenSaveLabel,
+  quickCollectOneScreenShopShortLabel,
 } from './quick-collect-one-screen.js';
 import { oneScreenQuickAmountFigures, oneScreenQuickAmountButtonsHtml } from './one-screen-quick-amounts.js';
 import { addPaymentDuesFigures, addPaymentDuesButtonsHtml } from './add-payment-dues-buttons.js';
@@ -213,8 +220,10 @@ import { resolveShopCollector, shopCollectorMethods } from './shop-settlement.js
 import { buildSmartDuesRecovery, sortMohallaNamesByNumberedOrder } from './owner-insights.js';
 import {
   QC2_HIGH_BALANCE_TIER_LABEL_KEYS,
+  QC2_HIGH_DUES_MIN_RUPEES,
   QC2_SORT_AMOUNT,
   qc2CardPriority,
+  qc2HasHighBalance,
   qc2PriorityByCustomerId,
   qc2SortCollectionEntries,
   qc2SortOrderFromValue,
@@ -451,7 +460,10 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
 
     // Apply filter criteria
     if (filterType === 'all-dues' && totalDues <= 0) continue;
-    if (filterType === 'high-dues' && totalDues < 2000) continue;
+    // QC Modal Fix: the High filter threshold is the shared
+    // QC2_HIGH_DUES_MIN_RUPEES — the card's "High balance" tag
+    // reads the same constant, so the two can never drift apart.
+    if (filterType === 'high-dues' && totalDues < QC2_HIGH_DUES_MIN_RUPEES) continue;
     // Sharafat 9: the Paid view is only customers with at least one
     // bill who are settled in full. A never-billed customer (no bill
     // at all) was never "paid up" — listing them as paid hid the fact
@@ -1984,25 +1996,41 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     const hasDues = c.totalDues > 0;
     const dueClass = hasDues ? 'qc-has-dues' : 'qc-settled';
     // QC-2: the existing dues-recovery score for this card — tier
-    // badge + the scorer's own first reason, plus high-balance tier
-    // labels. Null when the scorer has no row for the customer, and
-    // then nothing renders: missing data is never shown as a value.
+    // badge + high-balance tier labels. Null when the scorer has no
+    // row for the customer, and then nothing renders: missing data
+    // is never shown as a value. The scorer's own first reason is
+    // NOT rendered any more (QC Modal Fix): it printed the
+    // truncated "Outstanding PKR X (+X amount…)" line under the
+    // name, so the subtitle is "Mohalla • Package Name" instead.
     const cardPriority = qc2CardPriority(priorityById?.get(c.id));
     const tierLabels = cardPriority
       ? cardPriority.tierKeys.map((key) => `<span class="qc2-tier-label">${escapeHtml(t(QC2_HIGH_BALANCE_TIER_LABEL_KEYS[key]))}</span>`).join('')
       : '';
-    // QC Cash Modal Overhaul: the priority badge moves to the top
-    // right of Row 1 (the .qc-card-right column) and the scorer
-    // reason stays under the name — badge + reason no longer share
-    // one row, so a long reason cannot squeeze the name. The badge
-    // keeps its .ds-chip variant; the reason keeps its .qc2-priority
-    // wrapper (without the badge) so the ellipsis rule still applies.
+    // QC Modal Fix: the priority badge sits inline at the top-right
+    // of the card header (.qc-card-right) and carries its tier
+    // class, so the badge, the amount and the card's left accent all
+    // share one tier. The badge itself is the scorer's tier, never
+    // re-scored here; the High-balance tag beside it is the OTHER
+    // half of item (5) — a card whose dues reach the "High ≥ 2k"
+    // filter threshold shows why it sits in that filter even when
+    // its scorer tier is Medium.
+    const priorityTierClass = cardPriority ? `qc2-priority--${cardPriority.tier}` : '';
     const priorityBadge = cardPriority
-      ? `<span class="${cardPriority.badgeClass}">${escapeHtml(t(cardPriority.labelKey))}</span>`
+      ? `<span class="${cardPriority.badgeClass} qc2-badge--${cardPriority.tier}">${escapeHtml(t(cardPriority.labelKey))}</span>`
       : '';
-    const priorityReason = cardPriority?.reason
-      ? `<span class="qc2-priority"><span class="qc2-priority-reason">${escapeHtml(cardPriority.reason)}</span></span>`
+    const highBalanceTag = qc2HasHighBalance(c.totalDues)
+      ? `<span class="qc2-high-balance-tag">${escapeHtml(t('qc2_high_balance'))}</span>`
       : '';
+    // QC Modal Fix: the subtitle under the name is "Mohalla •
+    // Package Name" — the mohalla from the pool entry's area and the
+    // package name from its once-computed qc3 fields. The phone
+    // leaves the subtitle: the Call button beside it already dials
+    // the recorded number. A missing package name leaves just the
+    // mohalla, never a guessed package.
+    const packageName = typeof c.packageName === 'string' ? c.packageName.trim() : '';
+    const cardSubtitle = packageName
+      ? `${qcCardAreaDisplay(c.area)} • ${packageName}`
+      : qcCardAreaDisplay(c.area);
     const dueLabel = hasDues
       ? `<strong class="qc-due-val">PKR ${c.totalDues.toLocaleString('en-PK')}</strong><span class="qc-due-tag">DUE</span>`
       : `<strong class="qc-due-val qc-val-settled">PKR 0</strong><span class="qc-settled-tag">SETTLED</span>`;
@@ -2012,21 +2040,30 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // plain fixtures without them fall back honestly: no priced
     // package shows the em dash, no phone / no pin disables that
     // action — never a guessed figure or a fake location.
+    // QC Modal Fix: ONE compact action row — compact Call and
+    // Location icon buttons on the left, the primary Collect button
+    // on the right, naming the amount it will collect ("Collect
+    // PKR 3,000") so the operator sees the figure before tapping.
+    // A settled customer keeps the plain Collect label: "Collect
+    // PKR 0" would promise a collection of nothing.
     const monthlyPackage = c.monthlyPackage ?? null;
     const monthlyPackageText = typeof monthlyPackage === 'number'
       ? `PKR ${monthlyPackage.toLocaleString('en-PK')}`
       : '—';
     const callHref = c.callHref ?? null;
     const mapsUrl = c.mapsUrl ?? null;
+    const collectLabel = hasDues
+      ? `${t('qc3_collect')} PKR ${c.totalDues.toLocaleString('en-PK')}`
+      : t('qc3_collect');
     const actionsRow = `
       <div class="qc3-card-actions" role="group" aria-label="${escapeHtml(t('qc3_card_actions'))}">
         ${callHref
-          ? `<a class="qc3-action-btn" href="${escapeHtml(callHref)}" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}">${dsIcon('Phone', 18)} ${escapeHtml(t('qc3_call'))}</a>`
-          : `<button type="button" class="qc3-action-btn" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_phone'))}">${dsIcon('Phone', 18)} ${escapeHtml(t('qc3_call'))}</button>`}
+          ? `<a class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--call" href="${escapeHtml(callHref)}" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}">${dsIcon('Phone', 18)} ${escapeHtml(t('qc3_call'))}</a>`
+          : `<button type="button" class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--call" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_phone'))}">${dsIcon('Phone', 18)} ${escapeHtml(t('qc3_call'))}</button>`}
         ${mapsUrl
-          ? `<a class="qc3-action-btn" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location'))}</a>`
-          : `<button type="button" class="qc3-action-btn" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_location'))}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location'))}</button>`}
-        <button type="button" class="qc3-action-btn qc3-collect" data-qc3-action="collect" data-customer-id="${escapeHtml(c.id)}">${dsIcon('CreditCard', 18)} ${escapeHtml(t('qc3_collect'))}</button>
+          ? `<a class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--location" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location'))}</a>`
+          : `<button type="button" class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--location" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_location'))}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location'))}</button>`}
+        <button type="button" class="qc3-action-btn qc3-collect" data-qc3-action="collect" data-customer-id="${escapeHtml(c.id)}">${dsIcon('CreditCard', 18)} ${escapeHtml(collectLabel)}</button>
       </div>`;
 
     // QC Cash Modal Overhaul: the card is now a wrapper div so the Call / Location /
@@ -2040,9 +2077,12 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // below it (never squeezed onto Row 1 — that squeeze clipped
     // "Outstanding P..." above 360px and in RTL), so the dues figure
     // appears exactly once, fully labelled. The .qc-card-right column
-    // renders only when a priority badge exists.
+    // renders when a priority badge or a High-balance tag exists.
+    // QC Modal Fix: the card also carries its priority tier class
+    // (qc2-priority--high/medium/low) for the tier accent + tier
+    // amount colour, and the subtitle is "Mohalla • Package Name".
     return `
-      <div class="qc-customer-card qc3-card ${dueClass} ${isSelected ? 'is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}"
+      <div class="qc-customer-card qc3-card ${dueClass} ${isSelected ? 'is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}${priorityTierClass ? ` ${priorityTierClass}` : ''}"
            data-customer-id="${escapeHtml(c.id)}">
         <button type="button"
                 class="qc3-card-main"
@@ -2053,11 +2093,10 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
             <div class="qc-cust-info">
               <span class="qc-cust-name">${escapeHtml(c.name)}</span>
               ${sameNameBadges?.get(c.id) ?? ''}
-              <span class="qc-cust-meta">${escapeHtml(qcCardAreaDisplay(c.area))}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</span>
-              ${priorityReason}
+              <span class="qc-cust-meta">${escapeHtml(cardSubtitle)}</span>
             </div>
           </div>
-          ${priorityBadge ? `<div class="qc-card-right">${priorityBadge}</div>` : ''}
+          ${priorityBadge || highBalanceTag ? `<div class="qc-card-right">${priorityBadge}${highBalanceTag}</div>` : ''}
           <div class="qc3-figures">
             <span class="qc3-figure">
               <span class="qc3-figure-label">${escapeHtml(t('qc3_outstanding'))}</span>
@@ -2518,10 +2557,13 @@ export function setupQuickCollectModal({
   const endOfDaySummaryEl = typeof document !== 'undefined' ? document.getElementById('edsEndOfDaySummary') : null;
   const endOfDaySummaryBtn = typeof document !== 'undefined' ? document.getElementById('edsEndOfDaySummaryButton') : null;
   // Plan 450: the new-customer quick-add button and form host on the
-  // picker step (null when the host page predates them) — a brand-new
-  // customer is added from the picker itself (name, phone, mohalla,
-  // package) and the payment form opens for them straight away, so
-  // the operator never leaves Quick Collect for a first payment.
+  // picker step (null when the host page predates them). QC Modal Fix:
+  // the button was REMOVED from the picker — the modal is strictly
+  // for fast cash collection, and a new customer is added from the
+  // Customers screen instead. The lookups stay null-tolerant and
+  // the form host stays in the document, hidden, so the wiring that
+  // looks them up by id still finds what it expects and simply
+  // never opens the form.
   const newCustomerBtn = typeof document !== 'undefined' ? document.getElementById('ncaNewCustomerButton') : null;
   const newCustomerForm = typeof document !== 'undefined' ? document.getElementById('ncaQuickAddForm') : null;
   // SISP-158: contributor picker hosts (null when the host page predates them).
@@ -4925,8 +4967,14 @@ export function setupQuickCollectModal({
   function renderOneScreen() {
     if (!stepOneScreen) return;
     const state = getState();
+    // QC Modal Fix: the combobox choices come from the picker pool
+    // entries (id, name, number, mohalla, totalDues) — the same
+    // entries the picker list renders — so each option can show its
+    // Mohalla + Outstanding badge without recomputing the ledger.
+    // The 'all' pool is every non-archived customer, settled
+    // included, exactly the set the old select offered.
     stepOneScreen.innerHTML = quickCollectOneScreenHtml({
-      customers: state?.customers ?? [],
+      entries: getPendingCollectionCustomers(state ?? null, '', 'all'),
       methods: PAYMENT_METHODS
     });
     bindOneScreenControls();
@@ -5016,12 +5064,182 @@ export function setupQuickCollectModal({
 
   function bindOneScreenControls() {
     if (!stepOneScreen) return;
+    // QC Modal Fix: the customer "select" is now the combobox's
+    // hidden input — it carries the picked customer id, exactly as
+    // the old select did, so the change handler and the submit read
+    // it unchanged. The visible search box is a separate input.
     const customerSelect = stepOneScreen.querySelector('#qosOneScreenCustomer');
+    const customerSearchInput = stepOneScreen.querySelector('#qosOneScreenCustomerSearch');
+    const customerList = stepOneScreen.querySelector('#qosOneScreenCustomerList');
     const amountInputOne = stepOneScreen.querySelector('#qosOneScreenAmount');
     const methodSelectOne = stepOneScreen.querySelector('#qosOneScreenMethod');
+    const methodPills = stepOneScreen.querySelector('#qosOneScreenMethodPills');
+    const shopRow = stepOneScreen.querySelector('#qosOneScreenShopRow');
     const duesLine = stepOneScreen.querySelector('#qosOneScreenDues');
     const saveBtn = stepOneScreen.querySelector('#qosOneScreenSaveBtn');
     const backBtn = stepOneScreen.querySelector('#qosOneScreenBackBtn');
+    // The combobox choices for this opening, from the picker pool
+    // entries — pending-dues customers first, each with its Mohalla
+    // + Outstanding badge. Rebuilt from the same pool the HTML was
+    // rendered from, so the list and the options can never disagree.
+    const comboboxChoices = quickCollectOneScreenComboboxChoices(
+      getPendingCollectionCustomers(getState(), '', 'all'),
+      QC2_HIGH_DUES_MIN_RUPEES,
+    );
+    const shopMethods = quickCollectOneScreenMethodPills(PAYMENT_METHODS).shopMethods;
+    let shopRowOpen = shopMethods.includes(methodSelectOne?.value || '');
+    // The save button names the amount it will save; every path
+    // that changes the amount refreshes the label with it.
+    const syncOneScreenSaveLabel = () => {
+      if (!saveBtn) return;
+      saveBtn.textContent = quickCollectOneScreenSaveLabel(amountInputOne?.value ?? '');
+    };
+    // The method pills' visual state, from a raw method value: the
+    // matching pill is checked, the Shop group pill is checked when
+    // the value is a shop method (or the shop row is open with no
+    // shop picked yet), and the shop sub-row shows exactly then. An
+    // empty value checks nothing — a cleared method reads cleared.
+    const syncOneScreenMethodPills = (value) => {
+      const current = String(value ?? '');
+      const isShop = shopMethods.includes(current);
+      methodPills?.querySelectorAll('.qos-method-pill').forEach((pill) => {
+        if (typeof pill.getAttribute !== 'function') return;
+        const pillValue = pill.getAttribute('data-qos-method');
+        const pillGroup = pill.getAttribute('data-qos-method-group');
+        if (pillGroup === 'shop') {
+          if (typeof pill.setAttribute === 'function') pill.setAttribute('aria-checked', String(isShop || shopRowOpen));
+        } else if (pillValue !== null) {
+          if (typeof pill.setAttribute === 'function') pill.setAttribute('aria-checked', String(current === pillValue));
+        }
+      });
+      shopRow?.querySelectorAll('.qos-shop-pill').forEach((pill) => {
+        if (typeof pill.getAttribute !== 'function' || typeof pill.setAttribute !== 'function') return;
+        pill.setAttribute('aria-checked', String(current === pill.getAttribute('data-qos-method')));
+      });
+      if (shopRow) shopRow.hidden = !(isShop || shopRowOpen);
+    };
+    // Pick a method (resolved: an empty or unknown pick falls back
+    // to the pre-selected Cash, never to a method nobody offered).
+    // Used when a customer is picked and for the pill taps below.
+    const setOneScreenMethod = (value) => {
+      const resolved = quickCollectOneScreenResolveMethod(value, PAYMENT_METHODS);
+      shopRowOpen = shopMethods.includes(resolved);
+      if (methodSelectOne) methodSelectOne.value = resolved;
+      syncOneScreenMethodPills(resolved);
+    };
+    // QC Modal Fix: the combobox list, re-rendered from the typed
+    // query — name, #ID or mohalla. The list stays hidden until the
+    // operator types or focuses the search box.
+    const renderComboboxList = (query) => {
+      if (!customerList) return;
+      const matches = quickCollectOneScreenComboboxFilter(comboboxChoices, query);
+      customerList.innerHTML = matches.map((choice) => quickCollectOneScreenComboboxOptionHtml(choice, choice.value === (customerSelect?.value || ''))).join('');
+      customerList.hidden = false;
+      if (customerSearchInput && typeof customerSearchInput.setAttribute === 'function') {
+        customerSearchInput.setAttribute('aria-expanded', 'true');
+      }
+    };
+    const hideComboboxList = () => {
+      if (!customerList) return;
+      customerList.hidden = true;
+      if (customerSearchInput && typeof customerSearchInput.setAttribute === 'function') {
+        customerSearchInput.setAttribute('aria-expanded', 'false');
+      }
+    };
+    // Pick a combobox option: the hidden input takes the id, the
+    // search box shows the picked name, the list closes, and the
+    // change below runs — the same handler the old select drove.
+    const pickComboboxCustomer = (customerId, label) => {
+      if (customerSelect) {
+        customerSelect.value = customerId;
+        if (typeof customerSelect.dispatchEvent === 'function') {
+          customerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (typeof customerSelect.dispatch === 'function') {
+          customerSelect.dispatch('change');
+        }
+      }
+      if (customerSearchInput) customerSearchInput.value = label;
+      hideComboboxList();
+    };
+    customerSearchInput?.addEventListener('input', () => {
+      const query = customerSearchInput.value || '';
+      if (query.trim() === '') {
+        // Clearing the search clears the pick too, so the dues line
+        // and amount cannot keep showing a customer the box no
+        // longer names — the same clearing the change handler does.
+        if (customerSelect && customerSelect.value !== '') {
+          customerSelect.value = '';
+          if (typeof customerSelect.dispatchEvent === 'function') {
+            customerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+        renderComboboxList('');
+        return;
+      }
+      renderComboboxList(query);
+    });
+    customerSearchInput?.addEventListener('focus', () => {
+      renderComboboxList(customerSearchInput.value || '');
+    });
+    customerSearchInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        hideComboboxList();
+        return;
+      }
+      if (event.key !== 'Enter') return;
+      // Enter picks the first visible option — the fastest pick
+      // without reaching for the list.
+      const first = customerList?.querySelector('.qos-combobox-option');
+      if (!first) return;
+      if (typeof event.preventDefault === 'function') event.preventDefault();
+      const id = typeof first.getAttribute === 'function' ? first.getAttribute('data-qos-customer-id') : '';
+      const label = first.querySelector?.('.qos-option-name')?.textContent || '';
+      if (id) pickComboboxCustomer(id, label);
+    });
+    // The list closes a beat after the search box loses focus, so a
+    // tap on an option still lands before the list disappears.
+    customerSearchInput?.addEventListener('blur', () => {
+      setTimeout(hideComboboxList, 120);
+    });
+    customerList?.addEventListener('click', (event) => {
+      const option = event.target?.closest?.('.qos-combobox-option');
+      if (!option || typeof option.getAttribute !== 'function') return;
+      const id = option.getAttribute('data-qos-customer-id') || '';
+      if (!id) return;
+      const label = option.querySelector?.('.qos-option-name')?.textContent || '';
+      pickComboboxCustomer(id, label);
+    });
+    // QC Modal Fix: the method pills — one tap picks the method.
+    // The Shop Drop-off pill opens its sub-row instead of picking a
+    // value: the operator then picks the shop, and only the exact
+    // stored shop method is ever submitted. Tapping Shop with no
+    // shop picked yet clears the method, so Save cannot silently
+    // submit the previous method under a Shop label.
+    methodPills?.addEventListener('click', (event) => {
+      const pill = event.target?.closest?.('.qos-method-pill');
+      if (!pill || typeof pill.getAttribute !== 'function') return;
+      if (pill.getAttribute('data-qos-method-group') === 'shop') {
+        shopRowOpen = true;
+        if (!shopMethods.includes(methodSelectOne?.value || '')) {
+          if (methodSelectOne) methodSelectOne.value = '';
+          syncOneScreenMethodPills('');
+        } else {
+          syncOneScreenMethodPills(methodSelectOne?.value || '');
+        }
+        return;
+      }
+      const value = pill.getAttribute('data-qos-method') || '';
+      if (!value) return;
+      setOneScreenMethod(value);
+    });
+    shopRow?.addEventListener('click', (event) => {
+      const pill = event.target?.closest?.('.qos-shop-pill');
+      if (!pill || typeof pill.getAttribute !== 'function') return;
+      const value = pill.getAttribute('data-qos-method') || '';
+      if (!value) return;
+      setOneScreenMethod(value);
+    });
+    syncOneScreenMethodPills(methodSelectOne?.value || '');
     // Plan 430: the one screen's quick amount buttons — full dues,
     // half dues, package price — one row under the amount field. The
     // row is rendered by the module and refreshed whenever the
@@ -5039,6 +5257,7 @@ export function setupQuickCollectModal({
         const amount = Number(button.getAttribute('data-qab-amount'));
         if (!Number.isFinite(amount) || amount <= 0) return;
         amountInputOne.value = amount.toFixed(2);
+        syncOneScreenSaveLabel();
         amountInputOne.focus();
       });
     }
@@ -5057,8 +5276,11 @@ export function setupQuickCollectModal({
       const key = event.target?.closest?.('[data-kpd-key]');
       if (!key || !amountInputOne) return;
       amountInputOne.value = amountKeypadApplyKey(amountInputOne.value, key.getAttribute('data-kpd-key'));
+      syncOneScreenSaveLabel();
       amountInputOne.focus();
     });
+    amountInputOne?.addEventListener('input', syncOneScreenSaveLabel);
+    syncOneScreenSaveLabel();
     customerSelect?.addEventListener('change', () => {
       const customerId = customerSelect.value || '';
       if (!customerId) {
@@ -5066,6 +5288,7 @@ export function setupQuickCollectModal({
         activeDefaults = null;
         if (amountInputOne) amountInputOne.value = '';
         if (duesLine) { duesLine.textContent = ''; duesLine.hidden = true; }
+        syncOneScreenSaveLabel();
         renderOneScreenQuickAmounts();
         return;
       }
@@ -5073,8 +5296,8 @@ export function setupQuickCollectModal({
       // Plan 543: the defaults lookup can throw (an archived customer
       // cannot receive payments) — with no guard the dues line, amount
       // and remembered method kept showing the PREVIOUS customer's
-      // figures while the select named the new one. A failed lookup
-      // clears the figures instead; the select itself is untouched, so
+      // figures while the pick named the new one. A failed lookup
+      // clears the figures instead; the pick itself is untouched, so
       // the operator still sees which customer they picked.
       let defaults = null;
       try {
@@ -5088,6 +5311,9 @@ export function setupQuickCollectModal({
         if (amountInputOne) amountInputOne.value = '';
         if (duesLine) { duesLine.textContent = ''; duesLine.hidden = true; }
         if (methodSelectOne) methodSelectOne.value = '';
+        shopRowOpen = false;
+        syncOneScreenMethodPills('');
+        syncOneScreenSaveLabel();
         renderOneScreenQuickAmounts();
         return;
       }
@@ -5103,11 +5329,11 @@ export function setupQuickCollectModal({
         duesLine.hidden = duesLine.textContent === '';
       }
       // Plan 431: the one screen pre-selects the remembered method too;
-      // a customer with no past payment pre-selects nothing (''), and
+      // a customer with no past payment pre-selects Cash (QC Modal
+      // Fix: Cash is the pre-selected method on the one screen), and
       // the operator picks before saving.
-      if (methodSelectOne) {
-        methodSelectOne.value = activeDefaults.defaultMethod ?? '';
-      }
+      setOneScreenMethod(activeDefaults.defaultMethod ?? '');
+      syncOneScreenSaveLabel();
       renderOneScreenQuickAmounts();
     });
     saveBtn?.addEventListener('click', () => { submitOneScreenPayment(); });
@@ -5127,9 +5353,13 @@ export function setupQuickCollectModal({
     });
     if (!result.ok) {
       if (typeof onToast === 'function') onToast(result.reason, { type: 'error' });
-      if (result.field === 'customer') customerSelect?.focus();
+      // QC Modal Fix: the customer and method fields are hidden
+      // inputs now — a failed field focuses its VISIBLE control
+      // (the search box, the amount field, the first method pill),
+      // never a hidden input the operator cannot see.
+      if (result.field === 'customer') stepOneScreen.querySelector('#qosOneScreenCustomerSearch')?.focus();
       else if (result.field === 'amount') amountInputOne?.focus();
-      else if (result.field === 'method') methodSelectOne?.focus();
+      else if (result.field === 'method') stepOneScreen.querySelector('.qos-method-pill')?.focus();
       return;
     }
     const draft = result.draft;
@@ -5177,7 +5407,10 @@ export function setupQuickCollectModal({
     renderOneScreen();
     showStep('one-screen');
     setTimeout(() => {
-      stepOneScreen?.querySelector('#qosOneScreenCustomer')?.focus();
+      // QC Modal Fix: the combobox search box takes the focus — the
+      // customer id lives in a hidden input now, and focusing it
+      // would focus nothing the operator can see.
+      stepOneScreen?.querySelector('#qosOneScreenCustomerSearch')?.focus();
     }, 50);
   }
 

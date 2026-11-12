@@ -3523,6 +3523,13 @@ button:not([hidden]).help-info-btn {
   line-height: 1.65;
   margin: 0;
 }
+/* QC Modal Fix (item 14): the guide popup's body text is 0.95rem
+   at line-height 1.5 — the stationary overlay's readable measure.
+   Token-only, no hex. */
+.help-guide-modal .help-guide-body {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
 
 /* SISP-108: archive dialog disconnect capture (reason select, win-back
    eligibility, optional note) inside the shared billing-modal shell —

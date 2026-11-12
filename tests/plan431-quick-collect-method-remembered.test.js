@@ -209,8 +209,12 @@ test('wiring: the form pre-selects the remembered method and nothing when there 
 });
 
 test('wiring: the one screen pre-selects the remembered method on customer change', () => {
-  assert.ok(wiringSrc.includes("methodSelectOne.value = activeDefaults.defaultMethod ?? '';"),
-    'the one-screen method select takes the remembered method, or nothing');
+  // QC Modal Fix: the one-screen method is a row of pills now, not a
+  // select — the change handler resolves the remembered method
+  // through setOneScreenMethod, which pre-selects Cash when the
+  // customer has no remembered method.
+  assert.ok(wiringSrc.includes("setOneScreenMethod(activeDefaults.defaultMethod ?? '');"),
+    'the one-screen method pills take the remembered method, or Cash when there is none');
 });
 
 test('wiring: the remembered method is imported and used as the single source', () => {

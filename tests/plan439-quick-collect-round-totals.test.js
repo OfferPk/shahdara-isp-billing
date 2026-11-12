@@ -126,17 +126,21 @@ test('totals: the input rows are never mutated', () => {
 
 // --- Line text ---
 
+// QC Modal Fix: the round segment of the ONE compact summary line
+// ("Today: PKR X • Round: N") — short, because the bar shows Today
+// + Round on a single line. The count is the payments count and the
+// figure is the round total, exactly as before, only shorter.
 test('text: an empty round says so plainly, never a blank', () => {
-  assert.equal(quickCollectRoundTotalsText({ count: 0, total: 0 }), 'This round: no payments yet');
-  assert.equal(quickCollectRoundTotalsText({ count: 0, total: 5000 }), 'This round: no payments yet');
-  assert.equal(quickCollectRoundTotalsText(null), 'This round: no payments yet');
-  assert.equal(quickCollectRoundTotalsText({}), 'This round: no payments yet');
+  assert.equal(quickCollectRoundTotalsText({ count: 0, total: 0 }), 'Round: 0');
+  assert.equal(quickCollectRoundTotalsText({ count: 0, total: 5000 }), 'Round: 0');
+  assert.equal(quickCollectRoundTotalsText(null), 'Round: 0');
+  assert.equal(quickCollectRoundTotalsText({}), 'Round: 0');
 });
 
-test('text: one payment reads singular, several read plural', () => {
-  assert.equal(quickCollectRoundTotalsText({ count: 1, total: 3000 }), 'This round: 1 payment · PKR 3,000');
-  assert.equal(quickCollectRoundTotalsText({ count: 3, total: 9000 }), 'This round: 3 payments · PKR 9,000');
-  assert.equal(quickCollectRoundTotalsText({ count: 2, total: 0 }), 'This round: 2 payments · PKR 0');
+test('text: the round reads as a count and a figure, no words wasted', () => {
+  assert.equal(quickCollectRoundTotalsText({ count: 1, total: 3000 }), 'Round: 1 · PKR 3,000');
+  assert.equal(quickCollectRoundTotalsText({ count: 3, total: 9000 }), 'Round: 3 · PKR 9,000');
+  assert.equal(quickCollectRoundTotalsText({ count: 2, total: 0 }), 'Round: 2 · PKR 0');
 });
 
 // --- Wiring ---

@@ -301,12 +301,16 @@ test('purity: the module takes its date from the caller and never builds one', (
 
 test('wiring: the picker button, form host, and submit path are all connected', () => {
   assert.ok(wiringSrc.includes("from './quick-collect-new-customer-quick-add.js'"), 'nav-quick-collect must import the module');
-  assert.ok(wiringSrc.includes('ncaNewCustomerButton'), 'the picker button must be wired');
+  assert.ok(wiringSrc.includes('ncaNewCustomerButton'), 'the picker button lookup must still exist (null-tolerant, so it is inert)');
   assert.ok(wiringSrc.includes('submitNewCustomerQuickAdd'), 'the submit handler must exist');
   assert.ok(wiringSrc.includes('quickAddCustomer(getState()'), 'the submit must create through the module');
   assert.ok(wiringSrc.includes('openCustomerCollectionForm(result.customer.id)'), 'success must open the payment form for the new customer');
-  assert.ok(pageSrc.includes('id="ncaNewCustomerButton"'), 'index must carry the button');
+  // QC Modal Fix item 2: the "+ New customer" button is REMOVED
+  // from the modal — it is strictly for fast cash collection.
+  // The form host stays (hidden, unwired) and the module + submit
+  // path stay, so the add flow is recoverable if the user ever asks
+  // for it back; only the visible button is gone.
+  assert.ok(!pageSrc.includes('id="ncaNewCustomerButton"'), 'index must NOT carry the button anymore');
   assert.ok(pageSrc.includes('id="ncaQuickAddForm"'), 'index must carry the form host');
-  assert.ok(pageSrc.indexOf('ncaNewCustomerButton') < pageSrc.indexOf('id="quickCollectCustomerList"'), 'the button sits on the picker step, before the list');
   assert.ok(!stylesSrc.includes('.nca'), 'no new CSS classes: the form reuses qc-form, field-label, field-error, and the buttons');
 });

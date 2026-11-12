@@ -82,6 +82,10 @@ export function amountKeypadLabel(key) {
  * then clear, zero, and backspace. Each button carries its key in
  * `data-kpd-key` and is a plain button, never a submit: pressing
  * one can only change the amount field, never post a payment.
+ * QC Modal Fix: each key carries its kind class (digit / clear /
+ * backspace) so the one screen can style them apart — digits as
+ * elevated tactile keys, C rose, backspace slate — while the keys
+ * themselves stay exactly the same.
  */
 export function amountKeypadHtml() {
   return AMOUNT_KEYPAD_KEYS.map((key) => {
@@ -91,6 +95,11 @@ export function amountKeypadHtml() {
       : key === AMOUNT_KEYPAD_CLEAR_KEY
         ? 'clear'
         : key;
-    return `<button type="button" class="kpd-key" data-kpd-key="${key}" aria-label="Amount key ${spoken}">${label}</button>`;
+    const kind = key === AMOUNT_KEYPAD_BACKSPACE_KEY
+      ? 'kpd-key--backspace'
+      : key === AMOUNT_KEYPAD_CLEAR_KEY
+        ? 'kpd-key--clear'
+        : 'kpd-key--digit';
+    return `<button type="button" class="kpd-key ${kind}" data-kpd-key="${key}" aria-label="Amount key ${spoken}">${label}</button>`;
   }).join('');
 }

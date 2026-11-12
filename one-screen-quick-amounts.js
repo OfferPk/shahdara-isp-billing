@@ -63,17 +63,20 @@ export function oneScreenQuickAmountFigures(input = {}) {
  * data-qab-amount and shows it in its label; a button whose figure
  * cannot be known shows plain words and carries no amount, so
  * tapping it fills nothing. Buttons are type="button" — tapping one
- * never submits anything.
+ * never submits anything. QC Modal Fix: each button carries its
+ * kind class (full / half / package) so the row is colour-coded —
+ * Full dues emerald, Half dues amber, Package price blue — while
+ * the figures and the fill behaviour stay exactly as before.
  */
 export function oneScreenQuickAmountButtonsHtml(figures = {}) {
   const { full = null, half = null, package: packageAmount = null } = figures ?? {};
   const buttons = [
-    { words: 'Full dues', amount: finitePositiveRupees(full) },
-    { words: 'Half dues', amount: finitePositiveRupees(half) },
-    { words: 'Package price', amount: finitePositiveRupees(packageAmount) },
+    { words: 'Full dues', amount: finitePositiveRupees(full), kind: 'full' },
+    { words: 'Half dues', amount: finitePositiveRupees(half), kind: 'half' },
+    { words: 'Package price', amount: finitePositiveRupees(packageAmount), kind: 'package' },
   ];
-  return buttons.map(({ words, amount }) => {
+  return buttons.map(({ words, amount, kind }) => {
     const data = amount === null ? '' : ` data-qab-amount="${amount}"`;
-    return `<button type="button" class="qab-amount-chip"${data}>${buttonLabel(words, amount)}</button>`;
+    return `<button type="button" class="qab-amount-chip qab-amount-chip--${kind}"${data}>${buttonLabel(words, amount)}</button>`;
   }).join('');
 }

@@ -385,8 +385,12 @@ test('wiring: the leg-2 card carries no id, is found by class, and detection is 
   // block, guarded for stub documents without querySelector.
   assert.match(src, /splitFields && typeof splitFields\.querySelector === 'function'\s*\n\s*\? splitFields\.querySelector\('\.qc-split-duplicate-card'\)/,
     'the card is found by class through the split fields block');
-  assert.match(src, /let duplicateBypassedForLeg2Txn = null;/, 'the leg-2 bypass state exists');
-  assert.match(src, /if \(dup2 && duplicateBypassedForLeg2Txn !== leg2Txn\) \{/,
+  // Sharafat 8: the bypass state is the keyed form now (customer
+  // + TID + amount + method), not the raw TID — the raw TID stayed
+  // armed across customers in a session. The state itself, and
+  // everything these pins guard, is unchanged.
+  assert.match(src, /let duplicateBypassedForLeg2TxnKey = null;/, 'the leg-2 bypass state exists');
+  assert.match(src, /if \(dup2 && duplicateBypassedForLeg2TxnKey !== duplicateTidBypassKey\(activeCustomerId, leg2Txn, leg2Amount, leg2Method\)\) \{/,
     'the leg-2 check skips a bypassed TID');
   assert.match(src, /showStep\('form'\);\s*\n\s*leg2DupCard\.hidden = false;/,
     'the card shows on the form step, so it is visible');
@@ -404,10 +408,16 @@ test('wiring: the leg-2 card carries no id, is found by class, and detection is 
   assert.ok(src.includes("t('qc_toast_leg2_duplicate'"), 'the fallback toast routes through the dictionary key');
   // The reason lands on leg 2 exactly like leg 1's reason lands on
   // leg 1 — and the leg-1 flow is untouched.
-  assert.match(src, /const leg2Reference = \(duplicateBypassedForLeg2Txn && leg2Txn === duplicateBypassedForLeg2Txn/,
+  // Sharafat 8: the leg-2 reference rides only while the keyed
+  // bypass still matches this leg — the mirror of leg 1's keyed
+  // reference, same intent as the raw-TID form it replaces.
+  assert.match(src, /const leg2Reference = \(duplicateBypassedForLeg2TxnKey && duplicateBypassedForLeg2TxnKey === duplicateTidBypassKey\(activeCustomerId, leg2Txn, leg2Amount, leg2Method\)/,
     'leg 2’s reference mirrors leg 1’s');
   assert.match(src, /referenceOverrideReason: leg2Reference/, 'leg 2 records the reference');
-  assert.match(src, /duplicateBypassedForTxn !== txnIdVal/, 'the leg-1 bypass check is untouched');
+  // Sharafat 8: the leg-1 bypass check compares the keyed bypass
+  // (customer + TID + amount + method), not the raw TID — the
+  // check itself is unchanged in intent.
+  assert.match(src, /duplicateBypassedForTxnKey !== duplicateTidBypassKey\(activeCustomerId, txnIdVal, amountVal, methodVal\)/, 'the leg-1 bypass check is untouched');
   // Polish #19 still stands: the undo captures the legs before
   // nulling the context.
   assert.match(src, /splitLegs: undoSplitLegs/, 'the polish #19 undo capture still stands');

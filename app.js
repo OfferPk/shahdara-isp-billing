@@ -2431,9 +2431,14 @@ function renderDashboard() {
     if (fleetPeriodEl) fleetPeriodEl.textContent = fleet.includedCount === 0
       ? t('upt_fleet_period_none')
       : t('upt_fleet_period', null, { perfect: fleet.perfectCount, count: fleet.includedCount });
+    // Dues Recovery Overhaul: when every included subscriber is at
+    // 100% uptime (Offline 0 min), the LOWEST UPTIME list is five
+    // perfect rows that say nothing — hide the heading and the list,
+    // keep the notes and footnote.
+    const fleetAllPerfect = fleet.includedCount > 0 && fleet.perfectCount === fleet.includedCount;
     fleetUptimeEl.innerHTML = fleet.includedCount === 0
       ? ''
-      : `<p class="fleet-uptime-lowest-heading">${escapeHtml(t('upt_fleet_lowest'))}</p><ul class="fleet-uptime-list">${fleet.lowestFive.map((row) => `<li class="fleet-uptime-item"><button type="button" class="fleet-uptime-row" data-fleet-uptime-customer-id="${escapeHtml(row.customerId)}"><span class="fleet-uptime-main"><strong class="fleet-uptime-name" dir="auto">${escapeHtml(row.name || t('dash_fallback_unnamed'))}${row.customerNumber !== null ? ` · #${row.customerNumber}` : ''}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="fleet-uptime-sub">${escapeHtml(t('upt_fleet_row_offline', null, { duration: uptimeDurationText(row.offlineMinutes) }))}</span></span><strong class="fleet-uptime-pct">${row.chronic ? '⚠️ ' : ''}${row.uptimePercent}%</strong></button></li>`).join('')}</ul>${fleet.chronicCount ? `<p class="fleet-uptime-note">${escapeHtml(t('upt_fleet_chronic_note'))}</p>` : ''}${fleet.excludedCount ? `<p class="fleet-uptime-note">${escapeHtml(t('upt_fleet_excluded', null, { count: fleet.excludedCount }))}</p>` : ''}<p class="fleet-uptime-note">${escapeHtml(t('upt_fleet_note'))}</p>`;
+      : `${fleetAllPerfect ? '' : `<p class="fleet-uptime-lowest-heading">${escapeHtml(t('upt_fleet_lowest'))}</p><ul class="fleet-uptime-list">${fleet.lowestFive.map((row) => `<li class="fleet-uptime-item"><button type="button" class="fleet-uptime-row" data-fleet-uptime-customer-id="${escapeHtml(row.customerId)}"><span class="fleet-uptime-main"><strong class="fleet-uptime-name" dir="auto">${escapeHtml(row.name || t('dash_fallback_unnamed'))}${row.customerNumber !== null ? ` · #${row.customerNumber}` : ''}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="fleet-uptime-sub">${escapeHtml(t('upt_fleet_row_offline', null, { duration: uptimeDurationText(row.offlineMinutes) }))}</span></span><strong class="fleet-uptime-pct">${row.chronic ? '⚠️ ' : ''}${row.uptimePercent}%</strong></button></li>`).join('')}</ul>`}${fleet.chronicCount ? `<p class="fleet-uptime-note">${escapeHtml(t('upt_fleet_chronic_note'))}</p>` : ''}${fleet.excludedCount ? `<p class="fleet-uptime-note">${escapeHtml(t('upt_fleet_excluded', null, { count: fleet.excludedCount }))}</p>` : ''}<p class="fleet-uptime-note">${escapeHtml(t('upt_fleet_note'))}</p>`;
     fleetUptimeEl.querySelectorAll('[data-fleet-uptime-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.fleetUptimeCustomerId)));
   }
   // SISP-117: upstream SLA card (this-month uplink downtime, availability
@@ -41798,7 +41803,36 @@ $('#showHomeBudgetButton').addEventListener('click',()=>{switchView('homeBudget'
 $('#showLoansButton').addEventListener('click',()=>{switchView('loans');renderLoans();});
 $('#showWaTemplatesButton').addEventListener('click',()=>{switchView('waTemplates');renderWaTemplates();});
 renderPhase3();
-refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,openAdditionalPendingDialog,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses,renderLoans,puchoData}).refresh;
+// SISP-88: the group Waada chip reuses the SISP-3 Waada chip dialog,
+// created lazily so it exists only when a partial collection leaves a
+// member owing.
+let groupWaadaDialog = null;
+// Dues Recovery Overhaul: the recovery card's Waada button opens the
+// same chip dialog the group collection uses — one dialog, two
+// entries. Module-level (not inside the document block below) so both
+// setupOwnerCenter here and the group flow inside that block can
+// receive it as openWaadaDialog; the lazy `let` above is only touched
+// when the dialog first opens, long after boot has run.
+function openGroupWaadaDialog(customerId) {
+  if (!groupWaadaDialog) {
+    groupWaadaDialog = setupWaadaChipDialog({
+      getCustomer: (id) => (state.customers || []).find((c) => c.id === id) || null,
+      onApply: (updated) => {
+        const idx = state.customers.findIndex((c) => c.id === updated.id);
+        if (idx >= 0) state.customers[idx] = updated;
+        save();
+        // Plan 31: a Waada set from the group dialog is logged like
+        // a profile Waada set.
+        recordAudit('waada_set', { recordRef: updated.id, customerId: updated.id, customerName: updated.name || '', detail: `Waada set: ${updated.promiseDate || 'date not recorded'}.` });
+        renderDetail();
+      },
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+  if (groupWaadaDialog) groupWaadaDialog.open(customerId);
+  else toast('Waada dialog is not available.');
+}
+refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses,renderLoans,puchoData,openCollect:(customerId)=>window.quickCollectModalController?.open?.(customerId),openWaadaDialog:openGroupWaadaDialog,onSaveState:(nextState)=>{state=nextState;save();renderDetail();renderTransactions();renderMonthlyReport();updateNavigationBadges(state);},onToast:(msg,opts)=>toast(msg,opts)}).refresh;
 // Owner 5-part fix: bind the unified card's Pucho-owned controls
 // (morning queue + its CSV export, and the action-button reminder
 // on Pucho answers) once at boot.
@@ -44663,10 +44697,6 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts),
     onConfirm: (opts) => appConfirm(opts)
   });
-  // SISP-88: the group Waada chip reuses the SISP-3 Waada chip dialog,
-  // created lazily so it exists only when a partial collection leaves a
-  // member owing.
-  let groupWaadaDialog = null;
   // SISP-35: group billing modal — collect reuses quick collection per
   // member, then persists exactly like a single quick collection.
   groupBillingModalController = setupGroupBillingModal(() => state, {
@@ -44741,25 +44771,7 @@ if (typeof document !== 'undefined') {
     // SISP-88: a Waada chip for a still-owing member opens the SISP-3
     // Waada chip dialog; applying a chip persists like every other
     // waada write (replace the customer record, save, re-render).
-    onGroupWaada: (customerId) => {
-      if (!groupWaadaDialog) {
-        groupWaadaDialog = setupWaadaChipDialog({
-          getCustomer: (id) => (state.customers || []).find((c) => c.id === id) || null,
-          onApply: (updated) => {
-            const idx = state.customers.findIndex((c) => c.id === updated.id);
-            if (idx >= 0) state.customers[idx] = updated;
-            save();
-            // Plan 31: a Waada set from the group dialog is logged like
-            // a profile Waada set.
-            recordAudit('waada_set', { recordRef: updated.id, customerId: updated.id, customerName: updated.name || '', detail: `Waada set: ${updated.promiseDate || 'date not recorded'}.` });
-            renderDetail();
-          },
-          onToast: (msg, opts) => toast(msg, opts)
-        });
-      }
-      if (groupWaadaDialog) groupWaadaDialog.open(customerId);
-      else toast('Waada dialog is not available.');
-    }
+    onGroupWaada: (customerId) => { openGroupWaadaDialog(customerId); }
   });
   // SISP-39: lineman monthly scorecard — read-only aggregation over
   // tickets, the complaint register, roznamcha and the payment ledger.

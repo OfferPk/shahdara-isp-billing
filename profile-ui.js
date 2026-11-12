@@ -27,6 +27,7 @@ import { computeWaadaScore } from './waada-queue.js';
 import { activeDownstreamCount, feederHostCreditOf, isFeederHost } from './feeder-host-credit.js';
 import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
+import { historyRowLabel } from './receipt.js';
 import { receiptTermsNoteText } from './receipt-terms.js';
 import { formatSalesTaxAmount } from './package-sales-tax.js';
 import { helpButtonMarkup } from './help-guide.js';
@@ -457,7 +458,7 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
     .filter((row) => row && validCalendarDate(String(row.date ?? '')) && Number.isFinite(Number(row.amount)))
     .slice(0, 3)
     .map((row) => {
-      const label = safeLine(row.receiptLabel, 60) || safeLine(row.receiptRef, 60) || formatReceiptDate(String(row.date));
+      const label = safeLine(historyRowLabel(row), 60) || safeLine(row.receiptRef, 60) || '';
       return `• ${[formatReceiptDate(String(row.date)), formatPKR(Number(row.amount)), safeLine(row.method, 40), label].filter(Boolean).join(' · ')}`;
     });
   if (historyLines.length > 0) {

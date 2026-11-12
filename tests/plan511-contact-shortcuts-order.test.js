@@ -24,6 +24,13 @@ const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 // Alternate button, so each number's actions stay adjacent; the plan's
 // named order (Call → WhatsApp → SMS → Call Alternate) is the prefix
 // order. The no-WhatsApp hint condition is unchanged.
+//
+// Dues Recovery Overhaul: a saved Pakistani mobile in local form
+// (03xx) is no longer "cannot do WhatsApp" — it normalises to +92
+// and gets a live link (the same rule the receipt share already
+// used). The disabled slot survives for numbers that are neither
+// international nor a recognisable Pakistani mobile (a landline, a
+// too-short number): those still get Call plus a disabled WhatsApp.
 
 const SMS_URL = 'sms:+923001234567?&body=Test';
 
@@ -44,12 +51,22 @@ test('Plan 511: full order is Call → WhatsApp → SMS → Call Alternate → W
   assert.ok(actions.every(action => !action.disabled), 'no disabled action when every number qualifies');
 });
 
-test('Plan 511: a local-format primary number gets Call plus a disabled WhatsApp, never a link', () => {
+test('Plan 511: a local-format Pakistani mobile gets Call plus a live WhatsApp link (normalised to +92)', () => {
   const phoneTargets = contactActionTargets('03001234567');
-  assert.deepEqual(phoneTargets, { tel: 'tel:03001234567', whatsapp: null });
+  assert.deepEqual(phoneTargets, { tel: 'tel:03001234567', whatsapp: 'https://wa.me/923001234567' });
   const actions = contactShortcutActions({ phoneTargets, alternateTargets: null, smsUrl: null });
   assert.deepEqual(kinds(actions), ['call', 'whatsapp']);
   assert.equal(actions[0].href, 'tel:03001234567');
+  assert.equal(actions[1].href, 'https://wa.me/923001234567');
+  assert.ok(actions.every(action => !action.disabled), 'a recognised Pakistani mobile is never a disabled WhatsApp');
+});
+
+test('Plan 511: a number that is neither international nor a Pakistani mobile still gets Call plus a disabled WhatsApp', () => {
+  const phoneTargets = contactActionTargets('0511234567');
+  assert.deepEqual(phoneTargets, { tel: 'tel:0511234567', whatsapp: null });
+  const actions = contactShortcutActions({ phoneTargets, alternateTargets: null, smsUrl: null });
+  assert.deepEqual(kinds(actions), ['call', 'whatsapp']);
+  assert.equal(actions[0].href, 'tel:0511234567');
   assert.equal(actions[1].disabled, true);
   assert.equal(actions[1].href, undefined, 'a disabled WhatsApp carries no href to follow');
 });
@@ -63,24 +80,25 @@ test('Plan 511: primary international, no SMS, no alternate — just Call and Wh
   assert.deepEqual(kinds(actions), ['call', 'whatsapp']);
 });
 
-test('Plan 511: local primary with an international alternate — disabled primary WhatsApp, live alternate WhatsApp', () => {
+test('Plan 511: local primary with an international alternate — both WhatsApp links live', () => {
   const actions = contactShortcutActions({
     phoneTargets: contactActionTargets('03001234567'),
     alternateTargets: contactActionTargets('+923331234567'),
     smsUrl: null
   });
   assert.deepEqual(kinds(actions), ['call', 'whatsapp', 'call-alternate', 'whatsapp-alternate']);
-  assert.equal(actions[1].disabled, true);
+  assert.equal(actions[1].href, 'https://wa.me/923001234567');
   assert.equal(actions[3].href, 'https://wa.me/923331234567');
 });
 
-test('Plan 511: international primary with a local alternate — alternate gets Call only', () => {
+test('Plan 511: international primary with a local alternate — alternate gets Call plus a live WhatsApp link too', () => {
   const actions = contactShortcutActions({
     phoneTargets: contactActionTargets('+923001234567'),
     alternateTargets: contactActionTargets('03331234567'),
     smsUrl: null
   });
-  assert.deepEqual(kinds(actions), ['call', 'whatsapp', 'call-alternate']);
+  assert.deepEqual(kinds(actions), ['call', 'whatsapp', 'call-alternate', 'whatsapp-alternate']);
+  assert.equal(actions[3].href, 'https://wa.me/923331234567');
 });
 
 test('Plan 511: no numbers at all — no shortcuts', () => {
@@ -123,8 +141,8 @@ test('Plan 511: SMS sits in its own slot — after WhatsApp, before Call Alterna
   assert.deepEqual(kinds(withoutSms), ['call', 'whatsapp', 'call-alternate', 'whatsapp-alternate']);
 });
 
-test('Plan 511: contactActionTargets still separates tel from WhatsApp for local numbers', () => {
-  assert.deepEqual(contactActionTargets('0300-1234567'), { tel: 'tel:03001234567', whatsapp: null });
+test('Plan 511: contactActionTargets keeps tel in the saved form while WhatsApp normalises a local Pakistani number', () => {
+  assert.deepEqual(contactActionTargets('0300-1234567'), { tel: 'tel:03001234567', whatsapp: 'https://wa.me/923001234567' });
   assert.equal(contactActionTargets('+92 (300) 123-4567').whatsapp, 'https://wa.me/923001234567');
   assert.equal(contactActionTargets(''), null);
 });

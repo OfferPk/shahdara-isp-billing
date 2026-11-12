@@ -1534,13 +1534,15 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
 //    charge is ever rewritten.
 //  - Month ALREADY priced (generated or manually set): Polish #11 —
 //    the owner asked for the follow in exactly this case, so the
-//    package now follows the fee taken for the month here too, with
-//    one guard the unpriced case does not have: the already-priced
-//    bill is NEVER repriced (a 1,000 payment toward a generated
-//    2,000 bill leaves the bill half-paid, 1,000 still due, and moves
-//    the package to 1,000 from the NEXT month only, through the price
-//    schedule). A partial payment therefore moves the package — the
-//    owner's stated rule, pinned rather than second-guessed.
+//    package now follows the fee taken for the month here too. User
+//    decision 2026-11-12: the priced bill IS repriced to the taken
+//    fee, so the month's due is counted against the package now in
+//    effect — a 1,000 payment toward a generated 2,000 bill leaves
+//    the bill at 1,000, nothing still due, and moves the package to
+//    1,000; "still owed" appears only when the package in effect is
+//    higher than what was paid. The old "priced bill is never
+//    repriced" rule is superseded by that decision. Previous months'
+//    arrears are never touched — only this month's bill is repriced.
 // The assignment goes through updateCustomerProfile — the same plan path
 // as the profile Edit form, Quick Collect setup and applyCustomerPlan —
 // so the change lands in packageHistory with staff attribution and the
@@ -1595,8 +1597,28 @@ export function monthFeeTakenCents(customer, month) {
  * fee taken for `month` when that payment was the month's fee decision.
  * Returns { nextState, autoPackage } where autoPackage is null when
  * nothing changed, else { fee, packageLabel } for display.
+ *
+ * The month's bill is repriced so its NET due equals the taken fee
+ * (user decision 2026-11-12) so the due is counted against the
+ * package now in effect — a payment that sets the package to the
+ * amount paid leaves nothing still owed — but the reprice is
+ * deliberately narrow: the gross target is the taken fee PLUS the
+ * bill's due-reducing credits (concession, referral credit, deposit
+ * offset, credit transfer in, bad-debt write-off, feeder-host credit,
+ * first-month waived), because the allocation engine subtracts them
+ * from dueAmount and pricing the gross at the bare taken fee would
+ * subtract the credit twice. (1) it never RAISES a bill that already
+ * carried a price before this payment, so an overpayment leaves the
+ * bill alone and the excess stays advance credit (late-fee waiver,
+ * split overpay, loose change, settlement cascade); an unpriced month
+ * has no price to raise and is priced at the taken fee as always.
+ * (2) options.repriceBill === false skips the reprice entirely — the
+ * batch, group-waterfall, split-tender and speed-counter settlement
+ * flows pass it, because they settle existing dues and their partial
+ * remainders must stay due. Only this month's bill moves; previous
+ * months' arrears are untouched.
  */
-export function autoPackageFromPayment(beforeState, afterState, customerId, month, paymentId, referenceDate = new Date()) {
+export function autoPackageFromPayment(beforeState, afterState, customerId, month, paymentId, referenceDate = new Date(), options = {}) {
   const noChange = { nextState: afterState, autoPackage: null };
   try {
     const beforeCustomer = beforeState?.customers?.find(c => c.id === customerId);
@@ -1614,12 +1636,13 @@ export function autoPackageFromPayment(beforeState, afterState, customerId, mont
     // older month late never rewrites today's plan.
     const latestMonth = bills.reduce((max, b) => (typeof b?.month === 'string' && b.month > max ? b.month : max), '');
     if (month !== latestMonth) return noChange;
-    // Polish #11: whether the month was already priced before this
-    // payment decides only the reprice step below, never the follow
-    // itself — a priced month follows too now (see the header). The
-    // priced bill is never repriced: the payment pays it down and the
-    // amount still due stays due; the package change takes effect
-    // from the next month through the price schedule.
+    // Whether the month was already priced before this payment is
+    // recorded for the generation step below, never the follow
+    // itself — a priced month follows too (see the header). User
+    // decision 2026-11-12: a priced bill IS repriced to the taken
+    // fee, so the month's due is counted against the package now in
+    // effect; the old "priced bill is never repriced" rule is
+    // superseded.
     const beforeBill = (beforeCustomer.bills ?? []).find(b => b.month === month);
     const wasPriced = Boolean(beforeBill && isPricedBill(beforeBill));
     const takenCents = monthFeeTakenCents(customer, month);
@@ -1632,16 +1655,33 @@ export function autoPackageFromPayment(beforeState, afterState, customerId, mont
     const values = { monthlySellingAmount: takenFee, packageChangeStaffName: AUTO_PACKAGE_STAFF_NAME };
     if (plan) values.packageSpeed = plan.label;
     let next = updateCustomerProfile(afterState, customerId, values, referenceDate);
-    // The month stands at the taken fee: price its bill at exactly that
-    // amount (saveBillMonth keeps the receipts and audits the amount
-    // change). Skipped when the recording's own bill generation already
-    // priced it at the taken fee — and always skipped for a month that
-    // was already priced before the payment (Polish #11: the priced
-    // bill is never repriced; the follow moves the package from the
-    // next month only).
+    // The month stands at the taken fee: price its bill so the NET due
+    // (dueAmount plus late/shifting fees, less the audited credits the
+    // allocation engine subtracts) equals the taken fee — the bill is
+    // counted against the package now in effect, so a payment that
+    // sets the package to the amount paid leaves nothing still owed.
+    // The gross target is the taken fee PLUS the bill's due-reducing
+    // credits (concession, referral credit, deposit offset, credit
+    // transfer in, bad-debt write-off, feeder-host credit, first-month
+    // waived): the engine subtracts them from dueAmount, so pricing
+    // the gross at the bare taken fee would subtract the credit twice
+    // and understate the due by exactly the credit (SISP-131: a 250
+    // concession on a 3,000 bill paid at 2,750 would read 2,500).
+    // Priced months reprice too (user decision 2026-11-12). Two guards
+    // keep the reprice honest: (1) it never raises a bill that already
+    // carried a price before this payment — an overpayment leaves the
+    // bill alone so the excess stays advance credit; an unpriced month
+    // has no price to raise. (2) options.repriceBill === false skips
+    // it entirely — the batch, group-waterfall, split-tender and
+    // speed-counter settlement flows pass it, because they settle
+    // existing dues and their partial remainders must stay due. Only
+    // this month's bill moves; previous months' arrears are untouched.
     const monthBill = next.customers.find(c => c.id === customerId)?.bills?.find(b => b.month === month);
-    if (!wasPriced && monthBill && moneyCents(monthBill.dueAmount) !== takenCents) {
-      next = saveBillMonth(next, customerId, { month, dueAmount: takenFee, status: 'pending' }, referenceDate);
+    const adjustmentCents = ['depositOffsetAmount', 'creditTransferInAmount', 'badDebtWriteOffAmount', 'referralCreditAmount', 'concessionAmount', 'feederHostCreditAmount', 'firstMonthWaivedAmount'].reduce((sum, key) => sum + moneyCents(monthBill?.[key] || 0), 0);
+    const targetDueCents = takenCents + adjustmentCents;
+    const wouldRaisePricedBill = wasPriced && targetDueCents > moneyCents(monthBill?.dueAmount);
+    if (options.repriceBill !== false && monthBill && moneyCents(monthBill.dueAmount) !== targetDueCents && !wouldRaisePricedBill) {
+      next = saveBillMonth(next, customerId, { month, dueAmount: targetDueCents / 100, status: 'pending' }, referenceDate);
     }
     // Polish #11: a priced month's follow must not generate bills as
     // a side effect — the package change takes effect from the next
@@ -1656,13 +1696,17 @@ export function autoPackageFromPayment(beforeState, afterState, customerId, mont
     // normalises the record (default fields, schedule, history) as
     // well as setting the package. The undo paths
     // (reverseCollectedPayment, Quick Collect's executeUndo) restore
-    // this snapshot verbatim, guarded by rollbackAutoPackage. Bills
-    // ride along in the snapshot, so a bill the follow repriced (or
-    // generated) is put back too; the triggering payment itself is
+    // this snapshot verbatim, guarded by rollbackAutoPackage. The
+    // snapshot's bills are NOT restored wholesale — the live bills
+    // survive the restore (the undo's own work lives on them) — but
+    // the follow month is stamped so the rollback can put that one
+    // bill's amount back to the price it carried before the follow
+    // (see rollbackAutoPackage); the triggering payment itself is
     // absent from the snapshot, exactly as the undo leaves it.
     const rollbackStamp = {
       customer: JSON.parse(JSON.stringify(beforeCustomer)),
       fee: takenFee,
+      month,
     };
     next = { ...next, customers: next.customers.map(c => c.id !== customerId ? c : { ...c, bills: (c.bills ?? []).map(b => b.month !== month ? b : { ...b, payments: (b.payments ?? []).map(p => p.id !== paymentId ? p : { ...p, autoPackageRollback: rollbackStamp }) }) }) };
     return { nextState: next, autoPackage: { fee: takenFee, packageLabel: plan ? plan.label : String(customer.packageSpeed ?? '') } };
@@ -1685,11 +1729,13 @@ export function autoPackageRollbackOf(payment) {
 // Polish #11: put the pre-follow customer back, verbatim — or null
 // when the live package is no longer the follow's result, so a newer
 // package change is never clobbered. The snapshot is the whole
-// pre-follow record, so normalised fields, schedule, history and
-// bills all return exactly as they were. One carve-out: the promise
+// pre-follow record, so normalised fields, schedule and history
+// return exactly as they were. One carve-out: the promise
 // is the waada system's, not the follow's — undo never restores a
 // cleared promise (void does), so the live promise fields survive
-// the snapshot restore untouched.
+// the snapshot restore untouched. Bills likewise survive, except the
+// follow month's amount, which returns to the price it carried
+// before the follow (user decision 2026-11-12) — see below.
 export function rollbackAutoPackage(customer, stamp) {
   if (!customer || typeof customer !== 'object' || !stamp) return null;
   const history = Array.isArray(customer.packageHistory) ? customer.packageHistory : [];
@@ -1700,10 +1746,26 @@ export function rollbackAutoPackage(customer, stamp) {
   const restored = JSON.parse(JSON.stringify(stamp.customer));
   // Bills are the undo's own work, not the follow's: deletePayment's
   // inverse, the late-fee waiver restoration (with its amountHistory
-  // audit trail) and the addon reopening all live on the bill, and
-  // the follow never touches a bill — so the live bill survives the
-  // snapshot restore untouched.
+  // audit trail) and the addon reopening all live on the bill — so
+  // the live bill survives the snapshot restore untouched. One
+  // carve-out (user decision 2026-11-12): the follow now reprices a
+  // priced month's bill to the taken fee, so the undo puts that one
+  // bill's amount back to the price it carried before the follow —
+  // the package rolls back, and the bill must roll back with it, or
+  // the customer would owe the repriced amount on the restored
+  // package. Only the amount moves: the live bill's payments, waiver
+  // restoration and addon reopening survive untouched, and a bill the
+  // follow generated (absent from the snapshot) stands. The reprice's
+  // amountHistory entry survives as the record that the bill was
+  // repriced; it changes no figure.
   restored.bills = JSON.parse(JSON.stringify(customer.bills ?? []));
+  const stampMonth = typeof stamp.month === 'string' ? stamp.month : '';
+  if (stampMonth) {
+    const stampBill = (stamp.customer.bills ?? []).find(b => b.month === stampMonth);
+    if (stampBill && isPricedBill(stampBill)) {
+      restored.bills = restored.bills.map(b => b.month !== stampMonth ? b : { ...b, dueAmount: stampBill.dueAmount });
+    }
+  }
   for (const key of ['promiseDate', 'promiseAmount', 'promiseNote']) {
     if (key in customer) restored[key] = customer[key];
     else delete restored[key];

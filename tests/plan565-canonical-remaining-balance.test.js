@@ -247,16 +247,21 @@ test('plan565 PIN: a fully-settled receipt reads PKR 0 and settled on the image'
 
 /* ---------------- Partial bill payment: draft and card agree ---------------- */
 
-test('plan565 PIN: a partial bill payment (600 of 1,000, no tickets) reads PKR 400 on draft and card alike', () => {
+test('plan565 PIN: a partial bill payment (600 of 1,000, no tickets) reads PKR 0 on draft and card alike', () => {
   const { receipt } = executeQuickCollection(plan565FixtureState(), {
     customerId: 'seed-001', month: MONTH, amount: 600, method: 'Cash'
   }, new Date());
-  assert.equal(receipt.payableRemaining, 400, 'no ticket pending, so the remaining is the bill alone');
+  // User decision 2026-11-12: the partial payment sets the package to
+  // the amount paid (600) and reprices the bill to it, so nothing is
+  // owed — the old "600 of 1,000 leaves 400 due" reading is superseded.
+  assert.equal(receipt.payableRemaining, 0, 'the package moved to 600, so the remaining is nil');
   const draft = formatQuickCollectWhatsAppReceipt(receipt).text;
-  assert.ok(draft.includes('⚖️ *Remaining Balance:* PKR 400'), draft);
-  assert.ok(draft.includes('PARTIAL'), draft);
+  assert.ok(draft.includes('⚖️ *Remaining Balance:* PKR 0'), draft);
+  assert.ok(draft.includes('PAID'), draft);
   const html = renderQuickCollectReceiptCardHtml({ ...receipt, id: 'receipt-partial' });
-  assert.equal(cardRemainingOf(html), 'PKR 400', html);
+  // The card renders "Fully paid" at 0, never "PKR 0" (see
+  // cardRemainingOf above) — the Still-owed row carries the figure.
+  assert.equal(cardRemainingOf(html), 'Fully paid', html);
 });
 
 /* ---------------- Wiring pins: slip + badge chains ---------------- */

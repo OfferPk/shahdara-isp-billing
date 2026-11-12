@@ -423,7 +423,13 @@ export function executeSplitTenderCollection(state, spec, { execute, referenceDa
       // leg 1, so the recorder's extra is exactly the combined extra.
       ...(legNo === clean.legs.length && clean.overpaymentChoice ? { overpaymentChoice: clean.overpaymentChoice, overpaymentDuesCents: clean.leg2OverpaymentDuesCents } : {}),
       ...(legNo === clean.legs.length && clean.excessCashNote ? { excessCashNote: clean.excessCashNote, excessCashDuesCents: clean.leg2ExcessCashDuesCents } : {}),
-      ...(legNo === clean.legs.length && clean.remainderWaadaDate ? { remainderWaadaDate: clean.remainderWaadaDate } : {})
+      ...(legNo === clean.legs.length && clean.remainderWaadaDate ? { remainderWaadaDate: clean.remainderWaadaDate } : {}),
+      // Settlement, not a fee decision: the bill keeps its price, so
+      // a split below the due leaves a normal partial balance and a
+      // split above it leaves the excess as advance credit. Only a
+      // direct single collection reprices the bill to the taken fee
+      // (user decision 2026-11-12).
+      repriceBill: false
     };
   };
 

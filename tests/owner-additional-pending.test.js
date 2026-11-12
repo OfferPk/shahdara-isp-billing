@@ -227,10 +227,14 @@ test('collection consistency: a 2,000 part-collection settles bill first and lea
   state = setAdditional(state, 1500);
   const { nextState, receipt } = collect(state, 2000);
   assert.equal(receipt.manualBaqayaSettledTotal, 0);
-  assert.equal(calculatePaymentAllocations(nextState).forMonth('cust-1', MONTH).balanceDueCents, 100000);
+  // User decision 2026-11-12: the part-collection sets the package
+  // to the amount paid and reprices the bill to it, so the bill is
+  // fully settled (no 1,000 remainder) — the additional is untouched
+  // and stays whole at 1,500, so the total outstanding is 1,500.
+  assert.equal(calculatePaymentAllocations(nextState).forMonth('cust-1', MONTH).balanceDueCents, 0);
   assert.equal(manualBaqayaOutstanding(nextState.customers[0]), 1500);
   const figures = totalOutstandingFigures(nextState.customers[0]);
-  assert.equal(figures.total, 2500);
+  assert.equal(figures.total, 1500);
 });
 
 test('void restores the additional exactly; an owner adjustment is NOT restored by a void', () => {

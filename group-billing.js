@@ -301,7 +301,12 @@ export function collectGroupFull(state, group, { date, method, paidBy, month, al
         amount: member.dueCents / 100,
         date,
         method,
-        paidBy
+        paidBy,
+        // Settlement, not a fee decision: the bill keeps its price, so
+        // a partial remainder stays due and an overpay stays advance
+        // credit. Only a direct single collection reprices the bill
+        // to the taken fee (user decision 2026-11-12).
+        repriceBill: false
       });
       next = result.nextState;
       totalCents += member.dueCents;
@@ -373,7 +378,12 @@ export function collectGroupPartial(state, group, { amountReceived, date, method
         amount: allocate / 100,
         date,
         method,
-        paidBy
+        paidBy,
+        // Settlement, not a fee decision: the bill keeps its price, so
+        // the waterfall remainder stays due on the next member's bill.
+        // Only a direct single collection reprices the bill to the
+        // taken fee (user decision 2026-11-12).
+        repriceBill: false
       });
       next = result.nextState;
     } catch (error) {
@@ -512,7 +522,12 @@ export function collectGroupProRata(state, group, { amountReceived, date, method
         amount: line.amountCents / 100,
         date,
         method,
-        paidBy
+        paidBy,
+        // Settlement, not a fee decision: the bill keeps its price, so
+        // a partial remainder stays due and an overpay stays advance
+        // credit. Only a direct single collection reprices the bill
+        // to the taken fee (user decision 2026-11-12).
+        repriceBill: false
       });
       next = result.nextState;
     } catch (error) {

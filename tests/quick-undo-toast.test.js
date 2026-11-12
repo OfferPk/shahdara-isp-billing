@@ -219,6 +219,29 @@ test('PIN: waada case — undo outcome is identical to the existing deletePaymen
   assert.equal(balanceCents(viaSeam), 300000);
 });
 
+// User decision 2026-11-12 (package-change due logic): the follow now
+// reprices a priced month's bill to the taken fee, so the undo puts that
+// bill back to the price it carried before the follow — the package rolls
+// back, and the bill must roll back with it, or the customer would owe
+// the repriced amount on the restored package.
+test('undo of a package-changing payment restores the repriced bill to its pre-follow price', () => {
+  const before = stateWithBill(3000);
+  const { nextState, receipt } = collect(before, { amount: 2000 });
+  // The 2,000 payment moved the package to 2,000 and repriced the bill.
+  assert.deepEqual(receipt.packageAutoSet, { fee: 2000, packageLabel: '5Mbps / 200GB' });
+  assert.equal(nextState.customers[0].monthlySellingAmount, 2000);
+  assert.equal(Number(nextState.customers[0].bills[0].dueAmount), 2000);
+  assert.equal(balanceCents(nextState), 0);
+  const undone = reverseCollectedPayment({
+    state: nextState, tickets: [], customerId: 'cust-1', paymentId: receipt.paymentId, referenceDate: REF
+  }).nextState;
+  const customer = undone.customers[0];
+  assert.equal(customer.monthlySellingAmount, undefined, 'the package rolls back — the field is gone, as before the collection');
+  assert.equal(Number(customer.bills[0].dueAmount), 3000, 'the bill rolls back to its pre-follow price');
+  assert.equal(balanceCents(undone), 300000, 'the full bill is owed again');
+  assert.equal(customer.bills[0].payments.length, 0, 'the payment is gone');
+});
+
 test('undo of an already-deleted payment raises the gone code and changes nothing', () => {
   const before = stateWithBill();
   assert.throws(

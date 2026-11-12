@@ -66,13 +66,21 @@ const paymentOf = (state) => customerOf(state).bills.find(b => b.month === '2026
 
 function collectPartial(extra = {}) {
   const state = stateWithDue(3000);
+  // The remainder waada needs a remainder to promise: this collection
+  // settles the bill without repricing it (repriceBill: false), so the
+  // 1,000 part-payment leaves 2,000 due. A direct single collection
+  // would reprice the bill to the amount paid and leave no remainder
+  // (user decision 2026-11-12) — the waada mechanism itself is what
+  // these tests exercise, through executeQuickCollection's
+  // remainderWaadaDate option.
   const { nextState, receipt } = executeQuickCollection(state, {
     customerId: 'c1',
     month: '2026-10',
     amount: 1000,
     date: '2026-10-20',
     method: 'Cash',
-    ...extra
+    ...extra,
+    repriceBill: false
   }, REF);
   return { state, nextState, receipt };
 }
@@ -148,7 +156,12 @@ test('an existing waada is replaced (house setter semantics) and kept on the sta
   });
   const { nextState } = executeQuickCollection(state, {
     customerId: 'c1', month: '2026-10', amount: 1000, date: '2026-10-20', method: 'Cash',
-    remainderWaadaDate: CHIP_DATE
+    remainderWaadaDate: CHIP_DATE,
+    // Settles without repricing (repriceBill: false) so a remainder
+    // exists for the waada to replace — a direct single collection
+    // would reprice the bill to the amount paid and leave no remainder
+    // (user decision 2026-11-12).
+    repriceBill: false
   }, REF);
   const customer = customerOf(nextState);
   assert.equal(customer.promiseDate, CHIP_DATE);
@@ -256,7 +269,12 @@ test('voiding the partial payment reverts its remainder waada (and restores a re
   const state = stateWithDue(3000, { promiseDate: '2026-10-25', promiseAmount: 3000, promiseNote: 'Salary day' });
   const recorded = executeQuickCollection(state, {
     customerId: 'c1', month: '2026-10', amount: 1000, date: '2026-10-20', method: 'Cash',
-    remainderWaadaDate: CHIP_DATE
+    remainderWaadaDate: CHIP_DATE,
+    // Settles without repricing (repriceBill: false) so a remainder
+    // exists for the waada to replace — a direct single collection
+    // would reprice the bill to the amount paid and leave no remainder
+    // (user decision 2026-11-12).
+    repriceBill: false
   }, REF);
   const undone = voidPayment(recorded.nextState, 'c1', '2026-10', recorded.receipt.paymentId, { voidReason: 'duplicate' });
   assert.equal(undone.voidRecord.remainderWaadaReverted, true);

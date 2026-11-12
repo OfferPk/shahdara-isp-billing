@@ -21,24 +21,26 @@
  *    package, and the month's bill is priced at that fee;
  *  - month already priced -> Polish #11 (2026-11-07, owner's stated
  *    rule): the payment still moves the package to the fee taken for
- *    the month — a 1,000 payment toward a generated 2,000 bill moves
- *    the package to 1,000 from the NEXT month — but the priced bill
- *    itself is NEVER repriced (bill stays 2,000, remaining 1,000
- *    still due). The old partial-payment protection is gone by
- *    design, not by accident; see the two priced-month tests below.
+ *    the month. User decision 2026-11-12: the priced bill IS repriced
+ *    to the taken fee, so the month's due is counted against the
+ *    package now in effect — a 1,000 payment toward a generated
+ *    2,000 bill leaves the bill at 1,000, nothing still due. The old
+ *    "priced bill is never repriced" rule is superseded; see the two
+ *    priced-month tests below.
  *
  * Pins: owner example 1 (package-less pays 2,000 -> package 2,000, next
  * month bills 2,000), owner example 2 (2,000 -> next month taken at
  * 1,000 -> bill and package 1,000, following month bills 1,000), the
- * priced-month follow (a partial payment moves the package from next
- * month; the priced bill is never repriced), a same-amount month
+ * priced-month follow (a partial payment moves the package AND
+ * reprices the bill to the taken fee, nothing still due), previous
+ * months' arrears survive the reprice untouched, a same-amount month
  * (strict no-op, no churn), the fee-component rule (ticket charges
  * stripped), a lump sum on an unpriced month (the untagged collect IS
  * the fee decision — prepay belongs in Advance), advance-only (no
  * follow), FREE (no follow), a manually priced bill (a full payment
- * of a hand-priced bill sets the package from next month), an
- * older-month payment (latest-month guard), a voided trigger (no
- * follow), and the storage round-trip.
+ * of a hand-priced bill sets the package; the reprice is a no-op at
+ * the same amount), an older-month payment (latest-month guard), a
+ * voided trigger (no follow), and the storage round-trip.
  * Synthetic data only.
  */
 import test from 'node:test';
@@ -126,12 +128,14 @@ test('example 2: package 2,000, next month fee taken at 1,000 -> bill and packag
   assert.equal(Number(billOf(november, '2026-11').dueAmount), 1000);
 });
 
-// Polish #11 (2026-11-07) reverses the old partial-payment protection
-// BY DESIGN, at the owner's explicit instruction: a payment on an
-// already-priced month now moves the package to the fee taken, from
-// the next month — the priced bill itself is never repriced, so the
-// 1,000 still due on it stays due.
-test('priced month follow: 1,000 paid toward an already-generated 2,000 bill moves the package to 1,000 from next month; the bill stays 2,000 with 1,000 still due', () => {
+// User decision 2026-11-12 (supersedes the old Polish #11 "priced bill
+// is never repriced" rule): a payment on an already-priced month moves
+// the package to the fee taken AND reprices the bill to that fee, so
+// the month's due is counted against the package now in effect — a
+// 1,000 payment toward a generated 2,000 bill leaves nothing still
+// due. "Still owed" appears only when the package in effect is higher
+// than what was paid.
+test('priced month follow: 1,000 paid toward an already-generated 2,000 bill moves the package to 1,000 and reprices the bill to 1,000, nothing still due', () => {
   let before = septemberSettledState();
   before = generateMonthlyBillsThroughCurrentMonth(before, OCT_2);
   assert.equal(Number(billOf(before, '2026-10').dueAmount), 2000, 'October bill generated at the package price before the payment');
@@ -145,11 +149,36 @@ test('priced month follow: 1,000 paid toward an already-generated 2,000 bill mov
   assert.equal(customer.packageSpeed, '3Mbps / 100GB');
   assert.equal(customer.packageHistory.length, historyLength + 1, 'one plan change recorded');
   assert.equal(customer.packageHistory.at(-1).staffName, AUTO_PACKAGE_STAFF_NAME);
-  assert.equal(Number(billOf(nextState, '2026-10').dueAmount), 2000, 'the priced bill is never repriced');
-  assert.equal(balanceOf(nextState, '2026-10'), 100000, 'remaining 1,000 still due');
+  assert.equal(Number(billOf(nextState, '2026-10').dueAmount), 1000, 'the priced bill is repriced to the taken fee');
+  assert.equal(balanceOf(nextState, '2026-10'), 0, 'nothing still due — the month is counted against the package now in effect');
+  assert.equal(receipt.payableRemaining, 0, 'the receipt agrees: fully paid');
   // Next month bills at the followed fee with no manual step.
   const november = generateMonthlyBillsThroughCurrentMonth(nextState, NOV_2);
   assert.equal(Number(billOf(november, '2026-11').dueAmount), 1000);
+});
+
+// User decision 2026-11-12: the reprice touches ONLY the follow
+// month's bill. An unpaid earlier month (baqaya) keeps its own price
+// and its own balance — the package change never wipes old arrears.
+// The receipt's still-owed figure carries the baqaya while the
+// current month is fully paid.
+test('priced month follow: previous months arrears survive the reprice — only the follow month is repriced', () => {
+  let before = createInitialState(['Arrears Tester']);
+  before = updateCustomerProfile(before, 'seed-001', { monthlySellingAmount: 2000, packageSpeed: '5Mbps / 200GB' }, SEP_15);
+  before = generateMonthlyBillsThroughCurrentMonth(before, SEP_15);
+  assert.equal(Number(billOf(before, '2026-09').dueAmount), 2000, 'September bill generated at the package price');
+  before = generateMonthlyBillsThroughCurrentMonth(before, OCT_2);
+  assert.equal(Number(billOf(before, '2026-10').dueAmount), 2000, 'October bill generated at the package price');
+  const { nextState, receipt } = executeQuickCollection(before, {
+    customerId: 'seed-001', month: '2026-10', amount: 1000, date: '2026-10-05', method: 'Cash'
+  }, OCT_5);
+  assert.deepEqual(receipt.packageAutoSet, { fee: 1000, packageLabel: '3Mbps / 100GB' });
+  assert.equal(customerOf(nextState).monthlySellingAmount, 1000);
+  assert.equal(Number(billOf(nextState, '2026-10').dueAmount), 1000, 'October repriced to the taken fee');
+  assert.equal(balanceOf(nextState, '2026-10'), 0, 'October fully paid');
+  assert.equal(Number(billOf(nextState, '2026-09').dueAmount), 2000, 'September keeps its price');
+  assert.equal(balanceOf(nextState, '2026-09'), 200000, 'September arrears still owed in full');
+  assert.equal(receipt.payableRemaining, 2000, 'the receipt still-owed figure carries the baqaya only');
 });
 
 test('same-amount month: collecting the current fee on an unpriced month changes nothing and records no churn', () => {
@@ -217,9 +246,11 @@ test('FREE connection: a payment never gives a free customer a package fee', () 
   assert.equal(after.customers.find(c => c.id === free.id).monthlySellingAmount, null);
 });
 
-// Polish #11: the same reversal — a hand-priced bill is still a
-// priced month, so its payment follows the fee taken from next month.
-test('manually priced bill: a full payment of a hand-priced 1,500 bill sets the package to 1,500 from next month', () => {
+// A hand-priced bill is still a priced month, so its payment follows
+// the fee taken. A full payment reprices nothing — the bill already
+// stands at the taken fee — so the reprice is a no-op and the bill
+// settles normally.
+test('manually priced bill: a full payment of a hand-priced 1,500 bill sets the package to 1,500 and the bill stands at 1,500', () => {
   let before = packagelessState();
   before = saveBillMonth(before, 'seed-001', { month: '2026-10', dueAmount: 1500, status: 'pending' }, OCT_2);
   const { nextState, receipt } = executeQuickCollection(before, {

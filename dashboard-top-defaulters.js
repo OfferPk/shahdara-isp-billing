@@ -1292,10 +1292,20 @@ export function setupTopDefaultersModal(state, {
   }
 
   // Open & Close
+  // Dues-list tile live fix (2026-11-12): a <dialog> throws
+  // InvalidStateError when showModal() is called while it is already
+  // open — a second tap (or a tap while the modal is still up from
+  // another path) made the tile look dead. Opening an already-open
+  // dialog is a no-op; the caller still re-renders the list below.
+  function showModalOnce() {
+    if (modal.open) return;
+    if (modal.showModal) modal.showModal();
+    else modal.hidden = false;
+  }
+
   openTriggers.forEach(btn => {
     btn.addEventListener('click', () => {
-      if (modal.showModal) modal.showModal();
-      else modal.hidden = false;
+      showModalOnce();
       renderContent();
     });
   });
@@ -1305,8 +1315,7 @@ export function setupTopDefaultersModal(state, {
 
   return {
     open: () => {
-      if (modal.showModal) modal.showModal();
-      else modal.hidden = false;
+      showModalOnce();
       renderContent();
     },
     close: () => {

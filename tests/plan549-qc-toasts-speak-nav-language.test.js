@@ -47,7 +47,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   createInitialState, updateCustomerProfile,
-  generateMonthlyBillsThroughCurrentMonth, calculatePaymentAllocations
+  generateMonthlyBillsThroughCurrentMonth, calculatePaymentAllocations,
+  saveBillMonth
 } from '../core.js';
 import {
   getPakistanLocalDate, setupQuickCollectModal
@@ -261,10 +262,19 @@ test('plan 549 wiring: every listed site calls t() with its key, and the out-of-
 /** One synthetic customer on the PKR 1,000 package, billed this month. */
 function plan549State() {
   let state = createInitialState(['Plan549 Tester']);
+  // The package is 600 and the bill is hand-priced at 1,000: the
+  // partial payment (600) equals the package, so the auto-package
+  // follow is a no-op (current fee === taken fee) and the bill keeps
+  // its price — a 400 remainder survives, so the second-connection
+  // step is still offered. A direct single collection that moved the
+  // package would reprice the bill and leave no remainder (user
+  // decision 2026-11-12), and the second-connection step would not
+  // appear.
   state = updateCustomerProfile(state, 'seed-001', {
-    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 1000
+    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 600
   }, now);
   state = generateMonthlyBillsThroughCurrentMonth(state, now);
+  state = saveBillMonth(state, 'seed-001', { month, dueAmount: 1000, status: 'pending' }, now);
   assert.equal(calculatePaymentAllocations(state).forMonth('seed-001', month)?.balanceDueCents, 100000, 'precondition: 1,000 still due');
   return state;
 }

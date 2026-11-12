@@ -209,7 +209,12 @@ export function commitBatch(state, batch, execute = executeQuickCollection) {
         amount: e.amount,
         date: batch.date,
         method: e.method,
-        paidBy: e.note
+        paidBy: e.note,
+        // Settlement, not a fee decision: the bill keeps its price, so
+        // a partial remainder stays due and an overpay stays advance
+        // credit. Only a direct single collection reprices the bill
+        // to the taken fee (user decision 2026-11-12).
+        repriceBill: false
       });
       next = nextState;
       receipts.push(receipt);

@@ -888,6 +888,21 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   color: var(--muted);
   white-space: nowrap;
 }
+/* Unpaid Cards: the ID pill cycles colours by customer number — 1
+   black, 2 yellow, 3 green, 4 blue, 5 slate, 6 red, 7 teal,
+   8 orange, then back to black. Every colour is reused from a
+   palette already in the stylesheet (health, status, service,
+   slate) — no new hex: the §8.9 ratchet pins styles.css at 614
+   distinct hex. The class comes from
+   customerIdPillClass in customer-card-style.js. */
+.customer-id-pill-0 { background: #000; color: #fff; border-color: #000; }
+.customer-id-pill-1 { background: #fef3c7; color: #704600; border-color: #e7c77e; }
+.customer-id-pill-2 { background: #dcfce7; color: #145b38; border-color: #5fa876; }
+.customer-id-pill-3 { background: #e5efff; color: #174b87; border-color: #adc9f1; }
+.customer-id-pill-4 { background: #334155; color: #fff; border-color: #334155; }
+.customer-id-pill-5 { background: #fee2e2; color: #b91c1c; border-color: #dc9478; }
+.customer-id-pill-6 { background: #e7f2ec; color: #0e5b4d; border-color: #9acbad; }
+.customer-id-pill-7 { background: #fff0e8; color: #8a2b12; border-color: #dc9478; }
 .customer-card-heading .customer-name {
   color: var(--ink);
   font-size: var(--text-card-name);
@@ -954,6 +969,18 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   line-height: 1.3;
   overflow-wrap: anywhere;
 }
+/* Unpaid Cards: the two stat boxes carry their own colours —
+   "Actually received · lifetime" green (the health-good palette),
+   "Time with ISP" blue (the status-partial palette). The label,
+   value and caption all take the stat colour. */
+.customer-card-stat-received { background: #e8f5ed; border-color: #a8d6ba; }
+.customer-card-stat-received > span { color: #19704e; }
+.customer-card-stat-received strong { color: #19704e; }
+.customer-card-stat-received small { color: #19704e; }
+.customer-card-stat-tenure { background: #e5efff; border-color: #adc9f1; }
+.customer-card-stat-tenure > span { color: #174b87; }
+.customer-card-stat-tenure strong { color: #174b87; }
+.customer-card-stat-tenure small { color: #174b87; }
 .customer-card-open-hint {
   display: flex;
   justify-content: space-between;
@@ -1011,6 +1038,80 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   border-radius: 999px;
   font-size: 10px;
 }
+/* Unpaid Cards: the health value is coloured by SCORE band, not by
+   the category word — 70+ green, 40–70 yellow, below 40 red. The
+   bands reuse the health-good / health-risk / health-critical
+   palettes; the class comes from healthScoreBandClass in
+   customer-card-style.js. The category class (health-good etc.)
+   stays alongside for compatibility. */
+.health-score-high { background: #e8f5ed; color: #19704e; }
+.health-score-mid { background: #fff5df; color: #9a5e06; }
+.health-score-low { background: #ffebea; color: #a3342d; }
+/* Unpaid Cards: the green Clear dues button on the card — it sits
+   where the Due badge sits under the "Unpaid This Month" pill, at
+   badge size. The global button rule floors buttons at 40px, so the
+   min-height is set here (a class beats the element selector). Green
+   is the --green token, the same as the profile Clear dues button. */
+.customer-card-clear-dues {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 3px 10px;
+  border: 1px solid var(--green);
+  border-radius: 7px;
+  background: var(--green);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.25;
+  cursor: pointer;
+}
+.customer-card-clear-dues:hover { background: var(--green-dark); }
+.customer-card-clear-dues:focus-visible { outline: 3px solid #80b9a0; outline-offset: 2px; }
+.customer-card-clear-dues[disabled] { opacity: .6; cursor: default; }
+/* Unpaid Cards: the Recent receipts finder on the Transactions
+   screen — a compact panel above the ledger. Tokens and borders
+   only; no new hex. */
+.receipt-finder {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--radius-sm);
+  background: var(--ds-nested);
+}
+.receipt-finder-head h3 { margin: 0; font-size: 13px; }
+.receipt-finder-note { margin: 2px 0 8px; color: var(--muted); font-size: 11px; }
+#receiptFinderSearch {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #dce6e1;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0 11px;
+  color: var(--ink);
+  font: 500 13px 'DM Sans', sans-serif;
+}
+#receiptFinderSearch:focus { outline: 3px solid #cce9dd; border-color: #60a68d; }
+.receipt-finder-count { margin: 8px 0 0; color: var(--muted); font-size: 11px; font-weight: 600; }
+.receipt-finder-results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.receipt-finder-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: 9px;
+  background: #fff;
+  font-size: 12px;
+}
+.receipt-finder-main { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.receipt-finder-name { font-weight: 700; overflow-wrap: anywhere; }
+.receipt-finder-meta { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.receipt-finder-amount { font-weight: 800; font-variant-numeric: tabular-nums; }
+.receipt-finder-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.receipt-finder-actions .secondary-button { min-height: 32px; padding: 0 10px; font-size: 11px; }
 .customer-card-controls {
   display: grid;
   gap: 8px;

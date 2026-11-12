@@ -316,7 +316,10 @@ test('phase C: the network rows carry a copy button for PPPoE username, static I
 
 test('phase C: a copy field renders a small button in the value row, disabled when the value is missing', () => {
   const app = read('app.js');
-  const fn = app.match(/function profileReadonlyField\(label, value, wide = false, copyField = ''\) \{[\s\S]*?\n\}/);
+  // Profile Polish D (16) — profileReadonlyField takes a fifth
+  // parameter now (editTarget, the tap-to-edit control id); the copy
+  // field behaviour — the pinned intent — is unchanged.
+  const fn = app.match(/function profileReadonlyField\(label, value, wide = false, copyField = '', editTarget = ''\) \{[\s\S]*?\n\}/);
   assert.ok(fn, 'profileReadonlyField must take the copy field');
   assert.match(
     fn[0],
@@ -325,9 +328,13 @@ test('phase C: a copy field renders a small button in the value row, disabled wh
   );
   assert.match(fn[0], /value === PROFILE_EMPTY_DASH \? ' disabled' : ''/, 'the button is disabled, not hidden, when the value is missing');
   assert.match(fn[0], /aria-label="\$\{escapeHtml\(t\('rcred_copy'\)\)\}"/, 'the button reuses the existing Copy label');
-  const group = app.match(/function profileInfoGroupMarkup\(heading, rows, afterFirstRowHtml = ''\) \{[\s\S]*?\n\}/);
+  // Profile Polish D (16) — profileInfoGroupMarkup takes a fourth
+  // parameter now (extraClass, the pill class), and the row tuple a
+  // fifth element (editTarget). The copy-field passthrough — the
+  // pinned intent — is unchanged.
+  const group = app.match(/function profileInfoGroupMarkup\(heading, rows, afterFirstRowHtml = '', extraClass = ''\) \{[\s\S]*?\n\}/);
   assert.ok(group, 'profileInfoGroupMarkup must exist');
-  assert.match(group[0], /\[label, value, wide, copyField\]/, 'the row tuple passes the copy field through');
+  assert.match(group[0], /\[label, value, wide, copyField, editTarget\]/, 'the row tuple passes the copy field through');
 });
 
 test('phase C: the copy wiring reads the value from the customer record, never the displayed text', () => {

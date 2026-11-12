@@ -3832,6 +3832,14 @@ export function setupQuickCollectModal({
     // Polish 17: the success-only compact + eyebrow rules hang off this
     // class on the modal (the header sits outside the step div).
     if (modal) modal.classList.toggle('qc-success-open', stepName === 'success');
+    // QC back-button fix (user-reported live bug 2026-11-12): the
+    // header ↩ is BACK on the success card (it returns to the picker
+    // so the next customer's payment can be taken right away) and
+    // CLOSE everywhere else — say so, so the button never promises
+    // a close it will not perform.
+    if (closeBtn && typeof closeBtn.setAttribute === 'function') {
+      closeBtn.setAttribute('aria-label', stepName === 'success' ? 'Back to customer list' : 'Close quick collect modal');
+    }
     // Polish 21 (Req 7): the tick animation must visibly play on EVERY
     // showing. The base rules carry no animation (it would run once at
     // page load while the step is hidden), so re-trigger it here: drop
@@ -7621,7 +7629,23 @@ export function setupQuickCollectModal({
 
   // Done button
   doneCloseBtn?.addEventListener('click', closeModal);
-  closeBtn?.addEventListener('click', closeModal);
+  // QC back-button fix (user-reported live bug 2026-11-12): on the
+  // success card the header ↩ is BACK, not close — it runs the same
+  // full reset as the "Next Customer" button (collectAnotherCustomer),
+  // so the picker shows again and the next customer's payment can be
+  // taken right away. Closing the sheet here dropped the operator on
+  // the screen underneath (Home when Quick Collect was opened from
+  // Home / the bottom bar), and the payment screen had to be found
+  // and reopened for every next customer. Every other step keeps the
+  // close behaviour; Done, Escape, backdrop and phone Back are
+  // untouched.
+  closeBtn?.addEventListener('click', () => {
+    if (stepSuccess && !stepSuccess.hidden) {
+      collectAnotherCustomer();
+      return;
+    }
+    closeModal();
+  });
 
   // Link to full transactions view
   goToTransactionsBtn?.addEventListener('click', () => {

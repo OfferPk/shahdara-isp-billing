@@ -6638,7 +6638,7 @@ function renderIncidents(customer) {
   $('#incidentList').querySelectorAll('[data-edit-incident]').forEach(button => button.addEventListener('click', () => showIncidentEditor(incidents.find(item => item.id === button.dataset.editIncident))));
   $('#incidentList').querySelectorAll('[data-delete-incident]').forEach(button => button.addEventListener('click', () => requestDeleteIncident(customer.id, button.dataset.deleteIncident)));
 }
-function profileReadonlyField(label, value, wide = false, copyField = '') {
+function profileReadonlyField(label, value, wide = false, copyField = '', editTarget = '') {
   // Polish #28 Phase B (Req 3) — the bare dash renders as a subtle
   // empty-value span; every other value escapes exactly as today.
   const display = value === PROFILE_EMPTY_DASH ? `<span class="profile-empty-value">${PROFILE_EMPTY_DASH}</span>` : escapeHtml(value);
@@ -6648,7 +6648,13 @@ function profileReadonlyField(label, value, wide = false, copyField = '') {
   // is disabled, not hidden, when the record has no value.
   const copy = copyField ? `<button type="button" class="profile-copy-value secondary-button" data-profile-copy-field="${copyField}" aria-label="${escapeHtml(t('rcred_copy'))}"${value === PROFILE_EMPTY_DASH ? ' disabled' : ''}>📋</button>` : '';
   const ddClass = copy ? ' class="profile-copy-dd"' : '';
-  return `<div class="profile-readonly-field${wide ? ' profile-readonly-field-wide' : ''}"><dt>${escapeHtml(label)}</dt><dd${ddClass}>${display}${copy}</dd></div>`;
+  // Profile Polish D (16) — editTarget is the edit-form control id
+  // this field opens when tapped (the form is already filled with the
+  // customer's saved info, so the tap lands on the field to change).
+  // Rows without an edit control (a derived value such as Usual pay
+  // day) pass none, so they stay plain text — never an invented link.
+  const tap = editTarget ? ` data-profile-field-edit="${escapeHtml(editTarget)}" tabindex="0" role="button"` : '';
+  return `<div class="profile-readonly-field${wide ? ' profile-readonly-field-wide' : ''}${editTarget ? ' profile-readonly-field--tap' : ''}"${tap}><dt>${escapeHtml(label)}</dt><dd${ddClass}>${display}${copy}</dd></div>`;
 }
 
 // Profile UI polish: compact grouped info. Related fields share one
@@ -6658,7 +6664,7 @@ function profileReadonlyField(label, value, wide = false, copyField = '') {
 // numbers: the Contact group takes an optional block of raw HTML that
 // renders immediately after its first row (the phone row), so the operator
 // finds Call/WhatsApp beside the number instead of halfway down the page.
-function profileInfoGroupMarkup(heading, rows, afterFirstRowHtml = '') {
+function profileInfoGroupMarkup(heading, rows, afterFirstRowHtml = '', extraClass = '') {
   // Profile Polish A (8) — auto-sort: filled rows on top, unfilled
   // rows below. A row is unfilled when its value is the bare empty
   // dash, or a dash with an explanatory note ("— (missing …)").
@@ -6669,12 +6675,16 @@ function profileInfoGroupMarkup(heading, rows, afterFirstRowHtml = '') {
   // number even when the number itself is the empty row.
   const isUnfilledRow = (row) => typeof row[1] === 'string' && row[1].startsWith(PROFILE_EMPTY_DASH);
   const sortedRows = [...rows.filter((row) => !isUnfilledRow(row)), ...rows.filter(isUnfilledRow)];
-  const fields = sortedRows.map(([label, value, wide, copyField]) => profileReadonlyField(label, value, wide, copyField));
+  const fields = sortedRows.map(([label, value, wide, copyField, editTarget]) => profileReadonlyField(label, value, wide, copyField, editTarget));
   if (afterFirstRowHtml) {
     const anchorIndex = rows.length ? sortedRows.indexOf(rows[0]) : -1;
     fields.splice(anchorIndex >= 0 ? anchorIndex + 1 : 0, 0, afterFirstRowHtml);
   }
-  return `<section class="profile-info-group"><h4>${escapeHtml(heading)}</h4><dl class="profile-readonly-grid">${fields.join('')}</dl></section>`;
+  // Profile Polish D (16) — extraClass lets one section's groups
+  // take a shared pill style (the Service & Package groups pass
+  // 'profile-info-group--service'); omitted, the section renders
+  // exactly as before.
+  return `<section class="profile-info-group${extraClass ? ` ${extraClass}` : ''}"><h4>${escapeHtml(heading)}</h4><dl class="profile-readonly-grid">${fields.join('')}</dl></section>`;
 }
 function customerLifetimeValueMarkup(lifetime) {
   const tenure=lifetime.tenure;
@@ -7085,7 +7095,7 @@ function renderCustomerProfileView(customer) {
   // prof_group_connection), so no group is renamed in this phase.
   // The <div class="profile-info-groups"> wrapper is dropped — each
   // section body provides the gap — its CSS rule stays, harmless.
-  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), profileEmptyText(phone)], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), profileEmptyText(customer.mohalla)], [t('prof_field_zone'), profileEmptyText(customer.zone)], [t('prof_field_address'), profileEmptyText(customer.address), true], [t('prof_field_notes'), profileEmptyText(customer.notes), true]]), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), profileEmptyText(customer.ispProvider)], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), profileEmptyText(customer.packageSpeed)], [t('prof_field_payday'), paydaySummary.label]]), money: profileInfoGroupMarkup(t('prof_group_service'), [[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)], [t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)], [t('prof_field_profit'), profileProfitDisplay(customer, profit)], [t('prof_field_concession_month'), concessionDisplay], [t('prof_field_discounts_month'), discountsDisplay], [t('prof_field_net_profit'), netDisplay]]), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH]]), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH], [t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), profileEmptyMoney(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_router_price'), breakdownRow(investmentBreakdown.router)], [t('prof_field_mc_cost'), breakdownRow(investmentBreakdown.mediaConverter)], [t('prof_field_lineman_fee'), breakdownRow(investmentBreakdown.lineman)], [t('prof_field_fiber_cost'), breakdownRow(investmentBreakdown.fiber)], [t('prof_field_install_other'), breakdownRow(investmentBreakdown.other)], [t('prof_field_install_total'), investmentTotalDisplay], [t('prof_field_install_recovery'), investmentRecoveryDisplay]]), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername), false, 'pppoeUsername'], [t('prof_field_static_ip'), profileEmptyText(customer.staticIp), false, 'staticIp'], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH, false, 'macAddress']]), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), profileEmptyText(customer.routerModel)], [t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)], [t('prof_field_mc_cost'), profileEmptyMoney(customer.mediaConverterCost)]]) };
+  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), profileEmptyText(phone)], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), profileEmptyText(customer.mohalla)], [t('prof_field_zone'), profileEmptyText(customer.zone)], [t('prof_field_address'), profileEmptyText(customer.address), true], [t('prof_field_notes'), profileEmptyText(customer.notes), true]]), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), profileEmptyText(customer.ispProvider), false, '', 'ispProviderInput'], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus), false, '', 'serviceStatusInput'], [t('prof_field_hold'), pauseSummary.detail, false, '', 'pauseBillingCheckbox'], [t('prof_field_shield'), shieldSummary.detail, false, '', 'doNotSuspendUntilInput'], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail, false, '', 'seasonalRateInput']] : []), [t('prof_field_package'), profileEmptyText(customer.packageSpeed), false, '', 'packageSpeedInput'], [t('prof_field_payday'), paydaySummary.label]], '', 'profile-info-group--service'), money: profileInfoGroupMarkup(t('prof_group_service'), [[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)], [t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)], [t('prof_field_profit'), profileProfitDisplay(customer, profit)], [t('prof_field_concession_month'), concessionDisplay], [t('prof_field_discounts_month'), discountsDisplay], [t('prof_field_net_profit'), netDisplay]]), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH, false, '', 'expiryDateInput'], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH, false, '', 'cancellationDateInput']], '', 'profile-info-group--service'), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH], [t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), profileEmptyMoney(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_router_price'), breakdownRow(investmentBreakdown.router)], [t('prof_field_mc_cost'), breakdownRow(investmentBreakdown.mediaConverter)], [t('prof_field_lineman_fee'), breakdownRow(investmentBreakdown.lineman)], [t('prof_field_fiber_cost'), breakdownRow(investmentBreakdown.fiber)], [t('prof_field_install_other'), breakdownRow(investmentBreakdown.other)], [t('prof_field_install_total'), investmentTotalDisplay], [t('prof_field_install_recovery'), investmentRecoveryDisplay]]), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername), false, 'pppoeUsername'], [t('prof_field_static_ip'), profileEmptyText(customer.staticIp), false, 'staticIp'], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH, false, 'macAddress']]), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), profileEmptyText(customer.routerModel)], [t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)], [t('prof_field_mc_cost'), profileEmptyMoney(customer.mediaConverterCost)]]) };
   // SISP-19: profile hardware custody — ownership fields on the record,
   // plus the disconnection recovery checklist once archived (archive is
   // the app's disconnect action). Fiber drop length reuses fiberMeters.
@@ -7316,7 +7326,7 @@ function renderCustomerProfileView(customer) {
     effectiveDate: localDate(),
   }) : null;
   const packageChangeKept = findPackageChangePreview(loadPackageChangePreviews(), customer.id);
-  const packageChangeSectionHtml = `<section class="profile-custody-section" aria-label="Package change preview"><h4>Package change preview</h4><p>Before agreeing a faster or cheaper package, show the customer what the next bill will actually be — current package, proposed package, monthly price difference, effective date, and the estimated next bill (full month, or pro-rata by the change date). This preview applies nothing; the change itself is still made through the profile Edit form, and a ready preview shown here is kept as a note on that change.</p><p id="packageChangePreviewKept">${escapeHtml(packageChangePreviewStoredText(packageChangeKept))}</p><div><label>Proposed package <select id="packageChangePreviewPackage">${BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('')}</select></label> <label>Effective date <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Next bill month <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label>Estimate <select id="packageChangePreviewMode"><option value="auto">By effective date (start = full month, inside = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">Show preview</button></div><div id="packageChangePreviewResult">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount) : '<p class="empty-state">No catalogue package to preview.</p>'}</div></section>`;
+  const packageChangeSectionHtml = `<section class="profile-custody-section" aria-label="Package change preview"><h4>Package change preview</h4><p class="pcp-explainer">Before agreeing a faster or cheaper package, show the customer what the next bill will actually be — current package, proposed package, monthly price difference, effective date, and the estimated next bill (full month, or pro-rata by the change date). This preview applies nothing; the change itself is still made through the profile Edit form, and a ready preview shown here is kept as a note on that change.</p><p id="packageChangePreviewKept" class="pcp-kept-pill">${escapeHtml(packageChangePreviewStoredText(packageChangeKept))}</p><div><label><span class="pcp-field-pill">Proposed package</span> <select id="packageChangePreviewPackage">${BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('')}</select></label> <label>Effective date <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Next bill month <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label>Estimate <select id="packageChangePreviewMode"><option value="auto">By effective date (start = full month, inside = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">Show preview</button></div><div id="packageChangePreviewResult">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount) : '<p class="empty-state">No catalogue package to preview.</p>'}</div></section>`;
   // Plan 47 (Plan 1-100) — Speed and service-quality log. The package
   // speed alongside each entry comes from the catalogue match on the
   // customer's package label/id, else the number inside the label;
@@ -7772,6 +7782,27 @@ function renderCustomerProfileView(customer) {
       event.preventDefault();
       event.stopPropagation();
       openProfileFormAtSection(btn.getAttribute('data-profile-section-edit'));
+    });
+  });
+  // Profile Polish D (16) — tapping a Service field opens the edit
+  // form at that field (the missing-fields checklist pattern: show
+  // the form, jump to the field). The form is already filled with the
+  // customer's saved info, so the tap lands on the value to change.
+  // Keyboard users get the same jump via Enter/Space. Rows without an
+  // edit control carry no tap target and stay plain text.
+  $('#customerProfileView').querySelectorAll('[data-profile-field-edit]').forEach((field) => {
+    const openField = () => {
+      profileEditMode = true;
+      $('#customerProfileView').hidden = true;
+      $('#customerProfileForm').hidden = false;
+      jumpToProfileErrorTarget({ kind: 'field', id: field.dataset.profileFieldEdit });
+    };
+    field.addEventListener('click', openField);
+    field.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openField();
+      }
     });
   });
   // SISP-14: QR Khata Card button on the profile.

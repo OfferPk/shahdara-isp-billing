@@ -189,9 +189,11 @@ test('no-area filter: empty and non-array inputs stay safe', () => {
 
 test('groupAreasWithCounts still skips blank areas (dashboard cards unchanged by Plan L)', () => {
   const groups = groupAreasWithCounts(areaList);
+  // Mohalla Numbering: BARRIAN is #3 and BANII is #9, so BARRIAN
+  // reads first — the counts themselves are unchanged.
   assert.deepEqual(groups, [
-    { value: 'BANII', count: 1, label: 'BANII (1)' },
     { value: 'BARRIAN', count: 2, label: 'BARRIAN (2)' },
+    { value: 'BANII', count: 1, label: 'BANII (1)' },
   ]);
 });
 

@@ -92,8 +92,11 @@ test('OWNER-HELP (c): shared dialog uses the unified close-btn and the var(--mod
   assert.match(dialogMatch[0], /class="[^"]*\bbilling-modal\b/, 'dialog must use the shared billing-modal shell');
   const closeMatch = html.match(/<button id="helpGuideCloseBtn"[^>]*>([^<]*)<\/button>/);
   assert.ok(closeMatch, 'helpGuideCloseBtn missing');
-  assert.match(closeMatch[0], /class="close-btn"/, 'close button must use the unified close-btn class');
-  assert.equal(closeMatch[1].trim(), '↩', 'close button glyph must be the unified ↩');
+  // QC Modal Fix: the close keeps the unified close-btn class (plus
+  // its own hook class for the ✕ styling) but the glyph is the
+  // standard circular ✕, not the red ↩.
+  assert.match(closeMatch[0], /class="[^"]*\bclose-btn\b/, 'close button must use the unified close-btn class');
+  assert.equal(closeMatch[1].trim(), '✕', 'close button glyph must be the standard ✕');
   const styles = read('styles.css');
   assert.match(
     styles,

@@ -42,6 +42,7 @@ import {
   calculatePaymentAllocations,
   createInitialState,
   generateMonthlyBillsThroughCurrentMonth,
+  saveBillMonth,
   updateCustomerProfile
 } from '../core.js';
 import { getPakistanLocalDate, setupQuickCollectModal } from '../nav-quick-collect.js';
@@ -54,13 +55,21 @@ const REASON = 'Same transfer receipt — customer paid twice on one slip';
 function sharafat8FixtureState() {
   const now = new Date();
   let state = createInitialState(['Sharafat Eight A', 'Sharafat Eight B']);
+  // Both packages are 1,000 and both bills are hand-priced at 3,000:
+  // the setup payment (1,000) equals the package, so the auto-package
+  // follow is a no-op (current fee === taken fee) and the bill keeps
+  // its price — a 2,000 remainder survives for the bypass-key
+  // scenarios. A direct single collection that moved the package would
+  // reprice the bill and leave no remainder (user decision 2026-11-12).
   state = updateCustomerProfile(state, 'seed-001', {
-    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 3000
+    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 1000
   }, now);
   state = updateCustomerProfile(state, 'seed-002', {
-    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 3000
+    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 1000
   }, now);
   state = generateMonthlyBillsThroughCurrentMonth(state, now);
+  state = saveBillMonth(state, 'seed-001', { month: MONTH, dueAmount: 3000, status: 'pending' }, now);
+  state = saveBillMonth(state, 'seed-002', { month: MONTH, dueAmount: 3000, status: 'pending' }, now);
   return state;
 }
 
@@ -336,7 +345,11 @@ test('Sharafat 8: no regression — the bypass still works within one opening, w
     controller.open('seed-001');
     const bypassed = await bypassLeg1(getEl, getState, 'seed-001', { amount: 500, method: 'Easypaisa', tid: DUP_TID });
     assert.match(bypassed.referenceOverrideReason || '', /Same transfer receipt/, 'the reason is stored as the reference override reason');
-    assert.equal(balanceDueCents(getState(), 'seed-001', MONTH), 150000, 'ledger: Rs 1,500 still due after 1,000 + 500');
+    // User decision 2026-11-12: the bypassed 500 is a single
+    // collection, so the package moves to the total taken (1,500) and
+    // the bill is repriced to it — the month is fully paid, no 1,500
+    // remainder.
+    assert.equal(balanceDueCents(getState(), 'seed-001', MONTH), 0, 'ledger: month fully paid after 1,000 + 500');
     const errorToast = toasts.find((t) => t.opts?.type === 'error');
     assert.equal(errorToast, undefined, `no error toast — got: ${errorToast?.msg}`);
   });

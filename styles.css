@@ -12595,7 +12595,8 @@ dialog.help-guide-modal::backdrop {
 .defaulter-search-input,
 .defaulter-area-select,
 .defaulter-limit-select,
-.defaulter-risk-select {
+.defaulter-risk-select,
+.defaulter-waada-select {
   width: 100%;
   padding: 8px 10px;
   border-radius: 6px;
@@ -12603,23 +12604,6 @@ dialog.help-guide-modal::backdrop {
   background: var(--input-bg, #ffffff);
   color: var(--text-color, #1e293b);
   font-size: 0.85rem;
-}
-
-.top-defaulters-table th,
-.top-defaulters-table td {
-  padding: 8px 10px;
-  vertical-align: middle;
-}
-
-.defaulter-rank-cell {
-  font-weight: 800;
-  color: var(--text-muted, #64748b);
-  text-align: center;
-}
-
-.defaulter-subtext {
-  font-size: 0.75rem;
-  color: var(--text-muted, #64748b);
 }
 
 .defaulter-months-tags {
@@ -12636,22 +12620,6 @@ dialog.help-guide-modal::backdrop {
   border-radius: 4px;
   font-size: 0.72rem;
   font-weight: 600;
-}
-
-.defaulter-dues-cell strong {
-  color: #dc2626;
-  font-size: 0.95rem;
-}
-
-.defaulter-wa-btn {
-  background: #25d366;
-  color: #ffffff;
-  border: none;
-  font-weight: 600;
-}
-
-.defaulter-wa-btn:hover {
-  background: #128c7e;
 }
 
 /* Dues-list tile live fix (2026-11-12): the footer held ten action
@@ -12679,6 +12647,218 @@ dialog.help-guide-modal::backdrop {
   margin-top: 8px;
 }
 
+/* Top Defaulters Modal Fix (2026-11-13): the wide 8-column table
+   clipped horizontally on a phone, so each defaulter is now a
+   full-width stacked card; the 4 filter selects sit in a clean 2×2
+   grid; the header padding is tightened; the header close is a clean
+   neutral ✕ scoped to THIS button only (the shared 48px red-circle
+   rule in components.css and the phone universal rule are untouched —
+   the double ID + !important mirrors the QC fix §4.1.4 precedent and
+   the Bulk Collect close); and the Actions drawer is grouped under 3
+   mini-labels in a compact 2-column grid. Tokens and already-present
+   hex only — no new hex (the 614-hex ratchet). */
+#topDefaultersModal #closeTopDefaultersModalBtn.td-close-btn {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  min-height: 36px !important;
+  border-radius: 50% !important;
+  background: var(--color-slate-100) !important;
+  color: var(--color-slate-700) !important;
+  font-size: 18px !important;
+  flex-shrink: 0 !important;
+}
+
+.top-defaulters-modal .billing-modal-header {
+  padding-top: 2px !important;
+  padding-bottom: 6px !important;
+  margin-bottom: 8px !important;
+}
+
+.defaulter-filter-grid {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.defaulter-filter-grid .defaulter-select-box {
+  min-width: 0;
+}
+
+.defaulter-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.defaulter-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.defaulter-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.defaulter-card-id {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
+.defaulter-card-rank {
+  font-weight: 800;
+  color: var(--text-muted, #64748b);
+}
+
+.defaulter-card-mohalla {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+}
+
+.defaulter-card-due {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.defaulter-card-due strong {
+  color: #dc2626;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.defaulter-card-due small {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted, #64748b);
+}
+
+.defaulter-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.defaulter-card-lastpay {
+  color: var(--text-muted, #64748b);
+}
+
+.defaulter-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.defaulter-reminder-btn,
+.defaulter-collect-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.defaulter-reminder-polite {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.defaulter-reminder-final {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.defaulter-collect-btn {
+  background: var(--green);
+  border-color: var(--green);
+  color: #ffffff;
+}
+
+.defaulter-card-actions-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.defaulters-action-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+.defaulters-action-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.defaulters-action-group--wide {
+  grid-column: 1 / -1;
+}
+
+.defaulters-action-group-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #64748b);
+}
+
+.defaulters-action-group-buttons {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.defaulters-action-group--wide .defaulters-action-group-buttons {
+  grid-template-columns: 1fr 1fr;
+}
+
+.defaulters-action-group-buttons .secondary-button {
+  width: 100%;
+  text-align: left;
+  white-space: normal;
+}
+
+[data-theme="dark"] .defaulter-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .defaulter-reminder-polite {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+[data-theme="dark"] .defaulter-reminder-final {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
 /* Dark Mode Overrides */
 [data-theme="dark"] .top-defaulters-modal {
   background: #0f172a;
@@ -12694,7 +12874,8 @@ dialog.help-guide-modal::backdrop {
 [data-theme="dark"] .defaulter-search-input,
 [data-theme="dark"] .defaulter-area-select,
 [data-theme="dark"] .defaulter-limit-select,
-[data-theme="dark"] .defaulter-risk-select {
+[data-theme="dark"] .defaulter-risk-select,
+[data-theme="dark"] .defaulter-waada-select {
   background: #0f172a;
   border-color: #475569;
   color: #f1f5f9;

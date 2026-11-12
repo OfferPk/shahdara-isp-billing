@@ -21,7 +21,8 @@ import {
   saveBillMonth, calculatePaymentAllocations, derivedBillStatus,
   createInitialState, createJsonBackup, previewJsonBackupMerge,
   readState, correctPayment, updateCustomerProfile,
-  generateMonthlyBillsThroughCurrentMonth, applyLateFeeToBill
+  generateMonthlyBillsThroughCurrentMonth, applyLateFeeToBill,
+  addManualBaqayaEntry
 } from '../core.js';
 import { executeQuickCollection } from '../nav-quick-collect.js';
 import {
@@ -43,6 +44,12 @@ import { collectShopPayments } from '../shop-settlement.js';
 import { computeLedgerBalance } from '../qa-khata-doctor.js';
 import { voidPayment } from '../payment-void-audit.js';
 import { TRANSLATIONS } from '../nav-language.js';
+// Sharafat 2: the charge fixtures — the same shapes the settlement
+// cascade pins use (tests/qc-settlement-cascade-pin.test.js): a
+// resolved+billed ticket via the real ticket writers, a boost via
+// the real boost writer, a baqaya entry via the real core writer.
+import { createTicket, resolveTicket, billedTicketChargesPending } from '../complaint-tickets.js';
+import { addSpeedBoost } from '../speed-addon.js';
 
 const NOW = new Date('2026-10-29T12:00:00+05:00');
 const MONTH = '2026-10';
@@ -767,4 +774,115 @@ test('Sharafat 1: a split with none of the fields records and renders exactly as
   const card = renderSplitReceiptCardHtml(combinedReceipt);
   assert.ok(!card.includes('🎟️'), 'card prints no waiver row');
   assert.ok(!card.includes('🤝'), 'card prints no waada row');
+});
+
+// Sharafat 2: the combined receipt's status is the canonical payable
+// remainder (Plan 565) — bill dues plus pending ticket/addon/baqaya
+// charges — never bill dues alone. A split that pays every bill while
+// a charge is pending used to print PAID on the card, the HTML sheet
+// and the WhatsApp text; it now reads PARTIAL on all three, and only
+// a split with nothing left pending reads PAID.
+
+/** One resolved+billed ticket charge for customer 'a' (PKR rupees). */
+function billedTickets(amount = 500) {
+  let tickets = [];
+  const created = createTicket({
+    customerId: 'a',
+    customerName: 'Customer 1',
+    faultPreset: 'Fiber Cut / Splice Loss',
+    technician: 'Test Lineman'
+  }, tickets);
+  tickets = resolveTicket([...tickets, created], created.id, {
+    materialsUsed: [{ key: 'patch-cord', qty: 1, amount }],
+    billingType: 'billed',
+    referenceDate: NOW
+  });
+  return tickets;
+}
+
+test('Sharafat 2: a split that pays every bill with a ticket charge still pending reads PARTIAL on the card, the HTML sheet and the WhatsApp text', () => {
+  const tickets = billedTickets(500);
+  const { combinedReceipt, nextTickets } = run(fixture(), { ...SPEC_SPEC, tickets });
+  // Bills settled in full — the old bill-only status derivation
+  // printed PAID here.
+  assert.equal(combinedReceipt.balanceDueCents, 0);
+  assert.equal(combinedReceipt.totalReceived, 3000);
+  // The ticket was never settled: the split exactly covered the bill
+  // dues, so the remainder the cascade settles charges from was 0.
+  assert.equal(billedTicketChargesPending(nextTickets ?? tickets, 'a'), 500);
+  assert.equal(combinedReceipt.payableRemainingCents, 50000);
+  assert.equal(combinedReceipt.status, 'PARTIAL');
+  // Every surface reads the same PARTIAL, never PAID.
+  const text = formatSplitTenderWhatsAppText(combinedReceipt);
+  assert.match(text, /Partially Paid \/ جزوی ادا شدہ/);
+  assert.doesNotMatch(text, /Paid in Full/);
+  const html = generateSplitTenderReceiptHtml(combinedReceipt);
+  assert.match(html, /receipt-status-partial/);
+  assert.match(html, />PARTIAL</);
+  const card = renderSplitReceiptCardHtml(combinedReceipt, '', { chargesPending: true });
+  assert.match(card, /Still owed \(incl\. pending charges\)/);
+  assert.match(card, /PKR 500/);
+  assert.doesNotMatch(card, /Fully paid/);
+});
+
+test('Sharafat 2: a split that pays every bill with a speed-boost fee still pending reads PARTIAL', () => {
+  let state = fixture();
+  ({ state } = addSpeedBoost(state, 'a', { boostMbps: 15, durationDays: 10, addonFeePKR: 200, startDate: '2026-10-25' }, NOW));
+  const { combinedReceipt } = run(state);
+  assert.equal(combinedReceipt.balanceDueCents, 0);
+  assert.equal(combinedReceipt.payableRemainingCents, 20000);
+  assert.equal(combinedReceipt.status, 'PARTIAL');
+  const card = renderSplitReceiptCardHtml(combinedReceipt, '', { chargesPending: true });
+  assert.match(card, /Still owed \(incl\. pending charges\)/);
+  assert.match(card, /PKR 200/);
+  assert.doesNotMatch(card, /Fully paid/);
+});
+
+test('Sharafat 2: a split that pays every bill with manual baqaya still pending reads PARTIAL', () => {
+  let state = fixture();
+  state = addManualBaqayaEntry(state, 'a', { amount: 1500, date: '2026-09-10', note: 'Last month balance' }, NOW);
+  const { combinedReceipt } = run(state);
+  assert.equal(combinedReceipt.balanceDueCents, 0);
+  assert.equal(combinedReceipt.payableRemainingCents, 150000);
+  assert.equal(combinedReceipt.status, 'PARTIAL');
+  // The live card wiring derives chargesPending from the leg
+  // receipt's ticket/addon fields only, so a baqaya-only remainder
+  // reads the plain "Still owed" label — the figure is what states
+  // PARTIAL, and it is never "Fully paid".
+  const card = renderSplitReceiptCardHtml(combinedReceipt);
+  assert.match(card, /Still owed/);
+  assert.match(card, /PKR 1,500/);
+  assert.doesNotMatch(card, /Fully paid/);
+});
+
+test('Sharafat 2: a split that also settles the pending ticket charge still reads PAID', () => {
+  const tickets = billedTickets(500);
+  const overpaySpec = {
+    ...SPEC_SPEC,
+    tickets,
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 1500, method: 'Easypaisa', transactionId: 'EP99887766' }
+    ]
+  };
+  const { combinedReceipt, nextTickets } = run(fixture(), overpaySpec);
+  // Leg 2's remainder after the bill (500) settles the ticket whole.
+  assert.equal(billedTicketChargesPending(nextTickets ?? tickets, 'a'), 0);
+  assert.equal(combinedReceipt.balanceDueCents, 0);
+  assert.equal(combinedReceipt.payableRemainingCents, 0);
+  assert.equal(combinedReceipt.status, 'PAID');
+  const card = renderSplitReceiptCardHtml(combinedReceipt);
+  assert.match(card, /Fully paid/);
+});
+
+test('Sharafat 2: the builder counts a ticket charge only when the caller passes the ticket list', () => {
+  const tickets = billedTickets(500);
+  const { nextState, splitGroupId, nextTickets } = run(fixture(), { ...SPEC_SPEC, tickets });
+  // No list, no ticket term: the builder can only see what is in
+  // state (bills + addon + baqaya), so it reads PAID here — the
+  // recorder always passes the post-settlement list, so the live
+  // combined receipt never takes this path.
+  assert.equal(buildSplitTenderReceipt(nextState, 'a', splitGroupId).status, 'PAID');
+  // The same state rebuilt WITH the post-settlement list reads PARTIAL.
+  assert.equal(buildSplitTenderReceipt(nextState, 'a', splitGroupId, nextTickets ?? tickets).status, 'PARTIAL');
 });

@@ -27089,13 +27089,13 @@
 
         <div class="qc-filter-pills" role="tablist" aria-label="Customer filter">
           <button type="button" class="quick-collect-filter-chip is-active" data-filter="all-dues" role="tab" aria-selected="true">
-            Pending (<span id="quickCollectDuesCount">0</span>)
+            Pending <span class="qc-count-badge" id="quickCollectDuesCount">0</span>
           </button>
-          <button type="button" class="quick-collect-filter-chip" data-filter="high-dues" role="tab" aria-selected="false">
-            High ≥ 2k (<span id="quickCollectHighDuesCount">0</span>)
+          <button type="button" class="quick-collect-filter-chip qc-filter-high" data-filter="high-dues" role="tab" aria-selected="false">
+            High ≥ 2k <span class="qc-count-badge" id="quickCollectHighDuesCount">0</span>
           </button>
           <button type="button" class="quick-collect-filter-chip" data-filter="all" role="tab" aria-selected="false">
-            All (<span id="quickCollectAllCount">0</span>)
+            All <span class="qc-count-badge" id="quickCollectAllCount">0</span>
           </button>
         </div>
 
@@ -27108,31 +27108,32 @@
 
         <p id="mhfMohallaFilterSummary" class="mhf-summary" aria-live="polite"></p>
 
-        <!-- QC Cash Modal Overhaul: the round total and today's
-             collected sit side by side in one compact 2-column
-             .ds-stat-box banner instead of two stacked lines. The
-             two elements and their live text are unchanged. -->
+        <!-- QC Modal Fix: the round total and today's collected
+             share ONE compact 1-line summary bar ("Today: PKR X •
+             Round: N · PKR Y"). The two elements and their live text
+             are unchanged in shape — only their copy is shorter now —
+             and the bar lays them out in one row (Today first, via
+             CSS order), with the thin target-progress strip under
+             the line when a day target is set. -->
         <div class="qc-round-banner">
         <p id="rttRoundTotals" class="rtt-round-totals ds-stat-box" aria-live="polite"></p>
 
         <div id="dtpDailyTargetProgress" class="ds-stat-box" aria-live="polite"></div>
         </div>
 
-        <!-- QC Cash Modal Overhaul: end-of-day summary + new customer
-             sit side by side in one 2-column button row (40px) instead
-             of two stacked full-width buttons. Both buttons and their
-             wiring are unchanged. -->
+        <!-- QC Modal Fix: the end-of-day summary button is the only
+             action in this row now — its label is the short
+             "Day Summary", and it spans the row in the mint tonal
+             style. The "+ New customer" button is GONE from the
+             middle of this modal: the modal is strictly for fast
+             cash collection, and a new customer is added from the
+             Customers screen instead. (The quick-add form host below
+             stays in the document, hidden and unwired without its
+             button, so the Plan 450 wiring that looks it up by id
+             still finds it.) -->
         <div class="qc-picker-actions-row">
         <button id="edsEndOfDaySummaryButton" type="button" class="secondary-button eds-summary-button" aria-expanded="false" aria-controls="edsEndOfDaySummary">
-          <span data-ds-icon="Moon"></span> End-of-day summary
-        </button>
-
-        <!-- Plan 450: the new-customer quick-add on the picker step — a
-             brand-new customer is added here (name, phone, mohalla,
-             package) and the payment form opens for them straight away.
-             The fields are rendered into the form by the wiring. -->
-        <button id="ncaNewCustomerButton" type="button" class="secondary-button" aria-expanded="false" aria-controls="ncaQuickAddForm">
-          ＋ New customer
+          📊 Day Summary
         </button>
         </div>
         <!-- The expanded summary stays full-width below the button row,
@@ -27145,12 +27146,16 @@
           <!-- Populated dynamically -->
         </div>
 
+        <!-- QC Modal Fix: the footer is ONE compact row — "Quick
+             Entry" (one-screen payment) and "Full Ledger" (the
+             transactions table) split the row 50/50, as a slate
+             segmented bar, instead of two tall two-line buttons. -->
         <div class="qc-picker-footer">
-          <button id="quickCollectOpenOneScreenBtn" type="button" class="secondary-button" style="width:100%;font-size:0.85rem;">
-            <span data-ds-icon="Zap"></span> One-screen payment — customer, amount, method, save
+          <button id="quickCollectOpenOneScreenBtn" type="button" class="secondary-button qc-footer-btn">
+            ⚡ Quick Entry
           </button>
-          <button id="quickCollectGoToTransactionsBtn" type="button" class="secondary-button" style="width:100%;font-size:0.85rem;">
-            <span data-ds-icon="ClipboardList"></span> Switch to Full Ledger &amp; Transactions Table
+          <button id="quickCollectGoToTransactionsBtn" type="button" class="secondary-button qc-footer-btn">
+            📋 Full Ledger
           </button>
         </div>
       </div>
@@ -28798,11 +28803,18 @@
        fills #helpGuideTitle / #helpGuideBody from the topic registry when
        any [data-help] button is tapped. Shell = shared dialog.billing-modal
        rule (var(--modal-surface)); close = unified .close-btn (PR #453). -->
-  <dialog id="helpGuideDialog" class="billing-modal help-guide-modal" aria-labelledby="helpGuideTitle">
+  <!-- QC Modal Fix: the guide popup is a nested overlay
+       (data-nested-dialog) — it opens ON TOP of the screen its ⓘ
+       button was tapped from and stays there until explicitly
+       dismissed; opening it no longer closes the host dialog and
+       the operator is never sent back to Home. Close = standard
+       circular ✕ (not the red ↩), plus a prominent "✓ Got it,
+       Thanks" button at the bottom. -->
+  <dialog id="helpGuideDialog" class="billing-modal help-guide-modal" data-nested-dialog aria-labelledby="helpGuideTitle">
     <div class="billing-modal-content">
       <header class="billing-modal-header">
         <h2 id="helpGuideTitle">ℹ️ Help</h2>
-        <button id="helpGuideCloseBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+        <button id="helpGuideCloseBtn" class="close-btn help-guide-close-btn" type="button" aria-label="Close dialog">✕</button>
       </header>
       <div class="billing-modal-body">
         <p id="helpGuideBody" class="help-guide-body"></p>
@@ -28811,6 +28823,9 @@
           <div id="helpGuideIndexList" role="list"></div>
         </div>
       </div>
+      <footer class="help-guide-footer">
+        <button id="helpGuideGotItBtn" class="primary-button help-guide-got-it-btn" type="button">✓ Got it, Thanks</button>
+      </footer>
     </div>
   </dialog>
 

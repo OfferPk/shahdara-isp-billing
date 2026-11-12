@@ -36,6 +36,7 @@ import {
   calculatePaymentAllocations,
   createInitialState,
   generateMonthlyBillsThroughCurrentMonth,
+  saveBillMonth,
   updateCustomerProfile
 } from '../core.js';
 import { getPakistanLocalDate, setupQuickCollectModal } from '../nav-quick-collect.js';
@@ -49,10 +50,17 @@ const REASON = 'Combined receipt — customer paid both legs on one transfer';
 function plan534FixtureState() {
   const now = new Date();
   let state = createInitialState(['Plan534 Tester']);
+  // The package is 1,000 and the bill is hand-priced at 3,000: the
+  // setup payment (1,000) equals the package, so the auto-package
+  // follow is a no-op (current fee === taken fee) and the bill keeps
+  // its price — a 2,000 remainder survives for the duplicate-TID
+  // scenario. A direct single collection that moved the package would
+  // reprice the bill and leave no remainder (user decision 2026-11-12).
   state = updateCustomerProfile(state, 'seed-001', {
-    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 3000
+    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 1000
   }, now);
   state = generateMonthlyBillsThroughCurrentMonth(state, now);
+  state = saveBillMonth(state, 'seed-001', { month: MONTH, dueAmount: 3000, status: 'pending' }, now);
   return state;
 }
 

@@ -71,23 +71,28 @@ function ids(list) {
 }
 
 // --- Behaviour: the Paid pool ---
+// Sharafat 9: the Paid pool is only customers with at least one bill
+// who are settled in full. The tests below moved with that behaviour:
+// the no-bill customer (e) is no longer in the pool, and Paid and
+// Unpaid no longer partition All — a never-billed customer is in
+// neither pool, and stays visible under All.
 
-test('paid pool returns exactly the settled and no-bill customers, never one with dues', () => {
+test('paid pool returns exactly the settled customers, never one with dues or no bill', () => {
   const paid = getPendingCollectionCustomers(billedState(), '', 'paid');
-  assert.deepEqual(ids(paid), ['d', 'e']);
+  assert.deepEqual(ids(paid), ['d']);
   for (const entry of paid) assert.equal(entry.totalDues, 0);
 });
 
-test('paid and unpaid partition the whole pool: disjoint, and together they are All', () => {
+test('paid and unpaid no longer partition All: the never-billed customer is in neither pool', () => {
   const state = billedState();
   const paid = getPendingCollectionCustomers(state, '', 'paid');
   const unpaid = getPendingCollectionCustomers(state, '', 'all-dues');
   const all = getPendingCollectionCustomers(state, '', 'all');
-  assert.deepEqual(ids(paid), ['d', 'e']);
+  assert.deepEqual(ids(paid), ['d']);
   assert.deepEqual(ids(unpaid), ['a', 'b', 'c']);
   assert.deepEqual(ids(all), ['a', 'b', 'c', 'd', 'e']);
-  assert.equal(paid.length + unpaid.length, all.length);
-  assert.equal(new Set([...ids(paid), ...ids(unpaid)]).size, all.length);
+  assert.ok(!ids(paid).includes('e') && !ids(unpaid).includes('e'), 'the no-bill customer is in neither pool');
+  assert.equal(new Set([...ids(paid), ...ids(unpaid)]).size, all.length - 1);
 });
 
 test('unpaid pool is unchanged: all-dues, high-dues and all return what they returned before', () => {
@@ -101,7 +106,9 @@ test('search query narrows the paid pool too', () => {
   const state = billedState();
   assert.deepEqual(ids(getPendingCollectionCustomers(state, 'Danish', 'paid')), ['d']);
   assert.deepEqual(ids(getPendingCollectionCustomers(state, 'Ali', 'paid')), []);
-  assert.deepEqual(ids(getPendingCollectionCustomers(state, 'Esha', 'paid')), ['e']);
+  // Sharafat 9: Esha has no bill at all, so she is no longer in the
+  // paid pool — searching for her there finds nobody.
+  assert.deepEqual(ids(getPendingCollectionCustomers(state, 'Esha', 'paid')), []);
 });
 
 // --- Behaviour: the picker renders the pool ---
@@ -109,9 +116,12 @@ test('search query narrows the paid pool too', () => {
 test('picker renders the paid list, and switching back to unpaid restores the pending list', () => {
   const state = billedState();
   const paid = renderQuickCollectPickerHtml(state, '', 'paid');
-  assert.deepEqual(ids(paid.customers), ['d', 'e']);
+  // Sharafat 9: the no-bill customer is no longer in the paid list;
+  // the view says so, with a count, instead of showing her as paid-up.
+  assert.deepEqual(ids(paid.customers), ['d']);
   assert.ok(paid.html.includes('Danish Four'), 'paid list must show the settled customer');
-  assert.ok(paid.html.includes('Esha Five'), 'paid list must show the no-bill customer');
+  assert.ok(!paid.html.includes('Esha Five'), 'paid list must not show the no-bill customer');
+  assert.ok(paid.html.includes('1 customer has never been billed'), 'paid list must count the excluded customer');
   assert.ok(!paid.html.includes('Ali One'), 'paid list must not show a customer with dues');
   const unpaid = renderQuickCollectPickerHtml(state, '', 'all-dues');
   assert.deepEqual(ids(unpaid.customers), ['a', 'b', 'c']);
@@ -162,7 +172,8 @@ test('all-collected celebration still shows for the unpaid view when nothing is 
   assert.equal(unpaid.allCollected, true);
   assert.ok(unpaid.html.includes('Sab ka bill wusool ho gaya'));
   const paid = renderQuickCollectPickerHtml(s, '', 'paid');
-  assert.deepEqual(ids(paid.customers), ['d', 'e']);
+  // Sharafat 9: the no-bill customer is no longer in the paid pool.
+  assert.deepEqual(ids(paid.customers), ['d']);
   assert.ok(!paid.html.includes('Sab ka bill wusool ho gaya'));
 });
 

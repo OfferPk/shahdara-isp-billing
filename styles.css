@@ -8029,6 +8029,15 @@ html, body {
   margin-bottom: 8px;
 }
 
+/* Sharafat 9: the never-billed count above the Paid list — muted
+ * small text on its own line, same muted token as the empty state. */
+.qc-paid-note {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  margin: 0 0 8px;
+}
+
 /* Step 2 Form */
 .qc-step-badge {
   font-size: 0.75rem;

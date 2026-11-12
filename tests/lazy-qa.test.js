@@ -119,3 +119,55 @@ test('Home renders without QA: the boot block no longer calls any QA setup', () 
     assert.equal(boot.includes(`= qa.${name}(`), false, `boot must not call qa.${name}`);
   }
 });
+
+// Live fix 2026-11-12 (QA toast on every app open): a stale cached app.js
+// fetched the renamed QA chunk, 404'd, and ensureQaModals() toasted from
+// its own .catch — so a background preload failure toasted even though the
+// user never asked for a QA modal. REPRO: a failing load on the preload
+// path must show NO toast. The loader itself never toasts (a failing
+// importer just rejects), and the app.js preload path must not toast
+// either: ensureQaModals's own .catch carries no toast, and both preload
+// call sites swallow the rejection silently. Fails at base (the .catch
+// toasted), passes with the fix.
+test('REPRO — background preload: a failing QA chunk load shows NO toast (live fix 2026-11-12)', async () => {
+  resetQaLoaderForTests();
+  await assert.rejects(
+    () => loadQaSetups(() => Promise.reject(new Error('chunk missing'))),
+    /chunk missing/
+  );
+  assert.equal(isQaSetupsLoaded(), false);
+  const app = read('app.js');
+  const ensureStart = app.indexOf('function ensureQaModals()');
+  const ensureEnd = app.indexOf('return qaModalsPromise;', ensureStart);
+  assert.ok(ensureStart !== -1 && ensureEnd !== -1, 'ensureQaModals must exist');
+  const ensureBody = app.slice(ensureStart, ensureEnd);
+  const catchAt = ensureBody.lastIndexOf('}).catch((err) => {');
+  assert.ok(catchAt !== -1, 'ensureQaModals must have its failure .catch');
+  const catchBlock = ensureBody.slice(catchAt);
+  assert.equal(catchBlock.includes('toast('), false,
+    'ensureQaModals failure .catch must never toast: a background preload failure is silent');
+  assert.ok(catchBlock.includes('qaModalsPromise = null;'),
+    'a failed load still clears the cache so the next call retries');
+  assert.ok(catchBlock.includes('throw err;'),
+    'a failed load still rejects so the caller can decide');
+  assert.ok(app.includes("const startQaLoad = () => { ensureQaModals().catch(() => {}); };"),
+    'first-interaction preload swallows the failure silently');
+  const renderDetail = app.slice(app.indexOf('function renderDetail()'));
+  const guardAt = renderDetail.indexOf('if (!customer) return;');
+  const preloadAt = renderDetail.indexOf('ensureQaModals().catch(() => {});');
+  assert.ok(guardAt !== -1 && preloadAt !== -1 && guardAt < preloadAt,
+    'renderDetail starts the QA load only once a profile is actually open');
+});
+
+// POSITIVE: the same failing load DOES toast when the user actually tries
+// to open a QA modal — the two user-triggered modal-open sites own the
+// error toast on their own .catch. Fails at base (both sites swallowed
+// the failure silently), passes with the fix.
+test('POSITIVE — modal open: a failing QA chunk load DOES show the error toast (live fix 2026-11-12)', () => {
+  const app = read('app.js');
+  assert.ok(app.includes("const QA_LOAD_FAILED_MESSAGE = 'QA certificates could not be loaded — try opening the profile again.';"),
+    'the error message text is unchanged, shared by both modal-open sites');
+  const openToast = 'ensureQaModals().then(() => { billingCorrectnessModalController?.open(); }).catch(() => { toast(QA_LOAD_FAILED_MESSAGE); });';
+  assert.equal(app.split(openToast).length - 1, 2,
+    'both modal-open sites (desktop + mobile-more) must toast on a failed load');
+});

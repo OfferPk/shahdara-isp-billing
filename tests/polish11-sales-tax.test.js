@@ -196,7 +196,11 @@ test('Req 1 wiring: the bill form shows each package tax, the checkbox lives bes
 
 // --- §8.3 Req 2 follow (priced month) ---
 
-test('Req 2 priced follow: 1,600 paid toward an already-generated 2,000 bill moves the package to 1,600 from next month; the bill stays 2,000 with 400 still due', () => {
+// User decision 2026-11-12 (supersedes the old "2,000 bill paid 1,600
+// leaves 400 due" example): when the payment moves the package to
+// 1,600, the bill is repriced to 1,600 and nothing is owed. 400 due
+// only when the package stays 2,000 and 1,600 is paid.
+test('Req 2 priced follow: 1,600 paid toward an already-generated 2,000 bill moves the package to 1,600 and reprices the bill to 1,600, nothing still due', () => {
   let before = septemberSettledState();
   before = generateMonthlyBillsThroughCurrentMonth(before, OCT_2);
   assert.equal(Number(billOf(before, '2026-10').dueAmount), 2000, 'October bill generated at the package price before the payment');
@@ -212,13 +216,14 @@ test('Req 2 priced follow: 1,600 paid toward an already-generated 2,000 bill mov
   assert.equal(customer.packageHistory.length, historyLength + 1, 'one plan change recorded');
   assert.equal(customer.packageHistory.at(-1).staffName, AUTO_PACKAGE_STAFF_NAME);
   assert.equal(customer.packageHistory.at(-1).newMonthlyRate, 1600);
-  assert.equal(Number(billOf(nextState, '2026-10').dueAmount), 2000, 'the priced bill is never repriced');
-  assert.equal(balanceOf(nextState, '2026-10'), 40000, 'remaining 400 still due');
+  assert.equal(Number(billOf(nextState, '2026-10').dueAmount), 1600, 'the priced bill is repriced to the taken fee');
+  assert.equal(balanceOf(nextState, '2026-10'), 0, 'nothing still due — the month is counted against the package now in effect');
+  assert.equal(receipt.payableRemaining, 0, 'the receipt agrees: fully paid');
   const november = generateMonthlyBillsThroughCurrentMonth(nextState, NOV_2);
   assert.equal(Number(billOf(november, '2026-11').dueAmount), 1600, 'next month bills at the followed fee');
 });
 
-test('Req 2 priced follow: the owner case — 1,000 paid toward a 1,600 bill moves the package to 1,000; the bill keeps 600 due', () => {
+test('Req 2 priced follow: the owner case — 1,000 paid toward a 1,600 bill moves the package to 1,000 and reprices the bill to 1,000, nothing still due', () => {
   let before = createInitialState(['Owner Case Tester']);
   before = updateCustomerProfile(before, 'seed-001', { monthlySellingAmount: 1600, packageSpeed: '3Mbps / 300GB' }, SEP_15);
   before = generateMonthlyBillsThroughCurrentMonth(before, SEP_15);
@@ -230,8 +235,9 @@ test('Req 2 priced follow: the owner case — 1,000 paid toward a 1,600 bill mov
   }, OCT_5);
   assert.deepEqual(receipt.packageAutoSet, { fee: 1000, packageLabel: '3Mbps / 100GB' });
   assert.equal(customerOf(nextState).monthlySellingAmount, 1000);
-  assert.equal(Number(billOf(nextState, '2026-10').dueAmount), 1600, 'the priced bill is never repriced');
-  assert.equal(balanceOf(nextState, '2026-10'), 60000, 'remaining 600 still due');
+  assert.equal(Number(billOf(nextState, '2026-10').dueAmount), 1000, 'the priced bill is repriced to the taken fee');
+  assert.equal(balanceOf(nextState, '2026-10'), 0, 'nothing still due — the month is counted against the package now in effect');
+  assert.equal(receipt.payableRemaining, 0, 'the receipt agrees: fully paid');
   const november = generateMonthlyBillsThroughCurrentMonth(nextState, NOV_2);
   assert.equal(Number(billOf(november, '2026-11').dueAmount), 1000);
 });

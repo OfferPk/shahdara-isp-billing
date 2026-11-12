@@ -464,3 +464,150 @@ test('dashboard.js - re-exports top defaulters functions correctly', () => {
   assert.equal(typeof dashboardExports.generateTopDefaultersBriefing, 'function');
   assert.equal(typeof dashboardExports.setupTopDefaultersModal, 'function');
 });
+
+// Dues-list tile live fix (2026-11-12): a <dialog> throws
+// InvalidStateError when showModal() is called while it is already
+// open, so a second tap on the Dues list tile (or a tap while the
+// modal was still up from another path) made the tile look dead.
+// REPRO: this test FAILS at base (the second open() throws) and
+// passes with the fix (re-open is a no-op that re-renders the list).
+test('setupTopDefaultersModal - re-opening an already-open dialog does not throw', () => {
+  const state = createSampleBillingState();
+
+  // A mock <dialog> that behaves like a real one: showModal() throws
+  // when the dialog is already open.
+  const mockModal = {
+    open: false,
+    hidden: true,
+    showModalCalls: 0,
+    showModal() {
+      this.showModalCalls++;
+      if (this.open) throw new Error("Failed to execute 'showModal' on 'HTMLDialogElement': The element already has an 'open' attribute, and therefore cannot be opened.");
+      this.open = true;
+    },
+    close() { this.open = false; }
+  };
+  const stub = (extra = {}) => ({ addEventListener: () => {}, ...extra });
+  const mockElements = {
+    topDefaultersModal: mockModal,
+    dashboardOpenTopDefaultersBtn: { addEventListener: (evt, cb) => { mockElements._openCb = cb; } },
+    quickActionTopDefaulters: { addEventListener: (evt, cb) => { mockElements._quickOpenCb = cb; } },
+    closeTopDefaultersModalBtn: stub(),
+    closeTopDefaultersSecondaryBtn: stub(),
+    topDefaultersSearchInput: stub({ value: '' }),
+    topDefaultersAreaSelect: stub({ value: 'all', options: [{ value: 'all' }], appendChild: () => {} }),
+    topDefaultersLimitSelect: stub({ value: '20' }),
+    topDefaultersRiskSelect: stub({ value: 'all' }),
+    topDefaultersWaadaSelect: stub({ value: 'all' }),
+    topDefaultersKpiTopDues: { textContent: '' },
+    topDefaultersKpiConcentration: { textContent: '' },
+    topDefaultersKpiTotalDebt: { textContent: '' },
+    topDefaultersKpiCriticalCount: { textContent: '' },
+    topDefaultersTableBody: { innerHTML: '', addEventListener: () => {} },
+    topDefaultersEmptyState: { hidden: true },
+    topDefaultersChartContainer: { innerHTML: '' },
+    topDefaultersExportCsvBtn: stub(),
+    topDefaultersPrintA4Btn: stub(),
+    topDefaultersPrintThermalBtn: stub(),
+    topDefaultersCopyBriefingBtn: stub(),
+    // syncLockDueBtn / syncHideContactedBtn (called by renderContent)
+    // toggle a class and an aria-pressed attribute on these buttons.
+    topDefaultersLockDueBtn: stub({ textContent: '', classList: { toggle: () => {} }, setAttribute: () => {} }),
+    topDefaultersPrelockNoticeBtn: stub(),
+    topDefaultersHideContactedBtn: stub({ classList: { toggle: () => {} }, setAttribute: () => {} }),
+    topDefaultersMikrotikLockBtn: stub(),
+    topDefaultersMikrotikRestoreBtn: stub(),
+    topDefaultersZoneSheetBtn: stub(),
+    topDefaultersMikrotikCopyBtn: stub()
+  };
+
+  const originalDocument = globalThis.document;
+  try {
+    globalThis.document = {
+      getElementById: (id) => mockElements[id] || null,
+      createElement: (tag) => ({ tag, options: [], appendChild: () => {} })
+    };
+
+    const controller = setupTopDefaultersModal(() => state, {});
+    assert.ok(controller);
+
+    // 1. First open: shows the modal and renders the dues list.
+    controller.open();
+    assert.equal(mockModal.open, true);
+    assert.equal(mockModal.showModalCalls, 1);
+    assert.ok(mockElements.topDefaultersTableBody.innerHTML.includes('Muhammad Tariq'));
+
+    // 2. Second open while already open: must NOT throw, must NOT call
+    // showModal again, and must still re-render the list.
+    assert.doesNotThrow(() => controller.open());
+    assert.equal(mockModal.showModalCalls, 1);
+    assert.ok(mockElements.topDefaultersTableBody.innerHTML.includes('Muhammad Tariq'));
+
+    // 3. The open-trigger buttons are safe on a second click too.
+    assert.doesNotThrow(() => mockElements._openCb());
+    assert.doesNotThrow(() => mockElements._quickOpenCb());
+    assert.equal(mockModal.showModalCalls, 1);
+
+    // 4. After closing, opening again works and calls showModal once more.
+    controller.close();
+    assert.equal(mockModal.open, false);
+    controller.open();
+    assert.equal(mockModal.showModalCalls, 2);
+    assert.ok(mockElements.topDefaultersTableBody.innerHTML.includes('Muhammad Tariq'));
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+// Dues-list tile live fix (2026-11-12): when the modal opened, the
+// customer dues list was buried below the KPI grid, the 220px chart
+// and the filters, and the footer held ten action buttons that
+// wrapped into a wall — only a clipped sliver of one row stayed
+// visible. The list is now the primary content: the filter toolbar
+// and table come first, the KPI grid and chart sit below them, and
+// the actions live in a collapsed <details> in the footer.
+test('HTML - dues list is the primary content: table first, actions collapsed', () => {
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  const modalStart = html.indexOf('id="topDefaultersModal"');
+  assert.ok(modalStart >= 0, 'missing topDefaultersModal');
+  const modalHtml = html.slice(modalStart, html.indexOf('id="prelockNoticeModal"', modalStart));
+
+  // The filter toolbar and the dues list come before the KPI grid and
+  // the chart, so they are the first thing visible when the modal opens.
+  assert.ok(modalHtml.indexOf('id="topDefaultersSearchInput"') < modalHtml.indexOf('id="topDefaultersTableBody"'), 'filters must precede the table');
+  assert.ok(modalHtml.indexOf('id="topDefaultersTableBody"') < modalHtml.indexOf('id="topDefaultersKpiTopDues"'), 'table must precede the KPI grid');
+  assert.ok(modalHtml.indexOf('id="topDefaultersTableBody"') < modalHtml.indexOf('id="topDefaultersChartContainer"'), 'table must precede the chart');
+
+  // The ten action buttons live in a collapsed <details> (no open
+  // attribute), so they never push the list off the phone viewport.
+  const detailsStart = modalHtml.indexOf('<details class="defaulters-actions-details"');
+  assert.ok(detailsStart >= 0, 'actions must be inside a <details>');
+  const detailsTag = modalHtml.slice(detailsStart, modalHtml.indexOf('>', detailsStart));
+  assert.ok(!detailsTag.includes(' open'), 'actions <details> must start collapsed');
+  const detailsEnd = modalHtml.indexOf('</details>', detailsStart);
+  assert.ok(detailsEnd > detailsStart, 'actions <details> must close');
+  for (const id of [
+    'topDefaultersExportCsvBtn', 'topDefaultersCopyBriefingBtn',
+    'topDefaultersLockDueBtn', 'topDefaultersPrelockNoticeBtn',
+    'topDefaultersHideContactedBtn', 'topDefaultersMikrotikLockBtn',
+    'topDefaultersMikrotikRestoreBtn', 'topDefaultersPrintA4Btn',
+    'topDefaultersPrintThermalBtn', 'topDefaultersZoneSheetBtn'
+  ]) {
+    const pos = modalHtml.indexOf(`id="${id}"`);
+    assert.ok(pos > detailsStart && pos < detailsEnd, `${id} must be inside the actions <details>`);
+  }
+
+  // Close stays outside the <details>, always visible.
+  const closePos = modalHtml.indexOf('id="closeTopDefaultersSecondaryBtn"');
+  assert.ok(closePos > detailsEnd, 'Close must stay outside the actions <details>');
+  assert.ok(modalHtml.includes('defaulters-actions-summary'), 'actions toggle must exist');
+
+  // The collapsed-actions styles exist and introduce no new hex.
+  const css = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(css.includes('.defaulters-actions-details'), 'missing .defaulters-actions-details CSS');
+  assert.ok(css.includes('.defaulters-actions-summary'), 'missing .defaulters-actions-summary CSS');
+  const blockStart = css.indexOf('/* Dues-list tile live fix');
+  assert.ok(blockStart >= 0, 'missing Dues-list tile CSS block marker');
+  const block = css.slice(blockStart, css.indexOf('/* Dark Mode Overrides */', blockStart));
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(block), 'Dues-list tile CSS must reuse tokens only, no new hex');
+});

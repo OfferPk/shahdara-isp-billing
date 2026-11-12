@@ -1453,6 +1453,11 @@ dark-contrast.css already gives every .profile-service-status the
 dark base treatment. */
 .profile-service-status-vacation{background:var(--amber-bg);color:var(--amber)}
 .profile-service-status-vacation::before{background:var(--amber);box-shadow:0 0 0 3px var(--amber-bg)}
+/* Profile Polish A (5) — the merged single Active pill carries a
+Facebook-style blue verified tick: a blue circle with a white check.
+Both colours already exist in this sheet, so the §8.9 ratchet count
+does not move. */
+.profile-service-status-verified .profile-verified-tick{display:inline-flex;align-items:center;justify-content:center;flex:0 0 14px;width:14px;height:14px;border-radius:50%;background:#2563eb;color:#fff;font-size:9px;font-weight:800;line-height:1}
 /* Polish #28 Phase B (Req 3) — an empty optional value renders as a
 subtle muted dash, never as a loud missing-value warning. */
 .profile-empty-value{color:var(--muted)}
@@ -1476,6 +1481,11 @@ no scroll room below it. The ≤620px rule below adds the clearance. */
 .customer-current-bill-summary{margin:17px 0 0;padding:16px 0 0;border:0;border-top:1px solid #dce9e2;border-radius:0;background:transparent}
 .current-bill-heading{margin-bottom:10px}
 .current-bill-heading h3{font-size:13px;letter-spacing:.1px}
+/* Profile Polish A (6) — the "Current billing · {month}" heading is
+a pill, like the Active pill: same pill geometry, neutral tones (it
+is a heading, not a status, so it does not take the green). All
+colours already exist in this sheet. */
+.current-bill-heading-pill{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #d8e6de;border-radius:999px;background:#eef3f0;color:#254a3b}
 .current-bill-grid{gap:8px}
 .current-bill-stat{min-height:70px;border-color:#e0ebe5;box-shadow:0 3px 10px rgba(27,68,51,.035)}
 .current-bill-stat>span{font-size:10px;letter-spacing:.05px}

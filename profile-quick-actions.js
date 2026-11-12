@@ -61,9 +61,13 @@ export function profileQuickActionsRowHtml(customerId, labels = {}) {
   const id = cleanProfileQuickActionsText(customerId);
   if (!id) return '';
   const heading = cleanProfileQuickActionsText(labels.heading) || 'Quick actions';
+  // Profile Polish B (13) — the four buttons share one merged group
+  // already; each takes its own colour (pqa-btn-<key>, styled in
+  // styles.css from the customer-id pill palette), so the operator can
+  // tell them apart at a glance. Order and targets never change.
   const buttons = PROFILE_QUICK_ACTIONS.map(action => {
     const label = cleanProfileQuickActionsText(labels[action.key]) || defaultProfileQuickActionLabel(action.key);
-    return `<button type="button" class="secondary-button pqa-btn" id="${action.buttonId}" data-quick-action="${action.key}">${escapeProfileQuickActionsHtml(label)}</button>`;
+    return `<button type="button" class="secondary-button pqa-btn pqa-btn-${action.key}" id="${action.buttonId}" data-quick-action="${action.key}">${escapeProfileQuickActionsHtml(label)}</button>`;
   }).join('');
   return `<div class="profile-quick-actions" id="pqaRow" role="group" aria-label="${escapeProfileQuickActionsHtml(heading)}" data-customer-id="${escapeProfileQuickActionsHtml(id)}">${buttons}</div>`;
 }

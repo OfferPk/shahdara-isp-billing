@@ -168,3 +168,27 @@ test('pin: no new element id and no new store key for QC-11', () => {
   assert.ok(!appSrc.includes('shahdara_qc11'), 'QC-11 must not introduce a new store key');
   assert.ok(!html.includes('data-shortcut="payment-lo"'), 'no fourth shortcut duplicating Payment lo');
 });
+
+// Dues-list tile live fix (2026-11-12): tapping the Home "Dues list"
+// tile must land the user on the CUSTOMER dues list — the Top
+// Defaulters modal (who owes, how much) — and a second tap must not
+// throw. The tile has ONE path: setupDashboardQuickActions wires
+// homeActionDuesList to onDuesList, which opens the Top Defaulters
+// controller; the controller's open() guards showModal() and renders
+// the list.
+test('Dues list tile opens the customer dues list (Top Defaulters modal)', () => {
+  const dashboardSrc = read('dashboard.js');
+  assert.ok(dashboardSrc.includes("wire('homeActionDuesList', onDuesList)"), 'tile must be wired to onDuesList');
+
+  const onDuesListStart = appSrc.indexOf('onDuesList: () => {');
+  assert.ok(onDuesListStart >= 0, 'missing onDuesList handler in app.js');
+  const onDuesList = appSrc.slice(onDuesListStart, appSrc.indexOf('onDailyClosing:', onDuesListStart));
+  assert.ok(onDuesList.includes('topDefaultersModalController'), 'onDuesList must use the Top Defaulters controller');
+  assert.ok(onDuesList.includes('topDefaultersModalController.open()'), 'onDuesList must open the modal');
+
+  const ctrlSrc = read('dashboard-top-defaulters.js');
+  assert.ok(ctrlSrc.includes('showModalOnce()'), 'controller open must guard showModal against an already-open dialog');
+  const openBlock = ctrlSrc.slice(ctrlSrc.indexOf('open: () => {'), ctrlSrc.indexOf('open: () => {') + 120);
+  assert.ok(openBlock.includes('showModalOnce()'), 'controller open() must use the guard');
+  assert.ok(openBlock.includes('renderContent()'), 'controller open() must render the dues list');
+});

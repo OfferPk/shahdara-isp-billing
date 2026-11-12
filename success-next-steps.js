@@ -33,17 +33,19 @@
 //     the still-owes line, which counts bill dues only. A
 //     still-owed figure that cannot be worked out is never
 //     guessed: there is no panel.
-//   - Next due date: the earliest due date among the customer's
-//     bills that still carry a balance, from the allocation
-//     engine's own figures — the same rule the balance reply
-//     uses. A bill with no usable due date contributes nothing.
-//     When no bill carries an open balance, the caller-supplied
-//     fallback applies instead: the next bill month's due date
-//     under the customer's own billing cycle (Polish #22) — the
-//     next bill genuinely falls due on that date, so it is a
-//     computed date, never an invented bill. When a bill carries
-//     a balance but no usable due date, there is no fallback:
-//     the line says so plainly instead of guessing a date.
+//   - Next due date: the caller-supplied fallback — the next bill
+//     month's due date under the customer's own billing cycle
+//     (Polish #22) — always. User decision 2026-11-12: the next
+//     due date is the 5th of the next month after the bill month
+//     just paid (a November payment shows 5 December), never the
+//     earliest overdue date. An amount still owed is the Still-owed
+//     figure, not a date: the overdue month's due date no longer
+//     holds the line while the month is owed. When the caller
+//     supplies no usable fallback, the line says so plainly instead
+//     of guessing a date. The next bill genuinely falls due on the
+//     fallback date, so it is a computed date, never an invented
+//     bill. (The balance reply keeps its own rule — the earliest
+//     open-balance date — this change is the success card only.)
 //   - Fully paid: still owed of zero or less reads "Fully paid".
 //     A fully paid customer has no open bill, so the next-due
 //     line reads the fallback — the next bill month's due date
@@ -113,51 +115,22 @@ export function formatSuccessNextStepsAmount(amount) {
   return Number(amount).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
-function isStrictMonth(value) {
-  if (typeof value !== 'string') return false;
-  const match = /^(\d{4})-(\d{2})$/.exec(value);
-  if (!match) return false;
-  const month = Number(match[2]);
-  return month >= 1 && month <= 12;
-}
-
-// The next due date from the customer's own post-save record: the
-// earliest due date among bills that still carry a balance, from the
-// allocation engine's own figures. A bill with no usable month, no
-// balance, or no strict due date contributes nothing. When no bill
-// carries an open balance, `fallbackDueDate` applies instead — the
-// caller's computed next-bill-month due date under the customer's
-// own billing cycle (Polish #22). When a bill carries a balance
-// but no usable due date, the fallback does NOT apply: null, never
-// a guessed date. An unusable fallback is ignored the same way.
+// The next due date for the success card: the caller-supplied
+// fallback — the next bill month's due date under the customer's own
+// billing cycle (Polish #22) — always. User decision 2026-11-12: the
+// next due date is the 5th of the next month after the bill month
+// just paid, never the earliest overdue date, so an open balance on
+// the month just paid (or an older month) no longer holds the line
+// at that month's due date; the amount still owed is the Still-owed
+// figure. The customer and allocations arguments are accepted (the
+// call site passes the post-save record) but deliberately not read:
+// the date no longer comes from the ledger. An unusable fallback
+// (missing, or not a strict calendar day) means no date, never a
+// guessed date.
 export function successNextStepsNextDueDate(customer, allocations, fallbackDueDate = null) {
   if (!customer || typeof customer !== 'object') return null;
   const customerId = text(customer.id);
   if (!customerId) return null;
-  const forMonth = allocations && typeof allocations.forMonth === 'function'
-    ? allocations.forMonth
-    : null;
-  if (!forMonth) return null;
-  const bills = Array.isArray(customer.bills) ? customer.bills : [];
-  let nextDueDate = null;
-  let anyOpenBalance = false;
-  for (const bill of bills) {
-    if (!bill || typeof bill !== 'object' || !isStrictMonth(bill.month)) continue;
-    let summary = null;
-    try {
-      summary = forMonth(customerId, bill.month);
-    } catch {
-      return null;
-    }
-    const balanceCents = summary?.balanceDueCents;
-    if (typeof balanceCents !== 'number' || !Number.isFinite(balanceCents) || balanceCents <= 0) continue;
-    anyOpenBalance = true;
-    const dueDate = successNextStepsIsStrictDate(bill.dueDate) ? String(bill.dueDate).slice(0, 10) : null;
-    if (!dueDate) continue;
-    if (!nextDueDate || dueDate < nextDueDate) nextDueDate = dueDate;
-  }
-  if (nextDueDate) return nextDueDate;
-  if (anyOpenBalance) return null;
   return successNextStepsIsStrictDate(fallbackDueDate) ? String(fallbackDueDate).slice(0, 10) : null;
 }
 

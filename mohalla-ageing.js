@@ -129,7 +129,12 @@ function emptySummary(valid, asOfMonth) {
   };
 }
 
-function compareRows(a, b) {
+// Mohalla Numbering: rows read in the caller's mohalla order when
+// given (the app passes the numbered order), otherwise label A–Z —
+// the module stays import-free, so the order is supplied, never
+// copied here.
+function compareRows(a, b, compareAreas = null) {
+  if (typeof compareAreas === 'function') return compareAreas(a.label, b.label);
   return str(a.label).localeCompare(str(b.label));
 }
 
@@ -147,7 +152,7 @@ function compareRows(a, b) {
  * every total is 0) when the view is missing or invalid; the caller
  * must not render an invalid summary.
  */
-export function buildMohallaAgeing(view, mohallas) {
+export function buildMohallaAgeing(view, mohallas, compareAreas = null) {
   if (!view || !view.valid) return emptySummary(false, view ? view.asOfMonth : '');
   const asOfMonth = str(view.asOfMonth).trim();
   const rowsByKey = new Map();
@@ -210,7 +215,7 @@ export function buildMohallaAgeing(view, mohallas) {
     row.note = row.hasDues ? '' : 'No dues.';
     rowsTotal += row.total;
   }
-  rows.sort(compareRows);
+  rows.sort((a, b) => compareRows(a, b, compareAreas));
 
   const businessTotal = num(view.totalOutstanding);
   return {

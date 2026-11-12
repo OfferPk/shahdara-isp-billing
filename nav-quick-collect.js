@@ -210,7 +210,7 @@ import {
 import { resolveShopCollector, shopCollectorMethods } from './shop-settlement.js';
 // QC-2: the existing dues-recovery score (owner-insights.js) surfaced
 // on the collection cards, plus the shared priority/sort helpers.
-import { buildSmartDuesRecovery } from './owner-insights.js';
+import { buildSmartDuesRecovery, sortMohallaNamesByNumberedOrder } from './owner-insights.js';
 import {
   QC2_HIGH_BALANCE_TIER_LABEL_KEYS,
   QC2_SORT_AMOUNT,
@@ -1838,7 +1838,11 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
   // counts come from this same pool, so a count and the list it
   // promises can never drift apart.
   const pool = getPendingCollectionCustomers(state, query, filterType);
-  const mohallaCounts = quickCollectMohallaPendingCounts(pool, DEFAULT_MOHALLAS, mohallaFilter);
+  // Mohalla Numbering: the filter counts read in the numbered order
+  // (1 CHARYAA … 12 HAWELI OR END POINT), then the mohallas outside
+  // the list in their existing relative order — the spellings are
+  // kept, so the rows still match the pool.
+  const mohallaCounts = quickCollectMohallaPendingCounts(pool, sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS), mohallaFilter);
   const customers = qc2SortCollectionEntries(
     filterQuickCollectByMohalla(pool, mohallaFilter),
     sortOrder,
@@ -2073,7 +2077,7 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
  * @param {string[]} [areaOptions]
  * @returns {string}
  */
-export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MOHALLAS) {
+export function quickCollectAreaSelectHtml(currentArea, areaOptions = sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS)) {
   const seen = new Set();
   const options = [{ value: '', label: 'Unassigned' }];
   const push = (value, label) => {
@@ -5467,7 +5471,7 @@ export function setupQuickCollectModal({
   // options carry the live per-mohalla counts, seeded empty here
   // and refreshed with the pool on every render.
   if (mohallaFilterSelect) {
-    mohallaFilterSelect.innerHTML = quickCollectMohallaFilterCountOptionsHtml(quickCollectMohallaPendingCounts([], DEFAULT_MOHALLAS), '');
+    mohallaFilterSelect.innerHTML = quickCollectMohallaFilterCountOptionsHtml(quickCollectMohallaPendingCounts([], sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS)), '');
   }
 
   mohallaFilterSelect?.addEventListener('change', () => {

@@ -40,7 +40,8 @@
  * - Tests use synthetic data only.
  */
 
-import { canonicalMohalla, DEFAULT_MOHALLAS } from './phase3.js';
+import { canonicalMohalla } from './phase3.js';
+import { compareMohallaAreas } from './owner-insights.js';
 import { normalizeOpticalFields } from './splitter-map.js';
 import { normalizeFeederFields } from './outage-impact.js';
 import { t } from './nav-language.js';
@@ -81,16 +82,6 @@ function zoneOf(customer) {
   const canon = canonicalMohalla(customer?.mohalla || customer?.area || '');
   if (!canon) return { zoneKey: '', zoneLabel: '' };
   return { zoneKey: canon.key, zoneLabel: canon.label };
-}
-
-const CANONICAL_ZONE_ORDER = new Map(
-  DEFAULT_MOHALLAS.map((name, index) => [canonicalMohalla(name)?.key, index])
-);
-
-function zoneSortRank(zoneKey) {
-  if (zoneKey === '') return Number.MAX_SAFE_INTEGER; // unrecorded area last
-  const rank = CANONICAL_ZONE_ORDER.get(zoneKey);
-  return rank === undefined ? DEFAULT_MOHALLAS.length : rank;
 }
 
 /**
@@ -235,8 +226,10 @@ export function buildDaisyChainTree(state, options = {}) {
   }
 
   const zones = [...zoneMap.values()]
-    .sort((a, b) => zoneSortRank(a.zoneKey) - zoneSortRank(b.zoneKey)
-      || a.zoneKey.localeCompare(b.zoneKey))
+    // Mohalla Numbering: zones read in the numbered order (1 CHARYAA …
+    // 12 HAWELI OR END POINT); a zone outside the list sorts after
+    // #12, alphabetically; an unrecorded area sorts last.
+    .sort((a, b) => compareMohallaAreas(a.zoneKey, b.zoneKey))
     .map((zone) => ({
       zoneKey: zone.zoneKey,
       zoneLabel: zone.zoneLabel,

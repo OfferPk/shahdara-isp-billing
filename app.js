@@ -83,7 +83,7 @@ import { receiptShareDraftFor, receiptShareDraftHtml } from './receipt-share-dra
 import { executeReceiptWhatsAppShare, markReceiptShared, isReceiptShared } from './nav-quick-profile.js?v=1.11.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.11.0';
 import { indexCustomers, resolveTransactionCustomer } from './list-rendering.js';
-import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue, buildMohallaAnalytics } from './owner-insights.js?v=1.11.0';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue, buildMohallaAnalytics, compareMohallaAreas, sortMohallaNamesByNumberedOrder } from './owner-insights.js?v=1.11.0';
 import { setupOpsAccordions } from './ops-accordions.js?v=1.11.0';
 import { customerNameOptions, collectorNameOptions, recordIdOptions, paymentIdOptions, billIdOptions, allPaymentsWithCustomer, fillSelectOptions } from './ops-id-selects.js?v=1.11.0';
 import { setupOwnerCenter } from './owner-ui.js?v=1.11.0';
@@ -3618,7 +3618,11 @@ let customerPageSize = 15;
 // with the same page size. It never moves the active page, and the
 // active page never moves it; both clamp through their page helpers.
 let archivedCurrentPage = 1;
-let customerSortBy = 'number-asc';
+// Mohalla Numbering: the roster opens grouped mohalla-wise in the
+// fixed numbered order (1 CHARYAA … 12 HAWELI OR END POINT) — the
+// sort control still offers number/name/balance, and a search still
+// re-ranks by name relevance. Archived customers sort the same way.
+let customerSortBy = 'mohalla-asc';
 let customerAreaFilter = 'all';
 // Plan 456: the Customers list search defaults to the unified box —
 // one search box for any identifier — so the operator never has to
@@ -15568,7 +15572,7 @@ function renderReceivablesAgeing() {
       });
     }
   }
-  const view = buildReceivablesAgeing(entries, asOfMonth);
+  const view = buildReceivablesAgeing(entries, asOfMonth, compareMohallaAreas);
   lastReceivablesAgeing = view.valid ? { view, entries } : null;
   bodyEl.innerHTML = view.valid ? ageingHtml(view) : '';
   renderMohallaAgeing(view);
@@ -15610,7 +15614,7 @@ function renderMohallaAgeing(view) {
     if (!knownByKey.has(key)) knownByKey.set(key, { key, label: canon ? canon.label : raw.trim() });
   }
   if (hasBlankArea && !knownByKey.has('UNASSIGNED')) knownByKey.set('UNASSIGNED', { key: 'UNASSIGNED', label: 'Unassigned' });
-  const summary = buildMohallaAgeing(view, [...knownByKey.values()]);
+  const summary = buildMohallaAgeing(view, [...knownByKey.values()], compareMohallaAreas);
   lastMohallaAgeing = summary.valid ? summary : null;
   bodyEl.innerHTML = summary.valid ? mohallaAgeingHtml(summary) : '';
   if (!mohallaAgeingExportBound) {
@@ -16174,7 +16178,7 @@ function renderMohallaBroadcast() {
   const urduEl = $('#mohallaBroadcastTemplateUrdu');
   if (romanEl && document.activeElement !== romanEl) romanEl.value = templates[kind].roman;
   if (urduEl && document.activeElement !== urduEl) urduEl.value = templates[kind].urdu;
-  const options = buildBroadcastMohallaOptions({ customers: state.customers ?? [] });
+  const options = buildBroadcastMohallaOptions({ customers: state.customers ?? [], standardMohallas: sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS) });
   const savedSelection = loadBroadcastSelection();
   const mohallasEl = $('#mohallaBroadcastMohallas');
   if (mohallasEl) {
@@ -16188,6 +16192,9 @@ function renderMohallaBroadcast() {
       kind, variant, templates: loadBroadcastTemplates(),
       detail: $('#mohallaBroadcastDetail')?.value ?? '',
       selection: selection.map((key) => options.find((opt) => opt.key === key)?.label ?? key),
+      // Mohalla Numbering: an "all mohallas" draft addresses the
+      // numbered order, not the default-list order.
+      allMohallas: sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS),
       customers: state.customers ?? [],
     });
     lastMohallaBroadcast = draft ? { draft, sentLog: loadBroadcastSentLog() } : null;
@@ -17684,14 +17691,14 @@ function renderCoverageRegister() {
   const bodyEl = $('#coverageRegisterBody');
   if (!bodyEl) return;
   const active = (state.customers ?? []).filter((c) => !c.archived);
-  const register = buildCoverageRegister({ customers: active, estimates: loadCoverageEstimates() });
+  const register = buildCoverageRegister({ customers: active, estimates: loadCoverageEstimates(), compareAreas: compareMohallaAreas });
   bodyEl.innerHTML = coverageRegisterHtml(register);
   const summaryEl = $('#coverageRegisterSummary');
   if (summaryEl) summaryEl.textContent = coverageRegisterSummaryText(register);
   if (!coverageRegisterBound) {
     coverageRegisterBound = true;
     $('#coverageRegisterExportBtn')?.addEventListener('click', () => {
-      const current = buildCoverageRegister({ customers: (state.customers ?? []).filter((c) => !c.archived), estimates: loadCoverageEstimates() });
+      const current = buildCoverageRegister({ customers: (state.customers ?? []).filter((c) => !c.archived), estimates: loadCoverageEstimates(), compareAreas: compareMohallaAreas });
       downloadCsvFile(coverageRegisterFilename(), coverageRegisterCsv(current));
     });
     $('#coverageRegisterSaveBtn')?.addEventListener('click', () => {
@@ -17700,7 +17707,7 @@ function renderCoverageRegister() {
       const date = $('#coverageRegisterDate')?.value ?? '';
       const basis = $('#coverageRegisterBasis')?.value ?? '';
       if (!canonicalCoverageMohalla(mohalla)) return;
-      const next = upsertCoverageEstimate(loadCoverageEstimates(), { mohalla, premises, date, basis });
+      const next = upsertCoverageEstimate(loadCoverageEstimates(), { mohalla, premises, date, basis }, compareMohallaAreas);
       saveCoverageEstimates(next);
       renderCoverageRegister();
     });
@@ -17713,7 +17720,7 @@ function renderCoverageRegister() {
 function renderMohallaCoverageDashboard() {
   const bodyEl = $('#mohallaCoverageDashboardBody');
   if (!bodyEl) return;
-  const register = buildCoverageRegister({ customers: (state.customers ?? []).filter((c) => !c.archived), estimates: loadCoverageEstimates() });
+  const register = buildCoverageRegister({ customers: (state.customers ?? []).filter((c) => !c.archived), estimates: loadCoverageEstimates(), compareAreas: compareMohallaAreas });
   const headingEl = $('#mohallaCoverageDashboardHeading');
   if (headingEl) headingEl.textContent = t('moh_cov_heading');
   bodyEl.innerHTML = coverageDashboardHtml(register, {
@@ -24047,7 +24054,10 @@ function renderCollectorAssignments() {
     const key = canonicalCollectorMohalla(c.mohalla || c.area || '');
     if (key) mohallaKeys.set(key, key);
   }
-  const allMohallas = [...mohallaKeys.keys()].sort((a, b) => a.localeCompare(b));
+  // Mohalla Numbering: the assignment picker reads in the numbered
+  // order (1 CHARYAA … 12 HAWELI OR END POINT), then the mohallas
+  // outside the list.
+  const allMohallas = [...mohallaKeys.keys()].sort(compareMohallaAreas);
   const mohallaEl = $('#collectorAssignMohalla');
   if (mohallaEl && document.activeElement !== mohallaEl) {
     mohallaEl.innerHTML = allMohallas.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('')
@@ -24059,12 +24069,12 @@ function renderCollectorAssignments() {
     previewEl.innerHTML = '<option value="">Owner view (all mohallas)</option>'
       + collectors.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
   }
-  bodyEl.innerHTML = assignmentHtml(records);
+  bodyEl.innerHTML = assignmentHtml(records, compareMohallaAreas);
   const summaryEl = $('#collectorAssignSummary');
-  if (summaryEl) summaryEl.textContent = assignmentSummaryText(records, allMohallas);
+  if (summaryEl) summaryEl.textContent = assignmentSummaryText(records, allMohallas, compareMohallaAreas);
   const unassignedEl = $('#collectorAssignUnassignedBody');
   if (unassignedEl) {
-    const unassigned = unassignedMohallas(allMohallas, records);
+    const unassigned = unassignedMohallas(allMohallas, records, compareMohallaAreas);
     unassignedEl.textContent = unassigned.length === 0
       ? 'Every mohalla is assigned.'
       : `Unassigned (still visible to the owner): ${unassigned.join(', ')}`;
@@ -24072,7 +24082,7 @@ function renderCollectorAssignments() {
   const previewBodyEl = $('#collectorAssignPreviewBody');
   if (previewBodyEl) {
     const collector = previewEl?.value ?? '';
-    const preview = collectorPreview(records, collector, customers);
+    const preview = collectorPreview(records, collector, customers, compareMohallaAreas);
     previewBodyEl.textContent = collector
       ? `${collector} covers ${preview.mohallas.length === 0 ? 'no mohalla yet' : preview.mohallas.join(', ')} — ${preview.filteredCount} of ${preview.total} customers in the filtered route view.`
       : `Owner view: all ${preview.total} customers across every mohalla, assigned or not.`;
@@ -24099,7 +24109,7 @@ function renderCollectorAssignments() {
     });
     $('#collectorAssignPreview')?.addEventListener('change', () => renderCollectorAssignments());
     $('#collectorAssignExportBtn')?.addEventListener('click', () => {
-      downloadCsvFile(assignmentFilename(), assignmentCsv(loadCollectorAssignments()));
+      downloadCsvFile(assignmentFilename(), assignmentCsv(loadCollectorAssignments(), compareMohallaAreas));
     });
   }
 }
@@ -36480,14 +36490,14 @@ function renderMohallaCostEstimate() {
   const listEl = $('#mceBody');
   if (!listEl) return;
   const all = loadMohallaCostEstimates();
-  listEl.innerHTML = all.length ? mohallaCostEstimateAllHtml(all) : '<p>No mohalla cost estimate sheets recorded.</p>';
+  listEl.innerHTML = all.length ? mohallaCostEstimateAllHtml(all, compareMohallaAreas) : '<p>No mohalla cost estimate sheets recorded.</p>';
   const summaryEl = $('#mceSummary');
   if (summaryEl) {
-    summaryEl.textContent = `${mohallaCostEstimateSummaryText(all)} Completing a sheet never changes any bill, payment, or customer record by itself, and no expansion is triggered by the sheet.`;
+    summaryEl.textContent = `${mohallaCostEstimateSummaryText(all, compareMohallaAreas)} Completing a sheet never changes any bill, payment, or customer record by itself, and no expansion is triggered by the sheet.`;
   }
   const mohallaSelect = $('#mceMohallaSelect');
   if (mohallaSelect) {
-    const mohallas = mohallaCostEstimateMohallas(all);
+    const mohallas = mohallaCostEstimateMohallas(all, compareMohallaAreas);
     const current = mohallaSelect.value;
     mohallaSelect.innerHTML = mohallas.map((mohalla) => `<option value="${mohalla}">${mohalla}</option>`).join('');
     if (mohallas.includes(current)) mohallaSelect.value = current;
@@ -36496,12 +36506,12 @@ function renderMohallaCostEstimate() {
   if (mohallaEl) {
     const chosen = mohallaSelect?.value ?? '';
     mohallaEl.innerHTML = chosen
-      ? mohallaCostEstimatesForMohallaHtml(all, chosen)
+      ? mohallaCostEstimatesForMohallaHtml(all, chosen, compareMohallaAreas)
       : '<p>Pick a mohalla to see its estimate sheets.</p>';
   }
   if (!mohallaCostEstimateBound) {
     mohallaCostEstimateBound = true;
-    $('#mceExportBtn')?.addEventListener('click', () => { downloadCsvFile(mohallaCostEstimateFilename(), mohallaCostEstimateCsv(loadMohallaCostEstimates())); });
+    $('#mceExportBtn')?.addEventListener('click', () => { downloadCsvFile(mohallaCostEstimateFilename(), mohallaCostEstimateCsv(loadMohallaCostEstimates(), compareMohallaAreas)); });
     $('#mceMohallaSelect')?.addEventListener('change', () => { renderMohallaCostEstimate(); });
     $('#mceRecordBtn')?.addEventListener('click', () => {
       const before = loadMohallaCostEstimates();
@@ -45065,7 +45075,9 @@ if (typeof document !== 'undefined') {
     onNodesChanged: () => renderDashboard(),
     onToast: (msg, opts) => toast(msg, opts),
     onConfirm: (opts) => appConfirm(opts),
-    getZones: () => [...DEFAULT_MOHALLAS, ...collectComplaintZones(state)],
+    // Mohalla Numbering: the zones list reads in the numbered order
+    // first, then the complaint zones recorded on the ledger.
+    getZones: () => [...sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS), ...collectComplaintZones(state)],
     logAreaOutage: logPowerDepletionComplaint
   });
   runPowerBackupDepletionCheck();

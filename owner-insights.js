@@ -1,5 +1,9 @@
 import { calculatePaymentAllocations, manualBaqayaOutstandingCents, monthsForHistory, summarizeCustomerReceipts, summarizeCustomerTenure } from './core.js';
-import { canonicalMohalla, canonicalPackage } from './phase3.js';
+import { canonicalMohalla, canonicalPackage, RECOVERY_MOHALLA_ORDER, recoveryMohallaRank, compareMohallaAreas, sortMohallaNamesByNumberedOrder } from './phase3.js';
+// The numbered mohalla order lives in phase3.js (see its note there —
+// the import-cycle ratchet); it is re-exported here so the recovery
+// filter and every other importer keep one stable source.
+export { RECOVERY_MOHALLA_ORDER, recoveryMohallaRank, compareMohallaAreas, sortMohallaNamesByNumberedOrder };
 import { isVoidedPayment } from './payment-void-audit.js';
 
 const cents = value => Math.round(Number(value || 0) * 100);
@@ -623,37 +627,6 @@ export function answerOwnerCommand(state, query, referenceDate = new Date()) {
   return { intent:'help', message:'I could not match that question to the saved records, and nothing was changed. Try one of these instead:', suggestions:buildSuggestions(state, text, matched.suggestions) };
 }
 
-
-/** Dues Recovery Overhaul — the user's fixed numbered mohalla order
- *  for the recovery filter (the later Mohalla Numbering item reuses
- *  this same order app-wide): 1 CHARYAA … 12 HAWELI OR END POINT.
- *  A mohalla not in the list sorts after #12. Keys are canonicalMohalla
- *  keys; spelling variants that canonicalise to the same mohalla
- *  share a rank (CHAMYAA/CHAMYAAA, THALI/THALII, BANI/BANII — the
- *  aliases in phase3.js fold BANI and CHAMYAA to BANII/CHAMYAAA).
- *  Haweli and End Point are ONE entry #12; "end side farm house"
- *  stays separate (Sharafat 76) and sorts after #12. */
-export const RECOVERY_MOHALLA_ORDER=Object.freeze([
-  {number:1,label:'CHARYAA',keys:['charyaa']},
-  {number:2,label:'GANGALL',keys:['gangall']},
-  {number:3,label:'BARRIAN',keys:['barrian']},
-  {number:4,label:'CHAMYAA',keys:['chamyaa','chamyaaa']},
-  {number:5,label:'MALLA',keys:['malla']},
-  {number:6,label:'PALALIYAA',keys:['palaliyaa']},
-  {number:7,label:'THALI',keys:['thali','thalii']},
-  {number:8,label:'NAKAR',keys:['nakar']},
-  {number:9,label:'BANI',keys:['bani','banii']},
-  {number:10,label:'JABBIYAA',keys:['jabbiyaa']},
-  {number:11,label:'SODAA',keys:['sodaa']},
-  {number:12,label:'HAWELI OR END POINT',keys:['haweli','end point','endpoint','end-point']},
-]);
-export function recoveryMohallaRank(area) {
-  const canon=canonicalMohalla(area);
-  const key=canon?.key??null;
-  if(!key)return null;
-  const entry=RECOVERY_MOHALLA_ORDER.find(row=>row.keys.includes(key));
-  return entry?{number:entry.number,label:entry.label}:null;
-}
 
 /** Dues Recovery Overhaul — the recovery card shows an actionable tag
  *  instead of "Health: Insufficient history": what the collector

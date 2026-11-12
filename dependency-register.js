@@ -40,6 +40,10 @@ const DEFAULT_MOHALLAS = Object.freeze([
   'CHARYAA', 'GANGALL', 'KISHTII', 'BARRIAN', 'THALII', 'CHAMYAAA',
   'PALALIYAA', 'MALLA', 'NAKAR', 'BANII', 'SODAA', 'PULL SIDE',
   'JABBIYAA', 'MOHALLA CHUDRIYAA', 'MOHALLA end side farm house',
+  // Sharafat 76 (owner decision 2026-11-12): END POINT is the 16th
+  // mohalla — Haweli and End Point are one mohalla (#12 in the
+  // numbered display order). "end side farm house" stays separate.
+  'END POINT',
 ]);
 
 const MOHALLA_ALIASES = Object.freeze({

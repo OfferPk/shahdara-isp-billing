@@ -45,6 +45,10 @@ const DEFAULT_MOHALLAS = Object.freeze([
   'CHARYAA', 'GANGALL', 'KISHTII', 'BARRIAN', 'THALII', 'CHAMYAAA',
   'PALALIYAA', 'MALLA', 'NAKAR', 'BANII', 'SODAA', 'PULL SIDE',
   'JABBIYAA', 'MOHALLA CHUDRIYAA', 'MOHALLA end side farm house',
+  // Sharafat 76 (owner decision 2026-11-12): END POINT is the 16th
+  // mohalla — Haweli and End Point are one mohalla (#12 in the
+  // numbered display order). "end side farm house" stays separate.
+  'END POINT',
 ]);
 
 const MOHALLA_ALIASES = Object.freeze({
@@ -173,15 +177,20 @@ export function resolveBroadcastMohallas(selection, { allMohallas } = {}) {
 // The mohalla options a panel offers: every canonical mohalla found
 // among the caller's customers, in first-seen order, followed by any
 // standard mohalla with no customer yet — so an empty roster still
-// offers the standard list, and a new mohalla is never hidden.
-export function buildBroadcastMohallaOptions({ customers } = {}) {
+// offers the standard list, and a new mohalla is never hidden. The
+// caller may pass standardMohallas in display order (the app passes
+// the numbered mohalla order); otherwise the local default list is
+// used. The module stays import-free, so the order is supplied,
+// never copied here (Mohalla Numbering).
+export function buildBroadcastMohallaOptions({ customers, standardMohallas } = {}) {
   const seen = new Map();
   for (const customer of Array.isArray(customers) ? customers : []) {
     if (!customer || typeof customer !== 'object') continue;
     const canon = canonicalBroadcastMohalla(customer.mohalla ?? customer.area ?? '');
     if (canon && !seen.has(canon.key)) seen.set(canon.key, canon);
   }
-  for (const raw of DEFAULT_MOHALLAS) {
+  const standards = Array.isArray(standardMohallas) && standardMohallas.length > 0 ? standardMohallas : DEFAULT_MOHALLAS;
+  for (const raw of standards) {
     const canon = canonicalBroadcastMohalla(raw);
     if (canon && !seen.has(canon.key)) seen.set(canon.key, canon);
   }

@@ -44,6 +44,10 @@ const DEFAULT_MOHALLAS = Object.freeze([
   'CHARYAA', 'GANGALL', 'KISHTII', 'BARRIAN', 'THALII', 'CHAMYAAA',
   'PALALIYAA', 'MALLA', 'NAKAR', 'BANII', 'SODAA', 'PULL SIDE',
   'JABBIYAA', 'MOHALLA CHUDRIYAA', 'MOHALLA end side farm house',
+  // Sharafat 76 (owner decision 2026-11-12): END POINT is the 16th
+  // mohalla — Haweli and End Point are one mohalla (#12 in the
+  // numbered display order). "end side farm house" stays separate.
+  'END POINT',
 ]);
 
 const MOHALLA_ALIASES = Object.freeze({
@@ -153,14 +157,23 @@ export function normalizeCoverageEstimate(raw) {
 }
 
 // Estimates, deduplicated by canonical mohalla key: the last row per
-// mohalla wins, sorted label A–Z, inputs never mutated.
-export function normalizeCoverageEstimates(estimates) {
+// mohalla wins, inputs never mutated. Order: the caller's comparator
+// when given (the app passes the numbered mohalla order), otherwise
+// label A–Z — the module stays import-free, so the order is supplied,
+// never copied here (Mohalla Numbering).
+/** The estimate-row comparator: the caller's mohalla order when given,
+ *  otherwise the historical label A–Z. */
+function estimateCompare(compareAreas) {
+  if (typeof compareAreas === 'function') return (a, b) => compareAreas(a.label, b.label);
+  return (a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : a.key < b.key ? -1 : 1);
+}
+export function normalizeCoverageEstimates(estimates, compareAreas = null) {
   const byKey = new Map();
   for (const raw of Array.isArray(estimates) ? estimates : []) {
     const entry = normalizeCoverageEstimate(raw);
     if (entry) byKey.set(entry.key, entry);
   }
-  return [...byKey.values()].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : a.key < b.key ? -1 : 1));
+  return [...byKey.values()].sort(estimateCompare(compareAreas));
 }
 
 export function findCoverageEstimate(estimates, mohalla) {
@@ -175,13 +188,13 @@ export function findCoverageEstimate(estimates, mohalla) {
 // before replacement, so the previous survey stays visible. Re-saving
 // the identical figure is a no-op: no duplicate history entry is made.
 // Inputs are never mutated.
-export function upsertCoverageEstimate(estimates, entry) {
+export function upsertCoverageEstimate(estimates, entry, compareAreas = null) {
   const next = normalizeCoverageEstimate(entry);
-  if (!next) return normalizeCoverageEstimates(estimates);
-  const list = normalizeCoverageEstimates(estimates);
+  if (!next) return normalizeCoverageEstimates(estimates, compareAreas);
+  const list = normalizeCoverageEstimates(estimates, compareAreas);
   const index = list.findIndex((row) => row.key === next.key);
   if (index === -1) {
-    return [...list, next].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : a.key < b.key ? -1 : 1));
+    return [...list, next].sort(estimateCompare(compareAreas));
   }
   const current = list[index];
   if (current.premises === next.premises) return list;
@@ -205,8 +218,8 @@ export function upsertCoverageEstimate(estimates, entry) {
 // recorded figures on the same fixture. Remaining premises is premises
 // minus active (it can go negative when connections already exceed the
 // estimate — that is the honest signal, not an error to hide).
-export function buildCoverageRegister({ customers, estimates } = {}) {
-  const estimateList = normalizeCoverageEstimates(estimates);
+export function buildCoverageRegister({ customers, estimates, compareAreas } = {}) {
+  const estimateList = normalizeCoverageEstimates(estimates, compareAreas);
   const byKey = new Map();
   const addRow = (key, label) => {
     if (!byKey.has(key)) {
@@ -248,10 +261,11 @@ export function buildCoverageRegister({ customers, estimates } = {}) {
     const takeUpPercent = Math.round((row.activeCount / row.premises) * 1000) / 10;
     return { ...row, takeUpPercent, remainingPremises: row.premises - row.activeCount };
   });
+  const compare = estimateCompare(compareAreas);
   rows.sort((a, b) => {
     if (a.key === COVERAGE_UNASSIGNED_KEY) return 1;
     if (b.key === COVERAGE_UNASSIGNED_KEY) return -1;
-    return a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
+    return compare(a, b);
   });
   const surveyedRows = rows.filter((row) => row.surveyed);
   const totalPremises = surveyedRows.reduce((sum, row) => sum + row.premises, 0);

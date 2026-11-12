@@ -297,8 +297,9 @@ test('wiring: the controller imports the mohalla filter view', () => {
 test('wiring: the select is filled from the app\'s own mohalla list and a change re-renders the list', () => {
   // QC-4: the select is seeded with counted options from the same
   // app list — the options still come from the app's own mohalla
-  // list, now carrying each mohalla's pending count.
-  assert.ok(wiringSrc.includes('mohallaFilterSelect.innerHTML = quickCollectMohallaFilterCountOptionsHtml(quickCollectMohallaPendingCounts([], DEFAULT_MOHALLAS), \'\');'), 'options must come from the app\'s own mohalla list');
+  // list, now carrying each mohalla's pending count. Mohalla
+  // Numbering: the seed passes the list in the numbered order.
+  assert.ok(wiringSrc.includes('mohallaFilterSelect.innerHTML = quickCollectMohallaFilterCountOptionsHtml(quickCollectMohallaPendingCounts([], sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS)), \'\');'), 'options must come from the app\'s own mohalla list');
   const change = wiringSrc.match(/mohallaFilterSelect\?\.addEventListener\('change', \(\) => \{[\s\S]*?\n  \}\);/);
   assert.ok(change, 'missing mohalla filter change listener');
   assert.ok(change[0].includes('resolveQuickCollectMohallaFilter(mohallaFilterSelect.value, DEFAULT_MOHALLAS)'), 'change must resolve the chosen value against the app list');

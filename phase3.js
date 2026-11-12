@@ -178,8 +178,12 @@ export function canonicalLocation(value) {
 }
 /** Default mohallas for Shahdara (owner-provided 2026-10-28), exactly as the
  *  owner wrote them. These are the suggestions offered wherever a mohalla is
- *  entered, and the standard spellings every variant folds into. */
-export const DEFAULT_MOHALLAS = Object.freeze(['CHARYAA','GANGALL','KISHTII','BARRIAN','THALII','CHAMYAAA','PALALIYAA','MALLA','NAKAR','BANII','SODAA','PULL SIDE','JABBIYAA','MOHALLA CHUDRIYAA','MOHALLA end side farm house']);
+ *  entered, and the standard spellings every variant folds into. END POINT
+ *  is the 16th mohalla (Sharafat 76, owner decision 2026-11-12): Haweli
+ *  and End Point are one mohalla, displayed as entry #12 "HAWELI OR END
+ *  POINT" in the numbered order. "MOHALLA end side farm house" is a
+ *  different place and stays separate. */
+export const DEFAULT_MOHALLAS = Object.freeze(['CHARYAA','GANGALL','KISHTII','BARRIAN','THALII','CHAMYAAA','PALALIYAA','MALLA','NAKAR','BANII','SODAA','PULL SIDE','JABBIYAA','MOHALLA CHUDRIYAA','MOHALLA end side farm house','END POINT']);
 /** Known spelling variants (stripped, lowercased) that fold into a default
  *  mohalla. Only evidenced variants live here: the old suggestion list wrote
  *  single-i KISHTI/CHAMYAA and "MOHALAA BANI", while the owner's list uses
@@ -211,6 +215,82 @@ export function canonicalMohalla(value) {
   if(canonical)return {key:comparisonKey(stripMohallaPrefix(canonical)),label:readableLabel(canonical),stored:canonical};
   return {key,label:readableLabel(stripped),stored:text};
 }
+
+/** The user's fixed numbered mohalla order (Dues Recovery Overhaul;
+ *  Mohalla Numbering reuses this same order app-wide, never a second
+ *  one): 1 CHARYAA … 12 HAWELI OR END POINT. A mohalla not in the
+ *  list sorts after #12. Keys are canonicalMohalla keys; spelling
+ *  variants that canonicalise to the same mohalla share a rank
+ *  (CHAMYAA/CHAMYAAA, THALI/THALII, BANI/BANII — the aliases above
+ *  fold BANI and CHAMYAA to BANII/CHAMYAAA). Haweli and End Point
+ *  are ONE entry #12; "end side farm house" stays separate
+ *  (Sharafat 76) and sorts after #12.
+ *
+ *  This order lives HERE, not in owner-insights.js: form-validation.js
+ *  (roster sort, area counts) needs the comparator, and importing it
+ *  from owner-insights.js closed an import cycle
+ *  (form-validation → owner-insights → core → … → form-validation)
+ *  that the bundle-precache-integrity ratchet caught. phase3.js
+ *  imports only payment-void-audit.js, so this home is cycle-free;
+ *  owner-insights.js re-exports the four names, so existing importers
+ *  keep working unchanged. */
+export const RECOVERY_MOHALLA_ORDER=Object.freeze([
+  {number:1,label:'CHARYAA',keys:['charyaa']},
+  {number:2,label:'GANGALL',keys:['gangall']},
+  {number:3,label:'BARRIAN',keys:['barrian']},
+  {number:4,label:'CHAMYAA',keys:['chamyaa','chamyaaa']},
+  {number:5,label:'MALLA',keys:['malla']},
+  {number:6,label:'PALALIYAA',keys:['palaliyaa']},
+  {number:7,label:'THALI',keys:['thali','thalii']},
+  {number:8,label:'NAKAR',keys:['nakar']},
+  {number:9,label:'BANI',keys:['bani','banii']},
+  {number:10,label:'JABBIYAA',keys:['jabbiyaa']},
+  {number:11,label:'SODAA',keys:['sodaa']},
+  {number:12,label:'HAWELI OR END POINT',keys:['haweli','end point','endpoint','end-point']},
+]);
+export function recoveryMohallaRank(area) {
+  const canon=canonicalMohalla(area);
+  const key=canon?.key??null;
+  if(!key)return null;
+  const entry=RECOVERY_MOHALLA_ORDER.find(row=>row.keys.includes(key));
+  return entry?{number:entry.number,label:entry.label}:null;
+}
+
+/** Mohalla Numbering — one comparator for every mohalla-ordered list
+ *  in the app, built on the same RECOVERY_MOHALLA_ORDER above (never
+ *  a second order): the numbered 1–12 first, in order; a mohalla not
+ *  in the list (KISHTII, PULL SIDE, CHUDRIYAA, "end side farm
+ *  house", …) after #12, alphabetically by canonical label; a blank
+ *  or unrecorded area last. Accepts raw spellings, canonical labels
+ *  and canonical keys alike — recoveryMohallaRank canonicalises. */
+export function compareMohallaAreas(a, b) {
+  const ra=recoveryMohallaRank(a);
+  const rb=recoveryMohallaRank(b);
+  const na=ra?ra.number:Number.POSITIVE_INFINITY;
+  const nb=rb?rb.number:Number.POSITIVE_INFINITY;
+  if(na!==nb)return na-nb;
+  const la=canonicalMohalla(a)?.label??'';
+  const lb=canonicalMohalla(b)?.label??'';
+  if(!la&&!lb)return 0;
+  if(!la)return 1;
+  if(!lb)return -1;
+  return la.localeCompare(lb);
+}
+
+/** Mohalla Numbering — the caller's own mohalla list (DEFAULT_MOHALLAS
+ *  or a local copy) in the numbered display order: the 12 first, in
+ *  order, then every unlisted entry in its original relative order
+ *  (stable sort). The input is never mutated. Spellings are kept
+ *  exactly as passed, so THALII still matches THALII customers. */
+export function sortMohallaNamesByNumberedOrder(names) {
+  const list=Array.isArray(names)?[...names]:[];
+  return list.sort((a,b)=>{
+    const ra=recoveryMohallaRank(a)?.number??Number.POSITIVE_INFINITY;
+    const rb=recoveryMohallaRank(b)?.number??Number.POSITIVE_INFINITY;
+    return ra-rb;
+  });
+}
+
 export function canonicalPackage(value) {
   const text=normalizedText(value); if(!text)return null;
   const bundle=text.match(/^(\d+)\s*mbps\s*\/\s*(\d+)\s*gb$/iu);

@@ -1,8 +1,9 @@
-import { calculatePaymentAllocations } from './core.js';
+import { calculatePaymentAllocations, updateCustomerProfile, whatsappPhoneFor, receiptPhoneSaveField } from './core.js';
 import { canonicalMohalla } from './phase3.js';
 import {
   answerOwnerCommand, buildBusinessHealthScore, buildCustomerRankings, buildMonthToMonthComparison,
-  buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, describePercentChange, CUSTOMER_RANKING_TYPES, TROUBLESOME_RULE
+  buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, describePercentChange, CUSTOMER_RANKING_TYPES, TROUBLESOME_RULE,
+  RECOVERY_MOHALLA_ORDER, recoveryMohallaRank, recoveryHealthTag
 } from './owner-insights.js';
 // Owner 5-part fix: the unified card answers the twelve fixed Pucho
 // catalogue questions through the same input, so the Pucho engine is
@@ -10,14 +11,14 @@ import {
 import { PUCHO_QUESTIONS, matchPuchoQuestions, answerPucho, puchoHtml, puchoCatalogueHtml } from './pucho-box.js';
 import { createWhatsAppFollowupDraft } from './profile-ui.js';
 import { loadComplaints } from './complaint-register.js';
-import { groupAreasWithCounts } from './form-validation.js';
+import { groupAreasWithCounts, validatePakistanPhone } from './form-validation.js';
 import { t } from './nav-language.js';
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const $ = (selector, root=document) => root.querySelector(selector);
 const nameInitials = name => String(name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
 
-export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, openAdditionalPendingDialog, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses, renderLoans, puchoData}) {
+export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses, renderLoans, puchoData, openCollect, openWaadaDialog, onSaveState, onToast}) {
   let lastQuery = '';
   const months = () => monthsForHistory();
   const setText = (selector, value) => { const node=$(selector); if (node) node.textContent=String(value ?? ''); };
@@ -252,30 +253,203 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     const previousCents=Math.max(0,customerRow.outstandingCents-currentCents);
     const receipts=(customer.bills??[]).flatMap(bill=>(bill.payments??[]).map(payment=>({...payment,month:bill.month}))).sort((a,b)=>b.date.localeCompare(a.date));
     const latest=receipts[0];
-    return createWhatsAppFollowupDraft(customer.phone,customer,{outstanding:customerRow.outstanding,previousBalance:previousCents/100,dueDate:customerRow.oldestDueDate,packageName:customerRow.package,paymentAmount:latest?.amount,paymentDate:latest?.date},template);
+    // Dues Recovery Overhaul: the draft goes to the customer's
+    // WhatsApp number (whatsappPhone preferred, primary fallback —
+    // the same whatsappPhoneFor the receipt share uses), and the
+    // draft builder normalises a saved 03xx number to +92, so a
+    // locally-saved number finally produces a working wa.me link.
+    return createWhatsAppFollowupDraft(whatsappPhoneFor(customer),customer,{outstanding:customerRow.outstanding,previousBalance:previousCents/100,dueDate:customerRow.oldestDueDate,packageName:customerRow.package,paymentAmount:latest?.amount,paymentDate:latest?.date},template);
+  }
+  // Dues Recovery Overhaul — the list's filter state lives here, not
+  // in the DOM: the search input, mohalla select and priority pills
+  // are static markup in index.html (built once, never re-created,
+  // so typing never loses focus), and only the summary bar and the
+  // groups re-render. The inline Add Phone editor rides in the same
+  // closure state, like the receipt card's editor in
+  // nav-quick-collect.js: a re-render mid-edit never loses the typed
+  // value, because the input handler keeps it here.
+  let recoveryFilter={query:'',mohalla:'all',priority:'all'};
+  let recoveryPhoneEditing=null;
+  let recoveryGroupsWired=false;
+  let lastRecoveryResult=null;
+  const recoveryDueBadge=row=>{
+    const names=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const currentMonth=monthsForHistory(new Date())[0];
+    if(row.oldestBillMonth&&row.oldestBillMonth<currentMonth)return`${shortMonthLabel(row.oldestBillMonth)} Arrears`;
+    const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(row.oldestDueDate??'');
+    if(match)return`Due ${names[Number(match[2])-1]} ${Number(match[3])}`;
+    return'Not recorded';
+  };
+  const recoveryRowMatches=(row,customerById)=>{
+    if(recoveryFilter.priority==='waada'&&!row.waadaDue)return false;
+    if(recoveryFilter.priority!=='all'&&recoveryFilter.priority!=='waada'&&row.group!==recoveryFilter.priority)return false;
+    if(recoveryFilter.mohalla!=='all'){
+      const rank=recoveryMohallaRank(row.area);
+      if(recoveryFilter.mohalla.startsWith('n')){
+        if(!rank||rank.number!==Number(recoveryFilter.mohalla.slice(1)))return false;
+      } else if(recoveryFilter.mohalla.startsWith('k:')){
+        if((canonicalMohalla(row.area)?.key??'')!==recoveryFilter.mohalla.slice(2))return false;
+      }
+    }
+    const query=recoveryFilter.query.trim().toLowerCase();
+    if(!query)return true;
+    const bareQuery=query.replace(/^#/,'');
+    if(bareQuery&&String(row.customerNumber??'').includes(bareQuery))return true;
+    if(String(row.name??'').toLowerCase().includes(query))return true;
+    const digits=query.replace(/\D/g,'');
+    if(digits){
+      const customer=customerById.get(row.customerId);
+      const numbers=[row.phone,customer?.phone,customer?.whatsappPhone].map(value=>String(value??'').replace(/\D/g,''));
+      if(numbers.some(value=>value&&value.includes(digits)))return true;
+    }
+    return false;
+  };
+  function renderRecoveryGroups(result) {
+    const host=$('#duesRecoveryGroups');if(!host||!result)return;
+    const state=getState(),customerById=new Map((state.customers??[]).map(customer=>[customer.id,customer]));
+    const groupsHtml=result.groups.map(group=>{
+      const visible=group.customers.filter(row=>recoveryRowMatches(row,customerById));
+      if(!visible.length)return'';
+      return `<section class="recovery-group"><div class="recovery-group-heading"><h4>${escapeHtml(group.name)}</h4><span>${visible.length} customer(s) · ${escapeHtml(formatAmount(visible.reduce((sum,row)=>sum+row.outstandingCents,0)/100))} recoverable</span></div><div class="recovery-customer-list">${visible.map(row=>{
+        const customer=customerById.get(row.customerId)??null;
+        const savedPhone=customer?whatsappPhoneFor(customer):'';
+        const templateOptions=[['friendly','Friendly reminder'],['overdue','Urgent due'],['final','Disconnection notice'],['payment-confirmation','Payment confirmation']].map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
+        const allocations=calculatePaymentAllocations(state),draft=followupFor(row,'friendly',allocations,new Date());
+        const tagTone=row.healthTag?.tone==='paid'?'ds-chip--paid':row.healthTag?.tone==='overdue'?'ds-chip--overdue':'ds-chip--info';
+        const editing=recoveryPhoneEditing?.customerId===row.customerId;
+        // The WhatsApp row: a working draft gets the green Send button
+        // (50%) beside the template selector (50%); no saved number
+        // gets the inline Add Phone editor instead of a dead link; a
+        // saved but unusable number keeps the old honest message.
+        let contact;
+        if(draft)contact=`<a class="secondary-button whatsapp-button recovery-whatsapp" href="${escapeHtml(draft.url)}" target="_blank" rel="noopener noreferrer" data-recovery-draft="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_send_whatsapp'))}</a>`;
+        else if(!savedPhone.trim())contact=editing
+          ?`<div class="recovery-phone-editor"><input type="tel" inputmode="tel" autocomplete="off" placeholder="03XX XXXXXXX" aria-label="Mobile number" data-recovery-phone-input="${escapeHtml(row.customerId)}" value="${escapeHtml(recoveryPhoneEditing.value??'')}"><button class="secondary-button" type="button" data-recovery-phone-save="${escapeHtml(row.customerId)}">${escapeHtml(t('save'))}</button><button class="secondary-button" type="button" data-recovery-phone-cancel="${escapeHtml(row.customerId)}">${escapeHtml(t('cancel'))}</button>${recoveryPhoneEditing.error?`<p class="form-error">${escapeHtml(recoveryPhoneEditing.error)}</p>`:''}</div>`
+          :`<button class="secondary-button recovery-add-phone" type="button" data-recovery-add-phone="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_add_phone'))}</button>`;
+        else contact='<span class="recovery-no-contact">A saved full international WhatsApp number is required.</span>';
+        return `<article class="recovery-customer-card" data-recovery-customer="${escapeHtml(row.customerId)}"><div class="recovery-customer-head"><div class="recovery-customer-identity"><strong>#${row.customerNumber} ${escapeHtml(row.name)}${row.archived?' · Archived':''}</strong><span>${escapeHtml(row.package)} · ${escapeHtml(row.area)}</span></div><div class="recovery-amount"><strong>${escapeHtml(formatAmount(row.outstanding))}</strong><span class="recovery-age-badge">${escapeHtml(recoveryDueBadge(row))}</span>${row.healthTag?`<span class="ds-chip ${tagTone}">${escapeHtml(row.healthTag.tag)}</span>`:''}${row.manualBaqayaCents>0?`<span class="recovery-baqaya-line">${escapeHtml(t('addpend_breakdown',null,{bill:formatAmount(row.billDues),additional:formatAmount(row.manualBaqaya)}))}</span>`:''}</div></div>${savedPhone.trim()?`<p class="recovery-phone-line">📱 <span>${escapeHtml(savedPhone)}</span></p>`:''}<div class="recovery-customer-actions"><button class="secondary-button recovery-collect-btn" type="button" data-recovery-collect="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_collect'))}</button>${row.archived?'':`<button class="secondary-button" type="button" data-recovery-waada="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_waada'))}</button>`}<button class="secondary-button" type="button" data-open-recovery-customer="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_history'))}</button></div><div class="recovery-whatsapp-row"><label>Draft template<select data-recovery-template="${escapeHtml(row.customerId)}">${templateOptions}</select></label>${contact}</div><details class="recovery-reasons"><summary>Why this priority?</summary><ul>${row.reasons.map(reason=>`<li>${escapeHtml(reason)}</li>`).join('')}</ul></details></article>`;
+      }).join('')}</div></section>`;
+    }).join('');
+    host.innerHTML=groupsHtml||'<p class="empty-state">No customers match this filter.</p>';
+    if(recoveryPhoneEditing){
+      const input=host.querySelector(`[data-recovery-phone-input="${recoveryPhoneEditing.customerId}"]`);
+      if(input)input.focus();
+    }
+  }
+  function renderRecoveryMohallaOptions(result) {
+    const select=$('#recoveryMohallaFilter');if(!select)return;
+    const byNumber=new Map(),unlisted=new Map();
+    for(const row of result.groups.flatMap(group=>group.customers)){
+      const rank=recoveryMohallaRank(row.area);
+      if(rank){const entry=byNumber.get(rank.number)??{count:0,cents:0};entry.count++;entry.cents+=row.outstandingCents;byNumber.set(rank.number,entry);}
+      else{const canon=canonicalMohalla(row.area),key=canon?.key??'unassigned',label=canon?.label??'Area not recorded',entry=unlisted.get(key)??{label,count:0,cents:0};entry.count++;entry.cents+=row.outstandingCents;unlisted.set(key,entry);}
+    }
+    const before=select.value;
+    const numbered=[...byNumber.entries()].sort((a,b)=>a[0]-b[0]).map(([number,entry])=>{const label=RECOVERY_MOHALLA_ORDER.find(item=>item.number===number)?.label??`#${number}`;return`<option value="n${number}">${number} · ${escapeHtml(label)} — ${entry.count} customer(s) · ${escapeHtml(formatAmount(entry.cents/100))}</option>`;});
+    const rest=[...unlisted.entries()].sort((a,b)=>a[1].label.localeCompare(b[1].label)).map(([key,entry])=>`<option value="k:${escapeHtml(key)}">${escapeHtml(entry.label)} — ${entry.count} customer(s) · ${escapeHtml(formatAmount(entry.cents/100))}</option>`);
+    select.innerHTML=`<option value="all">All mohallas</option>${numbered.join('')}${rest.join('')}`;
+    select.value=[...select.options].some(option=>option.value===before)?before:'all';
+    if(select.value!==recoveryFilter.mohalla)recoveryFilter.mohalla=select.value;
+  }
+  function wireRecoveryGroupsOnce() {
+    const host=$('#duesRecoveryGroups');if(!host||recoveryGroupsWired)return;
+    recoveryGroupsWired=true;
+    host.addEventListener('input',event=>{
+      if(event.target?.closest?.('[data-recovery-phone-input]')&&recoveryPhoneEditing)recoveryPhoneEditing.value=event.target.value??'';
+    });
+    host.addEventListener('change',event=>{
+      const select=event.target?.closest?.('[data-recovery-template]');if(!select||!lastRecoveryResult)return;
+      const row=lastRecoveryResult.groups.flatMap(group=>group.customers).find(item=>item.customerId===select.dataset.recoveryTemplate),anchor=select.closest('.recovery-customer-card')?.querySelector('[data-recovery-draft]');
+      if(!row||!anchor)return;
+      const draft=followupFor(row,select.value,calculatePaymentAllocations(getState()),new Date());
+      if(draft){anchor.href=draft.url;anchor.textContent=t('recovery_send_whatsapp');anchor.removeAttribute('aria-disabled');}
+      else{anchor.removeAttribute('href');anchor.setAttribute('aria-disabled','true');anchor.textContent=select.value==='payment-confirmation'?'No saved payment for confirmation':'WhatsApp details incomplete';}
+    });
+    host.addEventListener('click',event=>{
+      const target=event.target;
+      const collectBtn=target?.closest?.('[data-recovery-collect]');
+      if(collectBtn){
+        // Collect opens the payment collection pre-filled with the
+        // outstanding balance: the Quick Collect form's suggested
+        // amount is the customer's full payable, so the collector
+        // takes a full or partial receipt in one tap. A missing
+        // opener toasts instead of silently doing nothing.
+        if(typeof openCollect==='function')openCollect(collectBtn.dataset.recoveryCollect);
+        else if(typeof onToast==='function')onToast('Collection is not available right now.');
+        return;
+      }
+      const waadaBtn=target?.closest?.('[data-recovery-waada]');
+      if(waadaBtn){
+        if(typeof openWaadaDialog==='function')openWaadaDialog(waadaBtn.dataset.recoveryWaada);
+        else if(typeof onToast==='function')onToast('Waada dialog is not available.');
+        return;
+      }
+      const historyBtn=target?.closest?.('[data-open-recovery-customer]');
+      if(historyBtn){openCustomer(historyBtn.dataset.openRecoveryCustomer);return;}
+      const addPhoneBtn=target?.closest?.('[data-recovery-add-phone]');
+      if(addPhoneBtn){
+        recoveryPhoneEditing={customerId:addPhoneBtn.dataset.recoveryAddPhone,value:'',error:''};
+        if(lastRecoveryResult)renderRecoveryGroups(lastRecoveryResult);
+        return;
+      }
+      const cancelBtn=target?.closest?.('[data-recovery-phone-cancel]');
+      if(cancelBtn){recoveryPhoneEditing=null;if(lastRecoveryResult)renderRecoveryGroups(lastRecoveryResult);return;}
+      const saveBtn=target?.closest?.('[data-recovery-phone-save]');
+      if(saveBtn){
+        const customerId=saveBtn.dataset.recoveryPhoneSave;
+        const value=String(recoveryPhoneEditing?.value??'').trim();
+        if(!value){recoveryPhoneEditing={customerId,value:'',error:'Enter a mobile number to save.'};if(lastRecoveryResult)renderRecoveryGroups(lastRecoveryResult);return;}
+        const check=validatePakistanPhone(value);
+        if(!check.valid){recoveryPhoneEditing={customerId,value,error:check.message||'That number does not look right — check it and try again.'};if(lastRecoveryResult)renderRecoveryGroups(lastRecoveryResult);return;}
+        // Live Fix 1 phone rule, reused: save back into the field
+        // that produced the displayed number (whatsappPhone when it
+        // is shown, else the primary phone), through the canonical
+        // updateCustomerProfile + onSaveState path, then re-render
+        // so the number shows green with a working WhatsApp button.
+        const customer=getState().customers.find(item=>item.id===customerId)??null;
+        const displayed=customer?whatsappPhoneFor(customer):'';
+        const field=receiptPhoneSaveField(customer,displayed);
+        const next=updateCustomerProfile(getState(),customerId,{[field]:value});
+        if(typeof onSaveState==='function')onSaveState(next);
+        recoveryPhoneEditing=null;
+        renderRecovery();
+        if(typeof onToast==='function')onToast('Mobile number saved to the profile.',{type:'success'});
+      }
+    });
+  }
+  function wireRecoveryFilterOnce() {
+    const search=$('#recoverySearchInput');
+    if(search&&!search.dataset.wiredRecoveryFilter){
+      search.dataset.wiredRecoveryFilter='true';
+      search.addEventListener('input',()=>{recoveryFilter.query=search.value??'';if(lastRecoveryResult)renderRecoveryGroups(lastRecoveryResult);});
+    }
+    const mohalla=$('#recoveryMohallaFilter');
+    if(mohalla&&!mohalla.dataset.wiredRecoveryFilter){
+      mohalla.dataset.wiredRecoveryFilter='true';
+      mohalla.addEventListener('change',()=>{recoveryFilter.mohalla=mohalla.value;if(lastRecoveryResult)renderRecoveryGroups(lastRecoveryResult);});
+    }
+    const pills=$('#recoveryPriorityPills');
+    if(pills&&!pills.dataset.wiredRecoveryFilter){
+      pills.dataset.wiredRecoveryFilter='true';
+      pills.addEventListener('click',event=>{
+        const pill=event.target?.closest?.('[data-recovery-priority]');if(!pill)return;
+        recoveryFilter.priority=pill.dataset.recoveryPriority;
+        pills.querySelectorAll('[data-recovery-priority]').forEach(button=>button.setAttribute('aria-pressed',String(button===pill)));
+        if(lastRecoveryResult)renderRecoveryGroups(lastRecoveryResult);
+      });
+    }
   }
   function renderRecovery() {
     const host=$('#duesRecoveryGroups');if(!host)return;
-    const state=getState(),result=buildSmartDuesRecovery(state,new Date()),allocations=calculatePaymentAllocations(state),referenceDate=new Date();
+    const state=getState(),result=buildSmartDuesRecovery(state,new Date());
+    lastRecoveryResult=result;
     setText('#recoveryFormula',`${result.formula} Total recoverable: ${formatAmount(result.totalRecoverable)} across ${result.totalCustomers} customer(s).`);
-    host.innerHTML=result.groups.map(group=>`<section class="recovery-group"><div class="recovery-group-heading"><h4>${escapeHtml(group.name)}</h4><span>${group.count} customer(s) · ${escapeHtml(formatAmount(group.recoverableAmount))} recoverable</span></div>${group.customers.length?`<div class="recovery-customer-list">${group.customers.map(row=>{
-      const templateOptions=[['friendly','Friendly reminder'],['overdue','Overdue reminder'],['final','Final reminder'],['payment-confirmation','Payment confirmation']].map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
-      const draft=followupFor(row,'friendly',allocations,referenceDate);
-      const contact=draft?`<a class="secondary-button recovery-whatsapp" href="${escapeHtml(draft.url)}" target="_blank" rel="noopener noreferrer" data-recovery-draft="${escapeHtml(row.customerId)}">Review WhatsApp draft</a>`:'<span class="recovery-no-contact">A saved full international WhatsApp number is required.</span>';
-      return `<article class="recovery-customer-card" data-recovery-customer="${escapeHtml(row.customerId)}"><div class="recovery-customer-head"><strong>#${row.customerNumber} ${escapeHtml(row.name)}${row.archived?' · Archived':''}</strong><span>${escapeHtml(row.package)} · ${escapeHtml(row.area)}</span></div><div class="recovery-customer-metrics"><span>Outstanding <strong>${escapeHtml(formatAmount(row.outstanding))}</strong>${row.manualBaqayaCents>0?`<span>${escapeHtml(t('addpend_breakdown',null,{bill:formatAmount(row.billDues),additional:formatAmount(row.manualBaqaya)}))}</span>`:''}</span><span>Oldest due <strong>${row.oldestDueDate?escapeHtml(row.oldestDueDate):'Not recorded'}</strong></span><span>Health <strong>${row.health.score===null?'Insufficient history':`${row.health.score}/100`}</strong></span><span>Priority <strong>${row.priorityScore}</strong></span></div><details class="recovery-reasons"><summary>Why this priority?</summary><ul>${row.reasons.map(reason=>`<li>${escapeHtml(reason)}</li>`).join('')}</ul></details><div class="recovery-customer-actions"><button class="secondary-button" type="button" data-open-recovery-customer="${escapeHtml(row.customerId)}">Billing history</button>${row.archived?'':`<button type="button" class="additional-pending-btn" data-additional-pending="${escapeHtml(row.customerId)}" aria-label="${escapeHtml(t('addpend_edit'))}">${escapeHtml(t('recovery_add_amount'))}</button>`}<label>Draft template<select data-recovery-template="${escapeHtml(row.customerId)}">${templateOptions}</select></label>${contact}</div></article>`;
-    }).join('')}</div>`:'<p class="empty-state">No recorded outstanding balances in this priority group.</p>'}</section>`).join('');
-    host.querySelectorAll('[data-open-recovery-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openRecoveryCustomer)));
-    // Dues Add-amount: the recovery card's ＋ Add amount button opens
-    // the existing Additional Pending dialog (same wiring as the
-    // Customers card); the dialog sets the TOTAL additional amount,
-    // never an increment.
-    host.querySelectorAll('[data-additional-pending]').forEach(button=>button.addEventListener('click',event=>{event.stopPropagation();openAdditionalPendingDialog?.(button.dataset.additionalPending);}));
-    host.querySelectorAll('[data-recovery-template]').forEach(select=>select.addEventListener('change',()=>{
-      const row=result.groups.flatMap(group=>group.customers).find(item=>item.customerId===select.dataset.recoveryTemplate),anchor=select.closest('.recovery-customer-card')?.querySelector('[data-recovery-draft]');if(!row||!anchor)return;
-      const draft=followupFor(row,select.value,allocations,referenceDate);
-      if(draft){anchor.href=draft.url;anchor.textContent=select.value==='payment-confirmation'?'Review payment confirmation draft':'Review WhatsApp draft';anchor.removeAttribute('aria-disabled');}
-      else {anchor.removeAttribute('href');anchor.setAttribute('aria-disabled','true');anchor.textContent=select.value==='payment-confirmation'?'No saved payment for confirmation':'WhatsApp details incomplete';}
-    }));
+    const summary=$('#recoverySummaryBar');
+    if(summary)summary.innerHTML=`<div class="recovery-summary-stat"><span>Pending</span><strong>${result.totalCustomers} customer(s) · ${escapeHtml(formatAmount(result.totalRecoverable))}</strong></div><div class="recovery-summary-stat"><span>Arrears (old)</span><strong>${escapeHtml(formatAmount(result.totalArrears))}</strong></div><div class="recovery-summary-stat"><span>Current month</span><strong>${escapeHtml(formatAmount(result.totalCurrentMonth))}</strong></div>`;
+    wireRecoveryFilterOnce();
+    renderRecoveryMohallaOptions(result);
+    wireRecoveryGroupsOnce();
+    renderRecoveryGroups(result);
   }
   function renderSmartAlerts() {
     const host=$('#smartAlertsList');if(!host)return;

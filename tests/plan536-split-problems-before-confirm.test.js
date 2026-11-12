@@ -18,9 +18,15 @@
 //    confirm screen, nothing recorded;
 //  - fully-paid split guard: same — one submit, the
 //    already-paid error, no confirm screen, nothing new recorded
-//    (the fixture keeps a Rs 500 manual baqaya outstanding so the
-//    top-level advance guard is skipped and the split guard is
-//    the one that fires);
+//    (the fixture has nothing pending at all — no tickets, no
+//    addon, no baqaya. Sharafat 5 gave the split guard the same
+//    three exemptions as the single guard, so a pending baqaya
+//    or boost charge exempts the split instead of refusing it;
+//    the refusal case needs nothing pending, and the shared
+//    fully-paid refusal fires with the same message);
+//  - Sharafat 5: a split to a fully-paid bill with a pending
+//    boost charge only, or a manual baqaya only, proceeds —
+//    form → confirm → save, both legs recorded;
 //  - leg-2 duplicate: the card is visible after ONE submit, with
 //    the confirm step never shown (the check moved with the rest);
 //  - a valid split still flows form → confirm → save exactly as
@@ -42,6 +48,7 @@ import {
   manualBaqayaOutstandingCents,
   updateCustomerProfile
 } from '../core.js';
+import { addonChargesPending, addSpeedBoost } from '../speed-addon.js';
 import { getPakistanLocalDate, setupQuickCollectModal } from '../nav-quick-collect.js';
 
 const MONTH = getPakistanLocalDate(new Date()).slice(0, 7);
@@ -201,6 +208,21 @@ async function submitAndConfirm(getEl, getState) {
   await getEl('quickCollectPaymentForm').dispatch('submit');
 }
 
+// Like submitAndConfirm, but the month already carries an earlier
+// payment (the full payment that paid the bill) — the first submit
+// must add nothing to it, and the confirm + resubmit must add
+// exactly the two split legs.
+async function submitSplitAndConfirm(getEl, getState) {
+  const before = paymentsOf(getState(), MONTH).length;
+  await getEl('quickCollectPaymentForm').dispatch('submit');
+  assert.equal(paymentsOf(getState(), MONTH).length, before,
+    'Plan 382: the first submit shows the summary — nothing posts yet');
+  await getEl('quickCollectConfirmSaveBtn').click();
+  await getEl('quickCollectPaymentForm').dispatch('submit');
+  assert.equal(paymentsOf(getState(), MONTH).length, before + 2,
+    'both split legs recorded on the confirm + resubmit');
+}
+
 // Arm a split: leg 1 Cash Rs 600, leg 2 Easypaisa Rs 400 with the
 // given TID (or no TID when tid is ''). Returns after arming only —
 // the caller decides how many submits to drive.
@@ -278,11 +300,16 @@ test('leg-2 TID required: a digital leg 2 with no TID is refused on the form ste
 });
 
 test('fully-paid split guard: a split against a paid bill is refused on the form step, before confirm', async () => {
+  // Sharafat 5: the split guard carries the same three exemptions
+  // as the single-payment guard, so the refusal case needs nothing
+  // pending at all — no tickets, no addon, no baqaya. (The old
+  // fixture kept a Rs 500 manual baqaya so the top-level guard
+  // was skipped and the split guard fired; that baqaya now
+  // exempts the split, so it belongs in the proceeds test below.)
+  // With nothing pending the shared fully-paid refusal fires —
+  // the top-level guard first, the split guard carrying the same
+  // exemptions behind it — with the same advance message.
   const state = plan536FixtureState();
-  // A Rs 500 manual baqaya stays outstanding: the top-level
-  // advance guard requires it to be zero, so it is skipped here
-  // and the split guard below is the one that must fire.
-  state.customers[0].manualBaqaya = [{ id: 'MBQ-5361', amount: 500, date: '2026-09-15' }];
   await withController(state, async ({ controller, getEl, toasts, getState }) => {
     controller.open('seed-001');
     // Pay the month in full first: Rs 3,000 Cash.
@@ -292,11 +319,19 @@ test('fully-paid split guard: a split against a paid bill is refused on the form
     await submitAndConfirm(getEl, getState);
     assert.equal(paymentsOf(getState(), MONTH).length, 1, 'precondition: the month is paid in full');
     assert.equal(balanceDueCents(getState(), MONTH), 0, 'precondition: no bill dues left');
-    assert.equal(manualBaqayaOutstandingCents(getState().customers[0]), 50000,
-      'precondition: the Rs 500 manual baqaya is still outstanding, so the top-level guard is skipped');
+    assert.equal(addonChargesPending(getState().customers[0]), 0, 'precondition: no addon charges pending');
+    assert.equal(manualBaqayaOutstandingCents(getState().customers[0]), 0,
+      'precondition: no manual baqaya outstanding, so no exemption applies');
 
     controller.open('seed-001');
     await armSplit(getEl, FRESH_TID);
+    // The open path pre-ticks Advance when nothing is due at all
+    // (no bill balance, no ticket/addon/baqaya) — with nothing
+    // pending the box is ticked on the second open, and a split
+    // with Advance ticked is refused as a conflict instead. The
+    // operator path under test unticks Advance before submitting,
+    // so the fully-paid refusal is the one that must fire.
+    getEl('quickCollectAdvanceCheckbox').checked = false;
 
     await getEl('quickCollectPaymentForm').dispatch('submit');
 
@@ -306,6 +341,66 @@ test('fully-paid split guard: a split against a paid bill is refused on the form
     assert.equal(getEl('quickCollectStepConfirm').hidden, true, 'the confirm step is never shown');
     assert.equal(getEl('quickCollectStepForm').hidden, false, 'the operator stays on the form step');
     assert.equal(paymentsOf(getState(), MONTH).length, 1, 'nothing new recorded');
+  });
+});
+
+test('Sharafat 5: split to a fully-paid bill with a pending boost charge only proceeds — the addon exemption', async () => {
+  // A Rs 500 boost charge stays pending: the single-payment guard
+  // exempts it, and the split guard must too — the split that was
+  // refused before this item now flows form → confirm → save.
+  let state = plan536FixtureState();
+  state = addSpeedBoost(state, 'seed-001',
+    { boostMbps: 15, durationDays: 10, addonFeePKR: 500, startDate: TODAY }, new Date()).state;
+  await withController(state, async ({ controller, getEl, toasts, getState }) => {
+    controller.open('seed-001');
+    // Pay the month in full first: Rs 3,000 Cash — exactly the
+    // dues, so the remainder is zero and the boost stays pending.
+    getEl('quickCollectAmountInput').value = '3000';
+    getEl('quickCollectMethodSelect').value = 'Cash';
+    await getEl('quickCollectMethodSelect').dispatch('change');
+    await submitAndConfirm(getEl, getState);
+    assert.equal(paymentsOf(getState(), MONTH).length, 1, 'precondition: the month is paid in full');
+    assert.equal(balanceDueCents(getState(), MONTH), 0, 'precondition: no bill dues left');
+    assert.equal(addonChargesPending(getState().customers[0]), 500,
+      'precondition: the Rs 500 boost charge is still pending, so the split guard is exempt');
+    assert.equal(manualBaqayaOutstandingCents(getState().customers[0]), 0, 'precondition: no baqaya — addon only');
+
+    controller.open('seed-001');
+    await armSplit(getEl, FRESH_TID);
+    await submitSplitAndConfirm(getEl, getState);
+
+    const recorded = paymentsOf(getState(), MONTH);
+    assert.deepEqual(recorded.slice(1).map((p) => p.amount).sort((a, b) => a - b), [400, 600], 'leg amounts 600 + 400');
+    assert.equal(errorToast(toasts), undefined, `no error toast — got: ${errorToast(toasts)?.msg}`);
+  });
+});
+
+test('Sharafat 5: split to a fully-paid bill with a manual baqaya only proceeds — the baqaya exemption', async () => {
+  // A Rs 500 manual baqaya stays outstanding: the single-payment
+  // guard exempts it, and the split guard must too.
+  const state = plan536FixtureState();
+  state.customers[0].manualBaqaya = [{ id: 'MBQ-5362', amount: 500, date: '2026-09-15' }];
+  await withController(state, async ({ controller, getEl, toasts, getState }) => {
+    controller.open('seed-001');
+    // Pay the month in full first: Rs 3,000 Cash — exactly the
+    // dues, so the baqaya stays outstanding.
+    getEl('quickCollectAmountInput').value = '3000';
+    getEl('quickCollectMethodSelect').value = 'Cash';
+    await getEl('quickCollectMethodSelect').dispatch('change');
+    await submitAndConfirm(getEl, getState);
+    assert.equal(paymentsOf(getState(), MONTH).length, 1, 'precondition: the month is paid in full');
+    assert.equal(balanceDueCents(getState(), MONTH), 0, 'precondition: no bill dues left');
+    assert.equal(manualBaqayaOutstandingCents(getState().customers[0]), 50000,
+      'precondition: the Rs 500 manual baqaya is still outstanding, so the split guard is exempt');
+    assert.equal(addonChargesPending(getState().customers[0]), 0, 'precondition: no addon — baqaya only');
+
+    controller.open('seed-001');
+    await armSplit(getEl, FRESH_TID);
+    await submitSplitAndConfirm(getEl, getState);
+
+    const recorded = paymentsOf(getState(), MONTH);
+    assert.deepEqual(recorded.slice(1).map((p) => p.amount).sort((a, b) => a - b), [400, 600], 'leg amounts 600 + 400');
+    assert.equal(errorToast(toasts), undefined, `no error toast — got: ${errorToast(toasts)?.msg}`);
   });
 });
 
@@ -386,6 +481,17 @@ test('wiring: every split validation sits before the confirm check; the recordin
   // tell them apart).
   const splitFullyPaidAt = src.indexOf('// The fully-paid guard applies to a split exactly as to a normal');
   assert.ok(splitFullyPaidAt > 0 && splitFullyPaidAt < confirmAt, 'the fully-paid split guard is before confirm');
+  // Sharafat 5: the split guard carries the same three exemptions as
+  // the single-payment guard — billed tickets, addon charges and
+  // manual baqaya. Pin the two added reads inside the split block
+  // (between the split-guard comment and the confirm check): the
+  // top-level guard sits before the comment, so these reads can
+  // only be the split guard's.
+  const splitGuardBlock = src.slice(splitFullyPaidAt, confirmAt);
+  assert.match(splitGuardBlock, /addonChargesPending\(state\.customers\.find\(c => c\.id === activeCustomerId\)\) <= 0/,
+    'the split guard exempts pending addon charges');
+  assert.match(splitGuardBlock, /manualBaqayaOutstandingCents\(state\.customers\.find\(c => c\.id === activeCustomerId\)\) <= 0/,
+    'the split guard exempts outstanding manual baqaya');
   // The recording stays after the confirm check: a split posts only
   // once the operator has confirmed the figures.
   const recordAt = src.indexOf('executeSplitTenderCollection(state, {');

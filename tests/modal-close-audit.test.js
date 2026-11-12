@@ -91,9 +91,13 @@ const closeIntent = (b) => b.sharedClass || b.dataClose || ariaClose(b) || idClo
 //     dismiss control.
 //   - bulkCollectModal (Bulk Collect Modal Fix item 5, 2026-11-13): the
 //     user specified a clean neutral ✕ close for the Bulk Collect modal.
+//   - topDefaultersModal (Top Defaulters Modal Fix item 2, 2026-11-13):
+//     the user specified a clean neutral ✕ close for the Top Defaulters
+//     modal (the bottom green Close is removed with it).
 const DIALOG_CLOSE_EXCEPTIONS = {
   helpGuideDialog: 'helpGuideCloseBtn',
   bulkCollectModal: 'closeBulkCollectBtn',
+  topDefaultersModal: 'closeTopDefaultersModalBtn',
 };
 
 const sourceFiles = ['index.html', ...readdirSync(root).filter((f) => f.endsWith('.js'))];
@@ -150,9 +154,10 @@ test('SISP-87 audit: every shared-class close button renders the back arrow with
       const b = parseButton(m[0]);
       if (!b.sharedClass) continue;
       // Documented ↩ exceptions (see DIALOG_CLOSE_EXCEPTIONS): the help
-      // guide's ✕ close (QC Modal Fix item 14) and the Bulk Collect
-      // modal's ✕ close (Bulk Collect Modal Fix item 5).
-      if (b.id === 'helpGuideCloseBtn' || b.id === 'closeBulkCollectBtn') continue;
+      // guide's ✕ close (QC Modal Fix item 14), the Bulk Collect
+      // modal's ✕ close (Bulk Collect Modal Fix item 5) and the Top
+      // Defaulters modal's ✕ close (Top Defaulters Modal Fix item 2).
+      if (b.id === 'helpGuideCloseBtn' || b.id === 'closeBulkCollectBtn' || b.id === 'closeTopDefaultersModalBtn') continue;
       checked += 1;
       assert.equal(b.text, '↩', `${name}: .${b.cls} button #${b.id || '?'} must show ↩, found ${JSON.stringify(b.text)}`);
       assert.ok(ariaClose(b), `${name}: .${b.cls} button #${b.id || '?'} must carry a Close aria-label`);
@@ -195,6 +200,12 @@ const BARE_GLYPH_ALLOWLIST = [
   // is the shared .close-button (plus its own .bc-close-btn hook), so
   // the redesign scanner picks it up too (see its own exception).
   { file: 'bulk-collect.js', id: 'closeBulkCollectBtn', why: 'Bulk Collect Modal Fix item 5: the Bulk Collect modal uses the user-specified clean neutral ✕ close' },
+  // Top Defaulters Modal Fix item 2: the ✕ on the Top Defaulters modal
+  // IS a dialog close — the third documented exception to the ↩ rule,
+  // classified here so the audit enumerates it exactly once. Its class
+  // is the shared .close-btn (plus its own .td-close-btn hook), so the
+  // redesign scanner picks it up too (see its own exception).
+  { file: 'index.html', id: 'closeTopDefaultersModalBtn', why: 'Top Defaulters Modal Fix item 2: the Top Defaulters modal uses the user-specified clean neutral ✕ close' },
   // Plan 459: the × on a saved filter row removes only that filter —
   // an item-level micro-control, never a dialog close.
   { file: 'saved-search-filters.js', cls: 'fcs-clear-recent-btn', why: 'removes one saved filter row' },

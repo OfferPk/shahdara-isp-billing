@@ -9,13 +9,15 @@ import { resolveCustomerLocation } from '../dashboard-area-collections.js';
 // cards ("Bani" and "Banii" as separate areas) because names were free-typed
 // on the new-customer form and the old suggestion list itself carried variant
 // spellings ("MOHALAA BANI", single-i "KISHTI"). One mohalla must now be one
-// area everywhere: the owner's 15 default names are the standard, the leading
+// area everywhere: the owner's 16 default names are the standard, the leading
 // generic "Mohalla" word is not part of a mohalla's identity, and only
-// evidenced spelling variants fold into a default.
+// evidenced spelling variants fold into a default. The 16th is END POINT
+// (Sharafat 76, owner decision 2026-11-12): Haweli and End Point are one
+// mohalla, displayed as entry #12 in the numbered order.
 
 test('owner default mohallas are the standard list', () => {
-  assert.equal(DEFAULT_MOHALLAS.length, 15);
-  for (const name of ['CHARYAA', 'GANGALL', 'KISHTII', 'BARRIAN', 'THALII', 'CHAMYAAA', 'PALALIYAA', 'MALLA', 'NAKAR', 'BANII', 'SODAA', 'PULL SIDE', 'JABBIYAA', 'MOHALLA CHUDRIYAA', 'MOHALLA end side farm house']) assert.ok(DEFAULT_MOHALLAS.includes(name), `${name} is a default mohalla`);
+  assert.equal(DEFAULT_MOHALLAS.length, 16);
+  for (const name of ['CHARYAA', 'GANGALL', 'KISHTII', 'BARRIAN', 'THALII', 'CHAMYAAA', 'PALALIYAA', 'MALLA', 'NAKAR', 'BANII', 'SODAA', 'PULL SIDE', 'JABBIYAA', 'MOHALLA CHUDRIYAA', 'MOHALLA end side farm house', 'END POINT']) assert.ok(DEFAULT_MOHALLAS.includes(name), `${name} is a default mohalla`);
 });
 
 test('spelling variants fold into the same canonical mohalla', () => {

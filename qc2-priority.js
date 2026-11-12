@@ -1,9 +1,12 @@
 /*
  * QC-2 — Priority indicator on collection cards + oldest-first sort +
  * high-balance tiers. Surfacing only: the 0–100 buildSmartDuesRecovery
- * score already exists (owner-insights.js — High ≥65 / Medium 35–64 /
- * Low <35, with verbatim reasons), but it is shown only in the owner
- * view, never where collection happens. This module is the shared
+ * score already exists (owner-insights.js — High ≥75 / Medium 35–74 /
+ * Low <35, with verbatim reasons; the Dues Recovery Overhaul raised
+ * High from ≥65 and added the 75-point floor for arrears, 2+ unpaid
+ * bills or an overdue Waada, so a card that was High at 65–74 without
+ * one of those signals is Medium now), but it is shown only in the
+ * owner view, never where collection happens. This module is the shared
  * read-only layer the Quick Collect picker cards and the Field Mode
  * cards both use to surface that score unchanged: tier + first reason
  * + high-balance tier labels. It invents no scoring, changes no

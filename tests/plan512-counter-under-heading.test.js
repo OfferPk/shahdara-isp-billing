@@ -20,7 +20,10 @@ test('plan512 html: missing fields render collapsed behind a details, with the c
   const html = missingFieldsChecklistHtml(missing, LABELS, TEXTS);
   assert.ok(html.includes('<details class="mfc-details">'), 'list must sit in a details element');
   assert.ok(!html.includes('<details open'), 'details must start collapsed');
-  assert.ok(html.includes('<summary class="mfc-summary">Missing fields (2)</summary>'), 'summary carries the heading and the count');
+  // Profile Polish B (12): the count is a pill holding the plain
+  // number (no parens); the bar is absent here because this call
+  // passes no total.
+  assert.ok(html.includes('<summary class="mfc-summary">Missing fields <span class="mfc-count-pill">2</span></summary>'), 'summary carries the heading and the count pill');
   // The jump buttons live inside the details, in the same order.
   assert.ok(html.indexOf('<details') < html.indexOf('data-missing-field="cnicInput"'));
   assert.ok(html.indexOf('data-missing-field="phoneInput"') < html.indexOf('</details>'));
@@ -34,7 +37,9 @@ test('plan512 html: a profile with 40 missing fields shows one collapsed line, n
   const labels = Object.fromEntries(many.map((f, i) => [f.controlId, `Field ${i + 1}`]));
   const html = missingFieldsChecklistHtml(many, labels, TEXTS);
   assert.equal((html.match(/<details/g) || []).length, 1, 'exactly one collapsed list');
-  assert.ok(html.includes('<summary class="mfc-summary">Missing fields (40)</summary>'));
+  // Profile Polish B (12): the count is a pill holding the plain
+  // number (no parens).
+  assert.ok(html.includes('<summary class="mfc-summary">Missing fields <span class="mfc-count-pill">40</span></summary>'));
   assert.ok(!html.includes('<details open'), 'still collapsed with 40 missing');
   assert.equal((html.match(/data-missing-field=/g) || []).length, 40, 'every field still has its jump button');
   assert.ok(html.includes('data-missing-field="field39Input">Field 40</button>'));
@@ -55,18 +60,28 @@ test('plan512 html: the summary heading is escaped, and the count cannot be inje
     LABELS,
     { heading: 'A & B', allFilled: 'Done' },
   );
-  assert.ok(html.includes('<summary class="mfc-summary">A &amp; B (1)</summary>'));
+  // Profile Polish B (12): the count is a pill holding the plain
+  // number (no parens) — the heading still escapes, the count still
+  // cannot be injected (it is a number, never the heading text).
+  assert.ok(html.includes('<summary class="mfc-summary">A &amp; B <span class="mfc-count-pill">1</span></summary>'));
   assert.ok(!html.includes('A & B (1)'));
 });
 
 test('plan512 wiring: the counter is inserted after the view heading, not at the very top', () => {
-  const counterLines = appSrc.split('\n').filter((l) => l.includes('countProfileCompletion(customer).text'));
+  // Profile Polish B (12): the counter is computed once into
+  // `completion` and rendered as a pill + progress bar, so the old
+  // `countProfileCompletion(customer).text` inline call is gone. The
+  // preserved intent is one insertion, anchored on the heading,
+  // with 'afterend' — the checklist line also mentions the counter
+  // class, so the filter keys on the heading anchor to stay unique.
+  const counterLines = appSrc.split('\n').filter((l) => l.includes("querySelector('.profile-view-heading')") && l.includes('profile-completion-counter') && l.includes('insertAdjacentHTML'));
   assert.equal(counterLines.length, 1, 'exactly one view-counter insertion');
   assert.ok(counterLines[0].includes("querySelector('.profile-view-heading')"), 'counter anchors on the heading');
   assert.ok(counterLines[0].includes("'afterend'"), 'counter sits directly under the heading');
   assert.ok(!counterLines[0].includes("'afterbegin'"), 'counter no longer renders above the heading');
+  assert.ok(counterLines[0].includes('profile-completion-pill'), 'the counter renders as a pill');
   // The heading template itself comes first in the same render pass.
-  assert.ok(appSrc.indexOf('<div class="profile-view-heading">') < appSrc.indexOf('countProfileCompletion(customer).text'));
+  assert.ok(appSrc.indexOf('<div class="profile-view-heading">') < appSrc.indexOf('profile-completion-pill'), 'the heading template comes before the counter');
 });
 
 test('plan512 wiring: the checklist still renders immediately after the counter', () => {
@@ -74,7 +89,11 @@ test('plan512 wiring: the checklist still renders immediately after the counter'
   assert.equal(checklistLines.length, 1, 'exactly one checklist insertion');
   assert.ok(checklistLines[0].includes("'afterend'"));
   assert.ok(checklistLines[0].includes('missingFieldsChecklistHtml('));
-  assert.ok(appSrc.indexOf('countProfileCompletion(customer).text') < appSrc.indexOf('missingFieldsChecklistHtml('));
+  // Profile Polish B (12): the counter text is computed into
+  // `completion` now, so the marker is the counter pill, not the old
+  // inline call — the order (counter first, checklist after) is
+  // unchanged.
+  assert.ok(appSrc.indexOf('profile-completion-pill') < appSrc.indexOf('missingFieldsChecklistHtml('));
 });
 
 test('plan512 styles: the collapsed summary reads like the heading it replaces', () => {

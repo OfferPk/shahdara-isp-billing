@@ -94,9 +94,12 @@ test('profile redesign: header service pill follows the derived service state', 
 // (d) More Actions — all 13 buttons, grouped under 6 category
 // summaries in spec order (Payments, Documents, Communication,
 // Financial, Support, Equipment). Dispute is Financial, KYC is Support.
+// Profile Polish B (10): Record payment moved up into the header row
+// and Archive moved down into Payments, so Payments now opens with
+// Archive, Advance, back-dated — the count stays 13.
 test('profile redesign: More Actions holds 13 buttons in 6 categories, in order', () => {
   const categories = [
-    ['prof_ma_cat_payments', ['currentBillPaymentShortcut', 'advancePaymentButton', 'backdatedPaymentButton']],
+    ['prof_ma_cat_payments', ['archiveCustomerButton', 'advancePaymentButton', 'backdatedPaymentButton']],
     ['prof_ma_cat_documents', ['openAccountStatementBtn', 'openBillInvoiceBtn', 'openServiceContractBtn']],
     ['prof_ma_cat_communication', ['openReminderModalBtn', 'openCustomerPromiseBtn']],
     ['prof_ma_cat_financial', ['openLedgerAuditBtn', 'openAdjustmentModalBtn', 'openDisputeClaimBtn']],
@@ -119,7 +122,7 @@ test('profile redesign: More Actions holds 13 buttons in 6 categories, in order'
   const paymentsAt = index.indexOf('data-i18n="prof_ma_cat_payments"');
   const paymentsEnd = index.indexOf('</details>', paymentsAt);
   const payments = index.slice(paymentsAt, paymentsEnd);
-  assert.ok(payments.indexOf('id="currentBillPaymentShortcut"') < payments.indexOf('id="advancePaymentButton"'), 'Record payment is first in Payments, Advance second');
+  assert.ok(payments.indexOf('id="archiveCustomerButton"') < payments.indexOf('id="advancePaymentButton"'), 'Archive is first in Payments, Advance second');
   assert.match(profileCss, /\.profile-more-actions-category-grid > \.backdated-payment-link \{[^}]*grid-column: 1 \/ -1/, 'the back-dated entry spans the full category row');
   assert.match(profileCss, /\.profile-more-actions-category-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/, 'category grids are 2-column');
   assert.match(profileCss, /\.profile-more-actions-category-grid > button \{[^}]*min-height: 52px/, 'action cards are 52px');
@@ -169,16 +172,25 @@ test('profile redesign: QA holds 29 tools under 6 chips with search, Recent and 
 
 // (f) Row 1 — D6: Edit / Archive / Delete ONLY. + New customer is
 // gone from the profile header (the list keeps its own "+").
-test('profile redesign: Row 1 is Edit, Delete, Archive — no + New customer (D6)', () => {
+// Profile Polish B (10) (user request 2026-11-12) reorders Row 1 to
+// Edit / Clear dues / Delete / Wada / Record payment; Archive moves
+// down into More Actions > Payments. The D6 pins below (no +
+// New customer, Edit primary, Delete wired with confirm + 5s undo)
+// are unchanged.
+test('profile redesign: Row 1 is Edit, Clear dues, Delete, Wada, Record payment — no + New customer (D6, Profile Polish B (10))', () => {
   assert.ok(!index.includes('profileNewCustomerButton'), 'no + New customer button in the profile markup');
   assert.ok(!app.includes('profileNewCustomerButton'), 'no + New customer wiring in app.js');
   const groupAt = index.indexOf('class="profile-action-group"');
   const editAt = index.indexOf('id="editProfileButton"', groupAt);
+  const clearAt = index.indexOf('id="clearDuesButton"', groupAt);
   const deleteAt = index.indexOf('id="deleteCustomerButton"', groupAt);
+  const wadaAt = index.indexOf('id="topWadaButton"', groupAt);
+  const recordAt = index.indexOf('id="currentBillPaymentShortcut"', groupAt);
   const archiveAt = index.indexOf('id="archiveCustomerButton"', groupAt);
-  assert.ok(editAt > groupAt && deleteAt > editAt && archiveAt > deleteAt, 'Row 1 order is Edit, Delete, Archive');
+  assert.ok(editAt > groupAt && clearAt > editAt && deleteAt > clearAt && wadaAt > deleteAt && recordAt > wadaAt, 'Row 1 order is Edit, Clear dues, Delete, Wada, Record payment');
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
-  assert.ok(detailsAt > archiveAt, 'the More actions disclosure still follows Row 1');
+  assert.ok(detailsAt > recordAt, 'the More actions disclosure still follows Row 1');
+  assert.ok(archiveAt > detailsAt, 'Archive moved down into the More actions disclosure');
   assert.ok(index.includes('id="editProfileButton" class="primary-button profile-action-btn profile-edit-button"'), 'Edit is the primary action');
   assert.ok(app.includes("$('#deleteCustomerButton').addEventListener"), 'Delete is still wired with its confirm + 5s undo');
   assert.ok(profileCss.includes('.profile-delete-btn'), 'Delete keeps its destructive treatment');

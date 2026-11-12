@@ -65,3 +65,16 @@ export function countProfileCompletionFromControls(controls) {
   }
   return countProfileCompletion(record);
 }
+
+// Profile Polish B (12) — the completion bar for the counter pill:
+// the filled share as a whole percent, with the tone following the
+// same bands as the health colours (70%+ green, 40–69% yellow, below
+// 40% red), so the operator reads it the same way everywhere. Bad
+// inputs read as 0% red, never NaN.
+export function profileCompletionBar(filled, total) {
+  const safeTotal = Number.isFinite(total) && total > 0 ? total : 0;
+  const safeFilled = Number.isFinite(filled) && filled > 0 ? Math.min(filled, safeTotal) : 0;
+  const percent = safeTotal === 0 ? 0 : Math.round((safeFilled / safeTotal) * 100);
+  const tone = percent >= 70 ? 'green' : percent >= 40 ? 'yellow' : 'red';
+  return { percent, tone };
+}

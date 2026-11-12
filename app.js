@@ -55,7 +55,7 @@ import { profileTabCounts } from './profile-tab-counts.js?v=1.11.0';
 import { purgeCustomerHistoryFromStorage, restoreCustomerHistoryToStorage } from './customer-history-purge.js';
 import { countPaymentRecords, clearPaymentRecords, readPaymentRecordStores, writePaymentRecordStores } from './clear-payment-records.js';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
-import { countProfileCompletion, countProfileCompletionFromControls, PROFILE_COMPLETION_EXCLUDED_KEYS } from './profile-completion.js?v=1.11.0';
+import { countProfileCompletion, countProfileCompletionFromControls, profileCompletionBar, PROFILE_COMPLETION_EXCLUDED_KEYS } from './profile-completion.js?v=1.11.0';
 import { QA_RECENT_STORE_KEY, QA_FAVORITE_STORE_KEY, QA_RECENT_ROW_MAX, normalizeQaToolIdList, recordQaRecentTool, toggleQaFavoriteTool, qaVisibleToolIds, qaRowTools } from './qa-tools-state.js?v=1.11.0';
 import { resolveProfileErrorTarget, profileErrorBannerClearsOnInput } from './profile-error-jump.js?v=1.11.0';
 import { PROFILE_SECTION_OPEN_KEY, loadProfileSectionOpen, saveProfileSectionOpen, profileSectionOpenFor, withProfileSectionOpen, profileDetailSectionHtml } from './profile-sections.js?v=1.11.0';
@@ -7633,7 +7633,7 @@ function renderCustomerProfileView(customer) {
   // zero form fields (history is recorded by the app, never typed in), so
   // an Edit button would be a dead control with no group to scroll to.
   const profileSectionHistoryHtml = profileDetailSectionHtml({ key: 'history', heading: t('prof_sec_history'), summary: `${t('prof_tab_complaints')} ${customerComplaints.length} · ${t('fdisp_type_ticket')} ${customerTickets.length}`, body: profileSectionHistoryBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'history') });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="profileQrCardButton" class="secondary-button" type="button"><span class="ds-action-icon" data-ds-icon="QrCode" aria-hidden="true"></span>${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button"><span class="ds-action-icon" data-ds-icon="Printer" aria-hidden="true"></span>${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileSectionConnectionHtml}${profileSectionNetworkHtml}${profileSectionHardwareHtml}${profileSectionHistoryHtml}`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="profileQrCardButton" class="secondary-button profile-info-btn-qr" type="button"><span class="ds-action-icon" data-ds-icon="QrCode" aria-hidden="true"></span>${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button profile-info-btn-print" type="button"><span class="ds-action-icon" data-ds-icon="Printer" aria-hidden="true"></span>${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileSectionConnectionHtml}${profileSectionNetworkHtml}${profileSectionHardwareHtml}${profileSectionHistoryHtml}`;
   // Plan 508 — the register complaints list renders on the Complaints tab,
   // after the manual service log that mountCustomerProfileContent moved
   // there at load. The panel is re-rendered per customer, so the previous
@@ -7651,7 +7651,12 @@ function renderCustomerProfileView(customer) {
   // Plan 512 — completion counter directly under the view heading it
   // describes, not above it: the heading comes first, the counter
   // second, over the PR #813 per-field-save controls.
-  $('#customerProfileView').querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
+  // Profile Polish B (12) — the counter is a pill with a small
+  // colourful progress bar; the bar tone follows the same bands as
+  // the health colours (70%+ green, 40–69% yellow, below 40% red).
+  const completion = countProfileCompletion(customer);
+  const completionBar = profileCompletionBar(completion.filled, completion.total);
+  $('#customerProfileView').querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', `<p class="profile-completion-counter"><span class="profile-completion-pill">${escapeHtml(completion.text)}</span><span class="profile-completion-bar" role="progressbar" aria-valuenow="${completionBar.percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeHtml(completion.text)}"><span class="profile-completion-fill profile-completion-fill-${completionBar.tone}" style="width:${completionBar.percent}%"></span></span></p>`);
   // Plan 363 — Missing-fields checklist: the counter says how many
   // fields are filled; this lists WHICH ones are still empty, by the
   // name the form itself shows, with a tap-to-jump action to each
@@ -7670,6 +7675,7 @@ function renderCustomerProfileView(customer) {
   $('#customerProfileView').querySelector('.profile-completion-counter')?.insertAdjacentHTML('afterend', missingFieldsChecklistHtml(missingFields, missingFieldLabels, {
     heading: t('prof_missing_fields_heading'),
     allFilled: t('prof_missing_fields_all_filled'),
+    total: completion.total,
   }));
   $('#customerProfileView').querySelector('.mfc-checklist')?.addEventListener('click', (event) => {
     const button = event.target.closest('[data-missing-field]');
@@ -42775,6 +42781,7 @@ const wadaModal = $('#wadaFollowupModal');
 const closeWadaModalBtn = $('#closeWadaModalBtn');
 const closeWadaModalFooterBtn = $('#closeWadaModalFooterBtn');
 const openCustomerPromiseBtn = $('#openCustomerPromiseBtn');
+const topWadaButton = $('#topWadaButton');
 const openRemindersFromWadaBtn = $('#openRemindersFromWadaBtn');
 const wadaTodayCountBadge = $('#wadaTodayCountBadge');
 const wadaBrokenCountBadge = $('#wadaBrokenCountBadge');
@@ -43529,21 +43536,29 @@ if (openRemindersFromWadaBtn) {
   });
 }
 
-// Customer Profile Wada Button
+// Customer Profile Wada Button — one opener shared by both Wada
+// buttons: the copy in More Actions > Customer Communication and the
+// Profile Polish B (10) copy up in the top action group, next to
+// Delete. Same dialog, same promise field focus, no second behaviour.
+function openCustomerPromiseDialog() {
+  if (!selectedCustomerId) {
+    toast('Please select a customer first.');
+    return;
+  }
+  const cust = state.customers.find(c => c.id === selectedCustomerId);
+  if (!cust) return;
+  openPaymentReminderModal(cust);
+  if (reminderInlinePromiseFieldset) {
+    reminderInlinePromiseFieldset.hidden = false;
+    reminderPromiseDateInput?.focus();
+  }
+}
+
 if (openCustomerPromiseBtn) {
-  openCustomerPromiseBtn.addEventListener('click', () => {
-    if (!selectedCustomerId) {
-      toast('Please select a customer first.');
-      return;
-    }
-    const cust = state.customers.find(c => c.id === selectedCustomerId);
-    if (!cust) return;
-    openPaymentReminderModal(cust);
-    if (reminderInlinePromiseFieldset) {
-      reminderInlinePromiseFieldset.hidden = false;
-      reminderPromiseDateInput?.focus();
-    }
-  });
+  openCustomerPromiseBtn.addEventListener('click', openCustomerPromiseDialog);
+}
+if (topWadaButton) {
+  topWadaButton.addEventListener('click', openCustomerPromiseDialog);
 }
 
 // ==========================================================================

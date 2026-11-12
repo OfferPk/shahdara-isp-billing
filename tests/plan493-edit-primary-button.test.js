@@ -44,8 +44,11 @@ test('Plan 493: Edit is a primary-button in the header action group (polish #24)
 test('Plan 493: QR, Print and Speak Due stay secondary in the heading row (Edit moved to the header group)', () => {
   const line = headingLine();
   assert.ok(!line.includes('id="editProfileButton"'), 'Edit no longer renders in the heading — it lives in the static header group');
-  assert.ok(line.includes('id="profileQrCardButton" class="secondary-button"'), 'QR Khata Card stays secondary');
-  assert.ok(line.includes('id="profilePrintCardButton" class="secondary-button"'), 'Print card stays secondary');
+  // Profile Polish B (11): QR and Print keep the secondary-button
+  // token and gain a per-button colour class — still secondary, only
+  // coloured now.
+  assert.ok(line.includes('id="profileQrCardButton" class="secondary-button profile-info-btn-qr"'), 'QR Khata Card stays secondary');
+  assert.ok(line.includes('id="profilePrintCardButton" class="secondary-button profile-info-btn-print"'), 'Print card stays secondary');
   assert.ok(line.includes('speakDueButtonMarkup(customer.customerNumber)'), 'Speak Due is still rendered in the heading row');
   assert.ok(line.includes('welcomeSlipButtonMarkup()'), 'welcome slip button is still rendered in the heading row');
 });

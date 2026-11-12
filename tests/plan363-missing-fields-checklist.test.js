@@ -124,8 +124,11 @@ test('html: lists each missing field by name as a jump button, in order', () => 
   // (with the count) so a sparse profile shows one line instead of
   // dozens of rows — the heading text and the jump buttons are
   // unchanged, and the list stays collapsed until the operator opens it.
+  // Profile Polish B (12): the count is a pill holding the plain
+  // number (no parens); the bar is absent here because this call
+  // passes no total.
   assert.ok(html.includes('<details class="mfc-details">'));
-  assert.ok(html.includes('<summary class="mfc-summary">Missing fields (2)</summary>'));
+  assert.ok(html.includes('<summary class="mfc-summary">Missing fields <span class="mfc-count-pill">2</span></summary>'));
   assert.ok(!html.includes('<details open'));
   assert.ok(html.includes('data-missing-field="cnicInput">CNIC</button>'));
   assert.ok(html.includes('data-missing-field="phoneInput">Phone</button>'));
@@ -221,13 +224,20 @@ test('wiring: the profile order assertion still holds — banner, strip, then gr
 });
 
 test('styles: the checklist rules exist and reuse existing colours only', () => {
-  for (const cls of ['.mfc-checklist', '.mfc-heading', '.mfc-list', '.mfc-jump', '.mfc-all-filled']) {
+  for (const cls of ['.mfc-checklist', '.mfc-heading', '.mfc-list', '.mfc-jump', '.mfc-all-filled', '.mfc-count-pill', '.mfc-bar', '.mfc-bar-fill-red', '.mfc-bar-fill-yellow']) {
     assert.ok(stylesSrc.includes(cls), `styles must define ${cls}`);
   }
+  // Profile Polish B (12): the count pill and the red/yellow bar add
+  // colours, so the old two-hex allowlist (#5c6e66, #fff) no longer
+  // describes the rules. The preserved intent is reuse: every hex in
+  // an .mfc- rule must already exist somewhere else in the sheet —
+  // the pill-palette hexes the new rules use (red #dc9478/#fee2e2/
+  // #b91c1c, yellow #e7c77e, track #eef3f0) all do.
   const mfcLines = stylesSrc.split('\n').filter((line) => line.includes('.mfc-'));
+  const baseline = stylesSrc.split('\n').filter((line) => !line.includes('.mfc-')).join('\n');
   for (const line of mfcLines) {
     for (const hex of line.match(/#[0-9a-fA-F]{3,8}/g) ?? []) {
-      assert.ok(['#5c6e66', '#fff'].includes(hex.toLowerCase()), `mfc rule must reuse an existing colour, found ${hex}`);
+      assert.ok(baseline.toLowerCase().includes(hex.toLowerCase()), `mfc rule must reuse an existing colour, found ${hex}`);
     }
   }
 });

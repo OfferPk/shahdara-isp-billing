@@ -143,6 +143,11 @@ test('app wires the banner, the sticky save and the live counter', () => {
   assert.match(app, /\$\('#profileStickySaveButton'\)\?\.addEventListener\('click', \(\) => \{ \$\('#saveMohallaButton'\)\?\.click\(\); \}\)/);
   assert.match(app, /function syncProfileStickySaveBar\(\)/);
   assert.match(app, /function updateProfileCompletionCounter\(\)/);
-  assert.match(app, /countProfileCompletion\(customer\)\.text/);
+  // Profile Polish B (12): the counter is computed once into
+  // `completion` and rendered as a pill + progress bar, so the old
+  // inline `countProfileCompletion(customer).text` call is gone — the
+  // live counter still renders the counted text.
+  assert.match(app, /const completion = countProfileCompletion\(customer\);/);
+  assert.match(app, /escapeHtml\(completion\.text\)/);
   assert.match(app, /countProfileCompletionFromControls\(\[/);
 });

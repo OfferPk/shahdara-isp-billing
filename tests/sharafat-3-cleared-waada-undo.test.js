@@ -286,7 +286,11 @@ test('reversal: fields are null for a payment that cleared a waada — the money
 test('wiring: executeUndo captures the cleared-waada stamp before the delete and restores it after', () => {
   const start = wiringSrc.indexOf('function executeUndo()');
   assert.ok(start > 0, 'delete-undo function found');
-  const slice = wiringSrc.slice(start, start + 9000);
+  // Sharafat 4: the window grew from 9000 — the split branch above
+  // gained the per-leg addon reopen, so the single-payment restore
+  // now sits further down. The pin is unchanged: the stamp is still
+  // captured before the delete and restored after it.
+  const slice = wiringSrc.slice(start, start + 11000);
   assert.match(slice, /const undoClearedWaada = clearedWaadaOf\(doomedPayment\);/);
   assert.match(slice, /restoreClearedWaada\(custAfter, undoClearedWaada\)/);
   assert.ok(

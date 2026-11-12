@@ -5,15 +5,17 @@
 // CURRENT month, so in November no December bill exists and every
 // bill-reading surface can only say "not recorded" after a full
 // payment. The fix is a COMPUTED fallback, never a hardcoded 5th:
-// when no open bill carries a due date, fall back to
-// dueDateForBillMonth(cycleChoice, nextMonth) — a cycle-day-15
-// customer keeps Dec 15. Dec 5 shows only when nothing is owed; an
-// overdue Nov 5 stays while November is owed.
+// fall back to dueDateForBillMonth(cycleChoice, nextMonth) — a
+// cycle-day-15 customer keeps Dec 15. User decision 2026-11-12: the
+// success screen shows the fallback ALWAYS — Dec 5 even while
+// November is owed; the amount still owed is the Still-owed figure,
+// not a date. (The balance reply keeps its own rule — the earliest
+// open-balance date — this change is the success card only.)
 //
 // Pins:
 // - the QC success screen's next-due helper returns the fallback
-//   only when no bill carries an open balance; an open bill with a
-//   balance but no usable due date still reads null, never a guess;
+//   always; an open bill never holds the line at its own due date,
+//   and a missing or invalid fallback still reads null, never a guess;
 // - the fallback shapes themselves (default 5th, cycle-day 15,
 //   Dec -> Jan rollover) come from billing-cycle-choice.js, never
 //   from a hardcoded date in the caller;
@@ -99,20 +101,23 @@ test('success screen: Dec payment with nothing owed rolls the fallback to Jan 5'
   assert.equal(successNextStepsNextDueDate(customer, allocations, '2027-01-05'), '2027-01-05');
 });
 
-test('success screen: an overdue Nov 5 stays while November is owed, fallback or not', () => {
+// User decision 2026-11-12: the next due date is the 5th of the next
+// month after the bill month just paid, even while November is owed —
+// the overdue amount is the Still-owed figure, not a date.
+test('success screen: an overdue November still reads the December fallback, never November 5', () => {
   const customer = fullyPaidCustomer();
   const allocations = allocationsFor({ '2026-10': 0, '2026-11': 300000 });
-  assert.equal(successNextStepsNextDueDate(customer, allocations), '2026-11-05');
-  assert.equal(successNextStepsNextDueDate(customer, allocations, '2026-12-05'), '2026-11-05');
+  assert.equal(successNextStepsNextDueDate(customer, allocations, '2026-12-05'), '2026-12-05');
+  assert.equal(successNextStepsNextDueDate(customer, allocations), null);
 });
 
-test('success screen: an open bill with a balance but no usable due date never takes the fallback', () => {
+test('success screen: a bill with no usable due date never moves the date — the fallback still wins', () => {
   const noDate = fullyPaidCustomer();
   delete noDate.bills[1].dueDate;
-  assert.equal(successNextStepsNextDueDate(noDate, allocationsFor({ '2026-10': 0, '2026-11': 300000 }), '2026-12-05'), null);
+  assert.equal(successNextStepsNextDueDate(noDate, allocationsFor({ '2026-10': 0, '2026-11': 300000 }), '2026-12-05'), '2026-12-05');
   const badDate = fullyPaidCustomer();
   badDate.bills[1].dueDate = '2026-02-30';
-  assert.equal(successNextStepsNextDueDate(badDate, allocationsFor({ '2026-10': 0, '2026-11': 300000 }), '2026-12-05'), null);
+  assert.equal(successNextStepsNextDueDate(badDate, allocationsFor({ '2026-10': 0, '2026-11': 300000 }), '2026-12-05'), '2026-12-05');
 });
 
 test('success screen: no fallback given means no date, never a guess', () => {

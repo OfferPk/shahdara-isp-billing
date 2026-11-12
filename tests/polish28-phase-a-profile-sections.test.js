@@ -263,7 +263,10 @@ test('phase A groups: money rows split out of Service, profit still right after 
   assert.ok(money.includes("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]"), 'profit moves with the money fragment');
   const serviceAt = frags.indexOf('service: profileInfoGroupMarkup(');
   const service = frags.slice(serviceAt, moneyAt);
-  assert.ok(service.includes("[t('prof_field_package'), profileEmptyText(customer.packageSpeed)]"), 'package stays with the service rows');
+  // Profile Polish D (16) — the service rows carry a fifth tuple
+  // element now (the tap target: the edit-form control id). The value
+  // expression — the pinned intent — is unchanged.
+  assert.ok(service.includes("[t('prof_field_package'), profileEmptyText(customer.packageSpeed), false, '', 'packageSpeedInput']"), 'package stays with the service rows');
   assert.ok(!service.includes("prof_field_profit"), 'profit must not stay in the service fragment');
   assert.ok(!service.includes("prof_field_selling"), 'selling must not stay in the service fragment');
 });

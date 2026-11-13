@@ -17106,6 +17106,13 @@ the same row; the dd becomes a flex row so the button never stretches. */
  * view only — the Export menu beside the summary is its home now. */
 body.sr-screen-mode[data-screen="transactions"] #exportAllButton { display: none; }
 
+/* Subscriber Count & Tab Isolation: the whole footer stays in the DOM
+ * (sw-update-banner pins #appVersionLabel inside it) but is hidden on
+ * the Customers tab — the footer is a Home-screen element, and the
+ * Customers tab already carries its own pane footer. Render-gate only:
+ * display:none, never DOM removal. Mirrors the (5d) rule above. */
+body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
+
 /* (b) FILTERS & SORT header row: title left, 32×32 (i) right. The
  * details keeps its own .help-icon sizing (32×32) and its tooltip
  * still anchors to the details (position: relative). */

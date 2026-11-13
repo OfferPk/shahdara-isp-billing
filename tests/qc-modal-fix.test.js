@@ -102,11 +102,17 @@ test('(3) the card subtitle is Mohalla • Package Name, never the scorer reason
 
 // --- (4) One compact action row --------------------------------------
 
-test('(4) the card has one compact action row with the amount on Collect', () => {
+test('(4) the card has one compact action row with plain Collect', () => {
   const { html: pickerHtml } = renderQuickCollectPickerHtml(subtitleState(), '', 'all-dues');
   assert.ok(pickerHtml.includes('qc3-action-btn--icon qc3-action-btn--call'), 'Call is a compact icon button');
   assert.ok(pickerHtml.includes('qc3-action-btn--icon qc3-action-btn--location'), 'Location is a compact icon button');
-  assert.ok(pickerHtml.includes('Collect PKR 1,000'), 'Collect names the amount it will collect');
+  // QC Modal Overhaul 2: Collect is plain "Collect" — the dues badge
+  // ("PKR 1,000 DUE") already names the figure, so the button
+  // naming it again was the second copy. The old "Collect PKR 1,000"
+  // label is gone; the badge is the one place the figure appears.
+  assert.equal(pickerHtml.includes('Collect PKR 1,000'), false, 'Collect must not repeat the amount the dues badge names');
+  assert.ok(pickerHtml.includes('Collect</button>'), 'Collect must stay a plain label');
+  assert.ok(pickerHtml.includes('PKR 1,000'), 'the dues figure must stay on the card, in the badge');
   assert.match(styles, /\.qc3-action-btn--icon\s*\{[^}]*min-height:\s*36px !important/, 'icon buttons must be 36px');
   assert.match(styles, /\.qc3-collect\s*\{[^}]*flex:\s*1 1 auto/, 'Collect must take the remaining row width');
 });
@@ -177,11 +183,19 @@ test('(10) Day Summary is a borderless mint button and the footer is a slate seg
 
 // --- (11) One Screen entry view ---------------------------------------
 
-test('(11) the amount display is POS-style with a fixed PKR badge', () => {
+test('(11) the amount display is a flat row with a fixed PKR badge, no green wrapper', () => {
   const screen = quickCollectOneScreenHtml({ customers: [], methods: METHODS });
-  assert.ok(screen.includes('class="qos-amount-display"'), 'amount must sit in its POS display');
+  assert.ok(screen.includes('class="qos-amount-display"'), 'amount must sit in its display row');
   assert.ok(screen.includes('<span class="qos-pkr-badge"'), 'PKR badge must be fixed beside the amount');
-  assert.match(styles, /\.qos-amount-display\s*\{[^}]*background:\s*var\(--ds-footer-good\)/, 'POS display must be #F0FDF4');
+  // QC Modal Overhaul 2 (addendum A1): the thick outer green wrapper
+  // (light-green #F0FDF4 background + green border + padding) is
+  // REMOVED — it pushed Payment Method off the bottom of the one
+  // screen. The display is a plain flex row now: no background, no
+  // border, no padding. The amount keeps its big figure and its
+  // emerald focus ring.
+  assert.doesNotMatch(styles, /\.qos-amount-display\s*\{[^}]*background:\s*var\(--ds-footer-good\)/, 'the green wrapper background must be gone');
+  assert.doesNotMatch(styles, /\.qos-amount-display\s*\{[^}]*border:\s*1\.5px solid/, 'the green wrapper border must be gone');
+  assert.match(styles, /\.qos-amount-display\s*\{[^}]*display:\s*flex/, 'the display must stay a flex row');
   assert.match(styles, /\.qos-amount-value\s*\{[^}]*font-size:\s*1.35rem/, 'POS amount must be 1.35rem');
   assert.match(styles, /\.qos-amount-value\s*\{[^}]*font-weight:\s*700/, 'POS amount must be weight 700');
   assert.match(styles, /\.qos-amount-value:focus\s*\{[^}]*outline:\s*2px solid var\(--color-emerald\)/, 'focus ring must be emerald, not blue');
@@ -249,20 +263,32 @@ test('(12) the combobox option shows Mohalla and the Outstanding badge', () => {
 test('(12) the method pills group the shops and keep NayaPay, Raast and Bank distinct', () => {
   const { pills, shopMethods } = quickCollectOneScreenMethodPills(METHODS);
   assert.deepEqual(pills.map((p) => p.label), ['Cash', 'Easypaisa', 'JazzCash', 'NayaPay', 'Bank Transfer', 'Raast', 'Shop Drop-off']);
-  assert.deepEqual(shopMethods, ['Cash at Waseem Abbasi shop', 'Cash at Hassan shop', 'Cash at Balla shop', 'Cash at Hassan Balla shop']);
+  // QC Modal Overhaul 2 (addendum A4): the sub-row offers the TWO
+  // shops the user named — the legacy 'Cash at Hassan shop' /
+  // 'Cash at Balla shop' spellings canonicalise to the unified
+  // 'Cash at Hassan Balla shop' before dedup (same rule as
+  // shop-settlement.js canonicalShopName). Four stored spellings,
+  // two offered shops.
+  assert.deepEqual(shopMethods, ['Cash at Waseem Abbasi shop', 'Cash at Hassan Balla shop']);
   assert.equal(quickCollectOneScreenShopShortLabel('Cash at Hassan Balla shop'), 'Hassan Balla');
   const screen = quickCollectOneScreenHtml({ customers: [], methods: METHODS });
   assert.ok(screen.includes('data-qos-method="NayaPay"'), 'NayaPay pill must submit its own value');
   assert.ok(screen.includes('data-qos-method="Raast"'), 'Raast pill must submit its own value');
   assert.ok(screen.includes('data-qos-method="Bank Transfer"'), 'Bank Transfer pill must submit its own value');
-  assert.ok(screen.includes('data-qos-method="Cash at Hassan shop"'), 'shop sub-pill must submit the exact stored method');
+  assert.ok(screen.includes('data-qos-method="Cash at Hassan Balla shop"'), 'shop sub-pill must submit the unified stored method');
+  assert.equal(screen.includes('data-qos-method="Cash at Hassan shop"'), false, 'no legacy Hassan sub-pill may remain');
+  assert.equal(screen.includes('data-qos-method="Cash at Balla shop"'), false, 'no legacy Balla sub-pill may remain');
   assert.equal(screen.includes('<select'), false, 'no native select may remain on the one screen');
 });
 
 test('(12) Cash is pre-selected when nothing was picked', () => {
   assert.equal(quickCollectOneScreenResolveMethod('', METHODS), 'Cash');
   assert.equal(quickCollectOneScreenResolveMethod('JazzCash', METHODS), 'JazzCash');
-  assert.equal(quickCollectOneScreenResolveMethod('Cash at Balla shop', METHODS), 'Cash at Balla shop');
+  // QC Modal Overhaul 2 (addendum A4): a remembered legacy shop
+  // method resolves to the unified shop — it IS that shop — instead
+  // of falling back to Cash.
+  assert.equal(quickCollectOneScreenResolveMethod('Cash at Balla shop', METHODS), 'Cash at Hassan Balla shop');
+  assert.equal(quickCollectOneScreenResolveMethod('Cash at Hassan shop', METHODS), 'Cash at Hassan Balla shop');
   assert.equal(quickCollectOneScreenResolveMethod('Not a method', METHODS), 'Cash');
   const screen = quickCollectOneScreenHtml({ customers: [], methods: METHODS });
   assert.ok(screen.includes('id="qosOneScreenMethod" type="hidden" value="Cash"'), 'hidden method must carry the pre-selected Cash');

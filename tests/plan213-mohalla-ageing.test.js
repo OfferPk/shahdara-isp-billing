@@ -23,38 +23,40 @@ const moduleSrc = readFileSync(join(dir, '..', 'mohalla-ageing.js'), 'utf8');
 
 // As of 2026-11: Bani has a current, a 1-month and a 3+ month bill;
 // Chungi has a single 2-month bill; Saddar is known but has no dues.
+// Sharafat 14: amounts are integer CENTS (1000 rupees = 100000 cents);
+// the view carries cents end-to-end and rounds only at display.
 const entries = [
-  { customerId: 'C1', customerName: 'Ahmed', mohalla: 'Bani', billMonth: '2026-11', amount: 1000 },
-  { customerId: 'C1', customerName: 'Ahmed', mohalla: 'MOHALLA BANI', billMonth: '2026-10', amount: 500 },
-  { customerId: 'C2', customerName: 'Bilal', mohalla: 'bani', billMonth: '2026-08', amount: 200 },
-  { customerId: 'C3', customerName: 'Usman', mohalla: 'Chungi', billMonth: '2026-09', amount: 300 },
+  { customerId: 'C1', customerName: 'Ahmed', mohalla: 'Bani', billMonth: '2026-11', amount: 100000 },
+  { customerId: 'C1', customerName: 'Ahmed', mohalla: 'MOHALLA BANI', billMonth: '2026-10', amount: 50000 },
+  { customerId: 'C2', customerName: 'Bilal', mohalla: 'bani', billMonth: '2026-08', amount: 20000 },
+  { customerId: 'C3', customerName: 'Usman', mohalla: 'Chungi', billMonth: '2026-09', amount: 30000 },
 ];
 const view = buildReceivablesAgeing(entries, '2026-11');
 const summary = buildMohallaAgeing(view, ['Bani', 'Chungi', 'Saddar']);
 
 test('plan 7 view fixture is valid and totals as expected', () => {
   assert.equal(view.valid, true);
-  assert.equal(view.totalOutstanding, 2000);
+  assert.equal(view.totalOutstanding, 200000);
 });
 
 test('age bands sum exactly to each mohalla total', () => {
   const bani = summary.rows.find((row) => row.key === 'BANI');
-  assert.equal(bani.byBucket.current, 1000);
-  assert.equal(bani.byBucket.one, 500);
+  assert.equal(bani.byBucket.current, 100000);
+  assert.equal(bani.byBucket.one, 50000);
   assert.equal(bani.byBucket.two, 0);
-  assert.equal(bani.byBucket.threePlus, 200);
-  assert.equal(bani.bandsTotal, 1700);
+  assert.equal(bani.byBucket.threePlus, 20000);
+  assert.equal(bani.bandsTotal, 170000);
   assert.equal(bani.unaged, 0);
-  assert.equal(bani.total, 1700);
+  assert.equal(bani.total, 170000);
   const chungi = summary.rows.find((row) => row.key === 'CHUNGI');
-  assert.equal(chungi.byBucket.two, 300);
-  assert.equal(chungi.total, 300);
+  assert.equal(chungi.byBucket.two, 30000);
+  assert.equal(chungi.total, 30000);
   assert.equal(summary.bandsMatch, true);
 });
 
 test('all mohalla totals sum to the business total on the same fixture', () => {
-  assert.equal(summary.businessTotal, 2000);
-  assert.equal(summary.rowsTotal, 2000);
+  assert.equal(summary.businessTotal, 200000);
+  assert.equal(summary.rowsTotal, 200000);
   assert.equal(summary.sumsMatch, true);
 });
 
@@ -84,34 +86,34 @@ test('a mohalla in the view but not in the known list is still included', () => 
   const narrow = buildMohallaAgeing(view, ['Bani']);
   assert.ok(narrow.rows.find((row) => row.key === 'CHUNGI'));
   assert.equal(narrow.sumsMatch, true);
-  assert.equal(narrow.rowsTotal, 2000);
+  assert.equal(narrow.rowsTotal, 200000);
 });
 
 test('unreadable bill months sit outside the bands but inside the total', () => {
   const withUnaged = buildReceivablesAgeing(
-    [...entries, { customerId: 'C4', customerName: 'Zain', mohalla: 'Bani', billMonth: 'not-a-month', amount: 400 }],
+    [...entries, { customerId: 'C4', customerName: 'Zain', mohalla: 'Bani', billMonth: 'not-a-month', amount: 40000 }],
     '2026-11',
   );
   const aged = buildMohallaAgeing(withUnaged, ['Bani', 'Chungi']);
   const bani = aged.rows.find((row) => row.key === 'BANI');
-  assert.equal(bani.bandsTotal, 1700);
-  assert.equal(bani.unaged, 400);
-  assert.equal(bani.total, 2100);
+  assert.equal(bani.bandsTotal, 170000);
+  assert.equal(bani.unaged, 40000);
+  assert.equal(bani.total, 210000);
   assert.equal(bani.bandsTotal + bani.unaged, bani.total);
-  assert.equal(aged.businessTotal, 2400);
+  assert.equal(aged.businessTotal, 240000);
   assert.equal(aged.sumsMatch, true);
   assert.equal(aged.bandsMatch, true);
 });
 
 test('blank mohalla dues group under Unassigned, never dropped', () => {
   const blank = buildReceivablesAgeing(
-    [{ customerId: 'C9', customerName: 'Noor', mohalla: '', billMonth: '2026-11', amount: 700 }],
+    [{ customerId: 'C9', customerName: 'Noor', mohalla: '', billMonth: '2026-11', amount: 70000 }],
     '2026-11',
   );
   const noted = buildMohallaAgeing(blank, []);
   assert.equal(noted.rows.length, 1);
   assert.equal(noted.rows[0].label, 'Unassigned');
-  assert.equal(noted.rows[0].total, 700);
+  assert.equal(noted.rows[0].total, 70000);
   assert.equal(noted.sumsMatch, true);
 });
 
@@ -132,6 +134,8 @@ test('rows sort by mohalla label A-Z', () => {
 
 test('summary and row text state the figures plainly', () => {
   assert.match(mohallaAgeingSummaryText(summary), /3 mohallas, 2 with dues; 1 mohalla with no dues/);
+  // Sharafat 14: display is unchanged in shape — 200000 cents still
+  // prints "Rs. 2,000"; only the unit behind the figure changed.
   assert.match(mohallaAgeingSummaryText(summary), /Rs\. 2,000/);
   const bani = summary.rows.find((row) => row.key === 'BANI');
   assert.match(mohallaAgeingRowText(bani), /Bani: Rs\. 1,700 outstanding/);
@@ -150,7 +154,7 @@ test('inputs are never mutated', () => {
 test('html escapes labels and shows the no-dues note', () => {
   const tricky = buildMohallaAgeing(
     buildReceivablesAgeing(
-      [{ customerId: 'C5', customerName: 'A<b', mohalla: 'X<Y', billMonth: '2026-11', amount: 100 }],
+      [{ customerId: 'C5', customerName: 'A<b', mohalla: 'X<Y', billMonth: '2026-11', amount: 10000 }],
       '2026-11',
     ),
     ['Safe'],
@@ -166,9 +170,12 @@ test('html escapes labels and shows the no-dues note', () => {
 test('csv and filename', () => {
   const csv = mohallaAgeingCsv(summary);
   assert.match(csv, /^mohalla,current,1 month,2 months,3\+ months,bill month unreadable,total,bills,note\n/);
-  assert.match(csv, /Bani,1000,500,0,200,0,1700,3,\n/);
-  assert.match(csv, /Saddar,0,0,0,0,0,0,0,No dues\.\n/);
-  assert.match(csv, /Business total,,,,,,2000,,\n?$/);
+  // Sharafat 14 (parent decision 2026-11-13): the CSV writes exact
+  // decimal rupees — "1000.00", never integer cents "100000". The
+  // bills column is a count, not money, so it stays a plain integer.
+  assert.match(csv, /Bani,1000\.00,500\.00,0\.00,200\.00,0\.00,1700\.00,3,\n/);
+  assert.match(csv, /Saddar,0\.00,0\.00,0\.00,0\.00,0\.00,0\.00,0,No dues\.\n/);
+  assert.match(csv, /Business total,,,,,,2000\.00,,\n?$/);
   assert.equal(mohallaAgeingFilename(summary), 'mohalla-ageing-2026-11.csv');
   assert.equal(mohallaAgeingFilename(null), 'mohalla-ageing-unknown.csv');
 });

@@ -16323,6 +16323,108 @@ real pills. No new hex anywhere. */
 #infoCardResult ul{list-style:none;margin:8px 0;padding:0;display:grid;gap:6px}
 #infoCardResult ul li{padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;overflow-wrap:anywhere}
 #infoCardResult .empty-state{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;white-space:normal;overflow-wrap:anywhere}
+/* Profile Polish F (22) BLANKET RULE: every remaining profile section in
+ * the same pill style, or a matching colourful style where a pill does not
+ * fit — one comprehensive pass. Palette map (no new hex; state colours
+ * come from the --qc-* tokens in tokens.css, which also carry dark
+ * values):
+ *  - Row groups keep the ID-pill rotation (identity, not state): contact
+ *    yellow slot 1, location orange slot 7, money teal slot 6 (the same
+ *    teal Polish E used for Financial rows), install green slot 2,
+ *    network info-blue slot 3, hardware slate slot 4.
+ *  - Explainors and prose everywhere use the info-blue note
+ *    (.pcp-explainer values); draft results use info-blue pills
+ *    (Polish E (20)). Recorded data rows: teal for Financial + History,
+ *    info-blue for Customer-info notes and Network. States: mint =
+ *    settled/done, amber = pending/warning, rose = arrears/danger.
+ *  - Dues by month is Polish E territory — untouched. The Financial
+ *    header summary (figures only, no status word) is untouched. The
+ *    edit form (#customerProfileForm) is not a profile section — view
+ *    only. The complaints section lives on the Complaints tab, not the
+ *    profile Info view — untouched. */
+/* F1 — row groups: Polish D's service-group pill, in each group's
+ * rotation colour (extraClass on the fragment; default rendering
+ * untouched). */
+.profile-info-group--contact .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #e7c77e;border-radius:999px;background:#fef3c7}
+.profile-info-group--contact .profile-readonly-field dt{color:#704600}
+.profile-info-group--contact .profile-readonly-field dd{color:#704600}
+.profile-info-group--location .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #dc9478;border-radius:999px;background:#fff0e8}
+.profile-info-group--location .profile-readonly-field dt{color:#8a2b12}
+.profile-info-group--location .profile-readonly-field dd{color:#8a2b12}
+.profile-info-group--money .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec}
+.profile-info-group--money .profile-readonly-field dt{color:#0e5b4d}
+.profile-info-group--money .profile-readonly-field dd{color:#0e5b4d}
+.profile-info-group--install .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #5fa876;border-radius:999px;background:#dcfce7}
+.profile-info-group--install .profile-readonly-field dt{color:#145b38}
+.profile-info-group--install .profile-readonly-field dd{color:#145b38}
+.profile-info-group--network .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff}
+.profile-info-group--network .profile-readonly-field dt{color:#174b87}
+.profile-info-group--network .profile-readonly-field dd{color:#174b87}
+.profile-info-group--hardware .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #334155;border-radius:999px;background:#334155}
+.profile-info-group--hardware .profile-readonly-field dt{color:#fff}
+.profile-info-group--hardware .profile-readonly-field dd{color:#fff}
+/* F2 — explainer / intro prose: the first <p> of each section is an info
+ * note (.pcp-explainer values), never a data pill. */
+.profile-cross-payments > p:first-of-type,.profile-handling-note > p:first-of-type,.profile-standing-instruction > p:first-of-type,.profile-spoken-language-note > p:first-of-type,.profile-gate-access-instruction > p:first-of-type,.profile-customer-emergency-contact > p:first-of-type,.profile-verification-tick > p:first-of-type,.profile-household-link > p:first-of-type,.profile-move-house-history > p:first-of-type,.profile-number-change-log > p:first-of-type,.profile-mohalla-change-record > p:first-of-type,.temporarily-away-flag > p:first-of-type,.profile-field-change-history > p:first-of-type,section[aria-label="First-bill preview"] > p:first-of-type,section[aria-label="Welcome pack"] > p:first-of-type,section[aria-label="Billing cycle"] > p:first-of-type,section[aria-label="Preferred payment channel"] > p:first-of-type,section[aria-label="Monthly statement"] > p:first-of-type,section[aria-label="Balance enquiry reply"] > p:first-of-type,section[aria-label="Payment history mini-slip"] > p:first-of-type,section[aria-label="Open fault and request status reply"] > p:first-of-type,section[aria-label="Service terms acknowledgement"] > p:first-of-type,section[aria-label="Customer credit balance"] > p:first-of-type{margin:8px 0;padding:10px 12px;border:1px solid #adc9f1;border-radius:12px;background:#e5efff;color:#174b87;font-size:12px;line-height:1.5}
+/* F3 — Financial + History data rows: teal pills. */
+.profile-deposit-settlement > p,.profile-deposit-offset > p,.profile-credit-transfer-section > p,.profile-hardware-custody > p,.profile-hardware-custody .profile-custody-checklist > p,section[aria-label="Welcome pack"] > p,section[aria-label="Billing cycle"] > p,section[aria-label="Preferred payment channel"] > p,section[aria-label="Monthly statement"] > p,section[aria-label="Balance enquiry reply"] > p,section[aria-label="Payment history mini-slip"] > p,section[aria-label="Open fault and request status reply"] > p,section[aria-label="Service terms acknowledgement"] > p,section[aria-label="Customer credit balance"] > p,section[aria-label="First-bill preview"] > p,#statementDraftResult p,#balanceReplyResult p,#paymentSlipResult p,#statusReplyResult p,.profile-tickets-section .profile-tickets-charges,.profile-tickets-section .profile-tickets-empty,.profile-downtime-section > p,.profile-lifecycle-section .lifecycle-status-banner,.profile-lifecycle-section .lifecycle-empty,.profile-field-change-history .fch-summary,.profile-field-change-history .fch-none,.profile-relocation-section .relocation-timeline-empty,.profile-move-house-history .mvh-current,.profile-move-house-history .mvh-none,.profile-number-change-log .ncl-current,.profile-number-change-log .ncl-none,.profile-mohalla-change-record .mcr-current,.profile-mohalla-change-record .mcr-summary,.profile-mohalla-change-record .mcr-none,.profile-kist-section .profile-kist-empty,.onboarding-checklist > p:first-of-type{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-cross-payments li,.profile-credit-transfer-section .credit-transfer-list li,.profile-deposit-offset .deposit-offset-entries li,.profile-hardware-custody .profile-custody-checklist li,#statementDraftResult .statement-draft-fields li,#balanceReplyResult ul li,#paymentSlipResult ul li,.profile-tickets-section .profile-tickets-list li,.profile-lifecycle-section .lifecycle-timeline li,.profile-field-change-history .fch-list li,.profile-relocation-section .relocation-timeline-row,.profile-move-house-history .mvh-list li,.profile-number-change-log .ncl-list li,.profile-mohalla-change-record .mcr-list li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-move-house-history .mvh-annotations li,.profile-number-change-log .ncl-annotations li,.profile-mohalla-change-record .mcr-annotations li{display:inline-flex;align-items:center;padding:2px 8px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:11px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-kist-section .kist-plan-head,.profile-kist-section .kist-plan-meta,.profile-kist-section .kist-plan-detail,.profile-next-bill-section .profile-next-bill-month,.profile-next-bill-section .next-bill-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-next-bill-section .profile-next-bill-month{font-weight:700}
+.profile-next-bill-section .next-bill-total{border:1px solid #0e5b4d;font-weight:700}
+section[aria-label="Customer credit balance"] > p:not(:first-of-type){font-weight:700}
+.customer-lifetime-value .customer-lifetime-grid>div{padding:10px 12px;border:1px solid #9acbad;border-radius:12px;background:#e7f2ec}
+.customer-lifetime-value .customer-lifetime-grid>div dt{color:#0e5b4d}
+.customer-lifetime-value .customer-lifetime-grid>div dd{color:#0e5b4d}
+/* F4 — Customer-info notes + Network data rows: info-blue pills. */
+.profile-handling-note .chn-current,.profile-handling-note .chn-none,.profile-standing-instruction .sin-current,.profile-standing-instruction .sin-none,.profile-spoken-language-note .sln-current,.profile-spoken-language-note .sln-none,.profile-gate-access-instruction .gai-current,.profile-gate-access-instruction .gai-none,.profile-customer-emergency-contact .emc-current,.profile-customer-emergency-contact .emc-none,.profile-verification-tick .pvt-current,.profile-verification-tick .pvt-none,.profile-household-link .hhl-none,.profile-last-interaction .lil-line,.profile-last-interaction .lil-none,.profile-freshness-stamp .dfs-stamp,.profile-freshness-stamp .dfs-none,.profile-splitter-section > p,.profile-splitter-section .signal-history-empty,.profile-outage-section > p,.profile-referral-section > p,.profile-router-cred-section .router-cred-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-household-link .hhl-list li,.profile-splitter-section .signal-history-list li,.profile-referral-section .profile-referral-list li,.profile-contributors-section .profile-referral-list li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+/* F5 — classed notes and draft prose: info notes (.pcp-explainer values).
+ * Scoped per section so they beat the F3/F4 pill rules above. */
+.profile-kist-section .profile-kist-note,.profile-next-bill-section .profile-next-bill-note,.profile-mikrotik-section .profile-mikrotik-note,.profile-router-cred-section .profile-router-cred-note,.profile-splitter-section .profile-pole-note,.profile-uptime-cert-section > p,.profile-relocation-section .relocation-timeline-note,.profile-lifecycle-section .lifecycle-undated-note,.customer-lifetime-value .customer-lifetime-note,.onboarding-checklist > p:last-of-type,.profile-bad-debt-section > p.profile-custody-note,.profile-clearance-noc > p.profile-custody-note,.profile-deposit-settlement > p.profile-custody-note,.profile-deposit-offset > p.profile-custody-note,.profile-hardware-custody > p.profile-custody-note,#statementDraftResult .statement-draft-text,#balanceReplyResult p[style*="pre-wrap"],#paymentSlipResult p[style*="pre-wrap"],#statusReplyResult pre,section[aria-label="Welcome pack"] > p.welcome-pack-draft,#firstBillPreviewResult .first-bill-preview-assumptions,.month-card .bill-snapshot-note,.payment-form .field-help.payment-guidance{margin:8px 0;padding:10px 12px;border:1px solid #adc9f1;border-radius:12px;background:#e5efff;color:#174b87;font-size:12px;line-height:1.5}
+/* F6 — states (var(--qc-*) tokens only, no hex): mint = settled/done,
+ * amber = pending/warning, rose = arrears/danger. The bad-debt arrears
+ * rule comes first so the mint recovered rule (same specificity, later)
+ * wins when the first line IS the recovered line. */
+.profile-bad-debt-section > p:first-of-type{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid var(--qc-rose-border);border-radius:999px;background:var(--qc-rose-bg);color:var(--qc-rose-text);font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-bad-debt-section > p.custody-recovered,.profile-clearance-noc > p.custody-recovered,.profile-deposit-settlement > p.custody-recovered{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid var(--qc-mint-border);border-radius:999px;background:var(--qc-mint-bg);color:var(--qc-emerald-text);font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-clearance-noc > p.custody-pending,.profile-deposit-settlement > p.custody-pending{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid var(--qc-amber-strong-border);border-radius:999px;background:var(--qc-amber-soft-bg);color:var(--qc-amber-strong-text);font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-bad-debt-section > p.profile-custody-reason{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-hardware-custody .profile-custody-checklist li .custody-recovered{display:inline-flex;align-items:center;padding:1px 8px;border:1px solid var(--qc-mint-border);border-radius:999px;background:var(--qc-mint-bg);color:var(--qc-emerald-text);font-size:11px;font-weight:700}
+.profile-hardware-custody .profile-custody-checklist li .custody-pending{display:inline-flex;align-items:center;padding:1px 8px;border:1px solid var(--qc-amber-strong-border);border-radius:999px;background:var(--qc-amber-soft-bg);color:var(--qc-amber-strong-text);font-size:11px;font-weight:700}
+.onboarding-checklist ol li.onb-done{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid var(--qc-mint-border);border-radius:999px;background:var(--qc-mint-bg);color:var(--qc-emerald-text);font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.onboarding-checklist ol li.onb-pending{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #dce6e1;border-radius:999px;background:#f1f4f2;color:#5c6e66;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-tickets-section .profile-tickets-warning{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid var(--qc-amber-strong-border);border-radius:999px;background:var(--qc-amber-soft-bg);color:var(--qc-amber-strong-text);font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+section[aria-label="Welcome pack"] > p.welcome-pack-missing{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid var(--qc-amber-strong-border);border-radius:999px;background:var(--qc-amber-soft-bg);color:var(--qc-amber-strong-text);font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+#firstBillPreviewResult .first-bill-preview-incomplete{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid var(--qc-amber-strong-border);border-radius:999px;background:var(--qc-amber-soft-bg);color:var(--qc-amber-strong-text);font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.profile-hardware-custody .occupancy-risk-warning{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid var(--qc-amber-strong-border);border-radius:999px;background:var(--qc-amber-soft-bg);color:var(--qc-amber-strong-text);font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+/* F7 — first-bill preview: the table keeps its layout and becomes a teal
+ * card; the total row stays bold. */
+#firstBillPreviewResult .first-bill-preview{margin:6px 0;border:1px solid #9acbad;border-radius:12px;background:#e7f2ec;overflow:hidden}
+#firstBillPreviewResult .first-bill-preview table{width:100%;border-collapse:collapse}
+#firstBillPreviewResult .first-bill-preview tfoot td{font-weight:700;color:#0e5b4d}
+/* F8 — banners and whole-section states that are pills/cards, not rows. */
+.root-cause-banner{margin:6px 0;padding:10px 12px;border:1px solid #f0dbd8;border-radius:12px;background:#fdeceb;color:#a3433a;font-size:12px;line-height:1.5}
+.root-cause-banner .root-cause-title{font-weight:700}
+.root-cause-banner .root-cause-body,.root-cause-banner .root-cause-fix{margin:4px 0 0}
+.profile-disconnect-section > p,.profile-disconnect-section li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #334155;border-radius:999px;background:#334155;color:#fff;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+/* F9 — Billing tab month cards: stat pills teal, wide rows info-blue
+ * (the partial badge keeps its amber .status-pending treatment, so it is
+ * excluded here), payment rows pill their amount+meta span. */
+.month-card .month-summary-stat{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.month-card .month-summary-stat strong{color:#0e5b4d}
+.month-card .month-summary-wide:not(.month-status){display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.month-card li.payment-row > .payment-main{padding:8px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec}
+.month-card li.payment-row > .payment-main .payment-amount{color:#0e5b4d}
+.month-card li.payment-row > .payment-main .payment-meta{color:#0e5b4d}
+.month-card li.payment-row-voided > .payment-main{padding:8px 12px;border:1px solid var(--qc-rose-border);border-radius:999px;background:var(--qc-rose-bg)}
+.month-card li.payment-row-voided > .payment-main .payment-amount{color:var(--qc-rose-text)}
+.month-card li.payment-row-voided > .payment-main .payment-meta{color:var(--qc-rose-text)}
+.month-card .carry-credit-source{display:block;flex-basis:100%;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.month-card .empty-month{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.month-card .bill-audit summary{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;cursor:pointer}
+.month-card .bill-audit ol li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
 .mvh-none{color:#5c6e66;font-size:12px}
 [data-theme="dark"] .mvh-annotations li,[data-theme="dark"] .mvh-annotation-date,[data-theme="dark"] .mvh-none{color:var(--dk-muted)}
 [data-theme="dark"] .hhl-open{color:var(--dk-ink)}

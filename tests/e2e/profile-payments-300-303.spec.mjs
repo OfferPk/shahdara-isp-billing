@@ -1,7 +1,8 @@
 // #300 "+ Add Payment" always opens Quick Collect; #301 every profile action opens its dialog (Dispute threw);
 // #302 desktop profile action grid never clips; #303 payments-list polish (totals bar, dark details, scoped Undo toast).
-// Plan 492: #301/#302 open the "More actions" disclosure first — the 13 actions moved behind it, and the QA
-// tools (which also carry aria-haspopup="dialog") must not be swept into #301's enumeration.
+// Plan 492: #301/#302 open the "More actions" disclosure first — the 12 actions moved behind it (Archive left
+// for Row 1 in the Profile Archive Button Visibility item), and the QA tools (which also carry
+// aria-haspopup="dialog") must not be swept into #301's enumeration.
 import { test, expect } from '@playwright/test';
 import { installSyntheticRoster } from './seed-roster.mjs';
 
@@ -71,7 +72,7 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
   test('#301: every profile action button opens its dialog with no console error (incl. Dispute)', async ({ page }) => {
     const { errors, native } = track(page);
     await openCustomer(page, 1);
-    // Plan 492: the 13 quick actions live behind the "More actions"
+    // Plan 492: the 12 quick actions live behind the "More actions"
     // disclosure — open it first (a closed <details> hides its buttons),
     // and scope to the disclosure grid so the 29 QA tools (which also
     // carry aria-haspopup="dialog") are not swept in.
@@ -90,14 +91,16 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
     expect(errors).toEqual([]);
   });
 
-  test('#302: profile actions never clip at 1024 / 1280 / 1440; Record payment spans the row', async ({ page }) => {
+  test('#302: profile actions never clip at 1024 / 1280 / 1440; Record payment shares its row with Archive, half-width at 360px', async ({ page }) => {
     const { errors } = track(page);
     for (const width of [1024, 1280, 1440]) {
       await page.setViewportSize({ width, height: 800 });
       await openCustomer(page, 1);
-      // Plan 492: the actions now live in the "More actions" disclosure
-      // grid — open it and measure the grid (the group itself now holds
-      // only Archive plus the two disclosures).
+      // Profile Archive Button Visibility (user report 2026-11-13):
+      // Archive left More Actions > Payments for Row 1 beside Record
+      // payment, and Record payment no longer spans the full row —
+      // so the grid-measure below now also checks the two buttons
+      // share one row, with Record well under the full row width.
       await page.locator('#profileMoreActionsDetails').evaluate(el => { el.open = true; });
       const r = await page.evaluate(() => {
         const g = document.querySelector('.profile-more-actions-grid');
@@ -109,15 +112,45 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
           const a = rects[i], b = rects[j];
           if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) overlaps++;
         }
-        const primary = document.getElementById('currentBillPaymentShortcut').getBoundingClientRect().width;
+        const group = document.querySelector('.profile-action-group').getBoundingClientRect();
+        const primary = document.getElementById('currentBillPaymentShortcut').getBoundingClientRect();
+        const archive = document.getElementById('archiveCustomerButton').getBoundingClientRect();
         const name = document.getElementById('detailName').getBoundingClientRect();
-        return { clipped, overlaps, ratio: primary / g.clientWidth, nameLines: Math.round(name.height / parseFloat(getComputedStyle(document.getElementById('detailName')).lineHeight)) };
+        return {
+          clipped, overlaps,
+          ratio: primary.width / group.width,
+          archiveSameRow: Math.abs(archive.top - primary.top) < 1,
+          archiveBeside: archive.left >= primary.right - 1,
+          archiveOverlap: archive.left < primary.right - 1 && primary.left < archive.right - 1 && archive.top < primary.bottom - 1 && primary.top < archive.bottom - 1,
+          nameLines: Math.round(name.height / parseFloat(getComputedStyle(document.getElementById('detailName')).lineHeight)),
+        };
       });
       expect(r.clipped, `${width}`).toEqual([]);
       expect(r.overlaps, `${width}`).toBe(0);
-      expect(r.ratio, `${width}`).toBeGreaterThan(0.95);
+      expect(r.ratio, `${width} Record no longer spans the row`).toBeLessThan(0.6);
+      expect(r.archiveSameRow, `${width} Archive shares Record's row`).toBe(true);
+      expect(r.archiveBeside, `${width} Archive sits beside Record`).toBe(true);
+      expect(r.archiveOverlap, `${width} Archive does not overlap Record`).toBe(false);
       expect(r.nameLines, `${width} name`).toBeLessThanOrEqual(2);
     }
+    // Half-width pin: at 360px the action group is two equal columns,
+    // so Record payment takes about half the row next to Archive.
+    await page.setViewportSize({ width: 360, height: 800 });
+    await openCustomer(page, 1);
+    const phone = await page.evaluate(() => {
+      const group = document.querySelector('.profile-action-group').getBoundingClientRect();
+      const primary = document.getElementById('currentBillPaymentShortcut').getBoundingClientRect();
+      const archive = document.getElementById('archiveCustomerButton').getBoundingClientRect();
+      return {
+        ratio: primary.width / group.width,
+        archiveSameRow: Math.abs(archive.top - primary.top) < 1,
+        archiveBeside: archive.left >= primary.right - 1,
+      };
+    });
+    expect(phone.ratio, '360px Record is about half the row').toBeGreaterThan(0.4);
+    expect(phone.ratio, '360px Record is about half the row').toBeLessThan(0.6);
+    expect(phone.archiveSameRow, '360px Archive shares Record's row').toBe(true);
+    expect(phone.archiveBeside, '360px Archive sits beside Record').toBe(true);
     expect(errors).toEqual([]);
   });
 

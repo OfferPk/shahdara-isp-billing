@@ -25,6 +25,14 @@
 // stays; the base card `min-height: 54px` stays (with `flex-shrink:
 // 0` it never binds as a crush floor).
 //
+// Quick Collect CSS tightening (user instruction 2026-11-13): the
+// MODAL action row REVERSES the wrap valve above — it is one row
+// (nowrap, Call / Location flex 1, Collect flex 1.5, 40px) so two
+// cards fit on screen. The base wrap stays for Field Mode. The
+// harness must prove the modal row at 360px AND 320px — the valve
+// existed because a 360px card "cannot fit all three labels on one
+// line" (see tests/qc-modal-overhaul-2-fit.test.js).
+//
 // Stylesheet-value approach (polish #17/#21/#25/#27, QC-2/QC-3
 // pattern): read the CSS as text and assert the values; no browser
 // needed. Fixture data only — generic fixture names, pattern-fake
@@ -57,7 +65,18 @@ test('qc card wrapper never shrinks below its content height', () => {
 test('qc action row wraps and action buttons stay on one line', () => {
   const actions = ruleBlock('.qc3-card-actions {');
   assert.ok(actions.includes('display: flex'), 'the action row must stay flex (three buttons side by side)');
-  assert.ok(actions.includes('flex-wrap: wrap'), 'the action row must wrap — at very narrow widths the third button drops to a second row instead of clipping');
+  assert.ok(actions.includes('flex-wrap: wrap'), 'the BASE action row must wrap — Field Mode keeps the wrap valve, so at very narrow widths the third button drops to a second row instead of clipping');
+  // Quick Collect CSS tightening (user instruction 2026-11-13):
+  // the MODAL row is sized for one row (Call / Location flex 1,
+  // Collect flex 1.5, 40px) so two cards fit on screen — but the
+  // wrap valve STAYS: nowrap was measured and rejected (at 320px
+  // the three buttons need 266px for 236px available, a 30px row
+  // overflow / 11px at the list level). The valve only engages
+  // when the row does not fit, so 360px stays one row and 320px
+  // drops the third button instead of clipping. The harness must
+  // prove the row at 360px AND 320px.
+  const modalActions = ruleBlock('#quickCollectModal .qc3-card-actions {');
+  assert.ok(modalActions.includes('flex-wrap: wrap'), 'the modal action row must keep the wrap valve — one row when it fits, a dropped third button when it does not');
   const btn = ruleBlock('.qc3-action-btn {');
   assert.ok(btn.includes('flex: 1 1 0'), 'the action buttons must still share the row evenly');
   assert.ok(btn.includes('white-space: nowrap'), 'an action button label such as "📍 Location" must stay on one line');
@@ -67,9 +86,10 @@ test('qc action row wraps and action buttons stay on one line', () => {
 
 test('qc list still scrolls at 460px and the base card min-height stays', () => {
   // QC Modal Overhaul 2: the cap rises 380px -> 460px (measured:
-  // 122px plain / 170.6px badged cards, 2 full + a third partial
-  // in a 460px list — the "2.5–3 cards on screen" target). The list
-  // still scrolls; the fix is the card shrink AND the taller list.
+  // 118px plain / 151.5px chips-row cards after the Quick Collect
+  // CSS tightening, 2 full + 85% of a third in a 460px list — the
+  // "2.5–3 cards on screen" target). The list still scrolls; the
+  // fix is the card shrink AND the taller list.
   const list = ruleBlock('.qc-customer-list {');
   assert.ok(list.includes('max-height: 460px'), 'the list must cap at 460px and scroll');
   assert.ok(list.includes('overflow-y: auto'), 'the list must still scroll vertically');

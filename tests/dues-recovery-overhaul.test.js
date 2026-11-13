@@ -245,8 +245,14 @@ test('overhaul cards: Collect / Waada / History, health tag, WhatsApp row, no em
 
 // --- Structure: home cards hidden, subtitle wraps, fleet, FAB ------------------
 
-test('overhaul screen: home cards hide on the recovery screen and the subtitle wraps', () => {
-  assert.ok(routerCss.includes('body[data-screen="recovery"] main > article.summary-card{display:none}'), 'home summary cards hide on the recovery screen');
+test('overhaul screen: dead recovery hide rule is gone and the subtitle wraps', () => {
+  // Transactions & Recent Receipts Polish §1 (D1): the Subscriber
+  // Count & Tab Isolation move took the loose <main> summary cards
+  // into their home tabs, so the recovery-screen hide rule matched
+  // nothing anymore — this PR deletes it instead of keeping dead
+  // CSS. The cards are pinned to their homes by
+  // subscriber-count-tab-isolation.test.js.
+  assert.ok(!routerCss.includes('body[data-screen="recovery"] main > article.summary-card{display:none}'), 'dead recovery hide rule is gone — the SCTI move fixed the mount');
   assert.ok(!/\.sr-screen-subtitle\s*\{[^}]*white-space:\s*nowrap/.test(routerCss), 'the screen subtitle no longer truncates on one line');
   assert.ok(routerCss.includes('-webkit-line-clamp: 2'), 'the subtitle wraps to at most two lines');
 });

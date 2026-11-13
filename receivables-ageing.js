@@ -409,21 +409,29 @@ export function ageingHtml(view) {
     + customerSections + unagedSection;
 }
 
-/** CSV export: one row per aged bill entry, then mohalla totals. */
+/** CSV export: one row per bill entry, then mohalla totals.
+ * Sharafat 15 (parent decision 2026-11-13): unaged rows are no longer
+ * dropped — they print under the 'Unaged' bucket label, in a block
+ * after the aged rows, so the row section sums to the mohalla-totals
+ * section (buildReceivablesAgeing already counts unaged amounts in
+ * those totals). A blank bill month prints '—', mirroring ageingHtml. */
 export function ageingCsv(view, agedEntries) {
   if (!view || !view.valid) return '';
   const lines = ['bucket,customer,mohalla,bill month,amount'];
+  const unagedLines = [];
   for (const entry of Array.isArray(agedEntries) ? agedEntries : []) {
     const bucketKey = ageingBucketForBill(str(entry.billMonth).trim(), view.asOfMonth);
-    if (bucketKey === null) continue;
-    lines.push([
-      csvCell(view.buckets[bucketKey].label),
+    const line = [
+      csvCell(bucketKey === null ? 'Unaged' : view.buckets[bucketKey].label),
       csvCell(entry.customerName),
       csvCell(str(entry.mohallaLabel) || ageingMohallaLabel(entry.mohalla)),
-      csvCell(str(entry.billMonth).trim()),
+      csvCell(str(entry.billMonth).trim() || '—'),
       csvCell(formatCsvAmount(entry.amount)),
-    ].join(','));
+    ].join(',');
+    if (bucketKey === null) unagedLines.push(line);
+    else lines.push(line);
   }
+  lines.push(...unagedLines);
   lines.push('');
   lines.push('mohalla,total,bills,current,1 month,2 months,3+ months');
   for (const row of view.mohallaTotals) {

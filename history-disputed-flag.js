@@ -45,6 +45,7 @@ const HISTORY_DISPUTED_FLAG_TYPE_LABELS = Object.freeze({
   credit: 'Credit',
   refund: 'Refund',
   adjustment: 'Adjustment',
+  info: 'Info',
 });
 
 const HISTORY_DISPUTED_FLAG_METHOD_LABELS = Object.freeze({

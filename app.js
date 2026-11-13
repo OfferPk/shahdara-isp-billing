@@ -638,7 +638,7 @@ import { normalizeLedgerCollectorFilter, searchLedgerByCollector, ledgerCollecto
 import { normalizeLedgerRefine, searchLedgerByRefine, ledgerRefineSummaryText, ledgerRefineEmptyText } from './ledger-refine-search.js';
 import { normalizeLedgerReceiptBookFilter, ledgerReceiptBookOptions, searchLedgerByReceiptBook, ledgerReceiptBookSummaryText, ledgerReceiptBookEmptyText, ledgerReceiptBookRangeEmptyText } from './ledger-receipt-book.js';
 import { normalizeLedgerReferenceSearch, searchLedgerByReference, ledgerReferenceSearchSummaryText, ledgerReferenceSearchEmptyText, ledgerReferenceClearanceSuffix } from './ledger-reference-search.js';
-import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
+import { historyRunningBalanceColumnHtml, historyRunningBalanceMatchesDues } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { paymentMethodGroup, filterPaymentFormFieldsForMethod, filteredHistorySummaryText, historyTypeLegendText, historyEntryShortRef, historyEntryRunningNoteText, historyEntryTypeClass } from './billing-ledger-presentation.js';
 import { createDoubleTapSaveGuard, doubleTapSaveGuardKey, doubleTapSaveGuardTryStart, doubleTapSaveGuardFinish, doubleTapSaveGuardSetDisabled } from './double-tap-save-guard.js';
@@ -4782,6 +4782,11 @@ function renderFullHistory(customer) {
   const entries = fullHistoryEntries({
     customerId: customer.id,
     bills: customer.bills ?? [],
+    // Sharafat 12: the customer's manual baqaya entries, already
+    // derived by core.js (full amount, owner adjustments) — without
+    // them the history's final balance falls short of the dues by
+    // exactly the unpaid baqaya.
+    manualBaqayaEntries: manualBaqayaEntriesWithRemaining(customer),
     creditEntries: loadCreditEntries(),
     refundRecords: loadRefunds(),
   });
@@ -5108,6 +5113,19 @@ function renderFullHistory(customer) {
   const balanceHost = $('#hrbHistoryRunningBalance');
   if (balanceHost) {
     balanceHost.innerHTML = historyTableCardHtml(historyRunningBalanceColumnHtml(shown, entries), 'Running balance table');
+    // Sharafat 12: the matches-dues check, wired in at last — the
+    // full history's final balance against the customer's current
+    // dues (the same totalOutstandingFigures total the profile shows
+    // as Outstanding). A mismatch says so plainly instead of leaving
+    // the operator to spot it; an overpaid final clamps to zero in
+    // the comparison, the same clamp as the engine, so it reads as a
+    // match. The check uses the FULL entries, never the filtered
+    // view, and reuses the existing notice class — no new styles.
+    const duesCheck = historyRunningBalanceMatchesDues(
+      entries,
+      totalOutstandingFigures(customer, calculatePaymentAllocations({ customers: [customer] })).totalCents,
+    );
+    balanceHost.innerHTML += `<p class="notice">${escapeHtml(duesCheck.text)}</p>`;
     markHistoryTableFooter(balanceHost);
   }
   // Plan 407 — History monthly grouping with subtotals. One monthly

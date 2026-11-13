@@ -28,6 +28,7 @@ const HISTORY_AMOUNT_TYPE_LABELS = Object.freeze({
   credit: 'Credit',
   refund: 'Refund',
   adjustment: 'Adjustment',
+  info: 'Info',
 });
 
 const HISTORY_AMOUNT_METHOD_LABELS = Object.freeze({

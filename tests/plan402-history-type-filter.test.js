@@ -66,7 +66,7 @@ test('Plan 402: normalize reads all, missing and unknown as all', () => {
   assert.equal(normalizeHistoryTypeFilter(42), 'all');
 });
 
-test('Plan 402: isHistoryTypeFilter accepts all and the six types only', () => {
+test('Plan 402: isHistoryTypeFilter accepts all and the seven types only', () => {
   assert.equal(isHistoryTypeFilter('all'), true);
   for (const type of HISTORY_TYPE_FILTER_TYPES) assert.equal(isHistoryTypeFilter(type), true);
   assert.equal(isHistoryTypeFilter('other'), false);
@@ -75,12 +75,17 @@ test('Plan 402: isHistoryTypeFilter accepts all and the six types only', () => {
   assert.equal(isHistoryTypeFilter(null), false);
 });
 
-test('Plan 402: the filter covers six types plus all', () => {
-  assert.deepEqual([...HISTORY_TYPE_FILTER_TYPES], ['charge', 'payment', 'advance', 'credit', 'refund', 'adjustment']);
+test('Plan 402: the filter covers seven types plus all', () => {
+  // Sharafat 12: a seventh type, 'info' — an informational line for
+  // ticket/add-on charges already inside the payment cash, which
+  // moves nothing but is a line of its own, so the filter offers it
+  // and the per-type counts still sum to the full list.
+  assert.deepEqual([...HISTORY_TYPE_FILTER_TYPES], ['charge', 'payment', 'advance', 'credit', 'refund', 'adjustment', 'info']);
   assert.equal(HISTORY_TYPE_FILTER_ALL, 'all');
   assert.equal(HISTORY_TYPE_FILTER_LABELS.refund, 'Refund');
   assert.equal(HISTORY_TYPE_FILTER_LABELS.charge, 'Charge');
   assert.equal(HISTORY_TYPE_FILTER_LABELS.advance, 'Advance');
+  assert.equal(HISTORY_TYPE_FILTER_LABELS.info, 'Info');
   assert.equal(HISTORY_TYPE_FILTER_EMPTY_TEXT, 'No transactions yet');
 });
 
@@ -160,11 +165,15 @@ test('Plan 402: counts are all zero for an empty or missing list', () => {
 test('Plan 402: options carry live counts, all first, summing to the total', () => {
   const entries = mixedEntries();
   const options = historyTypeFilterOptions(entries);
-  assert.equal(options.length, 7);
+  // Sharafat 12: eight options now — all plus seven types ('info'
+  // joins the six; this fixture carries no info lines, so its count
+  // is 0 and the per-type counts still sum to the total).
+  assert.equal(options.length, 8);
   assert.deepEqual(options[0], { value: 'all', label: 'All types', count: 10 });
   assert.deepEqual(options[1], { value: 'charge', label: 'Charge', count: 2 });
   assert.deepEqual(options[5], { value: 'refund', label: 'Refund', count: 2 });
   assert.deepEqual(options[6], { value: 'adjustment', label: 'Adjustment', count: 1 });
+  assert.deepEqual(options[7], { value: 'info', label: 'Info', count: 0 });
   const sum = options.slice(1).reduce((total, option) => total + option.count, 0);
   assert.equal(sum, options[0].count);
 });

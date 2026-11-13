@@ -61,6 +61,7 @@ const HISTORY_STRUCK_THROUGH_TYPE_LABELS = Object.freeze({
   credit: 'Credit',
   refund: 'Refund',
   adjustment: 'Adjustment',
+  info: 'Info',
 });
 
 const HISTORY_STRUCK_THROUGH_PAYMENT_TYPES = Object.freeze([

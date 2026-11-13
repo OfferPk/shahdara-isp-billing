@@ -340,7 +340,17 @@ test('daisy chain: zones read in the numbered order', () => {
   assert.deepEqual(tree.zones.map((zone) => zone.zoneKey), ['charyaa', 'sodaa']);
 });
 
-test('QC filter counts: the mohalla filter rows read in the numbered order', () => {
+test('QC filter counts: the mohalla filter rows sort by dues first (numbered order is only the tie-break)', () => {
+  // Quick Collect CSS tightening (user instruction 2026-11-13,
+  // parent decision D1) — EXCEPTION to the numbered order: the QC
+  // filter dropdown lists the mohallas the operator most needs
+  // first (highest pending PKR), NOT in the fixed 1–12 order. The
+  // numbered order survives only as the tie-break (equal PKR, and
+  // inside the (0) group) — see
+  // tests/qc4-mohalla-filter-counts.test.js. Every other surface
+  // keeps the numbered order; this one dropdown is the single
+  // exception, recorded here so a future reader does not "fix" it
+  // back.
   const pool = [
     { id: 'c1', name: 'Test 1', totalDues: 1000, mohalla: 'SODAA' },
     { id: 'c2', name: 'Test 2', totalDues: 2000, mohalla: 'CHARYAA' },
@@ -348,8 +358,8 @@ test('QC filter counts: the mohalla filter rows read in the numbered order', () 
   ];
   const { rows } = quickCollectMohallaPendingCounts(pool, ORDERED_DEFAULTS);
   const keys = rows.map((row) => row.key);
+  assert.ok(keys.indexOf('kishtii') < keys.indexOf('charyaa'));
   assert.ok(keys.indexOf('charyaa') < keys.indexOf('sodaa'));
-  assert.ok(keys.indexOf('sodaa') < keys.indexOf('kishtii'));
   assert.equal(rows.find((row) => row.key === 'charyaa').count, 1);
   assert.equal(rows.find((row) => row.key === 'charyaa').pendingPkr, 2000);
 });

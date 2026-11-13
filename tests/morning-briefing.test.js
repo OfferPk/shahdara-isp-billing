@@ -269,3 +269,21 @@ test('SISP-145 wiring: strip markup, pill routes and host extras are in place', 
   assert.ok(block.includes('.morning-pill'), 'pill styles present');
   assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(block), 'briefing CSS uses tokens only, no hex');
 });
+
+test('home dashboard polish (A3): Backup pill value is the label only, with a status dot; critical/never get the alert treatment', () => {
+  const css = readFileSync(new URL('../components.css', import.meta.url), 'utf8');
+  const src = readFileSync(new URL('../morning-briefing.js', import.meta.url), 'utf8');
+  assert.ok(src.includes("setText('briefBackupValue', morningBriefingBackupLabel(briefing))"), 'value render is label-only (no emoji prefix)');
+  assert.ok(!src.includes('`${briefing.backup.emoji} ${morningBriefingBackupLabel(briefing)}`'), 'the emoji-prefixed render is gone');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.ok(html.includes('class="backup-status-dot"'), 'Backup pill carries the status dot');
+  assert.ok(html.includes('class="morning-pill-value-row"'), 'dot + value share a row');
+  assert.ok(css.includes('.backup-status-dot {'), 'dot rule exists');
+  const dot = css.slice(css.indexOf('.backup-status-dot {'), css.indexOf('.backup-status-dot {') + 200);
+  assert.ok(dot.includes('width: 10px') && dot.includes('height: 10px'), 'dot is 10px');
+  assert.ok(dot.includes('border-radius: 9999px'), 'dot is round');
+  assert.ok(css.includes('.morning-pill.pill-critical .backup-status-dot'), 'critical dot is danger red');
+  assert.ok(css.includes('.morning-pill.pill-never .backup-status-dot'), 'never dot is danger red');
+  assert.ok(css.includes('border-color: var(--color-danger-light)'), 'critical/never carry the alert border');
+  assert.ok(css.includes('background: var(--ds-footer-bad)'), 'critical/never carry the alert background');
+});

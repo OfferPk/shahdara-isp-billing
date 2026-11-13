@@ -167,10 +167,12 @@ export function profileHeaderStripHtml(strip, formatAmount = defaultFormatAmount
     ? `${escapeHtml(format(strip.lastPayment.amount))} · ${escapeHtml(strip.lastPayment.date)}`
     : 'No payment yet';
   const nextDue = strip.nextDueDate ? escapeHtml(strip.nextDueDate) : 'Not recorded';
-  // Profile Polish B (14) — the four figures render as pills, one
-  // colour each from the customer-id pill palette (Dues red, Package
-  // blue, Last payment green, Next due yellow). Same figures, same
-  // order, same text — only the stat cells gain pill classes; the
-  // strip container and the label/value inline styles are untouched.
-  return `<section class="profile-header-strip" id="phsStrip" aria-label="Customer at a glance" style="display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; margin: 8px 0 12px; padding: 10px 12px; border: 1px solid #d8dee9; border-radius: 8px; background: #f7f9fc;"><div class="phs-stat phs-pill phs-pill-dues"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Dues</span><strong class="phs-value" style="font-size: 15px;">${dues}</strong></div><div class="phs-stat phs-pill phs-pill-package"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Package</span><strong class="phs-value" style="font-size: 15px;">${packageValue}</strong></div><div class="phs-stat phs-pill phs-pill-last-payment"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Last payment</span><strong class="phs-value" style="font-size: 15px;">${lastPayment}</strong></div><div class="phs-stat phs-pill phs-pill-next-due"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Next due</span><strong class="phs-value" style="font-size: 15px;">${nextDue}</strong></div></section>`;
+  // Profile View Polish — the strip is a 2-column grid now (Dues |
+  // Package on row 1, Last payment | Next due on row 2), and a zero
+  // balance reads soft emerald, not alarm red: the dues pill takes the
+  // phs-pill-dues-zero modifier while its text stays 'No amount due'.
+  // The base pill colours stay literal hex (Polish B (14) test reads
+  // them by regex); only the zero modifier uses tokens. Red for every
+  // dues > 0 — there is no amber band anywhere today.
+  return `<section class="profile-header-strip" id="phsStrip" aria-label="Customer at a glance" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; margin: 8px 0 12px; padding: 10px 12px; border: 1px solid #d8dee9; border-radius: 8px; background: #f7f9fc;"><div class="phs-stat phs-pill phs-pill-dues${strip.duesCents === 0 ? ' phs-pill-dues-zero' : ''}"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Dues</span><strong class="phs-value" style="font-size: 15px;">${dues}</strong></div><div class="phs-stat phs-pill phs-pill-package"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Package</span><strong class="phs-value" style="font-size: 15px;">${packageValue}</strong></div><div class="phs-stat phs-pill phs-pill-last-payment"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Last payment</span><strong class="phs-value" style="font-size: 15px;">${lastPayment}</strong></div><div class="phs-stat phs-pill phs-pill-next-due"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Next due</span><strong class="phs-value" style="font-size: 15px;">${nextDue}</strong></div></section>`;
 }

@@ -7138,7 +7138,7 @@
       <div class="transactions-pane">
         <div class="transactions-heading">
           <div><p class="eyebrow">LOCAL PAYMENT HISTORY</p><h2 id="transactionsHeading">Transactions</h2><p class="transactions-subtitle">Every recorded payment · newest first</p></div>
-          <p id="transactionsCount" class="transactions-count" role="status">0 transactions</p><button class="help-info-btn" type="button" data-help="correct_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
+          <div class="transactions-count-row"><p id="transactionsCount" class="transactions-count" role="status">0 transactions</p><button class="help-info-btn" type="button" data-help="correct_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button></div>
         </div>
         <!-- Transactions Screen Overhaul: one unified search bar at the
              top (live search + refine + reference + receipt number in a
@@ -7147,7 +7147,7 @@
              12-field form no longer sits below the list. -->
         <div class="tx-topbar">
           <div class="tx-search-row">
-            <input id="transactionLiveSearch" type="search" autocomplete="off" placeholder="Search name, phone, amount, reference, or receipt no." aria-label="Search payments by name, phone, amount, reference, or receipt number">
+            <input id="transactionLiveSearch" type="search" autocomplete="off" placeholder="Search customer, #ID, amount, or receipt #..." aria-label="Search payments by name, phone, amount, reference, or receipt number">
             <button id="txAdvancedFiltersToggle" class="secondary-button tx-filters-toggle" type="button" aria-expanded="false" aria-controls="txAdvancedFilters">Filters &amp; sort</button>
           </div>
           <div class="tx-quick-pills" role="group" aria-label="Quick filters">
@@ -7166,9 +7166,9 @@
              re-sends it (WhatsApp text / PNG screenshot). -->
         <section class="receipt-finder" aria-labelledby="receiptFinderHeading">
           <div class="receipt-finder-head"><h3 id="receiptFinderHeading" data-i18n="receipt_finder_heading">Recent receipts</h3><p class="receipt-finder-note" data-i18n="receipt_finder_note">Find any receipt — reopen it or send it again.</p></div>
-          <input id="receiptFinderSearch" type="search" autocomplete="off" placeholder="Find a receipt — customer name, phone, or customer ID" data-i18n-placeholder="receipt_finder_search_placeholder" data-i18n-aria-label="receipt_finder_search_aria" aria-label="Find a receipt by customer name, phone, or customer ID">
           <p id="receiptFinderCount" class="receipt-finder-count" role="status" aria-live="polite"></p>
           <ul id="receiptFinderResults" class="receipt-finder-results" aria-label="Recent receipts"></ul>
+          <button id="receiptFinderShowMore" class="secondary-button receipt-finder-show-more" type="button" data-i18n="receipt_finder_show_more" hidden>Show More (25 per page)</button>
         </section>
         <div class="tx-summary-row">
           <div id="transactionSummaryBar" class="transaction-summary-bar" aria-live="polite">
@@ -27025,7 +27025,7 @@
       <div class="modal-heading">
         <div>
           <p class="eyebrow">FIELD RECOVERY &amp; BILLING</p>
-          <h2 id="quickCollectTitle"><span class="qc-title-icon" data-ds-icon="Zap" aria-hidden="true"></span><span class="qc-title-text">Quick Collect (2-Tap Flow)</span></h2><button class="help-info-btn" type="button" data-help="collect_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label"><span data-ds-icon="Info"></span></button>
+          <h2 id="quickCollectTitle">Quick Collect (2-Tap Flow)</h2><button class="help-info-btn" type="button" data-help="collect_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label"><span data-ds-icon="Info"></span></button>
         </div>
         <button id="closeQuickCollectModalBtn" class="close-button" type="button" aria-label="Close quick collect modal">✕</button>
       </div>
@@ -27097,7 +27097,7 @@
         <div class="mhf-mohalla-filter-row">
           <label for="mhfMohallaFilter">Mohalla</label>
           <select id="mhfMohallaFilter" class="qc-input mhf-mohalla-filter" aria-label="Filter customers by mohalla">
-            <option value="">All</option>
+            <option value="">All mohallas</option>
           </select>
         </div>
 
@@ -27118,7 +27118,7 @@
         <div id="dtpDailyTargetProgress" class="ds-stat-box" aria-live="polite"></div>
 
         <button id="edsEndOfDaySummaryButton" type="button" class="secondary-button eds-summary-button" aria-expanded="false" aria-controls="edsEndOfDaySummary">
-          <span data-ds-icon="BarChart3" aria-hidden="true"></span> Day Summary
+          📊 Day Summary
         </button>
         </div>
         <div id="edsEndOfDaySummary" class="eds-summary" role="region" aria-label="End-of-day summary" aria-live="polite" hidden></div>

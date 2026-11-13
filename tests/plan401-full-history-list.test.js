@@ -107,6 +107,10 @@ test('Plan 401: a charge with no due date falls back to its bill month', () => {
 });
 
 test('Plan 401: a bill with no due amount contributes no charge entry', () => {
+  // Sharafat 12: an unpriced bill (dueAmount null — no charge yet)
+  // still contributes nothing, but a priced zero bill (dueAmount 0)
+  // now keeps a visible PKR 0 charge entry, so a fully-concessed
+  // month still appears in history instead of vanishing from it.
   const entries = fullHistoryEntries({
     customerId: CUSTOMER,
     bills: [bill({ dueAmount: null })],
@@ -116,7 +120,10 @@ test('Plan 401: a bill with no due amount contributes no charge entry', () => {
     customerId: CUSTOMER,
     bills: [bill({ dueAmount: 0 })],
   });
-  assert.equal(zeroEntries.length, 0);
+  assert.equal(zeroEntries.length, 1);
+  assert.equal(zeroEntries[0].type, 'charge');
+  assert.equal(zeroEntries[0].amountCents, 0);
+  assert.equal(zeroEntries[0].runningBalanceCents, 0);
 });
 
 // --- Payments ---
@@ -213,7 +220,11 @@ test('Plan 401: a credit from an approved adjustment reduces the balance', () =>
   assert.equal(entries[1].runningBalanceCents, 200000);
 });
 
-test('Plan 401: credit entries for another customer and bad sources are excluded', () => {
+test('Plan 401: credit entries for another customer are excluded; any recorded source is kept', () => {
+  // Sharafat 12: the other-customer half of this rule stays — a
+  // credit for another customer never appears — but the source half
+  // reverses: a credit of any recorded source (here 'gift') is now
+  // kept, with its source shown, instead of being dropped.
   const entries = fullHistoryEntries({
     customerId: CUSTOMER,
     bills: [bill()],
@@ -222,7 +233,9 @@ test('Plan 401: credit entries for another customer and bad sources are excluded
       creditEntry({ id: 'CR-2', source: 'gift', amountCents: 100000 }),
     ],
   });
-  assert.equal(entries.length, 1);
+  assert.equal(entries.length, 2);
+  assert.equal(entries[1].type, 'credit');
+  assert.equal(entries[1].source, 'gift');
 });
 
 test('Plan 401: a refund record increases the balance and carries its reason', () => {
@@ -365,6 +378,9 @@ test('Plan 401: summary text counts entries and names the final balance', () => 
 });
 
 test('Plan 401: type labels cover every history type', () => {
+  // Sharafat 12: a seventh type, 'info' — an informational line for
+  // ticket/add-on charges already inside the payment cash, which
+  // moves nothing.
   assert.deepEqual([...FULL_HISTORY_TYPES], [
     'charge',
     'payment',
@@ -372,6 +388,7 @@ test('Plan 401: type labels cover every history type', () => {
     'credit',
     'refund',
     'adjustment',
+    'info',
   ]);
   for (const type of FULL_HISTORY_TYPES) {
     assert.ok(FULL_HISTORY_TYPE_LABELS[type], `missing label for ${type}`);

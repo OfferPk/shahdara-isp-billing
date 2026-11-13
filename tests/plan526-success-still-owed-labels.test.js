@@ -243,7 +243,7 @@ test('wiring: the controller still renders both lines from the same modules', ()
   assert.ok(wiringSrc.includes('stillOwesLine(postSaveCustomer, calculatePaymentAllocations(postSaveState), baqayaCents)'), 'line must read the post-save record');
 });
 
-test('wiring: the receipt card still reads the payable remainder — the merged row carries the settled state', () => {
+test('wiring: the receipt card still reads the payable remainder — the merged row carries the owed figure, the still-owes pill the settled state', () => {
   // BUT HOUSE fix: the renderer takes an optional second argument
   // carrying the live-state WhatsApp resolution (whatsappPhone first,
   // else the primary phone) — the signature changed, the card builder
@@ -258,6 +258,10 @@ test('wiring: the receipt card still reads the payable remainder — the merged 
   // (the merged row + the still-owes pill state the settled/partial
   // state now), so no 'Settle in Full' / 'Partial Payment' text may
   // remain anywhere in the controller.
+  // QC Success Card Polish (2026-11-13): the merged row is HIDDEN
+  // when the figure is 0 — the builder no longer references the
+  // fully-paid text at all; the still-owes pill alone states the
+  // settled state.
   assert.ok(wiringSrc.includes('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText, editingPhone = false, phoneEditValue = \'\', phoneEditError = \'\' } = {})'), 'missing receipt card');
   const start = wiringSrc.indexOf('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText, editingPhone = false, phoneEditValue = \'\', phoneEditError = \'\' } = {})');
   // The builder is a top-level export function — slice to the next
@@ -266,7 +270,7 @@ test('wiring: the receipt card still reads the payable remainder — the merged 
   const nextFn = wiringSrc.slice(start + 10).search(/\n(?:export )?function /);
   const slice = nextFn === -1 ? wiringSrc.slice(start, start + 12000) : wiringSrc.slice(start, start + 10 + nextFn);
   assert.match(slice, /receipt\.payableRemaining \?\? receipt\.newTotalDues/);
-  assert.ok(slice.includes('SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT'), 'merged row must read the fully-paid label from the module');
+  assert.ok(!slice.includes('SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT'), 'merged row must not read the fully-paid label — the row is hidden at 0');
   assert.ok(slice.includes('SUCCESS_NEXT_STEPS_STILL_OWED_TEXT'), 'merged row must read the still-owed label from the module');
   assert.ok(!wiringSrc.includes('Settle in Full'), 'settle badge text must be gone');
   assert.ok(!wiringSrc.includes('Partial Payment'), 'partial badge text must be gone');

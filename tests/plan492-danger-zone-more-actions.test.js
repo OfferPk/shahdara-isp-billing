@@ -24,15 +24,18 @@ const css = read('profile-ui.css');
 const styles = read('styles.css');
 const lang = read('nav-language.js');
 
-// The 13 quick actions that collapse behind "More actions" (Unarchive
-// stays visible in the header row; the QA tools stay in their own
-// disclosure). Count pinned: 13, not the design's approximate 12.
-// Profile Polish B (10) (user request 2026-11-12) swaps one seat:
-// Record payment moves up into the header row and Archive moves down
-// into the Payments grid, so the count stays 13 with one member
-// exchanged.
+// The 12 quick actions that collapse behind "More actions" (Archive
+// AND Unarchive stay visible in the header row; the QA tools stay in
+// their own disclosure). Count pinned: 12, not the design's
+// approximate 12 — and not 13 any more. Profile Polish B (10) (user
+// request 2026-11-12) swaps one seat: Record payment moves up into
+// the header row and Archive moves down into the Payments grid, so
+// the count stays 13 with one member exchanged. Profile Archive
+// Button Visibility (user report 2026-11-13) reverses that seat:
+// Archive leaves the grid for Row 1 beside Record payment, so the
+// count drops to 12.
 const ACTION_IDS = [
-  'archiveCustomerButton', 'advancePaymentButton', 'backdatedPaymentButton',
+  'advancePaymentButton', 'backdatedPaymentButton',
   'openAccountStatementBtn', 'openReminderModalBtn', 'openCustomerPromiseBtn',
   'openBillInvoiceBtn', 'openLedgerAuditBtn', 'openAdjustmentModalBtn',
   'openServiceContractBtn', 'openDisputeClaimBtn', 'openKycAuditBtn',
@@ -66,8 +69,8 @@ test('Plan 492: mountCustomerProfileContent no longer mounts a danger zone into 
   assert.ok(!app.includes("'.profile-danger-zone'"), 'no mount group claims the danger zone anywhere');
 });
 
-test('Plan 492: the 13 quick actions live inside the More actions disclosure; Unarchive stays in the header row, Archive joins the grid (Profile Polish B (10))', () => {
-  assert.strictEqual(ACTION_IDS.length, 13, 'the collapsed action row holds 13 buttons');
+test('Plan 492: the 12 quick actions live inside the More actions disclosure; Archive and Unarchive stay in the header row (Profile Archive Button Visibility)', () => {
+  assert.strictEqual(ACTION_IDS.length, 12, 'the collapsed action row holds 12 buttons');
   const groupAt = index.indexOf('class="profile-action-group"');
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"');
   const gridAt = index.indexOf('class="profile-more-actions-grid"');
@@ -83,7 +86,7 @@ test('Plan 492: the 13 quick actions live inside the More actions disclosure; Un
     const at = index.indexOf(`id="${id}"`);
     assert.ok(at > gridAt && at < qaAt, `${id} must sit inside the More actions grid, before the QA list`);
   }
-  for (const id of ['unarchiveCustomerButton']) {
+  for (const id of ['archiveCustomerButton', 'unarchiveCustomerButton']) {
     const at = index.indexOf(`id="${id}"`);
     assert.ok(at > groupAt && at < detailsAt, `${id} stays a direct child of the action group, ahead of the disclosure`);
   }
@@ -100,9 +103,10 @@ test('Plan 492: prof_more_actions exists in English and Urdu', () => {
 
 // Profile redesign: the #302 treatment moved INTO the category
 // grids. The outer grid is now a 1-column stack of categories; each
-// category holds a 2-column 52px action-card grid, Archive + Advance
-// sit side-by-side first in Payments (Profile Polish B (10) moved
-// Record payment up to the header and Archive down here), and only
+// category holds a 2-column 52px action-card grid, Advance + back-dated
+// sit in Payments (Profile Polish B (10) moved Record payment up to
+// the header and Archive down here; Profile Archive Button Visibility
+// then moved Archive back up to Row 1 beside Record payment), and only
 // the back-dated entry spans the full category row (as a footer
 // action, not a full-row payment shortcut).
 test('Plan 492: disclosure grid keeps the #302 treatment inside the category grids (2-col 52px cards, backdated full-row)', () => {

@@ -9283,6 +9283,19 @@ function openManualBaqayaDialog(customerId, entryId = null) {
   $('#manualBaqayaDate').value = existing ? existing.date : pakistanToday();
   $('#manualBaqayaDate').max = pakistanToday();
   $('#manualBaqayaNote').value = existing?.note ?? '';
+  // Sharafat 17: on a partially-settled entry the Amount input is
+  // disabled (with a hint) — the operator may fix the note/date but
+  // not the amount. UX only: core's updateManualBaqayaEntry compares
+  // against the stored amount and refuses an amount change anyway.
+  // The derived entry (not the raw record) carries settledCents.
+  const derived = entryId ? manualBaqayaEntriesWithRemaining(customer).find((entry) => entry.id === entryId) : null;
+  const amountLocked = !!derived && derived.settledCents > 0 && derived.remainingCents > 0;
+  $('#manualBaqayaAmount').disabled = amountLocked;
+  const amountHint = $('#manualBaqayaAmountHint');
+  if (amountHint) {
+    amountHint.textContent = t('baqaya_amount_locked_note');
+    amountHint.hidden = !amountLocked;
+  }
   $('#manualBaqayaDialog').showModal();
 }
 // OWNER-ADDPEND (2026-11-01): Additional Pending quick editor. One

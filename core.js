@@ -2110,18 +2110,24 @@ export function addManualBaqayaEntry(state, customerId, fields, referenceDate = 
 }
 
 /**
- * Edits a manual baqaya entry. Audit rule: an entry can be edited or
- * removed ONLY while it is fully unsettled — once a payment has settled
- * part of it, the entry is ledger history; void the settling payment
- * first (which restores the baqaya) and the entry unlocks again.
+ * Edits a manual baqaya entry. Audit rule (Sharafat 17): a fully
+ * unsettled entry can be edited freely; a PARTIALLY settled entry
+ * allows note/date changes only — the amount is locked, and an amount
+ * change is refused; a fully settled entry cannot be changed at all.
+ * The amount comparison is against the STORED amount (in cents), never
+ * trusted from the form — the dialog disables the Amount input, but
+ * that is UX only. Voiding the settling payment restores the baqaya
+ * and the entry unlocks again. Remove keeps the old
+ * fully-unsettled-only rule (see removeManualBaqayaEntry).
  */
 export function updateManualBaqayaEntry(state, customerId, entryId, fields, referenceDate = new Date()) {
   const customer = customerOrThrow(state, customerId);
   const entries = manualBaqayaEntriesWithRemaining(customer);
   const existing = entries.find(entry => entry.id === entryId);
   if (!existing) throw new Error('Manual baqaya entry not found.');
-  if (existing.settledCents > 0) throw new Error('This baqaya entry already has payments against it and cannot be changed. Void the payment first.');
+  if (existing.settledCents > 0 && existing.remainingCents <= 0) throw new Error('This baqaya entry already has payments against it and cannot be changed. Void the payment first.');
   const clean = cleanManualBaqayaFields(fields, referenceDate);
+  if (existing.settledCents > 0 && moneyCents(clean.amount) !== moneyCents(existing.amount)) throw new Error('This baqaya entry already has payments against it — the amount is locked. Void the payment first to change the amount.');
   const nextEntries = sanitizeManualBaqayaEntries(customer.manualBaqaya)
     .map(entry => entry.id === entryId ? { ...entry, ...clean } : entry);
   return replaceCustomer(state, customerId, { ...customer, manualBaqaya: nextEntries });
@@ -2184,7 +2190,9 @@ export function setManualBaqayaOutstanding(state, customerId, fields, referenceD
   return replaceCustomer(state, customerId, { ...customer, manualBaqaya: nextEntries });
 }
 
-/** Removes a manual baqaya entry (same fully-unsettled audit rule as edit). */
+/** Removes a manual baqaya entry. Sharafat 17: remove keeps the old
+ * fully-unsettled-only rule even though edit now allows note/date
+ * changes on partially-settled entries. */
 export function removeManualBaqayaEntry(state, customerId, entryId) {
   const customer = customerOrThrow(state, customerId);
   const entries = manualBaqayaEntriesWithRemaining(customer);

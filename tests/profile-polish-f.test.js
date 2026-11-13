@@ -94,7 +94,10 @@ test('Polish F: the six remaining groups take their rotation class (extraClass r
   const groups = groupsLiteral();
   assert.ok(groups.includes("contactActionsHtml, 'profile-info-group--contact'"), 'contact takes the yellow class');
   assert.ok(groups.includes("true]], 'profile-info-group--location'"), 'location takes the orange class');
-  assert.ok(groups.includes("netDisplay]], 'profile-info-group--money'"), 'money takes the teal class');
+  // Profile Inner Tabs Overhaul (§2) — the money class was passed as the
+  // 3rd arg (visible HTML) instead of the 4th (extraClass); it now rides
+  // the extraClass route like the other five groups.
+  assert.ok(groups.includes("netDisplay]], '', 'profile-info-group--money'"), 'money takes the teal class');
   assert.ok(groups.includes("investmentRecoveryDisplay]], 'profile-info-group--install'"), 'install takes the green class');
   assert.ok(groups.includes("'macAddress']], 'profile-info-group--network'"), 'network takes the info-blue class');
   assert.ok(groups.includes("profileEmptyMoney(customer.mediaConverterCost)]], 'profile-info-group--hardware'"), 'hardware takes the slate class');

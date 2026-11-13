@@ -2403,6 +2403,12 @@ export const TRANSLATIONS = {
     prof_field_purchase_cost: 'Monthly provider purchase cost',
     prof_field_sales_tax: 'Sales tax (19.5%)',
     prof_field_selling: 'Monthly selling amount',
+    // Profile Inner Tabs Overhaul (§3, D2a) — the SERVICE card's selling
+    // row is the STORED price on the record, not this month's billed
+    // amount; the label says so (prof_field_selling stays pinned by
+    // plan504-sales-tax-i18n and is still used by the missing-field
+    // labels, so the stored label is a separate key).
+    prof_field_selling_stored: 'Stored selling price — not this month\'s billed amount',
     prof_field_profit: 'Monthly gross profit',
     // Polish #28 Phase D: net, concession and discounts this month, and
     // the investment breakdown + recovery rows.
@@ -7030,6 +7036,7 @@ export const TRANSLATIONS = {
     prof_field_purchase_cost: 'ماہانہ فراہم کنندہ خرید لاگت',
     prof_field_sales_tax: 'سیلز ٹیکس (19.5%)',
     prof_field_selling: 'ماہانہ فروخت رقم',
+    prof_field_selling_stored: 'محفوظ شدہ فروخت قیمت — اس مہینے کا بل نہیں',
     prof_field_profit: 'ماہانہ مجموعی منافع',
     // Polish #28 Phase D: net, concession and discounts this month, and
     // the investment breakdown + recovery rows.

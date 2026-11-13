@@ -1710,6 +1710,15 @@ const profileTabMap = {
   complaints:['profileTabComplaints','profilePanelComplaints'],
   baqaya:['profileTabBaqaya','profilePanelBaqaya']
 };
+// Profile Inner Tabs Overhaul — D1 strict filter (§5.2): which profile
+// section lives under which tab. Only Financial moves (renderDetail
+// builds all seven sections inside #customerProfileView, which the boot
+// mount put in the Info panel, so hide/show alone cannot show Financial
+// under Billing — the node is moved at the end of
+// renderCustomerProfileView). Customer / Service / Connection / Network /
+// Hardware stay in Info; History is not in the §5.2 table and stays in
+// Info, unchanged; Complaints and Baqaya are separate panels, unchanged.
+const PROFILE_SECTION_TAB = { financial: 'billing' };
 function mountCustomerProfileContent() {
   const mounts = $('#profileContentMounts');
   if (!mounts) return;
@@ -5418,10 +5427,22 @@ function renderHistory(customer) {
     const isOpen = openMonths.has(month) || (openMonths.size === 0 && idx === 0);
     const bill = byMonth.get(month);
     const status = statusPresentation(customer, bill, allocations);
-    const received = bill ? recordedAmount(bill) : 0;
-    const effectiveAmount = bill?.dueAmount ?? null;
-    const displayAmount = effectiveAmount === null || effectiveAmount === undefined ? t('prof_not_recorded') : formatAmount(effectiveAmount);
     const monthAllocation = allocations.forMonth(customer.id, month);
+    // Profile Inner Tabs Overhaul (§3) — the snapshot pills read the same
+    // allocation-engine figures as the dues breakdown, not the bill's
+    // recorded fields: billAmountCents is the engine's billed total (base
+    // + late + shifting fees) and actualReceiptsCents is the
+    // safeCents-guarded receipts total (recordedAmount() sums with
+    // Number() directly, so one corrupt 'abc' amount poisons it to NaN).
+    // An unpriced month has no allocation — fall back to the recorded
+    // fields, so an unpriced bill still reads as before. Receipts here
+    // are cash receipts on the bill; the dues table's Paid is billed
+    // minus owed (receipts + credit + discounts + offsets) — the
+    // Carry-in pill shows why the two differ.
+    const engineBillCents = monthAllocation?.billAmountCents;
+    const displayAmount = typeof engineBillCents === 'number' ? formatAmount(engineBillCents / 100) : (bill?.dueAmount === null || bill?.dueAmount === undefined ? t('prof_not_recorded') : formatAmount(bill.dueAmount));
+    const engineReceiptsCents = monthAllocation?.actualReceiptsCents;
+    const received = typeof engineReceiptsCents === 'number' ? engineReceiptsCents / 100 : (bill ? recordedAmount(bill) : 0);
     const balanceDue = monthAllocation?.balanceDueCents === null || monthAllocation?.balanceDueCents === undefined ? t('prof_not_set') : formatAmount(monthAllocation.balanceDueCents / 100);
     const creditApplied = formatAmount((monthAllocation?.creditAppliedCents ?? 0) / 100);
     const activeHistoryMonths = new Set(monthList);
@@ -5483,14 +5504,16 @@ function renderHistory(customer) {
     const concessionRoundControls = concessionBalance !== null && concessionBalance > 0 ? ` <label class="round50-toggle-label"><input type="checkbox" data-round50-toggle> ${escapeHtml(t('round50_toggle'))}</label> <select data-round50-mode aria-label="${escapeHtml(t('round50_toggle'))}"><option value="nearest">${escapeHtml(t('round50_mode_nearest'))}</option><option value="down">${escapeHtml(t('round50_mode_down'))}</option><option value="exact">${escapeHtml(t('round50_mode_exact'))}</option></select> <small data-round50-hint hidden></small>` : '';
     const concessionSuggestMarkup = concessionSuggestion && !concessionSuggestion.alreadyApplied && concessionSuggestion.eligible ? `<span class="month-summary-wide"><span class="discount-badge-applied">${escapeHtml(t('prof_hist_concession_suggest', null, { hours: concessionSuggestion.downtimeHours, amount: concessionSuggestion.suggestedAmount }))}</span>${concessionBalance !== null && concessionBalance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-apply-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_concession_apply_title')}">${t('prof_hist_concession_apply', null, { amount: concessionSuggestion.suggestedAmount })}</button>${concessionRoundControls}` : ''}</span>` : '';
     const concessionNetMarkup = concessionNetDue !== null ? `<span class="month-summary-stat">${t('prof_hist_net_after_concession')}: <strong>${formatAmount(concessionNetDue)}</strong></span>` : '';
-    const clarityMarkup = bill ? billClarityMarkup(customer, bill, allocations) : '';
+    // Profile Inner Tabs Overhaul (§4) — the bill-clarity strip is gone
+    // from the month summary (it duplicated the dues breakdown); the
+    // billClarityMarkup helper stays for its direct module tests.
     // Polish #11: the tax line in the month summary — the bill's
     // recorded tax, while it applies. The span stays in the markup
     // (hidden) when the bill carries no tax, so the bill form's live
     // toggle can show it without a re-render.
     const billTaxCents = Number.isInteger(bill?.salesTaxCents) && bill.salesTaxCents > 0 ? bill.salesTaxCents : null;
     const billTaxSummaryMarkup = `<span class="month-summary-stat" data-stx-summary-tax ${billTaxCents !== null ? '' : 'hidden'}>Sales tax (19.5%): <strong>${billTaxCents !== null ? formatSalesTaxAmount(billTaxCents) : ''}</strong></span>`;
-    const summaryMarkup = !bill ? `<p class="empty-month">${t('prof_hist_empty_month')}</p>` : `<div class="month-summary"><span class="month-summary-stat">${t('prof_hist_status')}: <strong>${status.label}</strong></span><span class="month-summary-stat">${t('prof_hist_due_date')}: <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : t('prof_hist_due_not_set')}</strong></span>${billExtensionMarkup}<span class="month-summary-stat">${t('prof_hist_receipts')}: <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">${t('prof_hist_carry_in')}: <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">${t('prof_hist_bill_amount')}: <strong>${escapeHtml(displayAmount)}</strong></span>${billTaxSummaryMarkup}${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${firstMonthWaivedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">${t('prof_hist_balance_due')}: <strong>${escapeHtml(balanceDue)}</strong></span>${clarityMarkup}${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_generated')}:  <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_forwarded')}: <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">${t('prof_hist_credit_waiting')}: <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? `<span class="month-status status-pending month-summary-wide">${t('prof_hist_partial_badge')}</span>` : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
+    const summaryMarkup = !bill ? `<p class="empty-month">${t('prof_hist_empty_month')}</p>` : `<div class="month-summary"><span class="month-summary-stat">${t('prof_hist_status')}: <strong>${status.label}</strong></span><span class="month-summary-stat">${t('prof_hist_due_date')}: <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : t('prof_hist_due_not_set')}</strong></span>${billExtensionMarkup}<span class="month-summary-stat">${t('prof_hist_receipts')}: <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">${t('prof_hist_carry_in')}: <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">${t('prof_hist_bill_amount')}: <strong>${escapeHtml(displayAmount)}</strong></span>${billTaxSummaryMarkup}${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${firstMonthWaivedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">${t('prof_hist_balance_due')}: <strong>${escapeHtml(balanceDue)}</strong></span>${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_generated')}:  <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_forwarded')}: <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">${t('prof_hist_credit_waiting')}: <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? `<span class="month-status status-pending month-summary-wide">${t('prof_hist_partial_badge')}</span>` : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
     const amountRequired = bill ? '' : 'required';
     const amountLabel = bill ? t('prof_optional') : t('prof_hist_bill_required');
     const amountPlaceholder = bill ? t('prof_hist_bill_amount_ph_blank') : t('prof_hist_bill_amount_ph_enter');
@@ -7097,7 +7120,7 @@ function renderCustomerProfileView(customer) {
   const kistPlansHtml = kistProgress.plans.length === 0
     ? `<p class="profile-kist-empty">${t('prof_kist_empty')}</p>`
     : kistProgress.plans.map((plan) => `<article class="kist-plan"><div class="kist-plan-head"><strong>${escapeHtml(plan.itemTitle)}</strong><span>${escapeHtml(plan.status === 'completed' ? t('prof_kist_status_completed') : t('prof_kist_status_active'))}</span></div><div class="kist-progress-track" role="progressbar" aria-label="${escapeHtml(t('prof_kist_progress_aria', null, { title: plan.itemTitle }))}" aria-valuenow="${plan.percentPaid}" aria-valuemin="0" aria-valuemax="100"><div class="kist-progress-fill" style="width: ${plan.percentPaid}%"></div></div><p class="kist-plan-meta">${escapeHtml(t('prof_kist_paid', null, { paid: plan.monthsPaid, total: plan.totalMonths, amount: formatAmount(plan.remainingAmount) }))}</p><p class="kist-plan-detail">${escapeHtml(t('prof_kist_detail', null, { monthly: formatAmount(plan.monthlyKist), billed: plan.monthsBilled, total: plan.totalMonths, amount: formatAmount(plan.totalAmount) }))}${plan.downPayment > 0 ? escapeHtml(t('prof_kist_down', null, { amount: formatAmount(plan.downPayment) })) : ''}${plan.startDate ? escapeHtml(t('prof_kist_from', null, { date: plan.startDate })) : ''}${plan.payoffAmount !== null || plan.payoffDate ? ` · ${escapeHtml(kistSettlementPresentation(plan).settledLabel)}` : ''}</p>${plan.monthsBilled === 0 ? `<button type="button" class="secondary-button text-button danger" data-profile-kist-remove="${escapeHtml(plan.id)}">${t('prof_kist_remove')}</button>` : ''}${kistSettlementPresentation(plan).canPayoff ? `<button type="button" class="secondary-button" data-profile-kist-payoff="${escapeHtml(plan.id)}">${escapeHtml(kistSettlementPresentation(plan).payoffLabel)}</button>${helpButtonMarkup('kist_payoff')}` : ''}</article>`).join('');
-  const kistSectionHtml = `<section class="profile-kist-section" aria-label="${t('prof_kist_aria')}"><h4>${t('prof_kist_heading')} ${helpButtonMarkup('kist')}</h4><p class="profile-kist-note">${t('prof_kist_note')}</p>${kistPlansHtml}<form class="kist-add-form" novalidate><h5>${t('prof_kist_add_title')}</h5><div class="kist-add-grid"><label class="field-label full" for="profileKistItemTitle">${t('prof_kist_item_label')}</label><input id="profileKistItemTitle" type="text" maxlength="100" placeholder="${t('prof_kist_item_ph')}" required><label class="field-label full" for="profileKistTotalAmount">${t('prof_kist_total_label')}</label><input id="profileKistTotalAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_kist_total_ph')}" required><label class="field-label full" for="profileKistDownPayment">${t('prof_kist_down_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="profileKistDownPayment" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"><label class="field-label full" for="profileKistRecordDownPayment"><input id="profileKistRecordDownPayment" type="checkbox"> ${t('prof_kist_record_down')}</label><label class="field-label full" for="profileKistDownPaymentMethod">${t('prof_kist_down_method')}</label><select id="profileKistDownPaymentMethod" class="full">${['Cash', 'Cash at Waseem Abbasi shop', 'Cash at Hassan shop', 'Cash at Balla shop', 'Cash at Hassan Balla shop', 'Easypaisa'].filter((method) => PAYMENT_METHODS.includes(method)).map((method) => `<option value="${method}">${method}</option>`).join('')}</select><label class="field-label full" for="profileKistTotalMonths">${t('prof_kist_months_label')}</label><input id="profileKistTotalMonths" type="number" min="2" max="6" step="1" inputmode="numeric" placeholder="3" required><label class="field-label full" for="profileKistMonthlyKist">${t('prof_kist_monthly_label')} <span class="optional-label">${t('prof_kist_monthly_opt')}</span></label><input id="profileKistMonthlyKist" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_kist_auto_ph')}"><label class="field-label full" for="profileKistStartDate">${t('prof_kist_start_label')} <span class="optional-label">${t('prof_kist_start_opt')}</span></label><input id="profileKistStartDate" type="date"></div><button type="button" class="primary-button" id="profileKistAddBtn">${t('prof_kist_add_btn')}</button></form></section>`;
+  const kistSectionHtml = `<section class="profile-kist-section" aria-label="${t('prof_kist_aria')}"><h4>${t('prof_kist_heading')} ${helpButtonMarkup('kist')}</h4><p class="profile-kist-note">${t('prof_kist_note')}</p>${kistPlansHtml}<details class="profile-accordion"><summary>${t('prof_kist_add_title')}</summary><div class="profile-accordion-body"><form class="kist-add-form" novalidate><h5>${t('prof_kist_add_title')}</h5><div class="kist-add-grid"><label class="field-label full" for="profileKistItemTitle">${t('prof_kist_item_label')}</label><input id="profileKistItemTitle" type="text" maxlength="100" placeholder="${t('prof_kist_item_ph')}" required><label class="field-label full" for="profileKistTotalAmount">${t('prof_kist_total_label')}</label><input id="profileKistTotalAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_kist_total_ph')}" required><label class="field-label full" for="profileKistDownPayment">${t('prof_kist_down_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="profileKistDownPayment" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"><label class="field-label full" for="profileKistRecordDownPayment"><input id="profileKistRecordDownPayment" type="checkbox"> ${t('prof_kist_record_down')}</label><label class="field-label full" for="profileKistDownPaymentMethod">${t('prof_kist_down_method')}</label><select id="profileKistDownPaymentMethod" class="full">${['Cash', 'Cash at Waseem Abbasi shop', 'Cash at Hassan shop', 'Cash at Balla shop', 'Cash at Hassan Balla shop', 'Easypaisa'].filter((method) => PAYMENT_METHODS.includes(method)).map((method) => `<option value="${method}">${method}</option>`).join('')}</select><label class="field-label full" for="profileKistTotalMonths">${t('prof_kist_months_label')}</label><input id="profileKistTotalMonths" type="number" min="2" max="6" step="1" inputmode="numeric" placeholder="3" required><label class="field-label full" for="profileKistMonthlyKist">${t('prof_kist_monthly_label')} <span class="optional-label">${t('prof_kist_monthly_opt')}</span></label><input id="profileKistMonthlyKist" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_kist_auto_ph')}"><label class="field-label full" for="profileKistStartDate">${t('prof_kist_start_label')} <span class="optional-label">${t('prof_kist_start_opt')}</span></label><input id="profileKistStartDate" type="date"></div><button type="button" class="primary-button" id="profileKistAddBtn">${t('prof_kist_add_btn')}</button></form></div></details></section>`;
   // SISP-13: per-customer MikroTik script — read-only text the
   // operator copies into WinBox Terminal; generating it never writes the
   // ledger. The password itself is never shown in the profile view, only
@@ -7137,7 +7160,7 @@ function renderCustomerProfileView(customer) {
   // prof_group_connection), so no group is renamed in this phase.
   // The <div class="profile-info-groups"> wrapper is dropped — each
   // section body provides the gap — its CSS rule stays, harmless.
-  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), profileEmptyText(phone)], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml, 'profile-info-group--contact'), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), profileEmptyText(customer.mohalla)], [t('prof_field_zone'), profileEmptyText(customer.zone)], [t('prof_field_address'), profileEmptyText(customer.address), true], [t('prof_field_notes'), profileEmptyText(customer.notes), true]], 'profile-info-group--location'), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), profileEmptyText(customer.ispProvider), false, '', 'ispProviderInput'], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus), false, '', 'serviceStatusInput'], [t('prof_field_hold'), pauseSummary.detail, false, '', 'pauseBillingCheckbox'], [t('prof_field_shield'), shieldSummary.detail, false, '', 'doNotSuspendUntilInput'], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail, false, '', 'seasonalRateInput']] : []), [t('prof_field_package'), profileEmptyText(customer.packageSpeed), false, '', 'packageSpeedInput'], [t('prof_field_payday'), paydaySummary.label]], '', 'profile-info-group--service'), money: profileInfoGroupMarkup(t('prof_group_service'), [[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)], [t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)], [t('prof_field_profit'), profileProfitDisplay(customer, profit)], [t('prof_field_concession_month'), concessionDisplay], [t('prof_field_discounts_month'), discountsDisplay], [t('prof_field_net_profit'), netDisplay]], 'profile-info-group--money'), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH, false, '', 'expiryDateInput'], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH, false, '', 'cancellationDateInput']], '', 'profile-info-group--service'), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH], [t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), profileEmptyMoney(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_router_price'), breakdownRow(investmentBreakdown.router)], [t('prof_field_mc_cost'), breakdownRow(investmentBreakdown.mediaConverter)], [t('prof_field_lineman_fee'), breakdownRow(investmentBreakdown.lineman)], [t('prof_field_fiber_cost'), breakdownRow(investmentBreakdown.fiber)], [t('prof_field_install_other'), breakdownRow(investmentBreakdown.other)], [t('prof_field_install_total'), investmentTotalDisplay], [t('prof_field_install_recovery'), investmentRecoveryDisplay]], 'profile-info-group--install'), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername), false, 'pppoeUsername'], [t('prof_field_static_ip'), profileEmptyText(customer.staticIp), false, 'staticIp'], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH, false, 'macAddress']], 'profile-info-group--network'), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), profileEmptyText(customer.routerModel)], [t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)], [t('prof_field_mc_cost'), profileEmptyMoney(customer.mediaConverterCost)]], 'profile-info-group--hardware') };
+  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), profileEmptyText(phone)], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml, 'profile-info-group--contact'), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), profileEmptyText(customer.mohalla)], [t('prof_field_zone'), profileEmptyText(customer.zone)], [t('prof_field_address'), profileEmptyText(customer.address), true], [t('prof_field_notes'), profileEmptyText(customer.notes), true]], 'profile-info-group--location'), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), profileEmptyText(customer.ispProvider), false, '', 'ispProviderInput'], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus), false, '', 'serviceStatusInput'], [t('prof_field_hold'), pauseSummary.detail, false, '', 'pauseBillingCheckbox'], [t('prof_field_shield'), shieldSummary.detail, false, '', 'doNotSuspendUntilInput'], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail, false, '', 'seasonalRateInput']] : []), [t('prof_field_package'), profileEmptyText(customer.packageSpeed), false, '', 'packageSpeedInput'], [t('prof_field_payday'), paydaySummary.label]], '', 'profile-info-group--service'), money: profileInfoGroupMarkup(t('prof_group_service'), [[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)], [t('prof_field_selling_stored'), profileEmptyMoney(customer.monthlySellingAmount)], [t('prof_field_profit'), profileProfitDisplay(customer, profit)], [t('prof_field_concession_month'), concessionDisplay], [t('prof_field_discounts_month'), discountsDisplay], [t('prof_field_net_profit'), netDisplay]], '', 'profile-info-group--money'), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH, false, '', 'expiryDateInput'], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH, false, '', 'cancellationDateInput']], '', 'profile-info-group--service'), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH], [t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), profileEmptyMoney(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_router_price'), breakdownRow(investmentBreakdown.router)], [t('prof_field_mc_cost'), breakdownRow(investmentBreakdown.mediaConverter)], [t('prof_field_lineman_fee'), breakdownRow(investmentBreakdown.lineman)], [t('prof_field_fiber_cost'), breakdownRow(investmentBreakdown.fiber)], [t('prof_field_install_other'), breakdownRow(investmentBreakdown.other)], [t('prof_field_install_total'), investmentTotalDisplay], [t('prof_field_install_recovery'), investmentRecoveryDisplay]], 'profile-info-group--install'), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername), false, 'pppoeUsername'], [t('prof_field_static_ip'), profileEmptyText(customer.staticIp), false, 'staticIp'], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH, false, 'macAddress']], 'profile-info-group--network'), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), profileEmptyText(customer.routerModel)], [t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)], [t('prof_field_mc_cost'), profileEmptyMoney(customer.mediaConverterCost)]], 'profile-info-group--hardware') };
   // SISP-19: profile hardware custody — ownership fields on the record,
   // plus the disconnection recovery checklist once archived (archive is
   // the app's disconnect action). Fiber drop length reuses fiberMeters.
@@ -7199,7 +7222,11 @@ function renderCustomerProfileView(customer) {
   const firstBillPreviewShownEntry = findFirstBillPreviewShown(loadFirstBillPreviews(), customer.id);
   const firstBillPreviewDefaultDate = customer.connectionDate || localDate();
   const firstBillPreviewInitial = previewFromCustomer(customer, { startDate: firstBillPreviewDefaultDate });
-  const firstBillPreviewSectionHtml = `<section class="profile-custody-section" aria-label="First-bill preview"><h4>First-bill preview</h4><p>Show the new customer this first bill before activation — installation fee, first-period charge and deposit — so nothing arrives as a surprise. This preview creates no bill; the first bill is only raised by the normal billing flow.</p>${(customer.bills ?? []).length > 0 ? `<p>This customer already has bills — this preview is for before the first bill, so use it for the next new connection instead.</p>` : ''}<p id="firstBillPreviewShown">${escapeHtml(firstBillPreviewShownText(firstBillPreviewShownEntry))}</p><div class="pcp-form"><label>Start date <input id="firstBillPreviewStartDate" type="date" value="${escapeHtml(firstBillPreviewDefaultDate)}"></label> <label>First period <select id="firstBillPreviewMode"><option value="auto">By start date (1st = full month, later = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="firstBillPreviewShowBtn">Show preview</button></div><div id="firstBillPreviewResult">${firstBillPreviewHtml(firstBillPreviewInitial, formatAmount)}</div></section>`;
+  // Profile Inner Tabs Overhaul (§4 + §6) — the first-bill preview is
+  // for before the first bill only: a customer who already has bills
+  // gets no section at all (not even the banner), and the section
+  // itself collapses into an accordion, default closed.
+  const firstBillPreviewSectionHtml = (customer.bills ?? []).length > 0 ? '' : `<details class="profile-custody-section profile-accordion" aria-label="First-bill preview"><summary>First-bill preview</summary><div class="profile-accordion-body"><p>Show the new customer this first bill before activation — installation fee, first-period charge and deposit — so nothing arrives as a surprise. This preview creates no bill; the first bill is only raised by the normal billing flow.</p><p id="firstBillPreviewShown">${escapeHtml(firstBillPreviewShownText(firstBillPreviewShownEntry))}</p><div class="pcp-form"><label>Start date <input id="firstBillPreviewStartDate" type="date" value="${escapeHtml(firstBillPreviewDefaultDate)}"></label> <label>First period <select id="firstBillPreviewMode"><option value="auto">By start date (1st = full month, later = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="firstBillPreviewShowBtn">Show preview</button></div><div id="firstBillPreviewResult">${firstBillPreviewHtml(firstBillPreviewInitial, formatAmount)}</div></div></details>`;
   // Plan 19 (Plan 1-100) — Welcome pack draft on the profile. The
   // draft is built from this profile's own package, monthly amount,
   // and latest bill due date; with no bill yet, the billing cycle's
@@ -7368,7 +7395,10 @@ function renderCustomerProfileView(customer) {
     effectiveDate: localDate(),
   }) : null;
   const packageChangeKept = findPackageChangePreview(loadPackageChangePreviews(), customer.id);
-  const packageChangeSectionHtml = `<section class="profile-custody-section" aria-label="Package change preview"><h4>Package change preview</h4><p class="pcp-explainer">Before agreeing a faster or cheaper package, show the customer what the next bill will actually be — current package, proposed package, monthly price difference, effective date, and the estimated next bill (full month, or pro-rata by the change date). This preview applies nothing; the change itself is still made through the profile Edit form, and a ready preview shown here is kept as a note on that change.</p><p id="packageChangePreviewKept" class="pcp-kept-pill">${escapeHtml(packageChangePreviewStoredText(packageChangeKept))}</p><div class="pcp-form"><label><span class="pcp-field-pill">Proposed package</span> <select id="packageChangePreviewPackage">${BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('')}</select></label> <label><span class="pcp-field-pill">Effective date</span> <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label><span class="pcp-field-pill">Next bill month</span> <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label><span class="pcp-field-pill">Estimate</span> <select id="packageChangePreviewMode"><option value="auto">By effective date (start = full month, inside = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">Show preview</button></div><div id="packageChangePreviewResult">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount) : '<p class="empty-state">No catalogue package to preview.</p>'}</div></section>`;
+  // Profile Inner Tabs Overhaul (§6) — the preview collapses into an
+  // accordion, default closed; the kept pill, form and result all ride
+  // inside it, so nothing about the section's content changes.
+  const packageChangeSectionHtml = `<details class="profile-custody-section profile-accordion" aria-label="Package change preview"><summary>Package change preview</summary><div class="profile-accordion-body"><p class="pcp-explainer">Before agreeing a faster or cheaper package, show the customer what the next bill will actually be — current package, proposed package, monthly price difference, effective date, and the estimated next bill (full month, or pro-rata by the change date). This preview applies nothing; the change itself is still made through the profile Edit form, and a ready preview shown here is kept as a note on that change.</p><p id="packageChangePreviewKept" class="pcp-kept-pill">${escapeHtml(packageChangePreviewStoredText(packageChangeKept))}</p><div class="pcp-form"><label><span class="pcp-field-pill">Proposed package</span> <select id="packageChangePreviewPackage">${BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('')}</select></label> <label><span class="pcp-field-pill">Effective date</span> <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label><span class="pcp-field-pill">Next bill month</span> <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label><span class="pcp-field-pill">Estimate</span> <select id="packageChangePreviewMode"><option value="auto">By effective date (start = full month, inside = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">Show preview</button></div><div id="packageChangePreviewResult">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount) : '<p class="empty-state">No catalogue package to preview.</p>'}</div></div></details>`;
   // Plan 47 (Plan 1-100) — Speed and service-quality log. The package
   // speed alongside each entry comes from the catalogue match on the
   // customer's package label/id, else the number inside the label;
@@ -7378,7 +7408,7 @@ function renderCustomerProfileView(customer) {
   const qualityPackagePlan = BILL_PACKAGES.find((plan) => plan.label === customer.packageSpeed) || BILL_PACKAGES.find((plan) => plan.id === customer.packageSpeed) || null;
   const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
   const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
-  const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p class="pcp-explainer">When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary" class="ql-summary-pill">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><div class="pcp-form"><label><span class="pcp-field-pill">Date</span> <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
+  const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p class="pcp-explainer">When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary" class="ql-summary-pill">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><details class="profile-accordion"><summary>Record measurement</summary><div class="profile-accordion-body"><div class="pcp-form"><label><span class="pcp-field-pill">Date</span> <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div></div></details><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
   // Plan 351 — Customer profile at-a-glance header strip: the four
   // counter questions (dues, package, last payment, next due) in one
   // read-only strip at the top of the profile, composed from this
@@ -7799,6 +7829,10 @@ function renderCustomerProfileView(customer) {
   // not undo the scroll). The top Edit button keeps its own behaviour
   // (opens at the top, focused on Area).
   function openProfileFormAtSection(sectionKey) {
+    // Profile Inner Tabs Overhaul — the edit form lives in the Info
+    // panel, so land there first (the top Edit button's pattern): a
+    // Financial Edit tap from the Billing tab must reach the form.
+    activateProfileTab('info');
     profileEditMode = true;
     $('#customerProfileView').hidden = true;
     const form = $('#customerProfileForm');
@@ -7834,6 +7868,10 @@ function renderCustomerProfileView(customer) {
   // edit control carry no tap target and stay plain text.
   $('#customerProfileView').querySelectorAll('[data-profile-field-edit]').forEach((field) => {
     const openField = () => {
+      // Profile Inner Tabs Overhaul — same Info-tab landing as the
+      // section Edit: a field tap inside the moved Financial section
+      // (from the Billing tab) must reach the form in the Info panel.
+      activateProfileTab('info');
       profileEditMode = true;
       $('#customerProfileView').hidden = true;
       $('#customerProfileForm').hidden = false;
@@ -7906,7 +7944,7 @@ function renderCustomerProfileView(customer) {
           else toast('Complaint register unavailable — try again.');
           return;
         }
-        const el = target.selector ? $('#customerProfileView').querySelector(target.selector) : null;
+        const el = target.selector ? document.querySelector(target.selector) : null;
         if (!el) { toast('Action unavailable — try again.'); return; }
         if (target.kind === 'balance-reply') el.click();
         el.scrollIntoView({ block: 'center' });
@@ -7917,14 +7955,14 @@ function renderCustomerProfileView(customer) {
   // READY preview counts as shown — an incomplete attempt (no monthly
   // price, bad start date) is never recorded as a shown preview.
   $('#customerProfileView').querySelector('#firstBillPreviewShowBtn')?.addEventListener('click', () => {
-    const startDate = $('#customerProfileView').querySelector('#firstBillPreviewStartDate')?.value || '';
-    const mode = $('#customerProfileView').querySelector('#firstBillPreviewMode')?.value || 'auto';
+    const startDate = document.querySelector('#firstBillPreviewStartDate')?.value || '';
+    const mode = document.querySelector('#firstBillPreviewMode')?.value || 'auto';
     const preview = previewFromCustomer(customer, { startDate, firstPeriodMode: mode });
-    const resultEl = $('#customerProfileView').querySelector('#firstBillPreviewResult');
+    const resultEl = document.querySelector('#firstBillPreviewResult');
     if (resultEl) resultEl.innerHTML = firstBillPreviewHtml(preview, formatAmount);
     if (preview.status === 'ready') {
       saveFirstBillPreviews(recordFirstBillPreviewShown(loadFirstBillPreviews(), customer.id, localDate()));
-      const shownEl = $('#customerProfileView').querySelector('#firstBillPreviewShown');
+      const shownEl = document.querySelector('#firstBillPreviewShown');
       if (shownEl) shownEl.textContent = firstBillPreviewShownText(findFirstBillPreviewShown(loadFirstBillPreviews(), customer.id));
     }
   });
@@ -8010,10 +8048,10 @@ function renderCustomerProfileView(customer) {
     sendBtn.textContent = 'Re-send welcome pack';
   });
   $('#customerProfileView').querySelector('#statementDraftShowBtn')?.addEventListener('click', () => {
-    const month = $('#customerProfileView').querySelector('#statementDraftMonth')?.value || '';
+    const month = document.querySelector('#statementDraftMonth')?.value || '';
     const built = statementDraftForMonth(month);
-    const resultEl = $('#customerProfileView').querySelector('#statementDraftResult');
-    const sendBtnEl = $('#customerProfileView').querySelector('#statementDraftSendBtn');
+    const resultEl = document.querySelector('#statementDraftResult');
+    const sendBtnEl = document.querySelector('#statementDraftSendBtn');
     if (!built) {
       if (resultEl) resultEl.innerHTML = '<p class="empty-state">Monthly statement unavailable.</p>';
       if (sendBtnEl) sendBtnEl.disabled = true;
@@ -8048,7 +8086,7 @@ function renderCustomerProfileView(customer) {
     }
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     saveStatementDraftSentLog(logStatementSent(loadStatementDraftSentLog(), { customerId: customer.id, month: statementDraftMonth, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
-    const sentEl = $('#customerProfileView').querySelector('#statementDraftSent');
+    const sentEl = document.querySelector('#statementDraftSent');
     if (sentEl) sentEl.textContent = statementSentText(statementDraftSendsForMonth(statementDraftMonth));
     sendBtn.textContent = 'Re-send statement';
   });
@@ -8056,10 +8094,10 @@ function renderCustomerProfileView(customer) {
   // send it through the existing WhatsApp route with the
   // preferred-channel instructions (Plan 40) appended.
   $('#customerProfileView').querySelector('#balanceReplyShowBtn')?.addEventListener('click', () => {
-    balanceReplyVariant = normalizeBalanceReplyVariant($('#customerProfileView').querySelector('#balanceReplyVariant')?.value || '');
+    balanceReplyVariant = normalizeBalanceReplyVariant(document.querySelector('#balanceReplyVariant')?.value || '');
     balanceReplyCurrent = balanceReplyForCustomer(customer, balanceReplyVariant);
-    const resultEl = $('#customerProfileView').querySelector('#balanceReplyResult');
-    const sendBtnEl = $('#customerProfileView').querySelector('#balanceReplySendBtn');
+    const resultEl = document.querySelector('#balanceReplyResult');
+    const sendBtnEl = document.querySelector('#balanceReplySendBtn');
     if (!balanceReplyCurrent) {
       if (resultEl) resultEl.innerHTML = '<p class="empty-state">Balance reply unavailable.</p>';
       if (sendBtnEl) sendBtnEl.disabled = true;
@@ -8092,7 +8130,7 @@ function renderCustomerProfileView(customer) {
     }
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     saveBalanceReplySentLog(logBalanceReplySent(loadBalanceReplySentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
-    const resultEl = $('#customerProfileView').querySelector('#balanceReplyResult');
+    const resultEl = document.querySelector('#balanceReplyResult');
     if (resultEl) resultEl.innerHTML = balanceReplyHtml(built, { draftText: built.text, sends: balanceReplySends() });
     sendBtn.textContent = 'Re-send balance reply';
   });
@@ -8106,11 +8144,11 @@ function renderCustomerProfileView(customer) {
   // and logs the send; it changes no bill, payment, case, or
   // Waada record.
   $('#customerProfileView').querySelector('#paymentSlipShowBtn')?.addEventListener('click', () => {
-    paymentSlipVariant = normalizePaymentSlipVariant($('#customerProfileView').querySelector('#paymentSlipVariant')?.value || '');
-    paymentSlipCount = normalizePaymentSlipCount($('#customerProfileView').querySelector('#paymentSlipCount')?.value || '');
+    paymentSlipVariant = normalizePaymentSlipVariant(document.querySelector('#paymentSlipVariant')?.value || '');
+    paymentSlipCount = normalizePaymentSlipCount(document.querySelector('#paymentSlipCount')?.value || '');
     paymentSlipCurrent = paymentSlipForCustomer(customer, paymentSlipVariant, paymentSlipCount);
-    const resultEl = $('#customerProfileView').querySelector('#paymentSlipResult');
-    const sendBtnEl = $('#customerProfileView').querySelector('#paymentSlipSendBtn');
+    const resultEl = document.querySelector('#paymentSlipResult');
+    const sendBtnEl = document.querySelector('#paymentSlipSendBtn');
     if (!paymentSlipCurrent) {
       if (resultEl) resultEl.innerHTML = '<p class="empty-state">Payment slip unavailable.</p>';
       if (sendBtnEl) sendBtnEl.disabled = true;
@@ -8143,7 +8181,7 @@ function renderCustomerProfileView(customer) {
     }
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     savePaymentSlipSentLog(logPaymentSlipSent(loadPaymentSlipSentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
-    const resultEl = $('#customerProfileView').querySelector('#paymentSlipResult');
+    const resultEl = document.querySelector('#paymentSlipResult');
     if (resultEl) resultEl.innerHTML = paymentSlipHtml(built, { draftText: built.text, sends: paymentSlipSends() });
     sendBtn.textContent = 'Re-send payment slip';
   });
@@ -8240,7 +8278,7 @@ function renderCustomerProfileView(customer) {
     sendBtn.textContent = 'Re-send status reply';
   });
   $('#customerProfileView').querySelector('#billingCycleSaveBtn')?.addEventListener('click', () => {
-    const dueDayValue = $('#customerProfileView').querySelector('#billingCycleDueDay')?.value || '';
+    const dueDayValue = document.querySelector('#billingCycleDueDay')?.value || '';
     const choice = normalizeBillingCycleChoice({ customerId: customer.id, dueDay: dueDayValue, changedAt: localDate() });
     if (!choice) {
       toast('Enter a due day between 1 and 31.');
@@ -8251,7 +8289,7 @@ function renderCustomerProfileView(customer) {
     renderDetail();
   });
   $('#customerProfileView').querySelector('#paymentChannelSaveBtn')?.addEventListener('click', () => {
-    const channelValue = $('#customerProfileView').querySelector('#paymentChannelSelect')?.value || '';
+    const channelValue = document.querySelector('#paymentChannelSelect')?.value || '';
     if (!channelValue) {
       savePaymentChannels(removePaymentChannel(loadPaymentChannels(), customer.id));
       toast('Payment channel cleared: drafts will carry the neutral instructions.');
@@ -9257,6 +9295,22 @@ function renderCustomerProfileView(customer) {
   // boot-time wireDsIcons() call, so they need a re-wire here.
   // Idempotent: hooks already filled are skipped.
   wireDsIcons();
+  // Profile Inner Tabs Overhaul (D1 strict filter, §5.2) — move the
+  // Financial section into the Billing panel. This runs LAST, after
+  // every #customerProfileView-scoped wiring above, so the wada/kist/
+  // first-bill/package/quality listeners all attach while the section
+  // is still in the view; appendChild moves the node with its listeners
+  // intact. The innerHTML is rebuilt fresh on every render, so no
+  // previously-moved copy can stack (the complaints-panel precedent at
+  // the view assembly removes first; here a fresh node makes that
+  // unnecessary). The Financial handlers that re-query their controls
+  // at click time use document-wide lookups, and the per-section Edit
+  // flow lands on the Info tab first — so nothing breaks by the move.
+  for (const [sectionKey, tabName] of Object.entries(PROFILE_SECTION_TAB)) {
+    const section = $('#customerProfileView').querySelector(`[data-profile-section="${sectionKey}"]`);
+    const panel = $(`#${profileTabMap[tabName][1]}`);
+    if (section && panel) panel.append(section);
+  }
 }
 function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];
@@ -9388,7 +9442,12 @@ function wadaProfileBannerHtml(customer) {
   const health = wadaHealthText(all, customer.id);
   const history = wadaHistoryHtml(mine, today);
   const scoreBadge = waadaScoreBadgeHtml(state, customer, getTodayDateString());
-  return `<section class="profile-wada-banner" aria-label="Wada promises"><h4>Wada — promises to pay ${helpButtonMarkup('waada')}</h4>${banner || '<p class="wada-banner-none">No open wada for this customer.</p>'}<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button></div><label for="wadaQuickDate"><span class="pcp-field-pill">Promised date</span><input id="wadaQuickDate" type="date" required></label><label for="wadaQuickAmount"><span class="pcp-field-pill">Amount promised (Rs, optional)</span><input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 100"></label><label for="wadaQuickNote"><span class="pcp-field-pill">Note (optional)</span><input id="wadaQuickNote" type="text" maxlength="140" placeholder="e.g. in next bill"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">Add Wada</button></form><p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
+  // Profile Inner Tabs Overhaul (§4) — one empty state only: the
+  // wada-health line below reads 'No wadas recorded for this customer.'
+  // when there are none, so the duplicate 'No open wada' line is gone
+  // (the .wada-banner-none CSS rule stays, unreferenced — Plan 506
+  // precedent — and the health line itself is untouched).
+  return `<section class="profile-wada-banner" aria-label="Wada promises"><h4>Wada — promises to pay ${helpButtonMarkup('waada')}</h4>${banner}<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button></div><label for="wadaQuickDate"><span class="pcp-field-pill">Promised date</span><input id="wadaQuickDate" type="date" required></label><label for="wadaQuickAmount"><span class="pcp-field-pill">Amount promised (Rs, optional)</span><input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 100"></label><label for="wadaQuickNote"><span class="pcp-field-pill">Note (optional)</span><input id="wadaQuickNote" type="text" maxlength="140" placeholder="e.g. in next bill"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">Add Wada</button></form><p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
 }
 
 // Plan 518 — Zone datalist: offer the zone spellings already used under

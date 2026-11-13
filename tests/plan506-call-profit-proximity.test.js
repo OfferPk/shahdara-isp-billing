@@ -138,7 +138,10 @@ test('Plan 506: profit row sits immediately after the selling row in the money f
   // not "Not set"; the adjacency is unchanged.
   const moneyAt = groups.indexOf('money: profileInfoGroupMarkup(');
   const money = groups.slice(moneyAt, groups.indexOf('lifecycle: profileInfoGroupMarkup(', moneyAt));
-  const selling = "[t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)]";
+  // Profile Inner Tabs Overhaul (§3, D2a) — the selling row now labels
+  // the STORED price as what it is; prof_field_selling stays pinned
+  // elsewhere (plan504) and still feeds the missing-field labels.
+  const selling = "[t('prof_field_selling_stored'), profileEmptyMoney(customer.monthlySellingAmount)]";
   const profit = "[t('prof_field_profit'), profileProfitDisplay(customer, profit)]";
   const sellingIdx = money.indexOf(selling);
   const profitIdx = money.indexOf(profit);

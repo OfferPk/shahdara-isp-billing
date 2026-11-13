@@ -179,7 +179,10 @@ test('Plan 515: the view profit row (Plan 506) reads the dash with the missing-c
   assert.notEqual(start, -1, 'fragments object must exist');
   const groups = app.slice(start, app.indexOf('\n', start));
   assert.ok(groups.includes("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]"), 'view row must keep the label + dash + PKR figure pattern');
-  const selling = "[t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)]";
+  // Profile Inner Tabs Overhaul (§3, D2a) — the selling row now labels
+  // the STORED price as what it is; prof_field_selling stays pinned
+  // elsewhere (plan504) and still feeds the missing-field labels.
+  const selling = "[t('prof_field_selling_stored'), profileEmptyMoney(customer.monthlySellingAmount)]";
   assert.ok(groups.indexOf(selling) !== -1, 'selling row must still exist');
   assert.ok(groups.indexOf("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]") > groups.indexOf(selling), 'profit row must still follow the selling row');
 });

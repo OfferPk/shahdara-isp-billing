@@ -92,6 +92,10 @@
   --color-emerald: #10b981;
   --color-emerald-light: #34d399;
   --color-emerald-dark: #047857;
+  /* Profile View Polish — soft emerald for the at-a-glance Dues pill
+     when nothing is owed (a zero balance must not read as an error). */
+  --phs-dues-zero-bg: #ECFDF5;
+  --phs-dues-zero-border: #A7F3D0;
   --color-dark-surface: #24463b;
   --color-muted-soft: #5d7a6f;
   --color-ink-soft: #36564b;

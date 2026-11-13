@@ -363,9 +363,12 @@ test('wiring: updateSplitVisibility refreshes the flag, with no new split listen
 
 test('wiring: no entry-form copy mentions cheque', () => {
   // The render function itself.
+  // QC Modal Overhaul 2: the old end anchor (renderBigNameConfirm)
+  // is deleted with its line — the loose-change render is the next
+  // function after the flag render now.
   const fn = wiringSrc.slice(
     wiringSrc.indexOf('function renderPendingClearanceFlag()'),
-    wiringSrc.indexOf('function renderBigNameConfirm()'),
+    wiringSrc.indexOf('function renderLooseChangeChips()'),
   );
   assert.doesNotMatch(fn, /cheque/i, 'the entry render must not mention cheque');
   // The entry text constant and the entry rule in the module.

@@ -47,6 +47,7 @@ const tagCss = read('new-customer-tag.css');
 const bulkSrc = read('bulk-collect.js');
 const tagSrc = read('new-customer-tag-sheet.js');
 const qcSrc = read('nav-quick-collect.js');
+const langSrc = read('nav-language.js');
 const en = TRANSLATIONS.en;
 
 // The rule block starting at the given selector text, up to its
@@ -278,11 +279,15 @@ test('round total + today collected + Day Summary share one compact 3-cell flex 
 test('end-of-day summary is a Day Summary button inside the banner; New customer is gone', () => {
   // QC Modal Fix item 2: "+ New customer" is REMOVED — the modal
   // is strictly for fast cash collection — and the summary button
-  // is now "📊 Day Summary" (its label overflowed before). QC Modal
-  // Overhaul 2: the button moved INTO the banner as its third cell
-  // (the separate .qc-picker-actions-row is gone) and is compact
-  // (32px) instead of full-width 40px. The expanded summary still
-  // sits full-width BELOW the banner, never a cell.
+  // is now a BarChart3 SVG + "Day Summary" (its label overflowed
+  // before). Quick Collect CSS tightening (user instruction
+  // 2026-11-13, parent decision D4): the 📊 is gone; the icon is
+  // BarChart3, NOT BarChart2 — BarChart2 does not exist in
+  // ds-icons.js, BarChart3 is the canonical bar-chart icon. QC
+  // Modal Overhaul 2: the button moved INTO the banner as its third
+  // cell (the separate .qc-picker-actions-row is gone) and is
+  // compact (32px) instead of full-width 40px. The expanded summary
+  // still sits full-width BELOW the banner, never a cell.
   const bannerAt = html.indexOf('class="qc-round-banner"');
   assert.ok(bannerAt >= 0, 'the banner must exist');
   const edsAt = html.indexOf('id="edsEndOfDaySummaryButton"', bannerAt);
@@ -295,9 +300,16 @@ test('end-of-day summary is a Day Summary button inside the banner; New customer
   const btn = ruleBlock(stylesSrc, '.qc-round-banner .eds-summary-button {');
   assert.ok(btn.includes('min-height: 32px !important'), 'the banner button must be 32px (the global 44px floor needs !important to beat)');
   assert.ok(btn.includes('height: 32px'), 'the banner button must be exactly 32px tall');
-  // The label is the user's compact "📊 Day Summary" — the Moon
-  // ds-icon and the overflowing "End-of-day summary" label are gone.
-  assert.ok(html.includes('📊 Day Summary'), 'the summary button must read "📊 Day Summary"');
+  // The label is the compact "Day Summary" with a BarChart3 SVG —
+  // the Moon ds-icon, the 📊 emoji and the overflowing
+  // "End-of-day summary" label are gone. wireDsIcons renders the
+  // icon at a fixed 20px, so the 14px size is set in CSS.
+  assert.ok(html.includes('data-ds-icon="BarChart3"'), 'the summary button must carry a BarChart3 ds-icon');
+  assert.ok(html.includes('Day Summary'), 'the summary button must read "Day Summary"');
+  assert.ok(!html.includes('📊 Day Summary'), 'the 📊 emoji must be gone from the summary button');
+  const icon = ruleBlock(stylesSrc, '.qc-round-banner .eds-summary-button svg {');
+  assert.ok(icon.includes('width: 14px'), 'the Day Summary icon must render at 14px, not the 20px wireDsIcons default');
+  assert.ok(icon.includes('height: 14px'), 'the Day Summary icon must be 14px tall');
   // The expanded summary REGION keeps its full aria-label — only
   // the button label is shortened, so the check is the button text.
   assert.ok(!html.includes('End-of-day summary</button>'), 'no overflowing "End-of-day summary" button label may remain');
@@ -349,7 +361,7 @@ function cardSegments(listHtml) {
     });
 }
 
-test('unpaid cards: badge left of the name, priority pill top-right, figures as their own KPI row', () => {
+test('unpaid cards: badge left of the name, priority chips on their own row, figures inline on Row 1', () => {
   const customers = [
     { id: 'c-13', customerNumber: 13, name: 'Fixture Thirteen', area: 'BARRIAN', phone: '03012345678', totalDues: 3000, monthlyPackage: 3000, callHref: 'tel:03012345678', mapsUrl: 'https://www.google.com/maps?q=33.7,73.1' },
     { id: 'c-44', customerNumber: 44, name: 'Fixture Forty Four', area: 'GANGALL', phone: '', totalDues: 1500, monthlyPackage: 1500, callHref: null, mapsUrl: null },
@@ -364,26 +376,34 @@ test('unpaid cards: badge left of the name, priority pill top-right, figures as 
   const first = segments[0].html;
   // [#13] badge inline left of the name on Row 1.
   assert.ok(first.indexOf('qc-cust-num') < first.indexOf('qc-cust-name'), 'the #13 badge must sit left of the name');
-  // The priority badge sits in the .qc-card-right column (top-right
-  // of Row 1); the figures sit AFTER it, on their own KPI row.
-  const rightAt = first.indexOf('qc-card-right');
+  // Quick Collect CSS tightening (user instruction 2026-11-13):
+  // the priority badge left its top-right seat (.qc-card-right,
+  // deleted from the picker render) for the chips row BELOW the
+  // identity + figures row — this REVERSES the QC Modal Fix item 5
+  // seat and the Overhaul-2 "figures on their own KPI row" shape,
+  // so the header + Outstanding share Row 1 and two cards fit on
+  // screen. The harness must prove the card at 360px AND 320px.
+  assert.ok(!first.includes('qc-card-right'), 'the picker card must not render the top-right column anymore');
   const figuresAt = first.indexOf('qc3-figures');
-  assert.ok(rightAt >= 0 && figuresAt > rightAt, 'the figures must follow the right column onto their own KPI row');
-  const rightContent = first.slice(rightAt, first.indexOf('</div>', rightAt));
-  assert.ok(rightContent.includes('ds-chip--warning'), 'the right column must carry the Medium priority badge');
-  assert.ok(rightContent.includes('Medium priority'), 'the right column must label the tier');
-  assert.ok(!rightContent.includes('qc3-figures'), 'the figures must not sit inside the right column anymore');
-  assert.ok(!rightContent.includes('Outstanding'), 'the Outstanding figure must not sit on Row 1 anymore');
+  const chipsAt = first.indexOf('qc-card-chips');
+  assert.ok(chipsAt >= 0 && chipsAt > figuresAt, 'the chips row must follow the figures onto its own row');
+  const chipsContent = first.slice(chipsAt, first.indexOf('</div>', chipsAt));
+  assert.ok(chipsContent.includes('ds-chip--warning'), 'the chips row must carry the Medium priority badge');
+  assert.ok(chipsContent.includes('Medium priority'), 'the chips row must label the tier');
+  assert.ok(!chipsContent.includes('qc3-figures'), 'the figures must not sit inside the chips row');
+  assert.ok(!chipsContent.includes('Outstanding'), 'the Outstanding figure must stay on Row 1, not in the chips row');
   // QC Modal Fix item 3: the scorer reason is GONE from the picker
   // card — the subtitle line is now "Mohalla • Package Name", so
   // the card stays compact. The reason still renders in Field Mode
   // (field-mode.js), only the picker card drops it.
   assert.ok(!first.includes('2 months unpaid (+20 points).'), 'the scorer reason must be gone from the picker card');
   assert.ok(first.includes('BARRIAN'), 'the subtitle must carry the mohalla');
-  // The dues figure itself stays — exactly once, fully labelled, in
-  // the KPI row (the clipped Row-1 rendering is what was deleted).
-  assert.ok(first.includes('Outstanding'), 'the Outstanding label must stay in the KPI row');
-  assert.ok(first.includes('PKR 3,000'), 'the dues figure must stay in the KPI row');
+  // The dues figure itself stays — exactly once, fully labelled, on
+  // Row 1 beside the identity (the clipped Row-1 rendering is what
+  // the old KPI row was protecting against; the chips row takes the
+  // badges now, so the squeeze cannot return the same way).
+  assert.ok(first.includes('Outstanding'), 'the Outstanding label must stay on Row 1');
+  assert.ok(first.includes('PKR 3,000'), 'the dues figure must stay on Row 1');
   // QC Modal Overhaul 2: the Monthly package column is GONE from
   // the modal card — the dues badge above already names the figure,
   // and the column cost a full KPI row per card. Field Mode keeps
@@ -392,7 +412,8 @@ test('unpaid cards: badge left of the name, priority pill top-right, figures as 
   // modal render now) to prove the column does not come back.
   assert.ok(!first.includes('Monthly package'), 'the monthly figure must be gone from the modal card');
   assert.ok(!first.includes('qc3-package-val'), 'the monthly figure cell must be gone from the modal card');
-  // A card with no scorer row renders no right column at all.
+  // A card with no scorer row renders no chips row at all.
+  assert.ok(!segments[1].html.includes('qc-card-chips'), 'a card with no priority must render no chips row');
   assert.ok(!segments[1].html.includes('qc-card-right'), 'a card with no priority must render no right column');
 });
 
@@ -413,15 +434,23 @@ test('unpaid cards: Call / Location / Collect are ds-icons SVGs, Collect is soli
   // customer keeps the same plain label.
   assert.ok(!html.includes('Collect PKR 3,000</button>'), 'Collect must not repeat the amount the dues badge already names');
   assert.ok(html.includes('Collect</button>'), 'Collect must stay a plain label');
-  const collect = ruleBlock(stylesSrc, '.qc3-collect {');
-  // QC Modal Fix item 6: Collect is the user's emerald gradient,
-  // not the old solid Emerald — the tonal palette lives in
-  // tokens.css (--qc-collect-from / --qc-collect-to).
-  assert.ok(collect.includes('linear-gradient'), 'Collect must be the emerald gradient');
-  assert.ok(collect.includes('var(--qc-collect-from)'), 'Collect must start from the collect token');
-  assert.ok(collect.includes('color: var(--white)'), 'Collect text must be white on the Emerald');
-  assert.ok(collect.includes('font-weight: 600'), 'Collect must be weight 600 per the user palette');
-  assert.ok(!collect.includes('var(--green)'), 'the old green outline accent must be gone from Collect');
+  const collect = ruleBlock(stylesSrc, '#quickCollectModal .qc3-collect {');
+  // Quick Collect CSS tightening (user instruction 2026-11-13):
+  // the modal's Collect is flat dark emerald now, NOT the
+  // bright-green gradient — this REVERSES the QC Modal Fix item 6
+  // emerald gradient for the modal only. The gradient stays on the
+  // base rule for Field Mode, and the one-screen save button +
+  // help Got-it button keep it too (their own rules).
+  assert.ok(collect.includes('background: var(--ds-brand)'), 'modal Collect must be flat dark emerald');
+  assert.ok(!collect.includes('linear-gradient'), 'the modal Collect must not carry the bright-green gradient');
+  assert.ok(collect.includes('box-shadow: none'), 'the modal Collect must drop the gradient shadow');
+  assert.ok(collect.includes('flex: 1.5 1 0'), 'modal Collect must take 1.5 shares of the action row');
+  const base = ruleBlock(stylesSrc, '.qc3-collect {');
+  assert.ok(base.includes('linear-gradient'), 'the base Collect gradient must stay for Field Mode');
+  assert.ok(base.includes('var(--qc-collect-from)'), 'the base Collect must still start from the collect token');
+  assert.ok(base.includes('color: var(--white)'), 'Collect text must be white on the Emerald');
+  assert.ok(base.includes('font-weight: 600'), 'Collect must be weight 600 per the user palette');
+  assert.ok(!base.includes('var(--green)'), 'the old green outline accent must be gone from Collect');
 });
 
 test('picker card geometry: figures sit inline on Row 1 — the full-width KPI line is reversed', () => {
@@ -437,10 +466,21 @@ test('picker card geometry: figures sit inline on Row 1 — the full-width KPI l
   // truncates with "…" and the figures drop to their own row when
   // they do not fit. The wrap itself stays: the button must wrap
   // at every width so the figures CAN drop when they do not fit.
+  // Quick Collect CSS tightening (user instruction 2026-11-13):
+  // the badge's top-right seat and the tier labels' Row-1 seat go
+  // with it — both now live in the .qc-card-chips row below the
+  // identity + figures, at 24px/11px.
   const main = ruleBlock(stylesSrc, '#quickCollectModal .qc3-card-main {');
   assert.ok(main.includes('flex-wrap: wrap'), 'the picker card row must wrap at every width so the figures can drop when they do not fit');
-  const right = ruleBlock(stylesSrc, '#quickCollectModal .qc3-card-main > .qc-card-right {');
-  assert.ok(right.includes('align-self: flex-start'), 'the priority badge must sit top-right of Row 1');
+  assert.ok(!stylesSrc.includes('#quickCollectModal .qc3-card-main > .qc-card-right {'), 'the badge top-right seat rule must be gone with the column');
+  const chips = ruleBlock(stylesSrc, '#quickCollectModal .qc-card-chips {');
+  assert.ok(chips.includes('flex: 1 1 100%'), 'the chips row must take its own full-width row below the identity + figures');
+  assert.ok(chips.includes('flex-wrap: wrap'), 'the chips row must wrap its chips, never crush them');
+  assert.ok(stylesSrc.includes('#quickCollectModal .qc-card-chips .ds-chip,'), 'the chips row must size the priority badge');
+  const tag = ruleBlock(stylesSrc, '#quickCollectModal .qc-card-chips .qc2-high-balance-tag {');
+  assert.ok(tag.includes('height: 24px'), 'the chips must be 24px tall');
+  assert.ok(tag.includes('font-size: 11px'), 'the chips must be 11px');
+  assert.ok(!stylesSrc.includes('#quickCollectModal .qc3-card-main > .qc2-tier-label {'), 'the tier labels must not sit on Row 1 anymore — they live in the chips row');
   const figures = ruleBlock(stylesSrc, '#quickCollectModal .qc3-figures {');
   assert.ok(figures.includes('flex: 0 0 auto'), 'the figures must sit inline on Row 1, not on their own line');
   assert.ok(!figures.includes('flex: 0 0 100%'), 'the full-width KPI line must be gone');
@@ -451,8 +491,6 @@ test('picker card geometry: figures sit inline on Row 1 — the full-width KPI l
   // The <=360px QC-7 media block stays: it still serves Field Mode,
   // which shares .qc3-card-main with different children.
   assert.ok(stylesSrc.includes('@media (max-width: 360px)'), 'the QC-7 360px media block must stay for Field Mode');
-  const labels = ruleBlock(stylesSrc, '#quickCollectModal .qc3-card-main > .qc2-tier-label {');
-  assert.ok(labels.includes('margin-left: auto'), 'tier labels must stay right-aligned on their own line');
 });
 
 // --- Tokens + fences ------------------------------------------------------------
@@ -476,4 +514,66 @@ test('fences: no new element id, no new store key, no new hex in the new rules',
   assert.ok(!/shahdara_[a-z_]+/.test(read('recent-quick-pick.js')), 'the recent module must add no store key');
   assert.ok(!/shahdara_[a-z_]+/.test(read('quick-collect-end-of-day-summary.js')), 'the summary module must add no store key');
   assert.ok(!/shahdara_[a-z_]+/.test(read('ds-icons.js')), 'the icon set must add no store key');
+});
+
+// --- Quick Collect CSS tightening (user instruction 2026-11-13) ------
+// §2 single-row banner, title Zap icon, §3 Recent toggle, §4 hidden
+// inner scrollbar. The one-row FIT at 360px is harness-measured,
+// not CSS-pinned — see tests/qc-modal-overhaul-2-fit.test.js.
+
+test('tightening: the round banner is one row with the progress track on its own strip below', () => {
+  // The banner keeps flex-wrap: wrap (nowrap would overflow the
+  // 100%-basis track); the track takes order 4 so it always sits
+  // BELOW the Today + Round + Day Summary row, never above it as
+  // it did before (it had the default order 0). The bar itself is
+  // slate-50 with a ds-border edge and a 10px radius.
+  const banner = ruleBlock(stylesSrc, '.qc-round-banner {');
+  assert.ok(banner.includes('align-items: center'), 'the banner cells must centre on one row');
+  assert.ok(banner.includes('background: var(--color-slate-50)'), 'the banner must be slate-50, not slate-100');
+  assert.ok(banner.includes('border: 1px solid var(--ds-border)'), 'the banner must carry a ds-border edge');
+  assert.ok(banner.includes('border-radius: 10px'), 'the banner radius must be 10px');
+  const track = ruleBlock(stylesSrc, '.qc-round-banner .route-progress-track {');
+  assert.ok(track.includes('flex: 1 1 100%'), 'the track must take its own full-width row');
+  assert.ok(track.includes('order: 4'), 'the track must sit below the row (after the order-3 button)');
+});
+
+test('tightening: the modal title carries a Zap SVG and the language switcher writes into its text span', () => {
+  // The ⚡ left the qc_title strings — the icon is a Zap SVG in its
+  // own span, and the i18n applier writes into .qc-title-text so it
+  // cannot wipe the icon (the old textContent wipe on the h2 would
+  // have deleted it on every language switch).
+  assert.ok(html.includes('<span class="qc-title-icon" data-ds-icon="Zap"'), 'the title must carry a Zap icon span');
+  assert.ok(html.includes('<span class="qc-title-text">'), 'the title text must live in its own span');
+  assert.ok(isDsIconName('Zap'), 'Zap must be a real ds-icon');
+  assert.ok(!TRANSLATIONS.en.qc_title.includes('⚡'), 'the EN title string must not carry the ⚡ anymore');
+  assert.ok(!TRANSLATIONS.ur.qc_title.includes('⚡'), 'the UR title string must not carry the ⚡ anymore');
+  const icon = ruleBlock(stylesSrc, '#quickCollectModal:not(.qc-success-open) #quickCollectTitle .qc-title-icon svg {');
+  assert.ok(icon.includes('width: 16px'), 'the title icon must render at 16px');
+  assert.ok(langSrc.includes("container.querySelector('#quickCollectTitle .qc-title-text')"), 'the applier must retarget the title wipe to the text span');
+});
+
+test('tightening: the Recent toggle is one 38px row, never clipped or wrapped', () => {
+  const toggle = ruleBlock(stylesSrc, '.rqp-toggle {');
+  assert.ok(toggle.includes('margin-top: 8px'), 'the toggle must clear the sticky header clip');
+  assert.ok(toggle.includes('height: 38px'), 'the toggle must be a fixed 38px row');
+  // The global button floor is 44px !important — the height alone
+  // cannot beat it; the modal-scoped min-height must.
+  const modalToggle = ruleBlock(stylesSrc, '#quickCollectModal .rqp-toggle {');
+  assert.ok(modalToggle.includes('min-height: 38px !important'), 'the toggle must beat the 44px button floor at 38px');
+  const label = ruleBlock(stylesSrc, '.rqp-toggle-label {');
+  assert.ok(label.includes('white-space: nowrap'), 'the toggle label must stay on one line');
+  assert.ok(label.includes('text-overflow: ellipsis'), 'a long toggle label must ellipsis, not wrap');
+  assert.ok(label.includes('min-width: 0'), 'the label must be allowed to shrink inside the flex row');
+});
+
+test('tightening: the customer list hides its inner scrollbar visuals but still scrolls', () => {
+  // Parent decision D3: hide the visuals only (option (a)
+  // overflow-y:visible was rejected — it kills the cap/metric).
+  const list = ruleBlock(stylesSrc, '.qc-customer-list {');
+  assert.ok(list.includes('scrollbar-width: none'), 'the list must hide its scrollbar in Firefox');
+  assert.ok(list.includes('max-height: 460px'), 'the list cap must stay — the scrollbar hide must not remove the scroll area');
+  assert.ok(list.includes('overflow-y: auto'), 'the list must still scroll');
+  assert.ok(stylesSrc.includes('.qc-customer-list::-webkit-scrollbar {'), 'the list must hide its scrollbar in WebKit');
+  const webkit = ruleBlock(stylesSrc, '.qc-customer-list::-webkit-scrollbar {');
+  assert.ok(webkit.includes('display: none'), 'the WebKit scrollbar must be display:none');
 });

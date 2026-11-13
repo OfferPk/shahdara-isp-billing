@@ -430,7 +430,9 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
   flex: 1 1 200px;
 }
 .home-today-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 11px;
@@ -439,6 +441,11 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
   background: #e6f7f2;
   color: #0e5b4d;
   margin-bottom: 4px;
+}
+/* Home Dashboard polish (A4): the Calendar SVG beside the badge text. */
+.home-today-badge svg {
+  width: 14px;
+  height: 14px;
 }
 .home-today-title {
   margin: 0;
@@ -510,6 +517,7 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 10px;
 }
 .overdue-header-title {
@@ -522,6 +530,8 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
   font-weight: 700;
   color: var(--green, #0e5b4d);
   text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .overdue-view-all-link:hover {
   text-decoration: underline;
@@ -548,6 +558,7 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1;
 }
 .overdue-item-badge {
   flex-shrink: 0;
@@ -571,12 +582,25 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Home Dashboard polish (A4): the sub-line stacks mohalla · amount ·
+   note-chips and wraps instead of clipping under a nowrap ellipsis
+   (the exact defect A4 fixes). The amount keeps its 800 weight and
+   red, scoped to 11px; the chips flip to left-aligned, uncapped. */
 .overdue-item-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
   font-size: 11px;
   color: #5c6e66;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+}
+.overdue-item-sub .overdue-item-amount {
+  font-size: 11px;
+}
+.overdue-item-sub .pkr-note-chips {
+  justify-content: flex-start;
+  max-width: none;
 }
 .overdue-item-right {
   display: flex;
@@ -613,14 +637,8 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
 .overdue-wa-link:hover {
   background: #d4f5e0;
 }
-.overdue-collect-link {
-  background: #eef3f0;
-  color: var(--ink, #16342b);
-  border: 1px solid #d4ded8;
-}
-.overdue-collect-link:hover {
-  background: #e0e9e4;
-}
+/* Home Dashboard polish (A4): the grey Collect pill is gone — the
+   solid emerald 32px rule lives after the dark block below. */
 .overdue-empty-item {
   padding: 12px;
   text-align: center;
@@ -699,10 +717,37 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
 
 /* Profile UI polish: PKR banknote chips under the overdue amount (dark-mode
    checked via theme tokens; wraps instead of widening the row). */
-.overdue-amount-col{display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:0}
 .pkr-note-chips{display:flex;flex-wrap:wrap;gap:3px;justify-content:flex-end;max-width:150px}
 .pkr-note-chip{display:inline-flex;align-items:center;padding:1px 6px;border-radius:6px;background:var(--mint);border:1px solid var(--line);color:var(--green-dark);font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .pkr-note-remainder{display:inline-flex;align-items:center;padding:1px 6px;border-radius:6px;background:var(--amber-bg);border:1px solid var(--line);color:var(--amber);font-size:10px;font-weight:700;white-space:nowrap}
+
+/* Home Dashboard polish (A4): the Collect button is a solid emerald
+   32px pill that never clips (nowrap + flex-shrink: 0). Placed after
+   the dark block so both the light rule and its dark override win;
+   the hover uses the brand-hover token. The spec's #fff becomes
+   var(--white) — same colour, zero new hex. */
+.overdue-collect-link {
+  flex-shrink: 0;
+  white-space: nowrap;
+  height: 32px;
+  padding: 0 12px;
+  background: var(--ds-brand, #0F5338);
+  color: var(--white);
+  border-radius: 8px;
+  font-size: 12.5px;
+  border-color: transparent;
+}
+.overdue-collect-link:hover {
+  background: var(--ds-brand-hover);
+}
+[data-theme="dark"] .overdue-collect-link {
+  background: var(--ds-brand, #0F5338);
+  color: var(--white);
+  border-color: transparent;
+}
+[data-theme="dark"] .overdue-collect-link:hover {
+  background: var(--ds-brand-hover);
+}
 
 /* Dues Recovery Overhaul: the home dashboard's operational summary
    cards (Monthly Billing Cycle, Complaint Register, …) are loose

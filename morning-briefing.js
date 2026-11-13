@@ -233,7 +233,11 @@ export function renderMorningBriefing(doc = document, briefing) {
     ? t('brief_shop_pending', null, { count: briefing.shops.lines.length })
     : t('brief_shop_none'));
 
-  setText('briefBackupValue', `${briefing.backup.emoji} ${morningBriefingBackupLabel(briefing)}`);
+  // Home Dashboard polish (A3): the value is the label ONLY — the 3D
+  // emoji is gone from the pill (a 10px CSS status dot beside the
+  // value carries the state now). The emoji map in backup-health.js
+  // and the top-bar badge still use the emoji; only this render drops it.
+  setText('briefBackupValue', morningBriefingBackupLabel(briefing));
   setText('briefBackupSub', briefing.backup.lastExportAt
     ? t('brief_backup_last', null, { date: String(briefing.backup.lastExportAt).slice(0, 10) })
     : t('brief_backup_never_sub'));

@@ -259,7 +259,10 @@ test('phase A groups: money rows split out of Service, profit still right after 
   // concession / discounts / net rows follow the profit row.
   assert.ok(money.includes("[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))]"), 'tax row moves with the money fragment');
   assert.ok(money.includes("[t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)]"), 'purchase cost moves with the money fragment');
-  assert.ok(money.includes("[t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)]"), 'selling moves with the money fragment');
+  // Profile Inner Tabs Overhaul (§3, D2a) — the selling row now labels
+  // the STORED price as what it is; prof_field_selling stays pinned
+  // elsewhere (plan504) and still feeds the missing-field labels.
+  assert.ok(money.includes("[t('prof_field_selling_stored'), profileEmptyMoney(customer.monthlySellingAmount)]"), 'selling moves with the money fragment');
   assert.ok(money.includes("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]"), 'profit moves with the money fragment');
   const serviceAt = frags.indexOf('service: profileInfoGroupMarkup(');
   const service = frags.slice(serviceAt, moneyAt);

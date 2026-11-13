@@ -162,8 +162,9 @@ test('the phone value is HTML-escaped — a hostile stored value cannot break th
 test('the other card rows are unchanged and in order around the new row', () => {
   // QC receipt-modal overhaul (decision (j)): the fixture is a PARTIAL
   // receipt (PKR 1,000 still owed) so the merged Still-owed row renders
-  // with its figure — the merged row is always shown, and the hiding
-  // itself is pinned in tests/qc-hide-zero-remaining-balance.test.js.
+  // with its figure — the row is hidden when fully paid (QC Success
+  // Card Polish, 2026-11-13), and the hiding itself is pinned in
+  // tests/qc-success-card-polish.test.js.
   const html = renderQuickCollectReceiptCardHtml(baseReceipt({ phone: FAKE_PHONE, payableRemaining: 1000, newTotalDues: 1000 }));
   const order = ['>Customer<', 'Mobile Number', 'Date &amp; Method', 'Area / Location', 'Still owed'];
   let last = -1;
@@ -172,11 +173,17 @@ test('the other card rows are unchanged and in order around the new row', () => 
     assert.ok(at > last, `card must carry ${marker} after the previous row`);
     last = at;
   }
-  assert.ok(html.includes('Test Customer (#37)'), 'Customer row keeps name + number');
+  // QC Success Card Polish (2026-11-13): golden crown name + plain
+  // number — no "#" and no parens.
+  assert.ok(html.includes('👑 Test Customer 37'), 'Customer row keeps golden crown name + plain number');
   assert.ok(html.includes('08/11/2026 · Cash'), 'Date & Method row keeps date + method (date now prints DD/MM/YYYY)');
   assert.ok(html.includes('quickCollectAreaSelect'), 'Area select stays');
   assert.ok(html.includes('PKR 1,000'), 'Still owed row keeps its figure');
-  assert.ok(html.includes('RCPT-12-202611-01'), 'receipt id stays in the header');
+  // The header shows the SHORT form; the full number stays in the
+  // title + data-full-receipt-number attributes.
+  assert.ok(html.includes('>RCPT-1<'), 'receipt id shows the short form in the header');
+  assert.ok(html.includes('title="RCPT-12-202611-01"'), 'full receipt id stays in the title');
+  assert.ok(html.includes('data-full-receipt-number="RCPT-12-202611-01"'), 'full receipt id stays in the data attribute');
 });
 
 test('the WhatsApp draft is untouched — the new label stays card-only', () => {

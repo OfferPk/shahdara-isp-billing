@@ -15736,8 +15736,11 @@ function renderReceivablesAgeing() {
     const canon = canonicalMohalla(customer.mohalla || customer.area || '');
     for (const bill of customer.bills ?? []) {
       const summary = allocations.forMonth(customer.id, bill.month);
-      const balanceDue = summary && summary.balanceDueCents > 0 ? summary.balanceDueCents / 100 : 0;
-      if (!(balanceDue > 0)) continue;
+      // Sharafat 14: pass integer cents straight through — no / 100,
+      // no Math.round here; the ageing module carries cents end-to-end
+      // and rounds only at display, so a 1500.50 due ages as 150050.
+      const balanceDueCents = summary && summary.balanceDueCents > 0 ? summary.balanceDueCents : 0;
+      if (!(balanceDueCents > 0)) continue;
       entries.push({
         customerId: customer.id,
         customerName: customer.name || customer.customerName || '—',
@@ -15745,7 +15748,7 @@ function renderReceivablesAgeing() {
         mohallaLabel: canon ? canon.label : undefined,
         mohalla: customer.mohalla || customer.area || '',
         billMonth: bill.month,
-        amount: Math.round(balanceDue),
+        amount: balanceDueCents,
       });
     }
   }

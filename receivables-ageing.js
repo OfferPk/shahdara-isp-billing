@@ -30,7 +30,10 @@
 // Input entry shape:
 //   {
 //     customerId, customerName, mohalla (raw string, may be blank),
-//     billMonth ("YYYY-MM"), amount (outstanding PKR for this bill)
+//     billMonth ("YYYY-MM"), amount (outstanding integer CENTS for
+//     this bill — Sharafat 14: the module carries cents end-to-end
+//     and rounds only at display; a caller passing rupees would
+//     silently inflate ageing 100x, so never pass rupees here)
 //   }
 // Optional per-entry overrides: mohallaKey / mohallaLabel, when the
 // caller has already resolved the mohalla through the app's
@@ -53,9 +56,11 @@
 //     excluded, reported as `skippedNonOutstanding` (a count, not
 //     an amount). Zero-amount bills therefore cannot inflate a
 //     bucket or break the sum.
-//   - Amounts are rounded to whole PKR, matching the app's display
-//     convention; the caller supplies already-rounded allocation
-//     figures, so rounding here is a guard, not a recalculation.
+//   - Amounts are integer cents end-to-end (Sharafat 14): the caller
+//     passes balanceDueCents straight through, buckets and totals
+//     stay in cents, and only the display (formatAmount) rounds to
+//     whole rupees; num() guards non-integer input by rounding to the
+//     nearest cent. The CSV writes exact decimal rupees (ageingCsv).
 //   - Nothing is mutated: input entries are read, never written.
 
 export const AGEING_BUCKETS = Object.freeze([
@@ -69,6 +74,8 @@ export const AGEING_BUCKET_KEYS = Object.freeze(AGEING_BUCKETS.map((bucket) => b
 
 const MONTH_RE = /^(\d{4})-(\d{2})$/;
 
+// Sharafat 14: amounts are integer cents — Math.round here is only
+// the guard against non-integer input, never a rupee rounding.
 function num(value) {
   const n = Number(value);
   return Number.isFinite(n) ? Math.round(n) : 0;
@@ -93,7 +100,17 @@ function csvCell(value) {
 }
 
 function formatAmount(value) {
-  return `Rs. ${num(value).toLocaleString('en-US')}`;
+  // Sharafat 14: value is integer cents — round to whole rupees ONLY
+  // at display, so 150050 cents prints "Rs. 1,501", never "Rs. 150,050".
+  return `Rs. ${Math.round(num(value) / 100).toLocaleString('en-US')}`;
+}
+
+// Sharafat 14 (parent decision 2026-11-13): the CSV writes exact
+// decimal rupees — 150050 cents is "1500.50", never "150050" (cents
+// in a CSV would be misread as rupees). Two decimals always, so the
+// row section and the mohalla-totals section reconcile to the paisa.
+function formatCsvAmount(cents) {
+  return (num(cents) / 100).toFixed(2);
 }
 
 /** Strict YYYY-MM validation against the real calendar (month 01-12). */
@@ -404,7 +421,7 @@ export function ageingCsv(view, agedEntries) {
       csvCell(entry.customerName),
       csvCell(str(entry.mohallaLabel) || ageingMohallaLabel(entry.mohalla)),
       csvCell(str(entry.billMonth).trim()),
-      csvCell(num(entry.amount)),
+      csvCell(formatCsvAmount(entry.amount)),
     ].join(','));
   }
   lines.push('');
@@ -412,12 +429,12 @@ export function ageingCsv(view, agedEntries) {
   for (const row of view.mohallaTotals) {
     lines.push([
       csvCell(row.label),
-      csvCell(row.total),
+      csvCell(formatCsvAmount(row.total)),
       csvCell(row.billCount),
-      csvCell(row.byBucket.current),
-      csvCell(row.byBucket.one),
-      csvCell(row.byBucket.two),
-      csvCell(row.byBucket.threePlus),
+      csvCell(formatCsvAmount(row.byBucket.current)),
+      csvCell(formatCsvAmount(row.byBucket.one)),
+      csvCell(formatCsvAmount(row.byBucket.two)),
+      csvCell(formatCsvAmount(row.byBucket.threePlus)),
     ].join(','));
   }
   return lines.join('\n');

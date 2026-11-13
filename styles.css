@@ -8134,17 +8134,30 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* Quick Collect CSS tightening (user instruction 2026-11-13,
+     parent decision D3): the inner scrollbar's VISUALS are hidden
+     only — the list still scrolls (its 460px cap and the scroll
+     metric stay). Hiding the track removes the double-scrollbar
+     look against the modal card's own scrollbar. */
+  scrollbar-width: none;
   /* QC Modal Overhaul 2: the list cap rises 380px -> 460px — with
-     the figures back inline on Row 1 the cards measure 122px
-     (plain) / 170.6px (high-balance tag, figures wrapped to Row 2),
-     so a 460px list shows 2 full + most of a third (2.65 cards on
-     the mixed fixture, 2.57 all-badged, 3.5 all-plain) instead of
+     the figures back inline on Row 1 the cards measure 118px
+     (plain) / 151.5px (chips row) after the Quick Collect CSS
+     tightening (was 122px / 170.6px), so a 460px list shows 2 full
+     + 85% of a third (3.03 all-badged, 3.90 all-plain) instead of
      the 1 full + 1 partial the 380px cap showed — the "2.5–3 cards
      on screen" target. The cap is the list's own scroll area; the
      modal card still scrolls to bring the list into view. */
   max-height: 460px;
   overflow-y: auto;
   padding: 2px;
+}
+
+/* Quick Collect CSS tightening (parent decision D3): the WebKit half
+   of the hidden inner scrollbar — visuals only, the list still
+   scrolls. */
+.qc-customer-list::-webkit-scrollbar {
+  display: none;
 }
 
 .qc-customer-card {
@@ -9524,6 +9537,30 @@ html, body {
   text-overflow: ellipsis;
 }
 
+/* Quick Collect CSS tightening (user instruction 2026-11-13): the
+   title carries a Zap SVG in its own span (the ⚡ left the qc_title
+   strings) — the h2 is inline-flex so the icon and the text share
+   the line, and the text span keeps the ellipsis. */
+#quickCollectModal:not(.qc-success-open) #quickCollectTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+#quickCollectModal:not(.qc-success-open) #quickCollectTitle .qc-title-icon {
+  display: inline-flex;
+  flex: none;
+}
+#quickCollectModal:not(.qc-success-open) #quickCollectTitle .qc-title-icon svg {
+  width: 16px;
+  height: 16px;
+}
+#quickCollectModal:not(.qc-success-open) #quickCollectTitle .qc-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* QC Cash Modal Overhaul — the two filter selects share one
    2-column row, labels above their selects (12px bold), so the
    picker shows both controls without a stacked filter tower. */
@@ -9607,12 +9644,19 @@ html, body {
    instead of swapping text, so the toggle handler only flips
    aria-expanded and the rows' hidden flag. The rows container keeps
    its [hidden] behaviour: the flex display must not beat it. */
+/* Quick Collect CSS tightening (user instruction 2026-11-13): the
+   Recent toggle's top was clipped by the sticky header (top:-16px)
+   and its summary wrapped to two lines — margin-top 8px clears the
+   clip, a fixed 38px height plus a one-line ellipsised label keeps
+   it a single row. */
 .rqp-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   width: 100%;
+  margin-top: 8px;
+  height: 38px;
   padding: 6px 10px;
   border: 1px solid var(--ds-border);
   border-radius: 10px;
@@ -9622,6 +9666,18 @@ html, body {
   font-weight: 600;
   text-align: left;
   cursor: pointer;
+}
+.rqp-toggle-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+/* The global button floor is 44px !important — the 38px toggle
+   needs its own !important with a more specific selector to beat
+   it (the Day Summary button does the same at 32px). */
+#quickCollectModal .rqp-toggle {
+  min-height: 38px !important;
 }
 .rqp-toggle-chevron {
   display: inline-block;
@@ -9668,8 +9724,29 @@ html, body {
 #quickCollectModal .qc3-card-main {
   flex-wrap: wrap;
 }
-#quickCollectModal .qc3-card-main > .qc-card-right {
-  align-self: flex-start;
+/* Quick Collect CSS tightening (user instruction 2026-11-13): the
+   chips row — priority badge, High-balance tag and tier labels on
+   one 24px/11px row below the identity + figures row. This REVERSES
+   the QC Modal Fix item 5 top-right seat (.qc-card-right, deleted
+   from the picker render) and the Overhaul-2 tier-label seat
+   (margin-left: auto on Row 1, deleted with it). The .qc-card-right
+   rules themselves stay: the Recent rows still use that column. */
+#quickCollectModal .qc-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 100%;
+}
+#quickCollectModal .qc-card-chips .ds-chip,
+#quickCollectModal .qc-card-chips .qc2-high-balance-tag {
+  height: 24px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+#quickCollectModal .qc-card-chips .qc2-high-balance-tag {
+  display: inline-flex;
+  align-items: center;
 }
 /* QC Modal Overhaul 2: the identity column takes the leftover width
    (flex-basis 0, grow 1) so the figures fit on Row 1 beside it when
@@ -9677,9 +9754,11 @@ html, body {
    uses the long "Mohalla • Package" subtitle and the figures wrap
    even for short names. The 140px floor keeps a short name fully
    visible (badge + gap + ~90px of name); longer names ellipsis.
-   A card with a high-balance tag still wraps the figures to Row 2
-   (tag + figures + the floored identity exceed the row) — the wrap
-   is the safety valve, so the name is never crushed to a stub. */
+   Quick Collect CSS tightening (user instruction 2026-11-13): the
+   chips row takes the badges now, so a high-balance tag no longer
+   pushes the figures to Row 2 — the wrap stays only as the safety
+   valve for a very long name, so the name is never crushed to a
+   stub. */
 #quickCollectModal .qc3-card-main > .qc-card-left {
   flex: 1 1 0;
   min-width: 140px;
@@ -9687,9 +9766,6 @@ html, body {
 #quickCollectModal .qc3-figures {
   flex: 0 0 auto;
   justify-content: flex-end;
-}
-#quickCollectModal .qc3-card-main > .qc2-tier-label {
-  margin-left: auto;
 }
 
 /* QC Cash Modal Overhaul — the filter chips' focus ring goes Emerald
@@ -10033,16 +10109,23 @@ html, body {
    and their live text; the bar lays them out in one row, Today
    first, with a • between them, the button last (order 3). The day
    target host renders display:contents, so its line joins the row
-   while its progress track drops to its own full-width row below. */
+   while its progress track drops to its own full-width row below.
+   Quick Collect CSS tightening (user instruction 2026-11-13): the
+   bar is one row at 360px only if the three cells fit — the harness
+   measures it, figures are never truncated. The banner KEEPS
+   flex-wrap: wrap (nowrap would overflow the 100%-basis track);
+   the track takes order 4 so it always sits BELOW the row, never
+   above it as it did before (it had the default order 0). */
 .qc-round-banner {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 0;
   margin: 8px 0 0;
   padding: 6px 10px;
-  border-radius: 8px;
-  background: var(--color-slate-100);
+  border-radius: 10px;
+  background: var(--color-slate-50);
+  border: 1px solid var(--ds-border);
 }
 .qc-round-banner .ds-stat-box {
   min-height: 0;
@@ -10064,6 +10147,17 @@ html, body {
 .qc-round-banner .dtp-daily-target-progress {
   display: contents;
 }
+/* Quick Collect CSS tightening (user instruction 2026-11-13): the
+   HOST must be display:contents too — the inner wrapper's
+   display:contents alone leaves the line + track boxed inside the
+   host (the host is the banner's flex item), so the track sat
+   BETWEEN Today and Round + Button instead of below the bar. With
+   the host contents as well, the line (order 1) and the track
+   (order 4, 100% basis) are banner flex items: the track takes its
+   own strip below the row items, as intended. */
+.qc-round-banner #dtpDailyTargetProgress {
+  display: contents;
+}
 .qc-round-banner .dtp-line {
   margin: 0;
   order: 1;
@@ -10072,6 +10166,7 @@ html, body {
 }
 .qc-round-banner .route-progress-track {
   flex: 1 1 100%;
+  order: 4;
   margin-top: 4px;
 }
 
@@ -10094,6 +10189,14 @@ html, body {
   gap: 6px;
   padding: 0 10px;
   white-space: nowrap;
+}
+/* Quick Collect CSS tightening (user instruction 2026-11-13): the
+   Day Summary icon is a BarChart3 SVG now (parent decision D4 —
+   BarChart2 does not exist in ds-icons.js); wireDsIcons renders it
+   at a fixed 20px, so the 14px size is set here. */
+.qc-round-banner .eds-summary-button svg {
+  width: 14px;
+  height: 14px;
 }
 .eds-summary-button {
   margin: 0;
@@ -10262,6 +10365,39 @@ html, body {
      weight) live in the base .qc3-collect rule above. */
   flex: 1 1 auto;
   min-height: 40px !important;
+}
+
+/* Quick Collect CSS tightening (user instruction 2026-11-13): the
+   modal's action row is sized for ONE row — Call / Location share
+   it with Collect (flex 1 / 1 / 1.5) at 40px, reversing the QC
+   Modal Fix item 6 sizing (36px icon buttons, Collect flex
+   1 1 auto). The wrap valve itself STAYS (see below): the row is
+   one row whenever it fits and drops the third button instead of
+   clipping when it does not. Field Mode keeps the wrapping base
+   rules above; only the modal is one row. Collect is flat dark
+   emerald in the modal; the bright-green gradient stays on the
+   base rule for Field Mode, the one-screen save button and the
+   help Got-it button, which keep it. */
+#quickCollectModal .qc3-card-actions {
+  /* One row whenever it fits (360px: measured one row, 40px) —
+     and the wrap valve STAYS: below 360px the third button drops
+     to a second row instead of clipping. nowrap was measured and
+     rejected: at 320px the three buttons need 266px for 236px
+     available, a 30px row overflow (11px at the list level). The
+     valve is the no-crush principle — the row is one row at 360px
+     and above, never a clip below it. */
+  flex-wrap: wrap;
+}
+#quickCollectModal .qc3-action-btn--call,
+#quickCollectModal .qc3-action-btn--location {
+  flex: 1 1 0;
+  min-height: 40px !important;
+}
+#quickCollectModal .qc3-collect {
+  flex: 1.5 1 0;
+  min-height: 40px !important;
+  background: var(--ds-brand);
+  box-shadow: none;
 }
 .qc3-collect:active {
   transform: scale(0.98);

@@ -2099,10 +2099,13 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     const tierLabels = cardPriority
       ? cardPriority.tierKeys.map((key) => `<span class="qc2-tier-label">${escapeHtml(t(QC2_HIGH_BALANCE_TIER_LABEL_KEYS[key]))}</span>`).join('')
       : '';
-    // QC Modal Fix: the priority badge sits inline at the top-right
-    // of the card header (.qc-card-right) and carries its tier
-    // class, so the badge, the amount and the card's left accent all
-    // share one tier. The badge itself is the scorer's tier, never
+    // Quick Collect CSS tightening (user instruction 2026-11-13):
+    // the priority badge, the High-balance tag and the tier labels
+    // sit in the .qc-card-chips row BELOW the identity + figures
+    // row — this REVERSES the QC Modal Fix item 5 top-right seat
+    // (.qc-card-right, deleted from this render) so the header and
+    // the Outstanding figure share one row and two cards fit on
+    // screen. The badge itself is still the scorer's tier, never
     // re-scored here; the High-balance tag beside it is the OTHER
     // half of item (5) — a card whose dues reach the "High ≥ 2k"
     // filter threshold shows why it sits in that filter even when
@@ -2167,15 +2170,25 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // class, the data-customer-id and the selected / tier classes, so
     // the existing selectors, dark-theme rules and QC-2 accent still
     // apply; the inner main button is the tap-to-collect target.
-    // Row 1 is the identity row: [#N] badge inline left of the name,
-    // the priority badge top-right. The dues figure is its own KPI row
-    // below it (never squeezed onto Row 1 — that squeeze clipped
-    // "Outstanding P..." above 360px and in RTL), so the dues figure
-    // appears exactly once, fully labelled. The .qc-card-right column
-    // renders when a priority badge or a High-balance tag exists.
+    // Row 1 is one line: the identity ([ #N ] name + subtitle) on
+    // the left and the Outstanding figure on the right. Row 2 is the
+    // chips row (.qc-card-chips) — priority badge, High-balance tag
+    // and tier labels at 24px/11px — rendered only when at least one
+    // chip exists.
+    // Quick Collect CSS tightening (user instruction 2026-11-13):
+    // this REVERSES three deliberate measured fixes — the badge's
+    // top-right seat (QC Modal Fix item 5), the figures' own KPI row
+    // (QC Cash Modal Overhaul: the row-1 squeeze used to clip
+    // "Outstanding P..." above 360px and in RTL), and the wrap valve
+    // (QC Modal Overhaul 2 fit-test C5) — so the harness must prove
+    // the card at 360px AND 320px; see
+    // tests/qc-customer-list-no-crush.test.js.
     // QC Modal Fix: the card also carries its priority tier class
     // (qc2-priority--high/medium/low) for the tier accent + tier
     // amount colour, and the subtitle is "Mohalla • Package Name".
+    const chipsHtml = (priorityBadge || highBalanceTag || tierLabels)
+      ? `<div class="qc-card-chips">${priorityBadge}${highBalanceTag}${tierLabels}</div>`
+      : '';
     return `
       <div class="qc-customer-card qc3-card ${dueClass} ${isSelected ? 'is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}${priorityTierClass ? ` ${priorityTierClass}` : ''}"
            data-customer-id="${escapeHtml(c.id)}">
@@ -2191,14 +2204,13 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
               <span class="qc-cust-meta">${escapeHtml(cardSubtitle)}</span>
             </div>
           </div>
-          ${priorityBadge || highBalanceTag ? `<div class="qc-card-right">${priorityBadge}${highBalanceTag}</div>` : ''}
           <div class="qc3-figures">
             <span class="qc3-figure">
               <span class="qc3-figure-label">${escapeHtml(t('qc3_outstanding'))}</span>
               <span class="qc3-figure-value">${dueLabel}</span>
             </span>
           </div>
-          ${tierLabels}
+          ${chipsHtml}
         </button>
         ${actionsRow}
       </div>

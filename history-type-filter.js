@@ -25,6 +25,11 @@ export const HISTORY_TYPE_FILTER_TYPES = Object.freeze([
   'credit',
   'refund',
   'adjustment',
+  // Sharafat 12 — 'info': an informational line (ticket/add-on
+  // charges already inside the payment cash). It moves nothing, but
+  // it is a line of its own, so the filter offers it like any other
+  // type and the per-type counts still sum to the full list.
+  'info',
 ]);
 
 export const HISTORY_TYPE_FILTER_LABELS = Object.freeze({
@@ -34,6 +39,7 @@ export const HISTORY_TYPE_FILTER_LABELS = Object.freeze({
   credit: 'Credit',
   refund: 'Refund',
   adjustment: 'Adjustment',
+  info: 'Info',
 });
 
 export const HISTORY_TYPE_FILTER_EMPTY_TEXT = 'No transactions yet';
@@ -42,7 +48,7 @@ function foldHistoryTypeFilter(value) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
-/** True for 'all' or one of the six history entry types. */
+/** True for 'all' or one of the seven history entry types. */
 export function isHistoryTypeFilter(value) {
   const folded = foldHistoryTypeFilter(value);
   return folded === HISTORY_TYPE_FILTER_ALL || HISTORY_TYPE_FILTER_TYPES.includes(folded);

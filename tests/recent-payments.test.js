@@ -359,10 +359,14 @@ test('SISP-174: dashboard wires the pills and the 1-tap Receipt / WhatsApp / PNG
   assert.ok(app.includes('receiptWhatsAppActionMarkup(customer, {'));
   assert.ok(app.includes('bindReceiptPhoneActions(recentPaymentsListEl)'));
   // Actions render OUTSIDE the profile-navigation button (never nested):
-  // the row template closes the open-button before the tap-to-expand
-  // actions menu (Home Dashboard overhaul: the actions moved inside
-  // a <details> menu so only the last 3 rows show on Home).
-  assert.ok(app.includes('</button><details class="recent-payment-actions-menu">'), 'actions menu follows the closed navigation button');
+  // Home Dashboard polish (§3): the row is a horizontal flex row now,
+  // so a right column (amount + actions menu) sits between the closed
+  // button and the <details>. The invariant is the SIBLING relation —
+  // the details is never nested inside the button — not the literal
+  // adjacency the old pin asserted.
+  assert.ok(app.includes('</button><div class="recent-payment-right">'), 'right column follows the closed navigation button');
+  assert.ok(app.includes('<details class="recent-payment-actions-menu">'), 'actions menu exists in the right column');
+  assert.ok(!app.includes('</button><details class="recent-payment-actions-menu">'), 'the old stacked adjacency is gone');
   assert.ok(app.includes('${recentPaymentActionsMarkup(row)}</details>'), 'actions markup sits inside the details menu');
   // The actions carry the row's own customer / month / payment identity.
   assert.ok(app.includes('data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(row.month)}" data-payment-id="${escapeHtml(payment.id)}"'));
@@ -373,4 +377,21 @@ test('SISP-174: the new dashboard strings exist in both languages', () => {
   for (const key of ['dash_recent_filter_all', 'dash_recent_filter_label', 'dash_recent_receipt', 'dash_recent_receipt_aria']) {
     assert.equal(nav.split(`${key}:`).length - 1, 2, `${key} must exist in en and ur`);
   }
+});
+
+test('home dashboard polish: Recent Payments rows are name-primary with Method • date and amount + Receipt on the right', () => {
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../dashboard.css', import.meta.url), 'utf8');
+  const template = app.slice(app.indexOf('recentRows.map((row)'), app.indexOf('recentRows.map((row)') + 1200);
+  assert.ok(template.includes('class="recent-payment-name"'), 'strong holds the customer name');
+  assert.ok(template.includes('${escapeHtml(row.customerName)}</strong>'), 'name is the strong text');
+  assert.ok(template.includes('humanDate(row.date)'), 'sub-line carries the date');
+  assert.ok(template.includes('class="recent-payment-right"'), 'amount + toggle share a right column');
+  assert.ok(template.includes('class="recent-payment-amount"'), 'amount sits in the right column');
+  assert.ok(!template.includes('recent-payment-ref'), 'the receipt ref left the row (reachable from the receipt actions)');
+  const row = css.slice(css.indexOf('.recent-payment-row {'), css.indexOf('.recent-payment-row {') + 300);
+  assert.ok(row.includes('flex-direction: row'), 'row is a horizontal flex row');
+  const filters = css.slice(css.indexOf('.recent-payments-filters {'), css.indexOf('.recent-payments-filters {') + 300);
+  assert.ok(filters.includes('flex-wrap: nowrap'), 'filter pills do not wrap');
+  assert.ok(filters.includes('overflow-x: auto'), 'filter pills scroll horizontally');
 });

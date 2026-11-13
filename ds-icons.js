@@ -98,14 +98,34 @@ const DS_ICON_PATHS = Object.freeze({
   MapPin: "<path d=\"M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0\" /> <circle cx=\"12\" cy=\"10\" r=\"3\" />",
   ClipboardList: "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\" /> <path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\" /> <path d=\"M12 11h4\" /> <path d=\"M12 16h4\" /> <path d=\"M8 11h.01\" /> <path d=\"M8 16h.01\" />",
   CreditCard: "<rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"2\" /> <line x1=\"2\" x2=\"22\" y1=\"10\" y2=\"10\" />",
-  /* Home Dashboard polish (Nov 2026): Calendar (Today badge),
-   * Landmark (Cash in Hand — the bank glyph) and CheckCircle
-   * (Active Subscribers) replace the last 3D emoji in the KPI
-   * strip / Today card. Same Lucide 24x24 stroke set, same licence;
-   * paths verified against lucide-static. */
+  /* Home Dashboard polish (Nov 2026): Calendar (Today badge) and
+   * CheckCircle (Active Subscribers) replace the last 3D emoji in
+   * the KPI strip / Today card. Landmark (Cash in Hand bank glyph)
+   * is shared with the Collect Tab block below — defined once there.
+   * Same Lucide 24x24 stroke set, same licence; paths verified
+   * against lucide-static. */
   Calendar: "<rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\" /> <path d=\"M16 2v4\" /> <path d=\"M8 2v4\" /> <path d=\"M3 10h18\" />",
-  Landmark: "<line x1=\"3\" x2=\"21\" y1=\"22\" y2=\"22\" /> <line x1=\"6\" x2=\"6\" y1=\"18\" y2=\"11\" /> <line x1=\"10\" x2=\"10\" y1=\"18\" y2=\"11\" /> <line x1=\"14\" x2=\"14\" y1=\"18\" y2=\"11\" /> <line x1=\"18\" x2=\"18\" y1=\"18\" y2=\"11\" /> <polygon points=\"12 2 20 7 4 7\" />",
   CheckCircle: "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"m9 12 2 2 4-4\" />",
+  /* Collect Tab & Field Operations Dashboard Polish (Nov 2026): the
+   * Collect dashboard loses its last 3D emoji — Target (Today's Field
+   * Recovery), TrendingUp (Collection insights), Landmark (Advance
+   * Held), Store / Coins / Wifi (Shop Cash + Installation Tracker),
+   * Briefcase / Plug (Zone Field Dispatch Board) and ChevronLeft /
+   * ChevronRight (Collected Feed pagination). Same Lucide 24x24
+   * stroke set, same licence; paths verified against lucide-static.
+   * Rebase note: Landmark is shared with Home Dashboard polish —
+   * kept ONCE here, with the lucide-static 1.72.0 path (the Home
+   * Dashboard entry used the older Lucide Landmark glyph). */
+  Target: "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <circle cx=\"12\" cy=\"12\" r=\"6\" /> <circle cx=\"12\" cy=\"12\" r=\"2\" />",
+  TrendingUp: "<path d=\"M16 7h6v6\" /> <path d=\"m22 7-8.5 8.5-5-5L2 17\" />",
+  Landmark: "<path d=\"M10 18v-7\" /> <path d=\"M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z\" /> <path d=\"M14 18v-7\" /> <path d=\"M18 18v-7\" /> <path d=\"M3 22h18\" /> <path d=\"M6 18v-7\" />",
+  Store: "<path d=\"M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5\" /> <path d=\"M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244\" /> <path d=\"M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05\" />",
+  Coins: "<path d=\"M13.744 17.736a6 6 0 1 1-7.48-7.48\" /> <path d=\"M15 6h1v4\" /> <path d=\"m6.134 14.768.866-.5 2 3.464\" /> <circle cx=\"16\" cy=\"8\" r=\"6\" />",
+  Wifi: "<path d=\"M12 20h.01\" /> <path d=\"M2 8.82a15 15 0 0 1 20 0\" /> <path d=\"M5 12.859a10 10 0 0 1 14 0\" /> <path d=\"M8.5 16.429a5 5 0 0 1 7 0\" />",
+  Briefcase: "<path d=\"M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16\" /> <rect width=\"20\" height=\"14\" x=\"2\" y=\"6\" rx=\"2\" />",
+  Plug: "<path d=\"M12 22v-5\" /> <path d=\"M15 8V2\" /> <path d=\"M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z\" /> <path d=\"M9 8V2\" />",
+  ChevronLeft: "<path d=\"m15 18-6-6 6-6\" />",
+  ChevronRight: "<path d=\"m9 18 6-6-6-6\" />",
 });
 
 export const DS_ICON_NAMES = Object.freeze(Object.keys(DS_ICON_PATHS));

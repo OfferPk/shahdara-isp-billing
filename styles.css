@@ -16304,6 +16304,25 @@ real pills. No new hex anywhere. */
 .pcp-explainer{margin:8px 0;padding:10px 12px;border:1px solid #adc9f1;border-radius:12px;background:#e5efff;color:#174b87;font-size:12px;line-height:1.5}
 .pcp-kept-pill{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;white-space:normal;overflow-wrap:anywhere}
 .pcp-field-pill{display:inline-flex;align-items:center;padding:2px 8px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;font-weight:700}
+/* Profile Polish E (18)–(20): the package-change preview form, the
+ * speed/service-quality log form and the info-card form share ONE
+ * consistent button/chip treatment — the .pcp-field-pill chips from
+ * Polish D on every label, one wrapping flex row (.pcp-form) so the
+ * fields wrap instead of clipping at the phone edge, and the same
+ * control treatment (38px, info-blue border) on every select/input.
+ * The preview-incomplete note, the quality-log summary and the empty
+ * states are info-blue pills/notes in the same palette; the info-card
+ * result rows are info-blue pills. No new hex anywhere. */
+.pcp-form{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.pcp-form label{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+.pcp-form select,.pcp-form input{height:38px;border:1px solid #adc9f1;border-radius:8px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0;max-width:100%}
+.pcp-form select:focus,.pcp-form input:focus{outline:3px solid #cce9dd;border-color:#60a68d}
+#packageChangePreviewResult .package-change-preview-incomplete{margin:8px 0;padding:10px 12px;border:1px solid #adc9f1;border-radius:12px;background:#e5efff;color:#174b87;font-size:12px;line-height:1.5}
+.ql-summary-pill{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;white-space:normal;overflow-wrap:anywhere}
+#qualityLogList .empty-state{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;white-space:normal;overflow-wrap:anywhere}
+#infoCardResult ul{list-style:none;margin:8px 0;padding:0;display:grid;gap:6px}
+#infoCardResult ul li{padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;overflow-wrap:anywhere}
+#infoCardResult .empty-state{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;white-space:normal;overflow-wrap:anywhere}
 .mvh-none{color:#5c6e66;font-size:12px}
 [data-theme="dark"] .mvh-annotations li,[data-theme="dark"] .mvh-annotation-date,[data-theme="dark"] .mvh-none{color:var(--dk-muted)}
 [data-theme="dark"] .hhl-open{color:var(--dk-ink)}
@@ -16412,19 +16431,20 @@ real pills. No new hex anywhere. */
 /* Profile polish #5 — top-of-profile Wada banner + search result actions. */
 .profile-wada-banner{margin:0 0 14px;border:1px solid #e7efeb;border-radius:13px;background:#f7faf8;padding:13px 14px}
 .profile-wada-banner h4{margin:0 0 9px;font:700 14px Manrope,sans-serif;color:var(--ink)}
-.wada-banner-none{margin:0 0 8px;font-size:11px;color:var(--muted)}
-.wada-banner-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border-radius:9px;padding:9px 11px;margin:0 0 7px;font-size:12px;font-weight:600}
-.wada-banner-on-track{background:#e8f5ed;color:#19704e}
-.wada-banner-overdue{background:#fdeceb;color:#a3433a}
+.wada-banner-none{display:inline-flex;align-items:center;margin:0 0 8px;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:11px}
+.wada-banner-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border-radius:999px;padding:9px 11px;margin:0 0 7px;font-size:12px;font-weight:600}
+.wada-banner-on-track{background:#e8f5ed;color:#19704e;border:1px solid #b7e1cd}
+.wada-banner-overdue{background:#fdeceb;color:#a3433a;border:1px solid #f0dbd8}
 .wada-banner-actions{display:flex;gap:6px;flex:0 0 auto}
 .wada-banner-actions button{border:1px solid rgba(0,0,0,.14);background:#fff;border-radius:7px;padding:6px 9px;font:600 11px 'DM Sans',sans-serif;cursor:pointer;color:var(--ink)}
 .wada-quick-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:8px;align-items:end;margin-top:10px}
 .wada-quick-form label{display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:#4b6259;min-width:0}
+.wada-quick-form label .pcp-field-pill{align-self:flex-start}
 .wada-quick-form input{height:38px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
 .wada-quick-form input:focus{outline:3px solid #cce9dd;border-color:#60a68d}
-.wada-health{font-size:11px;color:#526a61;margin:10px 0 0}
+.wada-health{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:11px;margin:10px 0 0}
 .wada-history{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px;font-size:11px;line-height:1.5;color:#526a61}
-.wada-history li{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wada-history li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d}
 .wada-history-remove{border:1px solid #f0dbd8;background:#fff;color:#a3433a;border-radius:7px;padding:5px 8px;font:600 10px 'DM Sans',sans-serif;cursor:pointer;flex:0 0 auto}
 .global-result-item{border-radius:8px}
 .global-result-actions{display:flex;gap:6px;padding:2px 10px 8px 12px}
@@ -16541,16 +16561,16 @@ real pills. No new hex anywhere. */
 .pcd-form .primary-button,.pcd-form .secondary-button{justify-self:start}
 .pcd-route-line{margin-top:2px;font-size:11px;color:#5c6e66;font-style:italic}
 .dmb-list{list-style:none;margin:8px 0;padding:0;display:grid;gap:8px}
-.dmb-list>li{display:grid;gap:2px}
-.dmb-month{font-weight:600}
+.dmb-list>li{display:grid;gap:2px;padding:8px 12px;border:1px solid #9acbad;border-radius:12px;background:#e7f2ec}
+.dmb-month{font-weight:600;color:#0e5b4d}
 .dmb-billed{color:#5c6e66;font-size:12px}
 .dmb-paid{color:#5c6e66;font-size:12px}
 .dmb-owed{color:#5c6e66;font-size:12px}
-.dmb-settled{font-weight:600}
+.dmb-settled{font-weight:600;color:#0e5b4d}
 .dmb-not-priced{color:#5c6e66;font-size:12px}
 .dmb-additional{color:#5c6e66;font-size:12px}
-.dmb-total{font-weight:600}
-.dmb-none{color:#5c6e66;font-size:12px}
+.dmb-total{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-weight:600}
+.dmb-none{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px}
 .profile-dues-breakdown{margin:0 0 10px}
 .rns-search{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:end}
 .rns-search label{flex:1;min-width:200px}

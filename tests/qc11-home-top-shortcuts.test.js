@@ -110,14 +110,24 @@ test('top shortcuts are a 3-column grid on desktop', () => {
 });
 
 test('at <= 620 px the shortcuts stay readable: 44 px+ targets, no truncation', () => {
-  const lastMedia = css.lastIndexOf('@media (max-width: 620px)');
-  assert.ok(lastMedia >= 0, 'missing <= 620 px media query for the top shortcuts');
-  const tail = css.slice(lastMedia);
-  assert.ok(tail.includes('.home-top-shortcut'), 'mobile rules must target .home-top-shortcut');
-  assert.ok(tail.includes('min-height: 64px'), 'mobile shortcut must be at least 44 px tall (64 px)');
-  assert.ok(tail.includes('flex-direction: column'), 'mobile shortcut stacks icon above label');
-  assert.ok(tail.includes('.home-top-shortcut .home-primary-subtitle'), 'mobile rules must cover the subtitle');
-  assert.ok(tail.includes('display: none'), 'mobile shortcut hides the subtitle so the label never truncates');
+  // Home Dashboard polish (A2): the QC-11 column stack is SUPERSEDED —
+  // the spec deliberately reverses a measured QC-11 decision (vertical
+  // stack + hidden subtitle) for visual uniformity: all four
+  // Quick-Action cards share ONE horizontal row (56px, padding 0 14px,
+  // gap 10px) with visible subtitles. The .home-top-shortcut CLASS
+  // stays on the Quick Collect button (the QC-11 JS hook); only its
+  // CSS column rule is deleted. The old slice-from-the-last-620px-block
+  // no longer works after the deletion, so the new contract is asserted
+  // on the unified rule itself.
+  assert.ok(!css.includes('.home-top-shortcut {'), 'the column override rule is gone');
+  assert.ok(!css.includes('.home-top-shortcut .home-primary-subtitle'), 'no rule hides the subtitle any more');
+  const block = ruleBlock(css, '.home-primary-actions .home-primary-btn {');
+  assert.ok(block.includes('flex-direction: row'), 'all four cards share one horizontal row');
+  assert.ok(block.includes('height: 56px'), 'unified row height is 56px');
+  assert.ok(block.includes('min-height: 56px'), 'unified row target is 56px (>= 44px)');
+  assert.ok(block.includes('padding: 0 14px'), 'unified row padding is 0 14px');
+  assert.ok(block.includes('gap: 10px'), 'unified row gap is 10px');
+  assert.ok(html.includes('home-top-shortcut'), 'the QC-11 hook class stays on the Quick Collect button');
 });
 
 test('the QC-11 CSS block introduces no new hex colour', () => {

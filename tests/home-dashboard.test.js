@@ -6,6 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { assessBackupHealth } from '../backup-health.js';
 
 const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
@@ -207,8 +208,11 @@ test('audits-clear pill: markup, toggle logic and i18n', () => {
   // i18n key exists in both languages, Urdu value carries Urdu script.
   assert.ok(navLang.includes("audits_clear_pill: '✅ All 5 Audits Clear'"), 'English pill label exists');
   assert.ok(navLang.includes("audits_clear_pill: '✅ تمام 5 آڈٹ صاف ہیں'"), 'Urdu pill label exists');
-  assert.ok(navLang.includes("dash_recent_actions: 'Receipt actions'"), 'English recent-actions label exists');
-  assert.ok(navLang.includes("dash_recent_actions: 'رسید کے اقدامات'"), 'Urdu recent-actions label exists');
+  // Home Dashboard polish (§3): the toggle label is the compact
+  // 'Receipt' now (was 'Receipt actions') — the value changed by
+  // design, not by accident; the key still exists in both dicts.
+  assert.ok(navLang.includes("dash_recent_actions: 'Receipt'"), 'English recent-actions label is the compact Receipt');
+  assert.ok(navLang.includes("dash_recent_actions: 'رسید'"), 'Urdu recent-actions label is the compact Receipt');
 });
 
 test('zero-value sections hide instead of reading PKR 0', () => {
@@ -235,4 +239,98 @@ test('small fixes: help-info 28px, fuel month width, FAB safe area, header stack
   assert.ok(navCss.includes('env(safe-area-inset-bottom'), 'FAB clears the device safe area');
   assert.ok(navCss.includes('var(--bottom-nav-height, 60px)'), 'FAB sits above the bottom nav');
   assert.ok(componentsCss.includes('.collection-forecast-header { flex-direction: column;'), 'card header stacks title above amount on mobile');
+});
+
+test('home dashboard polish: Active Subscribers spans the full row (Sharafat 20, subsumed) with a horizontal strip', () => {
+  // Sharafat 20's designed retarget lands here (D1 = full-width span);
+  // the 820px block's stale Advance Held rule is gone with it.
+  const start820 = dashboardCss.indexOf('@media (max-width: 820px)');
+  assert.ok(start820 >= 0, 'missing <= 820px media block');
+  const block820 = dashboardCss.slice(start820, dashboardCss.indexOf('@media (max-width: 620px)', start820));
+  assert.ok(block820.includes('.home-kpi-card.kpi-card-active {'), 'Active card spans in the 820px block');
+  assert.ok(block820.includes('grid-column: 1 / -1;'), 'Active card spans the full row');
+  assert.ok(!block820.includes('.kpi-card-advance'), 'no Advance span rule survives in the 820px block');
+  assert.ok(!dashboardCss.includes('Advance Held) spans'), 'the stale Advance Held comment is gone');
+  // The strip: icon + label left, value + sub right; ids kept.
+  const strip = page.slice(page.indexOf('id="kpiCardActive"'), page.indexOf('id="kpiCardActive"') + 800);
+  assert.ok(strip.includes('home-kpi-strip-left'), 'strip has a left side');
+  assert.ok(strip.includes('home-kpi-strip-right'), 'strip has a right side');
+  assert.ok(strip.includes('data-ds-icon="CheckCircle"'), 'strip icon is the CheckCircle SVG');
+  assert.ok(strip.includes('id="dashboardActiveCustomers"'), 'strip keeps the value id');
+  assert.ok(strip.includes('id="dashboardActiveCustomersPeriod"'), 'strip keeps the sub-line id');
+});
+
+test('home dashboard polish (A1): KPI cards are columnar — 28px tile header row above a full-width value', () => {
+  const strip = page.slice(page.indexOf('id="homeKpiStrip"'), page.indexOf('id="homePrimaryActions"'));
+  for (const icon of ['HandCoins', 'BarChart3', 'AlertTriangle', 'Landmark', 'CheckCircle']) {
+    assert.ok(strip.includes(`data-ds-icon="${icon}"`), `KPI strip uses the ${icon} SVG`);
+  }
+  assert.ok(!strip.includes('ds-stat__icon'), 'the 40px emoji tile is gone from the strip');
+  for (const emoji of ['💰', '📊', '⚠️', '🏦', '✅']) {
+    assert.ok(!strip.includes(emoji), `strip no longer carries ${emoji}`);
+  }
+  const head = dashboardCss.slice(dashboardCss.indexOf('.home-kpi-head {'), dashboardCss.indexOf('.home-kpi-head {') + 200);
+  assert.ok(head.includes('display: flex'), 'header row is a flex row');
+  const tile = dashboardCss.slice(dashboardCss.indexOf('.home-kpi-card .ds-icon-tile {'), dashboardCss.indexOf('.home-kpi-card .ds-icon-tile {') + 200);
+  assert.ok(tile.includes('width: 28px') && tile.includes('height: 28px'), 'scoped tile is 28x28');
+  // Per-card tints mirror the old modifiers (dues stays red-scanable).
+  assert.ok(dashboardCss.includes('.home-kpi-card.ds-stat--overdue .ds-icon-tile'), 'overdue card keeps its red tile');
+  // The value is a full-width sibling of the head, not sharing a row
+  // with the icon: the card is columnar.
+  const cardRule = componentsCss.slice(componentsCss.indexOf('.home-kpi-card.ds-stat {'), componentsCss.indexOf('.home-kpi-card.ds-stat {') + 300);
+  assert.ok(cardRule.includes('flex-direction: column'), 'KPI card is columnar');
+});
+
+test('home dashboard polish: Month KPI value carries collected only; the sub-line carries billed + rate', () => {
+  assert.ok(app.includes('kpiMonthEl.textContent = collStr;'), 'month value is the collected figure only');
+  assert.ok(app.includes("t('dash_kpi_month_sub'"), 'month sub uses the new billed+rate key');
+  assert.ok(app.includes("t('dash_kpi_month_sub_zero'"), 'month sub has a zero-rate form');
+  assert.ok(!app.includes('`${collStr} / ${billStr}`'), 'the combined collected/billed value is gone');
+  for (const key of ['dash_kpi_month_sub', 'dash_kpi_month_sub_zero']) {
+    assert.equal(navLang.split(`${key}:`).length - 1, 2, `${key} exists in en and ur`);
+  }
+  assert.ok(navLang.includes("dash_kpi_month_sub: 'of {billed} billed ({rate}%)'"), 'EN month sub text');
+  assert.ok(navLang.includes("dash_kpi_month_sub: '{billed} میں سے ({rate}%)'"), 'UR month sub text');
+});
+
+test('home dashboard polish (D2): the storage badge reads the SISP-10 health record, never the local snapshot', () => {
+  const fn = app.slice(app.indexOf('function updateDataSafetyUi'), app.indexOf('function updateDataSafetyUi') + 2500);
+  assert.ok(fn.includes('deriveBackupHealth()'), 'badge derives from the SISP-10 health record');
+  assert.ok(fn.includes('assessBackupHealth('), 'badge uses the shared health thresholds');
+  // The why-comment inside the function names the deleted helper; the
+  // CALL (with parens) must be gone, not the mention.
+  assert.ok(!fn.includes('getLatestBackupTimestamp('), 'badge never calls the local-snapshot MAX');
+  assert.ok(!app.includes('function getLatestBackupTimestamp'), 'the leaky helper is deleted');
+  assert.ok(!app.includes('localStorage.setItem(LAST_BACKUP_TIME_KEY, createdAt.toISOString())'), 'local snapshots no longer stamp the legacy key');
+  // The composition, at the importable seam: no health record at all
+  // (a local-snapshot-only ledger) assesses Critical/Never.
+  const never = assessBackupHealth({ lastExportAt: null, paymentsSinceExport: null, now: new Date('2026-11-13T12:00:00Z') });
+  assert.equal(never.status, 'critical', 'no health record assesses critical');
+  assert.equal(never.label, 'Backup: Never', 'no health record reads Never');
+});
+
+test('home dashboard polish: Share2 / Sun / Printer / Calendar hooks sit beside their i18n text spans, no 3D emoji left', () => {
+  const home = page.slice(homeStart, moreStart);
+  assert.ok(home.includes('data-ds-icon="Share2"'), 'share menu uses the Share2 SVG');
+  assert.ok(home.includes('data-ds-icon="Sun"'), 'briefing title uses the Sun SVG');
+  assert.ok(home.includes('data-ds-icon="Printer"'), 'print button uses the Printer SVG');
+  assert.ok(home.includes('data-ds-icon="Calendar"'), 'today badge uses the Calendar SVG');
+  for (const emoji of ['📤', '🌅', '🗓️', '📅']) {
+    assert.ok(!home.includes(emoji), `Home no longer carries ${emoji}`);
+  }
+  // The icon hook is a SIBLING of the i18n text span, never nested
+  // inside a data-i18n element (the i18n textContent wipe destroys
+  // children).
+  assert.ok(home.includes('<span data-i18n="dash_share_menu_title">'), 'share title keeps its own text span');
+  assert.ok(home.includes('<span data-i18n="brief_heading">'), 'briefing title keeps its own text span');
+  assert.ok(home.includes('<span data-i18n="fds_btn">'), 'print label keeps its own text span');
+  assert.ok(home.includes('<span data-i18n="dash_today_badge">'), 'today badge keeps its own text span');
+});
+
+test('home dashboard polish: Home clears the FAB band with 80px bottom padding', () => {
+  // Same trade-off as the Reports 142px rule: page-end clearance
+  // only, the fixed FAB still floats over content mid-scroll.
+  assert.ok(dashboardCss.includes('#billingDashboard {'), 'Home container carries its own padding rule');
+  const rule = dashboardCss.slice(dashboardCss.indexOf('#billingDashboard {'), dashboardCss.indexOf('#billingDashboard {') + 120);
+  assert.ok(rule.includes('padding-bottom: 80px'), 'Home bottom padding is 80px');
 });

@@ -235,20 +235,32 @@ export function renderHomeTodaySummary(doc = document, summary) {
           ? `https://wa.me/${waPhone}?text=${encodeURIComponent(`Salam ${c.name} sahib, Shahdara ISP reminder: aapka balance ${formatPKR(c.balanceDue)} due hai. Shukriya.`)}`
           : null;
 
+        // Home Dashboard polish (A4, reading (a)): the amount AND the
+        // note chips move INTO the sub-line — `Mohalla · PKR 3,000 ·
+        // ₨1000 ×3` — and .overdue-amount-col is deleted from the
+        // render. This SUPERSEDES the base §3 shape (amount stayed in
+        // the right column): only the literal reading fixes the
+        // 320px + WhatsApp-link corner, where the amount column kept
+        // the row ~15px too wide. The amount keeps its 800 weight +
+        // red via .overdue-item-amount, scoped to 11px in the sub.
+        // CORRECTION to the delta prep: pkrNoteChipsMarkup returns a
+        // <span>, not a <div>, so the sub stays a <span> — valid
+        // nesting, no div needed.
+        const subParts = [
+          c.mohalla,
+          `<strong class="overdue-item-amount">${formatPKR(c.balanceDue)}</strong>`,
+          pkrNoteChipsMarkup(c.balanceDue)
+        ].filter(Boolean);
         return `
           <li class="home-overdue-item" data-customer-id="${c.id}">
             <div class="overdue-item-info">
               <span class="overdue-item-badge">#${c.customerNumber}</span>
               <div class="overdue-item-text">
                 <strong class="overdue-item-name" dir="auto">${displayCustomerName(c, overdueLang)}</strong>
-                <span class="overdue-item-sub">${c.mohalla}</span>
+                <span class="overdue-item-sub">${subParts.join(' · ')}</span>
               </div>
             </div>
             <div class="overdue-item-right">
-              <div class="overdue-amount-col">
-                <strong class="overdue-item-amount">${formatPKR(c.balanceDue)}</strong>
-                ${pkrNoteChipsMarkup(c.balanceDue)}
-              </div>
               <div class="overdue-item-actions">
                 ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener noreferrer" class="overdue-wa-link" title="${t('dash_today_wa_title')}" aria-label="${t('dash_today_wa_link_aria', null, { name: c.name })}">💬 WhatsApp</a>` : ''}
                 <a href="#quick-collect/${c.id}" class="overdue-collect-link" title="${t('dash_today_collect_title')}" aria-label="${t('dash_today_collect_aria', null, { name: c.name })}">${t('dash_today_collect_text')}</a>

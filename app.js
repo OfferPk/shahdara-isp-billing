@@ -89,7 +89,7 @@ import { customerNameOptions, collectorNameOptions, recordIdOptions, paymentIdOp
 import { setupOwnerCenter } from './owner-ui.js?v=1.11.0';
 import {
   createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY,
-  calculateBackupAge, checkStoragePersistence, requestStoragePersistence,
+  checkStoragePersistence, requestStoragePersistence,
   getStorageEstimateInfo, shareJsonBackupFile, LAST_BACKUP_TIME_KEY, STORAGE_PERSISTENCE_KEY,
   encryptBackupJson, decryptBackupJson, isEncryptedBackupPayload,
   loadKhataDoctorCache, saveKhataDoctorCache
@@ -1294,14 +1294,10 @@ async function refreshStorageSafetyInfo() {
   } catch { /* best effort */ }
 }
 
-function getLatestBackupTimestamp(status = null) {
-  let localTime = null;
-  try { localTime = localStorage.getItem(LAST_BACKUP_TIME_KEY); } catch { /* ignore */ }
-  const storeTime = status?.lastSuccessfulAt;
-  if (!localTime) return storeTime;
-  if (!storeTime) return localTime;
-  return new Date(localTime) > new Date(storeTime) ? localTime : storeTime;
-}
+// Home Dashboard polish (D2): getLatestBackupTimestamp is deleted —
+// its only caller was the storage badge, which now reads the SISP-10
+// health record. Its MAX(legacy key, local snapshot) was the leak
+// that showed a local snapshot as a backup.
 
 // SISP-10: off-device export record. Local IndexedDB snapshots deliberately
 // do NOT call this — a browser cache clear wipes them too, so only a copy
@@ -1395,14 +1391,27 @@ $('#backupHealthBadge')?.addEventListener('click', () => {
 });
 
 function updateDataSafetyUi(status = null) {
-  const latestBackupAt = getLatestBackupTimestamp(status);
-  const age = calculateBackupAge(latestBackupAt, new Date());
+  // Home Dashboard polish (D2): the storage badge reads the SAME
+  // SISP-10 health record as the briefing tile, the top-bar badge and
+  // the SISP-199 banners (deriveBackupHealth) — never
+  // getLatestBackupTimestamp, whose MAX(legacy key, local snapshot)
+  // showed the last LOCAL snapshot as if it were a backup. A local
+  // snapshot alone now leaves the badge Critical/Never, and the badge
+  // flips green -> red where the old reading said "2d ago". That is
+  // the correct reading: no off-device export has left the device.
+  // The `status` argument stays for the refresh call signature; the
+  // local-backup-store status no longer feeds this badge. This is a
+  // READ-side change only: nothing here stamps the health record, so
+  // the Clear All backup gate is untouched.
+  const { record: backupRecord, paymentsSinceExport } = deriveBackupHealth();
+  const backupHealth = assessBackupHealth({ lastExportAt: backupRecord.lastExportAt, paymentsSinceExport, now: new Date() });
+  const backupBadgeLevel = backupHealth.status === 'safe' ? 'healthy' : backupHealth.status === 'due' ? 'warning' : 'danger';
 
   const bannerBackupBadge = $('#dataSafetyBackupBadge');
   if (bannerBackupBadge) {
-    bannerBackupBadge.textContent = `Backup: ${age.shortLabel}`;
-    bannerBackupBadge.className = `safety-badge badge-${age.level}`;
-    bannerBackupBadge.title = age.statusText;
+    bannerBackupBadge.textContent = backupHealth.label;
+    bannerBackupBadge.className = `safety-badge badge-${backupBadgeLevel}`;
+    bannerBackupBadge.title = backupHealth.title;
   }
   const bannerPersistenceBadge = $('#dataSafetyPersistenceBadge');
   if (bannerPersistenceBadge) {
@@ -2048,7 +2057,7 @@ function renderDashboard() {
     }
     recentPaymentsListEl.innerHTML = recentRows.length === 0
       ? `<li class="recent-payments-empty">${escapeHtml(t('dash_recent_empty'))}</li>`
-      : recentRows.map((row) => `<li class="recent-payment-item"><div class="recent-payment-row"><button type="button" class="recent-payment-open" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-ref">${escapeHtml(row.receiptRef || humanDate(row.date))}</strong><span class="recent-payment-sub" dir="auto">${escapeHtml(row.customerName)}${row.method ? ` · ${escapeHtml(row.method)}` : ''}</span></span><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong></button><details class="recent-payment-actions-menu"><summary class="recent-payment-actions-toggle">${escapeHtml(t('dash_recent_actions'))} ▾</summary>${recentPaymentActionsMarkup(row)}</details></div></li>`).join('');
+      : recentRows.map((row) => `<li class="recent-payment-item"><div class="recent-payment-row"><button type="button" class="recent-payment-open" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-name" dir="auto">${escapeHtml(row.customerName)}</strong><span class="recent-payment-sub" dir="auto">${row.method ? `${escapeHtml(row.method)} · ` : ''}${humanDate(row.date)}</span></span></button><div class="recent-payment-right"><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong><details class="recent-payment-actions-menu"><summary class="recent-payment-actions-toggle">${escapeHtml(t('dash_recent_actions'))} ▾</summary>${recentPaymentActionsMarkup(row)}</details></div></div></li>`).join('');
     recentPaymentsListEl.querySelectorAll('[data-recent-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.recentCustomerId)));
     recentPaymentsListEl.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
     recentPaymentsListEl.querySelectorAll('[data-png-receipt]').forEach(button => button.addEventListener('click', () => downloadPngReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
@@ -2992,10 +3001,13 @@ function renderDashboard() {
   if (kpiMonthEl) {
     const collStr = formatAmount(kpis.currentMonthCollection || 0);
     const billStr = formatAmount(kpis.currentMonthBilled || 0);
-    kpiMonthEl.textContent = `${collStr} / ${billStr}`;
+    // Home Dashboard polish: the value carries the collected figure
+    // only (one line at full card width); the billed figure + rate
+    // move to the sub-line above the progress bar.
+    kpiMonthEl.textContent = collStr;
     const kpiRateSub = $('#kpiMonthRateSub');
     if (kpiRateSub) {
-      kpiRateSub.textContent = kpis.collectionRate !== null ? t('dash_kpi_rate', null, { rate: kpis.collectionRate }) : t('dash_kpi_rate_zero');
+      kpiRateSub.textContent = kpis.collectionRate !== null ? t('dash_kpi_month_sub', null, { billed: billStr, rate: kpis.collectionRate }) : t('dash_kpi_month_sub_zero', null, { billed: billStr });
     }
     // Home Dashboard overhaul: the month KPI carries its own
     // progress bar (the "PKR 119,700 / PKR 194,300" figure is shown
@@ -10100,7 +10112,11 @@ async function saveLocalSnapshot(kind) {
   const createdAt = new Date();
   const backupText = createJsonBackup(state, createdAt, backupExtras());
   const record = await localBackupStore.saveBackup(backupText, { kind, createdAt });
-  try { localStorage.setItem(LAST_BACKUP_TIME_KEY, createdAt.toISOString()); } catch { /* ignore */ }
+  // Home Dashboard polish (D2): a LOCAL snapshot must NOT stamp the
+  // legacy backup key — that stamp is what let the storage badge (and
+  // the health record's migration fallback) read a local snapshot as
+  // if it were an off-device backup. Only real off-device exports
+  // stamp the key (recordOffDeviceBackupExport).
   updateDataSafetyUi();
   return record;
 }

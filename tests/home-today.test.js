@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { TRANSLATIONS } from '../nav-language.js';
 import {
   normalizeWhatsAppNumber,
   calculateHomeTodaySummary,
@@ -186,6 +188,15 @@ test('renderHomeTodaySummary populates DOM elements and top 3 overdue cards', ()
   assert.ok(listHtml.includes('#103'));
   assert.ok(listHtml.includes('Chaudhry Tariq'));
   assert.ok(listHtml.includes('PKR 1,500'));
+  // Home Dashboard polish (A4, reading (a)): the amount AND the note
+  // chips live in the sub-line; the amount column is gone.
+  assert.ok(!listHtml.includes('overdue-amount-col'), 'the amount column is deleted from the render');
+  const subStart = listHtml.indexOf('overdue-item-sub');
+  assert.ok(subStart >= 0, 'sub-line exists');
+  assert.ok(listHtml.indexOf('PKR 2,000') > subStart, 'the amount sits inside the sub-line');
+  assert.ok(listHtml.indexOf('pkr-note-chips') > subStart, 'the note chips sit inside the sub-line');
+  assert.ok(listHtml.includes('₨1000 ×2'), 'PKR 2,000 breaks down to two 1000 chips');
+  assert.ok(listHtml.includes('overdue-item-name'), 'the name still carries its ellipsis class');
 });
 
 test('calculateHomeTodaySummary: connectionDate decides the new-connection month, and a voided payment counts nowhere', () => {
@@ -219,4 +230,45 @@ test('calculateHomeTodaySummary: connectionDate decides the new-connection month
   assert.equal(summary.todayCount, 0, 'voided payment is not a today payment');
   assert.equal(summary.monthCollected, 0, 'voided payment is not month collection');
   assert.equal(summary.totalDue, 1000, 'voided payment leaves the full bill due');
+});
+
+test('home dashboard polish (A4): Collect is a solid emerald 32px nowrap pill', () => {
+  const css = readFileSync(new URL('../screen-router.css', import.meta.url), 'utf8');
+  // The light rule lives after the dark block (it wins in light mode);
+  // the grey pill is gone.
+  const start = css.indexOf('.overdue-collect-link {', css.indexOf('Home Dashboard polish (A4): the Collect button'));
+  assert.ok(start >= 0, 'Collect rule exists after the A4 comment');
+  const block = css.slice(start, start + 400);
+  assert.ok(!block.includes('#eef3f0'), 'the grey Collect pill is gone');
+  assert.ok(block.includes('white-space: nowrap'), 'Collect never clips its label');
+  assert.ok(block.includes('flex-shrink: 0'), 'Collect never shrinks');
+  assert.ok(block.includes('height: 32px'), 'Collect is 32px tall');
+  assert.ok(block.includes('background: var(--ds-brand'), 'Collect is solid brand emerald');
+  assert.ok(block.includes('color: var(--white)'), 'Collect text is white (the spec #fff as a token)');
+  assert.ok(css.includes('[data-theme="dark"] .overdue-collect-link {'), 'dark mode keeps the emerald Collect');
+});
+
+test('home dashboard polish (A4): View all stays on one line', () => {
+  const css = readFileSync(new URL('../screen-router.css', import.meta.url), 'utf8');
+  const block = css.slice(css.indexOf('.overdue-view-all-link {'), css.indexOf('.overdue-view-all-link {') + 200);
+  assert.ok(block.includes('white-space: nowrap'), 'View all never wraps');
+  assert.ok(block.includes('flex-shrink: 0'), 'View all never shrinks');
+  assert.equal(TRANSLATIONS.en.dash_today_overdue_all, 'View all →', 'EN View-all label');
+  assert.equal(TRANSLATIONS.ur.dash_today_overdue_all, 'سب دیکھیں →', 'UR View-all label');
+});
+
+test('home dashboard polish (A4): a Top-3 row with a WhatsApp link does not overflow at 320px (source-scan; no live harness)', () => {
+  // No live 360/320px harness runs in this sandbox (plan552
+  // precedent): the contract is asserted on the source instead — the
+  // amount column is gone, the left column takes the remaining width,
+  // and the Collect link cannot shrink or wrap. The mid-scroll FAB
+  // overlap is a separate, recorded-not-blessed item (PR #1390) and
+  // is NOT claimed fixed here.
+  const css = readFileSync(new URL('../screen-router.css', import.meta.url), 'utf8');
+  const homeToday = readFileSync(new URL('../home-today.js', import.meta.url), 'utf8');
+  assert.ok(!homeToday.includes('class="overdue-amount-col"'), 'no amount column widens the row');
+  assert.ok(css.includes('.overdue-item-info {'), 'left column rule exists');
+  const info = css.slice(css.indexOf('.overdue-item-info {'), css.indexOf('.overdue-item-info {') + 200);
+  assert.ok(info.includes('flex: 1'), 'left column takes the remaining width');
+  assert.ok(info.includes('min-width: 0'), 'left column may shrink');
 });

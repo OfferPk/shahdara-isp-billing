@@ -153,9 +153,14 @@ test('bill status + sort share one 2-column row, labels above the selects', () =
 });
 
 test('search placeholder is shortened, in the markup and in the i18n key', () => {
-  assert.ok(html.includes('placeholder="Search name, #ID, phone, or area..."'), 'the static placeholder must be the shortened text');
+  // QC Modal Overhaul 2: the placeholder drops "or area" (the search
+  // never matched area by substring — the old text promised a fourth
+  // field it did not search) and gains the 🔍, so the box reads
+  // "🔍 Search #ID, name, or phone" in the markup and in the key.
+  assert.ok(html.includes('placeholder="🔍 Search #ID, name, or phone"'), 'the static placeholder must be the shortened text');
+  assert.ok(!html.includes('Search name, #ID, phone, or area...'), 'the old placeholder must be gone from the markup');
   assert.ok(!html.includes('Search by name, #ID'), 'the old long placeholder must be gone from the markup');
-  assert.equal(en.qc_search_placeholder, 'Search name, #ID, phone, or area...', 'the EN key must match the shortened placeholder');
+  assert.equal(en.qc_search_placeholder, '🔍 Search #ID, name, or phone', 'the EN key must match the shortened placeholder');
 });
 
 test('filter pills: one row at 12.5px, Emerald active, short High label', () => {
@@ -237,41 +242,59 @@ test('recent is an accordion: summary toggle first, rows hidden until tapped', (
 
 // --- (4) Round banner + actions row + eds card ---------------------------------
 
-test('round total + today collected share one compact 2-column ds-stat-box banner', () => {
+test('round total + today collected + Day Summary share one compact 3-cell flex banner', () => {
+  // QC Modal Overhaul 2: the banner is a flex row (the dead grid rule
+  // is deleted), and the Day Summary button is its third cell — the
+  // separate .qc-picker-actions-row is gone. The two live lines keep
+  // their DOM order (round first, then the target) and their
+  // ds-stat-box cells; the button sits after them in the banner.
   const bannerAt = html.indexOf('class="qc-round-banner"');
   assert.ok(bannerAt >= 0, 'the round banner wrapper must exist');
   const rttAt = html.indexOf('id="rttRoundTotals"', bannerAt);
   const dtpAt = html.indexOf('id="dtpDailyTargetProgress"', bannerAt);
+  const edsAt = html.indexOf('id="edsEndOfDaySummaryButton"', bannerAt);
   assert.ok(rttAt > bannerAt && dtpAt > rttAt, 'both live lines must sit inside the banner, round first');
+  assert.ok(edsAt > dtpAt, 'the Day Summary button must sit inside the banner, after the target progress');
   assert.ok(html.includes('class="rtt-round-totals ds-stat-box"'), 'the round total must be a ds-stat-box cell');
   assert.ok(html.includes('id="dtpDailyTargetProgress" class="ds-stat-box"'), "today's collected must be a ds-stat-box cell");
   assert.ok(!html.includes('id="qc-round-banner"'), 'the banner wrapper must not be a new element id');
+  assert.ok(!html.includes('class="qc-picker-actions-row"'), 'the separate actions row must be gone');
   const banner = ruleBlock(stylesSrc, '.qc-round-banner {');
-  assert.ok(banner.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)'), 'the banner must be two equal columns');
+  assert.ok(banner.includes('display: flex'), 'the banner must be a flex row');
+  assert.ok(banner.includes('padding: 6px 10px'), 'the banner must be compact');
   const cell = ruleBlock(stylesSrc, '.qc-round-banner .ds-stat-box {');
   assert.ok(cell.includes('min-height: 0'), 'the banner cells must be compact, not the 56px stat-box height');
-  assert.ok(cell.includes('padding: 8px 10px'), 'the banner cells must use the compact directory-strip padding');
+  // QC Modal Overhaul 2: the old "padding: 8px 10px" assertion read
+  // the DEAD grid block's cell rule (deleted with it) — the live
+  // flex cell rule is padding: 0, and the banner itself carries the
+  // 6px 10px padding. The dead rule is gone, so the pin follows the
+  // live rule.
+  assert.ok(cell.includes('padding: 0'), 'the banner cells carry no padding of their own — the banner pads');
+  const btn = ruleBlock(stylesSrc, '.qc-round-banner .eds-summary-button {');
+  assert.ok(btn.includes('order: 3'), 'the Day Summary button must be the banner third cell');
+  assert.ok(btn.includes('min-height: 32px !important'), 'the banner button must be compact at 32px');
 });
 
-test('end-of-day summary is a single full-width Day Summary button; New customer is gone', () => {
+test('end-of-day summary is a Day Summary button inside the banner; New customer is gone', () => {
   // QC Modal Fix item 2: "+ New customer" is REMOVED — the modal
   // is strictly for fast cash collection — and the summary button
-  // is now a single full-width "📊 Day Summary" (its label
-  // overflowed before). The expanded summary still sits full-width
-  // BELOW the row, never a cell.
-  const rowAt = html.indexOf('class="qc-picker-actions-row"');
-  assert.ok(rowAt >= 0, 'the picker actions row wrapper must exist');
-  const edsAt = html.indexOf('id="edsEndOfDaySummaryButton"', rowAt);
-  assert.ok(edsAt > rowAt, 'the summary button must sit inside the row');
+  // is now "📊 Day Summary" (its label overflowed before). QC Modal
+  // Overhaul 2: the button moved INTO the banner as its third cell
+  // (the separate .qc-picker-actions-row is gone) and is compact
+  // (32px) instead of full-width 40px. The expanded summary still
+  // sits full-width BELOW the banner, never a cell.
+  const bannerAt = html.indexOf('class="qc-round-banner"');
+  assert.ok(bannerAt >= 0, 'the banner must exist');
+  const edsAt = html.indexOf('id="edsEndOfDaySummaryButton"', bannerAt);
+  assert.ok(edsAt > bannerAt, 'the summary button must sit inside the banner');
   assert.ok(!html.includes('id="ncaNewCustomerButton"'), 'the New customer button must be gone');
   const summaryAt = html.indexOf('id="edsEndOfDaySummary"');
-  assert.ok(summaryAt > html.indexOf('</div>', edsAt), 'the summary region must sit after the row closes');
+  assert.ok(summaryAt > html.indexOf('</div>', edsAt), 'the summary region must sit after the banner closes');
+  assert.ok(!html.includes('class="qc-picker-actions-row"'), 'the actions row must be gone');
   assert.ok(!html.includes('id="qc-picker-actions-row"'), 'the row wrapper must not be a new element id');
-  const row = ruleBlock(stylesSrc, '.qc-picker-actions-row {');
-  assert.ok(row.includes('grid-template-columns: minmax(0, 1fr)'), 'the actions row must be a single full-width column');
-  const btn = ruleBlock(stylesSrc, '.qc-picker-actions-row .secondary-button {');
-  assert.ok(btn.includes('min-height: 40px !important'), 'the row button must be 40px (the global 44px floor needs !important to beat)');
-  assert.ok(btn.includes('height: 40px'), 'the row button must be exactly 40px tall');
+  const btn = ruleBlock(stylesSrc, '.qc-round-banner .eds-summary-button {');
+  assert.ok(btn.includes('min-height: 32px !important'), 'the banner button must be 32px (the global 44px floor needs !important to beat)');
+  assert.ok(btn.includes('height: 32px'), 'the banner button must be exactly 32px tall');
   // The label is the user's compact "📊 Day Summary" — the Moon
   // ds-icon and the overflowing "End-of-day summary" label are gone.
   assert.ok(html.includes('📊 Day Summary'), 'the summary button must read "📊 Day Summary"');
@@ -361,7 +384,14 @@ test('unpaid cards: badge left of the name, priority pill top-right, figures as 
   // the KPI row (the clipped Row-1 rendering is what was deleted).
   assert.ok(first.includes('Outstanding'), 'the Outstanding label must stay in the KPI row');
   assert.ok(first.includes('PKR 3,000'), 'the dues figure must stay in the KPI row');
-  assert.ok(first.includes('Monthly package'), 'the monthly figure must stay beside it');
+  // QC Modal Overhaul 2: the Monthly package column is GONE from
+  // the modal card — the dues badge above already names the figure,
+  // and the column cost a full KPI row per card. Field Mode keeps
+  // its monthly figure; the pool's monthlyPackage field stays for
+  // it. The fixture still passes monthlyPackage (ignored by the
+  // modal render now) to prove the column does not come back.
+  assert.ok(!first.includes('Monthly package'), 'the monthly figure must be gone from the modal card');
+  assert.ok(!first.includes('qc3-package-val'), 'the monthly figure cell must be gone from the modal card');
   // A card with no scorer row renders no right column at all.
   assert.ok(!segments[1].html.includes('qc-card-right'), 'a card with no priority must render no right column');
 });
@@ -377,10 +407,12 @@ test('unpaid cards: Call / Location / Collect are ds-icons SVGs, Collect is soli
   assert.ok(html.includes('data-qc3-action="call"'), 'Call must still be marked as a card action');
   assert.ok(html.includes('data-qc3-action="location"'), 'Location must still be marked as a card action');
   assert.ok(html.includes('data-qc3-action="collect"'), 'Collect must still be an explicit button');
-  // QC Modal Fix item 4: the Collect label names the amount
-  // ("Collect PKR 3,000"), so the operator sees the figure on the
-  // button itself — a settled customer still shows plain "Collect".
-  assert.ok(html.includes('Collect PKR 3,000</button>'), 'Collect must label the amount to collect');
+  // QC Modal Overhaul 2: Collect is plain "Collect" now — the dues
+  // badge above it ("PKR 3,000 DUE") already names the figure, so
+  // naming it again on the button was the second copy. A settled
+  // customer keeps the same plain label.
+  assert.ok(!html.includes('Collect PKR 3,000</button>'), 'Collect must not repeat the amount the dues badge already names');
+  assert.ok(html.includes('Collect</button>'), 'Collect must stay a plain label');
   const collect = ruleBlock(stylesSrc, '.qc3-collect {');
   // QC Modal Fix item 6: Collect is the user's emerald gradient,
   // not the old solid Emerald — the tonal palette lives in
@@ -392,14 +424,30 @@ test('unpaid cards: Call / Location / Collect are ds-icons SVGs, Collect is soli
   assert.ok(!collect.includes('var(--green)'), 'the old green outline accent must be gone from Collect');
 });
 
-test('picker card geometry: figures wrap onto their own KPI line at every width', () => {
+test('picker card geometry: figures sit inline on Row 1 — the full-width KPI line is reversed', () => {
+  // QC Modal Overhaul 2: this pin is REVERSED with a why-comment.
+  // The QC Cash Modal Overhaul put the figures on their own
+  // full-width KPI line at every width because the Row-1 squeeze
+  // clipped "Outstanding P..." above 360px and in RTL. That row
+  // costs ~39px per card, and the overhaul's "2.5–3 cards on
+  // screen" cannot be met with it (measured: 205px badged / 171px
+  // plain, 1 fully visible). The clip cannot return the same way:
+  // the name and subtitle ellipsis, the figure is nowrap with
+  // min-content width, and the button still wraps — a long name
+  // truncates with "…" and the figures drop to their own row when
+  // they do not fit. The wrap itself stays: the button must wrap
+  // at every width so the figures CAN drop when they do not fit.
   const main = ruleBlock(stylesSrc, '#quickCollectModal .qc3-card-main {');
-  assert.ok(main.includes('flex-wrap: wrap'), 'the picker card row must wrap at every width (the squeeze happened above 360px and in RTL)');
+  assert.ok(main.includes('flex-wrap: wrap'), 'the picker card row must wrap at every width so the figures can drop when they do not fit');
   const right = ruleBlock(stylesSrc, '#quickCollectModal .qc3-card-main > .qc-card-right {');
   assert.ok(right.includes('align-self: flex-start'), 'the priority badge must sit top-right of Row 1');
   const figures = ruleBlock(stylesSrc, '#quickCollectModal .qc3-figures {');
-  assert.ok(figures.includes('flex: 0 0 100%'), 'the figures must take their own full-width KPI line');
-  assert.ok(figures.includes('justify-content: flex-end'), 'the KPI figures must stay right-aligned');
+  assert.ok(figures.includes('flex: 0 0 auto'), 'the figures must sit inline on Row 1, not on their own line');
+  assert.ok(!figures.includes('flex: 0 0 100%'), 'the full-width KPI line must be gone');
+  assert.ok(figures.includes('justify-content: flex-end'), 'the figures must stay right-aligned');
+  const left = ruleBlock(stylesSrc, '#quickCollectModal .qc3-card-main > .qc-card-left {');
+  assert.ok(left.includes('flex: 1 1 0'), 'the identity column must take the leftover width so the figures fit');
+  assert.ok(left.includes('min-width: 140px'), 'the identity column must keep a short name visible');
   // The <=360px QC-7 media block stays: it still serves Field Mode,
   // which shares .qc3-card-main with different children.
   assert.ok(stylesSrc.includes('@media (max-width: 360px)'), 'the QC-7 360px media block must stay for Field Mode');

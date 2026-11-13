@@ -12925,6 +12925,12 @@ dialog.help-guide-modal::backdrop {
 .defaulters-actions-summary {
   list-style: none;
   cursor: pointer;
+  /* Top Defaulters polish (2026-11-13): the collapsed bar is the slim
+     44px bottom bar the spec pins — a <summary> is not a <button>, so
+     the global 44px button rule does not apply; set it explicitly. */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 
 .defaulters-actions-summary::-webkit-details-marker {
@@ -12961,6 +12967,48 @@ dialog.help-guide-modal::backdrop {
   padding-top: 2px !important;
   padding-bottom: 6px !important;
   margin-bottom: 8px !important;
+}
+
+/* Top Defaulters polish (2026-11-13): compact the header so the Urdu
+   subtitle fits on one line. The h2 needs !important + the double-class
+   scope to beat the !important clamp in the ≤640px block; the subtitle
+   is a <span>, so display:block is what makes nowrap + ellipsis work. */
+.top-defaulters-modal .billing-modal-header h2 {
+  font-size: 16px !important;
+}
+
+.top-defaulters-modal .urdu-subtitle {
+  display: block;
+  max-width: 100%;
+  font-size: 13px;
+  direction: rtl;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Top Defaulters polish (2026-11-13): the 4 KPI cards form a compact
+   2×2 grid on phones (the base auto-fit rule yields 1 column at 360px). */
+@media (max-width: 640px) {
+  .defaulters-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}
+
+/* Top Defaulters polish (2026-11-13): the area select spans both filter
+   columns — "All Areas / Mohallas" (20 chars) re-truncates in a 162px
+   half column, so the text-only change cannot fit on its own. */
+.defaulter-filter-grid .defaulter-select-box:first-child {
+  grid-column: 1 / -1;
+}
+
+/* Top Defaulters polish (2026-11-13): an open Actions drawer can never
+   eat more than ~45% of the dialog height — the sticky footer used to
+   let it grow to ~400px and cover the list. */
+.defaulters-actions-details[open] .footer-actions-left {
+  max-height: 45dvh;
+  overflow-y: auto;
 }
 
 .defaulter-filter-grid {
@@ -13082,10 +13130,35 @@ dialog.help-guide-modal::backdrop {
   color: #ffffff;
 }
 
+/* Top Defaulters polish (2026-11-13): the secondary row is one 3-column
+   grid so Waada / Contacted / Profile never wrap Profile onto a second
+   line; the three buttons share the Row 1 nowrap/ellipsis pattern. The
+   contact channel picker spans the full row when it opens. */
 .defaulter-card-actions-secondary {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 6px;
+}
+
+.defaulter-card-actions-secondary .defaulter-waada-btn,
+.defaulter-card-actions-secondary .defaulter-contact-btn,
+.defaulter-card-actions-secondary .defaulter-view-btn {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.8rem;
+  padding: 6px 4px;
+}
+
+.defaulter-card-actions-secondary .defaulter-contact-picker {
+  grid-column: 1 / -1;
+}
+
+/* Top Defaulters polish (2026-11-13): the Lock Due count must stay on
+   the same line as the label ("Lock Due (15th+) • 0" wrapped mid-label
+   in the 1fr Follow-up column). */
+.lock-due-toggle {
+  white-space: nowrap;
 }
 
 .defaulters-action-groups {

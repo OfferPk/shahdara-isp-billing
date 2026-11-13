@@ -172,8 +172,13 @@ test('Plan 406: amounts print with no decimals for whole rupees and one decimal 
   assert.equal(formatRunningBalanceAmount(150050), 'PKR 1,500.5');
   assert.equal(formatRunningBalanceAmount(0), 'PKR 0');
   assert.equal(formatRunningBalanceAmount(-220000), '-PKR 2,200');
-  assert.equal(formatRunningBalanceAmount(null), 'PKR 0');
-  assert.equal(formatRunningBalanceAmount('abc'), 'PKR 0');
+  // Sharafat 13: a figure the list cannot read used to print 'PKR 0',
+  // inventing money out of nothing. The repo money rule is
+  // null/undefined/empty/boolean = "not a number", never zero — so it
+  // prints the bare dash, the same rendering receipt-money.js uses.
+  // A real zero still prints 'PKR 0'.
+  assert.equal(formatRunningBalanceAmount(null), '—');
+  assert.equal(formatRunningBalanceAmount('abc'), '—');
 });
 
 test('Plan 406: the balance note says settled, still owed, or credit in plain words', () => {

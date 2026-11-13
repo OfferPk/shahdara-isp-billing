@@ -102,9 +102,12 @@ test('Plan 491: the edit flows still switch to the info tab', () => {
   // the moved header Edit button all activate 'info': five call sites.
   // (Polish #24: Edit sits in the static header now, visible from every
   // tab, so its wiring lands on Info first — the form lives there.)
+  // Profile Inner Tabs Overhaul adds two more: openProfileFormAtSection
+  // and the field-edit tap — the moved Financial section is editable
+  // from the Billing tab, so both land on Info before opening the form.
   const calls = appJs.match(/activateProfileTab\('info'\)/g) || [];
-  assert.equal(calls.length, 5,
-    `expected 5 activateProfileTab('info') call sites, found ${calls.length}`);
+  assert.equal(calls.length, 7,
+    `expected 7 activateProfileTab('info') call sites, found ${calls.length}`);
   assert.match(appJs,
     /function editCustomerProfile\(id[\s\S]*?activateProfileTab\('info'\)/,
     'edit flow still lands on info');

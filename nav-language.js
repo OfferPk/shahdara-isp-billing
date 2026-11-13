@@ -315,12 +315,16 @@ export const TRANSLATIONS = {
     receipt_finder_note: 'Find any receipt — reopen it or send it again.',
     receipt_finder_search_placeholder: 'Find a receipt — customer name, phone, or customer ID',
     receipt_finder_search_aria: 'Find a receipt by customer name, phone, or customer ID',
-    receipt_finder_recent: 'Showing the {count} most recent receipts',
+    receipt_finder_recent: 'Showing {shown} of {total} receipts',
     receipt_finder_match: '{count} receipts match "{query}"',
-    receipt_finder_more: 'Showing {shown} of {total} matching receipts — narrow the search to see more.',
+    receipt_finder_more: 'Showing {shown} of {total} matching receipts.',
     receipt_finder_none: 'No receipts match "{query}".',
     receipt_finder_empty: 'No receipts recorded yet.',
     receipt_finder_open: 'Open receipt',
+    receipt_finder_show_more: 'Show More (25 per page)',
+    receipt_finder_open_short: '📄 Open',
+    receipt_finder_whatsapp_short: '💬 WhatsApp',
+    receipt_finder_png_short: '🖼️ PNG',
     cust_newcust_panel_aria: 'New customers by month',
     cust_list_aria: 'Customer list',
     cust_profiles_aria: 'Customer profiles',
@@ -4017,7 +4021,7 @@ export const TRANSLATIONS = {
     prof_qa_thermal: 'Thermal Cycling QA',
 
     // 2-Tap Quick Collect Sheet
-    qc_title: 'Quick Collect Cash',
+    qc_title: '⚡ Quick Collect Cash',
     // QC-11: home top shortcuts (Quick Collect / Bulk Collect / Record
     // Payment at the top of home, below the search). Labels are the
     // user-named features; subtitles reuse the flows' own words.
@@ -4958,12 +4962,16 @@ export const TRANSLATIONS = {
     receipt_finder_note: 'کوئی بھی رسید تلاش کریں — دوبارہ کھولیں یا دوبارہ بھیجیں۔',
     receipt_finder_search_placeholder: 'رسید تلاش کریں — گاہک کا نام، فون، یا گاہک ID',
     receipt_finder_search_aria: 'گاہک کے نام، فون، یا گاہک ID سے رسید تلاش کریں',
-    receipt_finder_recent: 'تازہ ترین {count} رسیدیں دکھائی جا رہی ہیں',
+    receipt_finder_recent: '{total} میں سے {shown} رسیدیں دکھائی جا رہی ہیں',
     receipt_finder_match: '"{query}" سے {count} رسیدیں ملیں',
-    receipt_finder_more: '{total} میں سے {shown} رسیدیں دکھائی جا رہی ہیں — مزید دیکھنے کے لیے تلاش کو محدود کریں۔',
+    receipt_finder_more: '{total} میں سے {shown} مماثل رسیدیں دکھائی جا رہی ہیں۔',
     receipt_finder_none: '"{query}" سے کوئی رسید نہیں ملی۔',
     receipt_finder_empty: 'ابھی کوئی رسید درج نہیں ہوئی۔',
     receipt_finder_open: 'رسید کھولیں',
+    receipt_finder_show_more: 'مزید دکھائیں (25 فی صفحہ)',
+    receipt_finder_open_short: '📄 کھولیں',
+    receipt_finder_whatsapp_short: '💬 واٹس ایپ',
+    receipt_finder_png_short: '🖼️ PNG',
     cust_newcust_panel_aria: 'ماہ کے حساب سے نئے گاہک',
     cust_list_aria: 'گاہکوں کی فہرست',
     cust_profiles_aria: 'گاہکوں کے پروفائلز',
@@ -8647,7 +8655,7 @@ export const TRANSLATIONS = {
     prof_qa_thermal: 'تھرمل سائیکلنگ QA',
 
     // 2-Tap Quick Collect Sheet
-    qc_title: 'فوری نقد وصولی (2-Tap)',
+    qc_title: '⚡ فوری نقد وصولی (2-Tap)',
     // QC-11: home top shortcuts (see the EN block above).
     qc11_top_label: 'سب سے زیادہ استعمال',
     qc11_quick_collect: 'فوری وصولی',
@@ -9874,16 +9882,8 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
   }
 
   // 8. Update Quick Collect Modal
-  // Quick Collect CSS tightening (user instruction 2026-11-13): the
-  // title carries a Zap SVG in its own span now, so the text goes
-  // into .qc-title-text — writing textContent onto the h2 would wipe
-  // the icon. The ⚡ was removed from the qc_title strings with it
-  // (the icon is the lightning now). The fallback keeps the old
-  // behaviour for any markup without the span.
   const qcTitle = container.querySelector('#quickCollectTitle');
-  const qcTitleText = container.querySelector('#quickCollectTitle .qc-title-text');
-  if (qcTitleText) qcTitleText.textContent = t('qc_title', activeLang);
-  else if (qcTitle) qcTitle.textContent = t('qc_title', activeLang);
+  if (qcTitle) qcTitle.textContent = t('qc_title', activeLang);
 
   const qcSearch = container.querySelector('#quickCollectSearchInput');
   if (qcSearch) qcSearch.setAttribute('placeholder', t('qc_search_placeholder', activeLang));

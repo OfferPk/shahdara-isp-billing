@@ -65,9 +65,13 @@ test('qc action row wraps and action buttons stay on one line', () => {
 
 // --- Pins: what the fix must NOT change ------------------------------------
 
-test('qc list still scrolls at 380px and the base card min-height stays', () => {
+test('qc list still scrolls at 460px and the base card min-height stays', () => {
+  // QC Modal Overhaul 2: the cap rises 380px -> 460px (measured:
+  // 122px plain / 170.6px badged cards, 2 full + a third partial
+  // in a 460px list — the "2.5–3 cards on screen" target). The list
+  // still scrolls; the fix is the card shrink AND the taller list.
   const list = ruleBlock('.qc-customer-list {');
-  assert.ok(list.includes('max-height: 380px'), 'the list must still cap at 380px and scroll — the fix is the card shrink, not the list height');
+  assert.ok(list.includes('max-height: 460px'), 'the list must cap at 460px and scroll');
   assert.ok(list.includes('overflow-y: auto'), 'the list must still scroll vertically');
   const base = ruleBlock('.qc-customer-card {');
   assert.ok(base.includes('min-height: 54px'), 'the base card min-height stays — with flex-shrink: 0 it never binds as a crush floor');

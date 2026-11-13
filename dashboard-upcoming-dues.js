@@ -231,6 +231,12 @@ export function renderUpcomingDues(doc, summary) {
       : '';
   }
   const hasBills = (summary.totalCount ?? 0) > 0;
+  // Collect Tab polish: a PKR 0 week collapses to one compact row
+  // (title + PKR 0 badge) instead of a ~220px tall card. The total,
+  // line and empty elements keep their textContent, so the plan472
+  // pins stay green.
+  const card = totalEl?.closest?.('.collection-forecast-card');
+  if (card?.classList) card.classList.toggle('collection-forecast-card--compact-zero', !hasBills);
   const daysEl = doc.getElementById('dudUpcomingDays');
   if (daysEl) daysEl.innerHTML = hasBills ? upcomingDuesSectionHtml(summary) : '';
   const emptyEl = doc.getElementById('dudUpcomingEmpty');

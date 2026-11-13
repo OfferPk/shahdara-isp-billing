@@ -7,18 +7,39 @@
 // measured totals.
 //
 // Measured (harness, 0 pageerrors, chromium-headless-shell):
-//   Picker 360x640: cards 170.6px (high-balance tag — figures wrap
-//     to Row 2) / 122px (plain — figures inline on Row 1); list
-//     clientH 460px (cap raised 380 -> 460); 2 fully visible + a
-//     third partially visible (2.65 cards on the mixed fixture,
-//     2.57 all-badged, 3.5 all-plain) — the "2.5–3 cards on screen"
-//     target is MET in the list viewport. cardOverX 0. The modal
-//     card itself still scrolls to bring the list into view (the
-//     picker chrome above the list is ~536px: sort + search +
-//     pills + mohalla + banner), so "on screen" means in the list
+//   Picker 360x640 (Quick Collect CSS tightening, qc-tighten
+//     shell): cards 151.5px (chips row — badge + High-balance tag
+//     on their own 24px row) / 118px (plain — no chips row); list
+//     clientH 460px (cap 460); 2 fully visible + a third 85%
+//     visible (was ~53%) — the list shows 3.03 all-badged / 3.90
+//     all-plain cards per 460px, so the "2 cards on screen" goal
+//     is met in the list viewport (2 full + most of a third).
+//     cardOverX 0, listOverX 0. The honest saving is 19.1px per
+//     badged card (170.6 -> 151.5) and 4px per plain card
+//     (122 -> 118) — NOT the ~40–45px the prep estimated and NOT
+//     the user's ~85px. The modal card itself still scrolls to
+//     bring the list into view (the picker chrome above the list
+//     is ~578px: header + sort + search + pills + mohalla +
+//     Recent toggle + banner), so "on screen" means in the list
 //     viewport, not in the first viewport.
 //   Picker 390x844: same card heights; 2 full + a third partial.
-//     cardOverX 0.
+//     cardOverX 0. Today + Round share the banner's first row at
+//     this width; the button is on row 2.
+//   Picker 320x640: cards 250.6px (badged) / 214.6px (plain) —
+//     the figures wrap to Row 2 AND the action row wraps to two
+//     rows (the wrap valve, not a clip); 1 full + a second
+//     partial. cardOverX 0, listOverX 0; 100-card render: no
+//     overlap, no horizontal overflow.
+//   Banner: 86.4px tall at 360px with a day target set (was
+//     96.4px) — three rows: Today alone, Round + Day Summary,
+//     the progress track below them. The single-row bar is NOT
+//     met at 360px: the three cells need ~442px against 294px of
+//     banner content width (314px minus 20px padding), and the
+//     figures must never be truncated — recorded, not blessed
+//     (PR #1337 precedent). With the user's shorter values
+//     (Today: PKR 30,800 · Round: 0) Today + Round do share row
+//     1; the button still wraps. The track sits below the row
+//     items now (order 4), never above them as it did before.
 //   Form 360x640: cardScrollH 1,312px vs cardClientH 589px — 723px
 //     OVER the one-screen budget. Recorded, not blessed (PR #1337
 //     precedent). The form has seven sections (back row, 140px
@@ -33,13 +54,12 @@
 //     ~2.2 screens, down from the ~4 the base spec measured.
 //   Form 390x844: cardScrollH 1,292px vs cardClientH 776px — 516px
 //     OVER. Recorded, not blessed.
-//   Banner: ~96px tall at 360px with representative text (the three
-//     items wrap to three rows at 314px content width) — the merge
-//     saves the separate ~48px actions row, but the bar is not one
-//     row; the one-row reading of "one compact bar" is not met.
 //   The harness shells use representative (not real-rendered) banner
 //   text and a static-filled form; the numbers are the shells'
 //   measurements, not a live-app trace.
+//   The form numbers above are carried over from the Overhaul-2
+//   measurement (this PR does not touch the form step — its
+//   chrome is the modal header only, unchanged — so they stand).
 // Pattern-fake data only: Customer A–F, RCPT-12-202611-01.
 import test from 'node:test';
 import assert from 'node:assert/strict';

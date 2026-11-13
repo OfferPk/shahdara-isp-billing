@@ -424,6 +424,10 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
       return;
     }
     if (screen === 'assistant') {
+      // Pucho + Profile Header Polish — the panel is collapsed by default,
+      // so the assistant route expands it; otherwise the input the route
+      // focuses (and the chips) would stay hidden inside the collapsed body.
+      if (typeof win.expandOwnerCommandCenter === 'function') win.expandOwnerCommandCenter();
       return;
     }
     if (screen === 'easypaisa') {

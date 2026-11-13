@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import { updateNavigationBadges } from '../nav.js';
 
 test('updateNavigationBadges synchronizes collection and dues badge with pending ledger dues', () => {
+  // Sharafat 10 (2026-11-13): the badge's overdue count comes from
+  // the Quick Collect picker pool, which now SKIPS damaged records
+  // (parent decision) — so these fixtures must be healthy records:
+  // a customer without a number is damaged and no longer counts as
+  // overdue. The numbers below only make the fixtures realistic; the
+  // badge arithmetic the test pins is unchanged.
   const state = {
     settings: { currency: 'PKR', defaultPaymentDueDays: 10 },
     plans: [
@@ -12,6 +18,7 @@ test('updateNavigationBadges synchronizes collection and dues badge with pending
       {
         id: 'cust-1',
         name: 'Tariq Mehmood',
+        customerNumber: 1,
         archived: false,
         status: 'active',
         planId: 'p1',
@@ -22,6 +29,7 @@ test('updateNavigationBadges synchronizes collection and dues badge with pending
       {
         id: 'cust-2',
         name: 'Asim Raza',
+        customerNumber: 2,
         archived: false,
         status: 'active',
         planId: 'p1',
@@ -32,6 +40,7 @@ test('updateNavigationBadges synchronizes collection and dues badge with pending
       {
         id: 'cust-3',
         name: 'Zahid Khan',
+        customerNumber: 3,
         archived: false,
         status: 'active',
         planId: 'p1',
@@ -71,10 +80,14 @@ test('updateNavigationBadges synchronizes collection and dues badge with pending
 });
 
 test('updateNavigationBadges falls back safely when state lacks ledger structure', () => {
+  // Sharafat 10 (2026-11-13): same as the test above — the overdue
+  // count comes from the picker pool, which now skips damaged
+  // records, so the minimal mock still needs a name, a number and a
+  // bill month; the fallback behaviour pinned below is unchanged.
   const minimalMockState = {
     customers: [
-      { id: 'c1', archived: false, bills: [{ dueAmount: 500, status: 'pending' }] },
-      { id: 'c2', archived: false, bills: [{ dueAmount: 0, status: 'paid' }] }
+      { id: 'c1', name: 'Zahid', customerNumber: 1, archived: false, bills: [{ month: '2026-11', dueAmount: 500, status: 'pending' }] },
+      { id: 'c2', name: 'Kashif', customerNumber: 2, archived: false, bills: [{ month: '2026-11', dueAmount: 0, status: 'paid' }] }
     ]
   };
 

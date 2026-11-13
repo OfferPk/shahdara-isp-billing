@@ -166,14 +166,14 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
     for (const width of [360, 390]) {
       await page.setViewportSize({ width, height: 800 });
       await page.goto('/#/transactions');
-      await expect(page.locator('#transactionsList > .transaction-card')).toHaveCount(2);
+      await expect(page.locator('#transactionsList .transaction-card')).toHaveCount(2);
       const bar = await page.locator('#transactionSummaryBar').evaluate(el => ({ sw: el.scrollWidth, cw: el.clientWidth, right: Math.max(...[...el.querySelectorAll('.tx-summary-item')].map(k => k.getBoundingClientRect().right)), barRight: el.getBoundingClientRect().right }));
       expect(bar.sw, `${width}`).toBeLessThanOrEqual(bar.cw + 1);
       expect(bar.right, `${width}`).toBeLessThanOrEqual(bar.barRight + 1);
       expect(bar.right, `${width}`).toBeLessThanOrEqual(width);
     }
     await page.evaluate(() => { document.documentElement.setAttribute('data-theme', 'dark'); document.body.setAttribute('data-theme', 'dark'); });
-    const card = page.locator('#transactionsList > .transaction-card').first();
+    const card = page.locator('#transactionsList .transaction-card').first();
     await card.locator('.tx-row').click();
     await expect(card.locator('.tx-details')).toBeVisible();
     const samples = await card.locator('.tx-details').evaluate(det => {
@@ -205,7 +205,7 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
     await expect(page.locator('#quickCollectModal')).toBeHidden();
     await expect(toast).toBeHidden();
     await page.goto('/#/transactions');
-    const card = page.locator('#transactionsList > .transaction-card').nth(1);
+    const card = page.locator('#transactionsList .transaction-card').nth(1);
     await card.locator('.tx-row').click();
     await card.locator('[data-transaction-delete]').click();
     await expect(page.locator('#appConfirmDialog')).toBeVisible();
@@ -213,7 +213,7 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
     await expect(page.locator('.tsx:not([hidden]) .toast-action-btn', { hasText: 'Undo' })).toHaveCount(0);
     await page.locator('#appConfirmCancelBtn').click();
     await expect(page.locator('#appConfirmDialog')).toBeHidden();
-    await expect(page.locator('#transactionsList > .transaction-card')).toHaveCount(2);
+    await expect(page.locator('#transactionsList .transaction-card')).toHaveCount(2);
     // A plain (no-action) toast still follows into a dialog that opens (#292 behaviour kept).
     await page.evaluate(() => window.toast('Saved on this device.', { type: 'success' }));
     await card.locator('[data-transaction-delete]').click();

@@ -48,6 +48,7 @@ const HISTORY_ENTRY_ANNOTATION_TYPE_LABELS = Object.freeze({
   credit: 'Credit',
   refund: 'Refund',
   adjustment: 'Adjustment',
+  info: 'Info',
 });
 
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 30, 31, 30, 31, 30];

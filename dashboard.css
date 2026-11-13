@@ -5685,6 +5685,49 @@
   color: var(--muted);
 }
 
+/* Collect Tab polish: the QC-5/QC-6 header is one row — icon tile +
+   title on the left, KPI on the right — instead of three stacked
+   lines with an empty line between title and KPI. The label's 30px
+   two-line reserve is dropped inside the header so the row stays
+   one line tall. Tokens only. */
+.qc5-field-recovery-card .ds-stat-head,
+.qc6-collection-insights-card .ds-stat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+.qc5-field-recovery-card .ds-stat-head .summary-label,
+.qc6-collection-insights-card .ds-stat-head .summary-label {
+  min-height: 0;
+  flex: 1;
+  min-width: 0;
+}
+.qc5-field-recovery-card .ds-stat-head .summary-value,
+.qc6-collection-insights-card .ds-stat-head .summary-value {
+  flex: none;
+}
+
+/* Collect Tab polish: the day-over-day percent leaves the clipped
+   nowrap value and becomes a compact green badge under it, so the
+   percent never truncates with "...". Empty when there is no
+   yesterday data. Tokens only. */
+.qc6-dod-badge {
+  align-self: flex-start;
+  color: var(--ds-success);
+  background: var(--ds-success-bg);
+  border: 1px solid var(--ds-success-border);
+  border-radius: var(--radius-pill);
+  padding: 1px 6px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.qc6-dod-badge:empty {
+  display: none;
+}
+
 /* QC-5: Today's Field Recovery card — one card composing the day's
    recovery figures (today card + day target + picker pool). The card
    spans two grid columns so the progress bar and the 2x2 tiles read

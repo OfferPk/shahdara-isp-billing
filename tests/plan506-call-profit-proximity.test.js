@@ -110,7 +110,11 @@ test('Plan 506: Contact group passes the actions block as its third argument', (
   // Polish #28 Phase A — the contact call now ends `], contactActionsHtml)`
   // inside the fragments object (the old literal closed the template
   // interpolation with `)}` after it — same call, new container).
-  assert.ok(groups.includes('], contactActionsHtml)'), 'Contact group must pass contactActionsHtml after its rows');
+  // Profile Polish F (22): the rotation class rides as the 4th arg
+  // (extraClass), so the call now ends `], contactActionsHtml,
+  // 'profile-info-group--contact')` — contactActionsHtml is still the
+  // 3rd arg, right after the rows.
+  assert.ok(groups.includes("], contactActionsHtml, 'profile-info-group--contact')"), 'Contact group must pass contactActionsHtml after its rows');
   assert.ok(groups.indexOf('contactActionsHtml') < groups.indexOf("t('prof_group_location')"), 'Contact group (with shortcuts) still comes before the Location group');
 });
 

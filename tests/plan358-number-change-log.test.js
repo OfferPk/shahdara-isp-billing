@@ -405,10 +405,14 @@ test('styles: the log rules exist and reuse an existing colour only', () => {
   for (const cls of ['.ncl-list', '.ncl-change', '.ncl-form', '.ncl-annotate', '.ncl-current']) {
     assert.ok(stylesSrc.includes(cls), `styles must define ${cls}`);
   }
+  // Profile Polish F (22): the log rows are pilled teal, so the F rules
+  // add the existing service-teal palette (#e7f2ec / #0e5b4d / #9acbad)
+  // next to the old muted #5c6e66 — still no new hex anywhere.
+  const allowed = new Set(['#5c6e66', '#e7f2ec', '#0e5b4d', '#9acbad']);
   const nclLines = stylesSrc.split('\n').filter(line => line.includes('.ncl-'));
   for (const line of nclLines) {
     for (const hex of line.match(/#[0-9a-fA-F]{3,8}/g) ?? []) {
-      assert.equal(hex.toLowerCase(), '#5c6e66', `ncl rule must reuse an existing colour, found ${hex}`);
+      assert.ok(allowed.has(hex.toLowerCase()), `ncl rule must reuse an existing colour, found ${hex}`);
     }
   }
 });

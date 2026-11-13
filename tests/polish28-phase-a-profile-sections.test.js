@@ -311,7 +311,11 @@ test('phase A groups: Contact keeps its shortcuts block after the phone row', ()
   // Phase A: the contact call ends `], contactActionsHtml)` inside the
   // fragments object (the old literal closed the template interpolation
   // with `)}` after it — same call, new container).
-  assert.ok(frags.includes('], contactActionsHtml)'), 'Contact group must pass contactActionsHtml after its rows');
+  // Profile Polish F (22): the rotation class rides as the 4th arg
+  // (extraClass), so the call now ends `], contactActionsHtml,
+  // 'profile-info-group--contact')` — contactActionsHtml is still the
+  // 3rd arg, right after the rows.
+  assert.ok(frags.includes("], contactActionsHtml, 'profile-info-group--contact')"), 'Contact group must pass contactActionsHtml after its rows, then the F rotation class');
   assert.ok(frags.indexOf('contactActionsHtml') < frags.indexOf("t('prof_group_location')"), 'Contact group (with shortcuts) still comes before the Location group');
 });
 

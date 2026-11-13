@@ -369,8 +369,14 @@ test('Plan 393: the receipt never reads the cross-payment note — receipts are 
 test('Plan 393: no new styling — styles.css carries no cross-payment selector', () => {
   const stylesSrc = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
   assert.equal(stylesSrc.includes('.xpn-'), false);
-  assert.equal(stylesSrc.includes('cross-payment'), false);
-  assert.equal(stylesSrc.includes('.profile-cross-payments'), false);
+  // Profile Polish F (22) deliberately styles the cross-payments section
+  // — the explainer as an info note, the entries as teal pills — so the
+  // old blanket ban no longer holds; pin the treatment instead of the
+  // absence, and keep it to exactly those two F rules.
+  assert.ok(stylesSrc.includes('.profile-cross-payments > p:first-of-type'), 'F: cross-payments explainer is an info note');
+  assert.ok(stylesSrc.includes('.profile-cross-payments li'), 'F: cross-payments entries are teal pills');
+  const hits = stylesSrc.split('\n').filter(line => line.includes('.profile-cross-payments'));
+  assert.equal(hits.length, 2, 'exactly two cross-payments rules (the F explainer note + the F entry pill)');
 });
 
 test('Plan 393: fixtures stay generic — no real customer names or phone numbers in this file', () => {

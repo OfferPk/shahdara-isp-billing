@@ -282,22 +282,22 @@ test('Plan 387: the warning reads the shared payable figure the form defaults to
 
 test('Plan 387: the warning refreshes on every keystroke, month, Advance, split, open, chip, and keypad tap', () => {
   const calls = navSrc.match(/renderUnderpaymentWarning\(\)/g) || [];
-  // Definition plus nine refresh sites: month change, amount input,
+  // Definition plus eight refresh sites: month change, amount input,
   // Advance toggle, split toggle, form open, quick-amount chip,
-  // loose-change chip, amount keypad, Add payment dues buttons.
+  // loose-change chip, amount keypad.
   // Plan 442: the amount keypad is the eighth refresh site — a
   // keypad tap sets the amount, so the warning re-shows like
   // every other programmatic amount set.
-  // Plan 489: the Add payment dues buttons are the ninth refresh
-  // site — a button tap fills the amount, so the warning re-shows
-  // like every other programmatic amount set. The count moves from
-  // 9 to 10 for that one new call site only; the intent (the warning
-  // refreshes on every programmatic amount set) is unchanged.
+  // Plan 489: the Add payment dues buttons were the ninth refresh
+  // site — QC Modal Overhaul 2 deletes them (they ARE the merged
+  // chip row now), so the count drops by exactly that one site. No
+  // refresh is lost: the chip handler already re-shows the warning
+  // on every chip tap.
   // Plan 539: the Back-draft restore is the tenth refresh site — a
   // restored amount re-shows the warning like every other
-  // programmatic amount set. The count moves from 10 to 11 for that
+  // programmatic amount set. The count moves from 9 to 10 for that
   // one new call site only; the intent is unchanged.
-  assert.equal(calls.length, 11, `expected 11 renderUnderpaymentWarning() sites, found ${calls.length}`);
+  assert.equal(calls.length, 10, `expected 10 renderUnderpaymentWarning() sites, found ${calls.length}`);
 });
 
 test('Plan 387: the warning hides while Advance is ticked and on a split payment', () => {

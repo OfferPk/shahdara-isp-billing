@@ -238,11 +238,13 @@ test('the one-screen HTML carries customer, amount, method, and save on one scre
 // QC Modal Fix: the native selects are gone — the customers are
 // combobox options and the methods are 1-tap pills. The HTML still
 // lists every customer and every method, only the controls changed.
+// QC Modal Overhaul 2 (addendum A2): the option line leads with the
+// account number ('#N · NAME') so a long name can never clip the #ID.
 test('the one-screen HTML lists every customer as a combobox option and every method as a pill', () => {
   const html = quickCollectOneScreenHtml({ customers: customers(), methods: METHODS });
-  assert.match(html, /Customer One \(#1\)/);
-  assert.match(html, /Customer Two \(#2\)/);
-  assert.match(html, /customer three \(#3\)/);
+  assert.match(html, /#1 · Customer One/);
+  assert.match(html, /#2 · Customer Two/);
+  assert.match(html, /#3 · customer three/);
   assert.match(html, /data-qos-customer-id="CUST-1"/);
   assert.match(html, /data-qos-customer-id="CUST-2"/);
   assert.match(html, /data-qos-customer-id="CUST-3"/);
@@ -262,7 +264,9 @@ test('the one-screen HTML honours a selected customer, amount, and method', () =
     method: 'JazzCash',
   });
   assert.match(html, /id="qosOneScreenCustomer" type="hidden" value="CUST-2"/);
-  assert.match(html, /value="Customer Two \(#2\)"/);
+  // QC Modal Overhaul 2 (addendum A2): the search box shows the picked
+  // customer #ID-first too ('#N · NAME').
+  assert.match(html, /value="#2 · Customer Two"/);
   assert.match(html, /data-qos-method="JazzCash"[^>]*aria-checked="true"|aria-checked="true"[^>]*data-qos-method="JazzCash"/);
   assert.match(html, /value="2000"/);
   assert.match(html, /✓ Save Payment \(PKR 2,000\)/);

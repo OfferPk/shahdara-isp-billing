@@ -8,7 +8,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   addPaymentDuesFigures,
-  addPaymentDuesButtonsHtml,
 } from '../add-payment-dues-buttons.js';
 import {
   addPayment,
@@ -63,10 +62,16 @@ test('acceptance: the fixture fills full dues and half dues from the customer re
   assert.equal(fullDues, 9000);
   const figures = addPaymentDuesFigures({ fullDues });
   assert.deepEqual(figures, { full: 9000, half: 4500 });
-  const html = addPaymentDuesButtonsHtml(figures);
-  assert.ok(html.includes('data-apd-amount="9000"'));
-  assert.ok(html.includes('data-apd-amount="4500"'));
-  assert.ok(html.indexOf('data-apd-amount="9000"') < html.indexOf('data-apd-amount="4500"'));
+  // QC Modal Overhaul 2: the figures drive the merged chip row now —
+  // the Full/Half dues buttons ARE the static entry chips (the
+  // script-rendered .apd-row is deleted). The chips carry
+  // data-quick-amount="full|half" and fill from these same figures.
+  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
+  assert.ok(rowAt > 0, 'the merged chip row must exist');
+  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  assert.ok(row.includes('data-quick-amount="full"'), 'the Full dues chip must exist');
+  assert.ok(row.includes('data-quick-amount="half"'), 'the Half dues chip must exist');
+  assert.ok(row.indexOf('data-quick-amount="full"') < row.indexOf('data-quick-amount="half"'), 'Full must come before Half');
 });
 
 test('acceptance: a part-paid customer fills the smaller full dues, not the old total', () => {
@@ -140,50 +145,69 @@ test('figures: inputs are never mutated', () => {
   assert.deepEqual(addPaymentDuesFigures(input), { full: 3000, half: 1500 });
 });
 
-test('html: the two buttons render in order with their figures in the labels', () => {
-  assert.equal(
-    addPaymentDuesButtonsHtml(fixtureFigures()),
-    '<button type="button" class="qab-amount-chip" data-apd-amount="9000">Full dues (Rs 9,000)</button>'
-    + '<button type="button" class="qab-amount-chip" data-apd-amount="4500">Half dues (Rs 4,500)</button>',
-  );
+test('html: the merged chip row carries Full dues, Half dues and Package in order', () => {
+  // QC Modal Overhaul 2: addPaymentDuesButtonsHtml is DELETED with
+  // the script-rendered .apd-row it built — the dues buttons ARE the
+  // static entry chips now. The row carries the three figured chips
+  // in order (Full dues, Half dues, Package — addendum A2 brings
+  // Package back), then the fixed notes.
+  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
+  assert.ok(rowAt > 0, 'the merged chip row must exist');
+  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  for (const type of ['full', 'half', 'package', '2000', '1000', '500']) {
+    assert.ok(row.includes(`data-quick-amount="${type}"`), `the ${type} chip must exist`);
+  }
+  assert.ok(row.indexOf('data-quick-amount="full"') < row.indexOf('data-quick-amount="half"'), 'Full must come before Half');
+  assert.ok(row.indexOf('data-quick-amount="half"') < row.indexOf('data-quick-amount="package"'), 'Half must come before Package');
+  assert.ok(!row.includes('data-apd-amount'), 'no script-rendered dues button may remain in the row');
 });
 
-test('html: a button with no known figure shows plain words and carries no amount', () => {
-  assert.equal(
-    addPaymentDuesButtonsHtml({ full: null, half: null }),
-    '<button type="button" class="qab-amount-chip">Full dues</button>'
-    + '<button type="button" class="qab-amount-chip">Half dues</button>',
-  );
+test('html: a chip with no known figure shows plain words — the figures are runtime-filled', () => {
+  // QC Modal Overhaul 2: the static chips carry plain labels ('Full
+  // dues', 'Half dues', 'Package'); the refresh fills the figures
+  // ('Full dues (Rs X)') on open. A customer with no dues gets the
+  // plain words with a zero figure, never a guessed amount.
+  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
+  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  assert.ok(row.includes('>Full dues</button>'), 'the Full chip starts as plain words');
+  assert.ok(row.includes('>Half dues</button>'), 'the Half chip starts as plain words');
+  assert.ok(row.includes('>Package</button>'), 'the Package chip starts as plain words');
+  assert.ok(!row.includes('data-apd-amount'), 'no chip carries a script-rendered amount');
 });
 
-test('html: a known figure and an unknown figure mix — only the known one carries an amount', () => {
-  const html = addPaymentDuesButtonsHtml({ full: 3000, half: null });
-  assert.ok(html.includes('data-apd-amount="3000"'));
-  assert.ok(html.includes('>Half dues</button>'));
-  assert.equal((html.match(/data-apd-amount=/g) || []).length, 1);
+test('html: the refresh labels use the app min-0 decimals — whole rupees print without decimals', () => {
+  // QC Modal Overhaul 2: the figures live in the refresh block now
+  // (openCustomerCollectionForm), not in a module Html export — the
+  // labels still format with toLocaleString('en-PK'), the app's
+  // min-0-decimals rule.
+  assert.ok(wiringSrc.includes("chip.textContent = `Full dues (Rs ${fullBal > 0 ? fullBal.toLocaleString('en-PK') : '0'})`"), 'the Full refresh label must format min-0 decimals');
+  assert.ok(wiringSrc.includes("chip.textContent = `Half dues (Rs ${halfBal > 0 ? halfBal.toLocaleString('en-PK') : '0'})`"), 'the Half refresh label must format min-0 decimals');
+  assert.ok(wiringSrc.includes("chip.textContent = `Package (Rs ${packageBal"), 'the Package refresh label must format min-0 decimals');
 });
 
-test('html: every button is type button, so tapping one never submits anything', () => {
-  const html = addPaymentDuesButtonsHtml(fixtureFigures());
-  assert.equal((html.match(/<button /g) || []).length, 2);
-  assert.equal((html.match(/type="button"/g) || []).length, 2);
-  assert.ok(!html.includes('<form'));
-  assert.ok(!html.includes('submit'));
-  assert.ok(!html.includes('disabled'));
-  assert.ok(!html.includes('readonly'));
+test('html: every chip is type button, so tapping one never submits anything', () => {
+  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
+  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  assert.equal((row.match(/<button /g) || []).length, 6);
+  assert.equal((row.match(/type="button"/g) || []).length, 6);
+  assert.ok(!row.includes('<form'));
+  assert.ok(!row.includes('submit'));
+  assert.ok(!row.includes('disabled'));
+  assert.ok(!row.includes('readonly'));
 });
 
-test('html: labels use the app min-0 decimals — whole rupees print without decimals', () => {
-  const html = addPaymentDuesButtonsHtml({ full: 1500.5, half: 750 });
-  assert.ok(html.includes('Full dues (Rs 1,500.5)'));
-  assert.ok(html.includes('Half dues (Rs 750)'));
-});
-
-test('html: the buttons are not entry-form chips — the old chip handler never sees them', () => {
-  const html = addPaymentDuesButtonsHtml(fixtureFigures());
-  assert.ok(!html.includes('quick-amount-chip'));
-  assert.ok(!html.includes('data-quick-amount'));
+test('html: the dues chips ARE the entry-form chips now — one row, one handler', () => {
+  // QC Modal Overhaul 2: the old split (script-rendered dues row +
+  // static chip row, two handlers) is gone — the dues buttons ARE
+  // the entry chips, and the single chip handler fills from the
+  // shared figures.
+  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
+  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  assert.ok(row.includes('quick-amount-chip'), 'the dues chips must be entry-form chips');
+  assert.ok(row.includes('data-quick-amount="full"'), 'Full dues must be a chip');
+  assert.ok(row.includes('data-quick-amount="half"'), 'Half dues must be a chip');
   assert.ok(wiringSrc.includes("modal.querySelectorAll('.quick-amount-chip')"));
+  assert.ok(!wiringSrc.includes('addPaymentDuesButtonsHtml'), 'the deleted Html export must not be referenced');
 });
 
 test('module: pure — no clock, page, storage, network, or store key', () => {
@@ -226,56 +250,72 @@ test('module: fixtures are generic — no real customer name in the module or te
   }
 });
 
-test('wiring: the controller imports the dues buttons module', () => {
+test('wiring: the controller imports the dues figures module, not the deleted row builder', () => {
   assert.match(wiringSrc, /add-payment-dues-buttons\.js/);
   assert.match(wiringSrc, /addPaymentDuesFigures/);
-  assert.match(wiringSrc, /addPaymentDuesButtonsHtml/);
+  // QC Modal Overhaul 2: the Html export is deleted with the row it
+  // built — the figures are the module's only export now. The name
+  // still appears in one why-comment (the deletion note); what must
+  // be gone is the function itself and every call to it.
+  assert.doesNotMatch(wiringSrc, /addPaymentDuesButtonsHtml/);
+  assert.ok(!wiringSrc.includes('function renderAddPaymentDuesButtons()'), 'the row builder function must be gone');
+  assert.ok(!wiringSrc.includes('renderAddPaymentDuesButtons();'), 'no row builder call may remain');
 });
 
-test('wiring: the row sits ahead of the entry form chip row on the form step', () => {
-  const start = wiringSrc.indexOf('function renderAddPaymentDuesButtons()');
-  assert.notEqual(start, -1);
-  const block = wiringSrc.slice(start, start + 2200);
-  assert.match(block, /stepForm\.querySelector\('\.qc-quick-amount-chips'\)/);
-  assert.match(block, /stepForm\.querySelector\('\.apd-row'\)/);
-  assert.match(block, /className = 'qc-quick-amount-chips apd-row'/);
-  assert.match(block, /chipsRow\.before\(duesRow\)/);
-  assert.match(block, /duesRow\.innerHTML = addPaymentDuesButtonsHtml\(figures\)/);
+test('wiring: the dues row is the static chip row — no script-rendered row ahead of it', () => {
+  // QC Modal Overhaul 2: renderAddPaymentDuesButtons() is deleted —
+  // the dues buttons ARE the static entry chips in the page, so
+  // there is no script-rendered row, no .apd-row, and no before()
+  // insertion on the form step.
+  assert.ok(!wiringSrc.includes('function renderAddPaymentDuesButtons()'), 'the row builder must be gone');
+  assert.ok(!wiringSrc.includes('.apd-row'), 'no apd row class may remain');
+  assert.ok(!pageSrc.includes('apd-row'), 'the page carries no apd row');
+  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
+  assert.ok(rowAt > 0, 'the static chip row must exist');
 });
 
 test('wiring: the row refreshes from the amount default whenever the picked customer changes', () => {
   const openAt = wiringSrc.indexOf('function openCustomerCollectionForm(');
   assert.notEqual(openAt, -1);
   const openBlock = wiringSrc.slice(openAt, wiringSrc.indexOf('function renderOneScreen(', openAt));
-  assert.ok(openBlock.includes('renderAddPaymentDuesButtons();'), 'the form open must refresh the dues buttons');
-  const renderAt = wiringSrc.indexOf('function renderAddPaymentDuesButtons()');
-  const renderBlock = wiringSrc.slice(renderAt, renderAt + 2200);
-  assert.match(renderBlock, /fullDues: activeDefaults\?\.suggestedAmount \?\? null/);
+  // QC Modal Overhaul 2: the open flow refreshes the static chips'
+  // labels from the shared figures (Full dues / Half dues /
+  // Package) — no renderAddPaymentDuesButtons() call remains.
+  assert.ok(openBlock.includes('chip.textContent = `Full dues (Rs '), 'the form open must refresh the Full chip label');
+  assert.ok(openBlock.includes('chip.textContent = `Half dues (Rs '), 'the form open must refresh the Half chip label');
+  assert.ok(openBlock.includes('chip.textContent = `Package (Rs '), 'the form open must refresh the Package chip label');
+  assert.ok(openBlock.includes('fullDues: activeDefaults.suggestedAmount'), 'the refresh must read the full-dues default');
+  assert.ok(!openBlock.includes('renderAddPaymentDuesButtons();'), 'no dues-buttons render call may remain in the open');
 });
 
-test('wiring: tapping a button fills only the form amount field', () => {
-  const start = wiringSrc.indexOf('data-apd-amount');
+test('wiring: tapping a chip fills only the form amount field', () => {
+  // QC Modal Overhaul 2: the tap path is the single chip handler
+  // now (the .apd-row handler is deleted with its row) — anchored
+  // on the chip wiring comment, not on a data-apd-amount lookup.
+  const start = wiringSrc.indexOf('// Wire quick amount helper chips');
   assert.notEqual(start, -1);
-  const block = wiringSrc.slice(start, start + 1100);
-  assert.match(block, /amountInput\.value = amount\.toFixed\(2\)/);
+  const block = wiringSrc.slice(start, start + 3000);
+  assert.match(block, /amountInput\.value = chipFigures\.full\.toFixed\(2\)/);
+  assert.match(block, /amountInput\.value = chipFigures\.half\.toFixed\(2\)/);
+  assert.match(block, /amountInput\.value = packagePrice\.toFixed\(2\)/);
   assert.match(block, /amountInput\.focus\(\)/);
-  assert.ok(!block.includes('requestSubmit'), 'a button tap must never submit');
-  assert.ok(!block.includes('submitOneScreenPayment'), 'a button tap must never save');
-  assert.ok(!block.includes('executeQuickCollection'), 'a button tap must never post');
-  assert.ok(!block.includes('addPayment('), 'a button tap must never record a payment');
+  assert.ok(!block.includes('requestSubmit'), 'a chip tap must never submit');
+  assert.ok(!block.includes('submitOneScreenPayment'), 'a chip tap must never save');
+  assert.ok(!block.includes('executeQuickCollection'), 'a chip tap must never post');
+  assert.ok(!block.includes('addPayment('), 'a chip tap must never record a payment');
 });
 
 test('wiring: the filled amount stays editable — the tap never locks the field', () => {
-  const start = wiringSrc.indexOf('data-apd-amount');
-  const block = wiringSrc.slice(start, start + 1100);
-  assert.ok(!block.includes('amountInput.readOnly'), 'button tap must not lock the amount field');
-  assert.ok(!block.includes('amountInput.disabled'), 'button tap must not disable the amount field');
+  const start = wiringSrc.indexOf('// Wire quick amount helper chips');
+  const block = wiringSrc.slice(start, start + 3000);
+  assert.ok(!block.includes('amountInput.readOnly'), 'chip tap must not lock the amount field');
+  assert.ok(!block.includes('amountInput.disabled'), 'chip tap must not disable the amount field');
   assert.ok(block.includes('amountInput.focus();'), 'the field keeps focus so the operator can edit it');
 });
 
-test('wiring: a button tap refreshes the live lines like any other chip tap', () => {
-  const start = wiringSrc.indexOf('data-apd-amount');
-  const block = wiringSrc.slice(start, start + 1100);
+test('wiring: a chip tap refreshes the live lines like any other chip tap', () => {
+  const start = wiringSrc.indexOf('// Wire quick amount helper chips');
+  const block = wiringSrc.slice(start, start + 3000);
   assert.ok(block.includes('renderAmountWordsLine();'), 'words refresh after the fill');
   assert.ok(block.includes('renderSettlementPreview();'), 'preview refreshes after the fill');
   assert.ok(block.includes('renderOverpaymentChoice();'), 'choice refreshes after the fill');
@@ -292,12 +332,18 @@ test('styles: the dues buttons reuse the one-screen buttons look — no new styl
   assert.match(stylesSrc, /\[data-theme="dark"\] #quickCollectModal \.qab-amount-chip/);
 });
 
-test('wiring: the entry form chip row is untouched — its buttons and figures stay', () => {
+test('wiring: the entry form chip row is the merged row — Full, Half, Package, fixed notes', () => {
   const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
   assert.ok(rowAt > 0, 'the quick-amount row must exist');
   const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
-  for (const type of ['full', 'package', 'current', 'half', '500', '1000', '1500', '2000']) {
-    assert.ok(row.includes(`data-quick-amount="${type}"`), `existing ${type} button must stay`);
+  // QC Modal Overhaul 2: one merged row — Full dues, Half dues,
+  // Package (addendum A2) + the fixed notes 2,000 / 1,000 / 500.
+  // Current Month and 1,500 are dropped (their figures were a second
+  // copy of a figure the Full chip or the field already offers).
+  for (const type of ['full', 'half', 'package', '2000', '1000', '500']) {
+    assert.ok(row.includes(`data-quick-amount="${type}"`), `merged ${type} chip must stay`);
   }
-  assert.ok(!row.includes('data-apd-amount'), 'the dues buttons are a script-rendered row, not static chips');
+  assert.ok(!row.includes('data-quick-amount="current"'), 'the Current Month chip must be gone');
+  assert.ok(!row.includes('data-quick-amount="1500"'), 'the 1,500 chip must be gone');
+  assert.ok(!row.includes('data-apd-amount'), 'the dues buttons are static chips now, not a script row');
 });

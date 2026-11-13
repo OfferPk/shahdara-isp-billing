@@ -219,21 +219,31 @@ test('Plan 400: the summary never changes any bill, payment, or customer record 
 
 // --- Wiring ---
 
-test('Plan 400: the Quick Collect sheet imports the summary module and the transaction rows', () => {
+test('Plan 400: the Quick Collect sheet keeps the summary module for the target progress, not the entry line', () => {
+  // QC Modal Overhaul 2: the 'Today payments' entry-summary LINE is
+  // REMOVED from the form step (the stray line the spec deletes) —
+  // so the dailyEntrySummaryText import and the refresh call go with
+  // it. The dailyEntrySummary import STAYS: refreshDailyTargetProgress
+  // still uses it for the 'Today' banner line, which is the one
+  // summary the picker keeps.
   const src = readFileSync(new URL('../nav-quick-collect.js', import.meta.url), 'utf8');
-  assert.ok(src.includes("from './daily-entry-summary.js'"), 'missing daily-entry-summary import');
-  assert.ok(src.includes('dailyEntrySummary'), 'missing dailyEntrySummary use');
-  assert.ok(src.includes('dailyEntrySummaryText'), 'missing dailyEntrySummaryText use');
+  assert.ok(src.includes("from './daily-entry-summary.js'"), 'the module import must stay for the target progress');
+  assert.ok(src.includes('dailyEntrySummary'), 'dailyEntrySummary must still be used by the target progress');
+  assert.ok(!src.includes('dailyEntrySummaryText'), 'the entry-line text import must be gone');
+  assert.ok(!src.includes('refreshDailyEntrySummary'), 'the entry-line refresh must be gone');
   assert.ok(src.includes('listTransactions'), 'missing listTransactions import');
 });
 
-test('Plan 400: the summary refreshes inside updateCounts, from fresh state and today\'s Pakistan date', () => {
+test('Plan 400: the entry-summary refresh is gone — updateCounts no longer refreshes a deleted line', () => {
+  // QC Modal Overhaul 2: refreshDailyEntrySummary() is deleted with
+  // the line it refreshed. updateCounts() still runs (it refreshes
+  // the round totals and the target progress); it simply has no
+  // entry-summary call left inside it.
   const src = readFileSync(new URL('../nav-quick-collect.js', import.meta.url), 'utf8');
-  assert.ok(src.includes('refreshDailyEntrySummary'), 'missing refreshDailyEntrySummary');
+  assert.ok(!src.includes('refreshDailyEntrySummary'), 'the refresh function must be gone');
   const updateCounts = src.match(/function updateCounts\(\) \{[\s\S]*?\n  \}/);
   assert.ok(updateCounts, 'updateCounts not found');
-  assert.ok(updateCounts[0].includes('refreshDailyEntrySummary();'), 'updateCounts must refresh the daily summary');
-  assert.ok(src.includes('dailyEntrySummary(listTransactions(state), getPakistanLocalDate())'), 'refresh must read the rows and today\'s Pakistan date');
+  assert.ok(!updateCounts[0].includes('refreshDailyEntrySummary();'), 'updateCounts must not refresh a deleted line');
 });
 
 test('Plan 400: the summary refreshes after a save, through updateCounts on the success path', () => {
@@ -241,14 +251,17 @@ test('Plan 400: the summary refreshes after a save, through updateCounts on the 
   assert.ok(src.includes("showStep('success');\n      updateCounts();"), 'updateCounts must run on the success path after a save');
 });
 
-test('Plan 400: the entry screen carries the summary line inside the form step', () => {
+test('Plan 400: the entry screen no longer carries the summary line inside the form step', () => {
+  // QC Modal Overhaul 2: the 'Today payments' line is deleted — the
+  // form step fits on one screen without it. The form step and the
+  // payment form stay, in the same order.
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.ok(html.includes('<p id="quickCollectDailyEntrySummary" class="des-summary"'), 'missing summary line element');
+  assert.ok(!html.includes('<p id="quickCollectDailyEntrySummary" class="des-summary"'), 'the summary line element must be gone');
+  assert.ok(!html.includes('id="quickCollectDailyEntrySummary"'), 'no summary host may remain');
   const formStep = html.indexOf('id="quickCollectStepForm"');
-  const summaryEl = html.indexOf('id="quickCollectDailyEntrySummary"');
   const paymentForm = html.indexOf('id="quickCollectPaymentForm"');
-  assert.ok(formStep !== -1 && summaryEl !== -1 && paymentForm !== -1, 'anchors missing');
-  assert.ok(formStep < summaryEl && summaryEl < paymentForm, 'summary line must sit inside the form step, before the payment form');
+  assert.ok(formStep !== -1 && paymentForm !== -1, 'anchors missing');
+  assert.ok(formStep < paymentForm, 'the form step must still sit before the payment form');
 });
 
 // --- Fences ---
@@ -284,15 +297,10 @@ test('Plan 400: the summary module is pure — no clock, no storage, no store ke
 // --- Styles ---
 
 test('Plan 400: styles reuse existing colours only — no new hex in the summary rule', () => {
+  // QC Modal Overhaul 2: the .des-summary rule is deleted with the
+  // line it styled (dead-rule precedent). The no-new-hex invariant
+  // is vacuous now — there is no .des- rule left to carry one.
   const stylesSrc = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
   const summaryRules = stylesSrc.match(/\.des-[^{]+\{[^}]*\}/g) || [];
-  assert.ok(summaryRules.length >= 1, 'missing .des-summary rule');
-  const baseline = stylesSrc.replace(/\.des-[^{]+\{[^}]*\}/g, '');
-  const baselineHexes = new Set((baseline.match(/#[0-9a-fA-F]{3,8}/g) || []).map((h) => h.toLowerCase()));
-  for (const rule of summaryRules) {
-    const hexes = rule.match(/#[0-9a-fA-F]{3,8}/g) || [];
-    for (const hex of hexes) {
-      assert.ok(baselineHexes.has(hex.toLowerCase()), `new hex colour ${hex} in rule ${rule.slice(0, 60)}`);
-    }
-  }
+  assert.equal(summaryRules.length, 0, `expected no .des- rules, found ${summaryRules.length}`);
 });

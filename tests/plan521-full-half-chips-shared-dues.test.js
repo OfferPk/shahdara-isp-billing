@@ -1,15 +1,19 @@
 // Plan 521 — Full and Half chips use the shared dues rule: the entry
-// form's "Full" and "50%" chips, the Plan 489 Full/Half dues buttons
-// and the one screen's Full/Half dues buttons all fill from the same
-// figure — the Plan 429 full-dues default (activeDefaults
-// .suggestedAmount) — half of it rounded to whole rupees, filling
-// nothing when it works out to nothing. The old chip base (the
-// oldest open bill only) and the invented Rs 500 half fallback are
-// gone; the one-screen comment that claimed a difference from the
-// entry chip is fixed, and the dues-buttons header no longer
-// describes the old chip base. The Monthly chip is untouched: it
-// still falls back to the oldest-bill / total-dues figure when
-// neither the current month nor the full dues offer anything.
+// form's "Full dues" and "Half dues" chips, the Plan 489 Full/Half
+// dues buttons and the one screen's Full/Half dues buttons all fill
+// from the same figure — the Plan 429 full-dues default
+// (activeDefaults.suggestedAmount) — half of it rounded to whole
+// rupees, filling nothing when it works out to nothing. The old chip
+// base (the oldest open bill only) and the invented Rs 500 half
+// fallback are gone; the one-screen comment that claimed a
+// difference from the entry chip is fixed, and the dues-buttons
+// header no longer describes the old chip base. QC Modal Overhaul
+// 2: the Plan 489 buttons ARE the entry chips now (their
+// script-rendered row is deleted), the labels carry the exact
+// figures ('Full dues (Rs X)' / 'Half dues (Rs X)' / 'Package
+// (Rs X)' — addendum A2), and the Monthly chip is dropped — its
+// figure was the oldest-bill / total-dues fallback the Full chip
+// already offers, and the Package chip takes its seat.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -56,15 +60,21 @@ function stateWithNoDues() {
 function chipRefreshBlock() {
   const start = wiringSrc.indexOf('// Update quick amount chips dynamic amounts (#281)');
   assert.ok(start >= 0, 'chip refresh block must exist');
-  const end = wiringSrc.indexOf("// Plan 489: the form step's full-dues / half-dues buttons", start);
-  assert.ok(end > start, 'chip refresh block must end at the Plan 489 buttons');
+  // QC Modal Overhaul 2: the Plan 489 call that used to end this
+  // block is deleted with its row — the block now ends at the
+  // loose-change chips that follow it in the open flow.
+  const end = wiringSrc.indexOf('// SISP-116: loose-change chips for the payable just computed.', start);
+  assert.ok(end > start, 'chip refresh block must end at the loose-change chips');
   return wiringSrc.slice(start, end);
 }
 
 function chipClickBlock() {
   const start = wiringSrc.indexOf('// Wire quick amount helper chips');
   assert.ok(start >= 0, 'chip click wiring must exist');
-  const end = wiringSrc.indexOf('// Plan 442: the on-screen numeric keypad host', start);
+  // QC Modal Overhaul 2 (addendum A1): the old Plan 442 keypad
+  // comment that ended this block is gone — the restored keypad
+  // (hidden by default) carries a new overhaul comment instead.
+  const end = wiringSrc.indexOf('// QC Modal Overhaul 2 (addendum A1): the form-step keypad is', start);
   assert.ok(end > start, 'chip click wiring must end at the keypad host');
   return wiringSrc.slice(start, end);
 }
@@ -132,23 +142,30 @@ test('acceptance: a zero-dues customer gets no fill from any half control (never
   assert.ok(!wiringSrc.includes('(half > 0 ? half : 500)'), 'no Rs 500 fallback anywhere in the wiring');
 });
 
-test('wiring: the chip refresh labels Full and 50% from the shared figures', () => {
+test('wiring: the chip refresh labels Full dues and Half dues from the shared figures', () => {
   const refresh = chipRefreshBlock();
   assert.ok(
     refresh.includes('addPaymentDuesFigures({ fullDues: activeDefaults.suggestedAmount })'),
     'refresh must label from the shared figures on suggestedAmount',
   );
-  assert.ok(refresh.includes("chip.textContent = `Full (Rs ${fullBal > 0 ? fullBal.toLocaleString('en-PK') : '0'})`;"));
-  assert.ok(refresh.includes("chip.textContent = `50% (Rs ${halfBal > 0 ? halfBal.toLocaleString('en-PK') : '0'})`;"));
-  assert.ok(!refresh.includes('const baseBal = (activeDefaults.ticketChargesPending'), 'the oldest-bill base must not drive Full/50% any more');
+  assert.ok(refresh.includes("chip.textContent = `Full dues (Rs ${fullBal > 0 ? fullBal.toLocaleString('en-PK') : '0'})`;"));
+  assert.ok(refresh.includes("chip.textContent = `Half dues (Rs ${halfBal > 0 ? halfBal.toLocaleString('en-PK') : '0'})`;"));
+  assert.ok(refresh.includes("chip.textContent = `Package (Rs ${packageBal !== null && packageBal > 0 ? packageBal.toLocaleString('en-PK') : '0'})`;"));
+  assert.ok(!refresh.includes('const baseBal = (activeDefaults.ticketChargesPending'), 'the oldest-bill base must not drive Full/Half any more');
 });
 
-test('wiring: the Monthly chip still falls back to the oldest-bill / total-dues figure', () => {
+test('wiring: the Monthly chip is dropped — the Package chip takes its seat', () => {
+  // QC Modal Overhaul 2: the Current Month chip is dropped (its
+  // figure was the oldest-bill balance the Full chip already
+  // offers); addendum A2 brings the Package chip back in its
+  // place, filling the package price for the customer's package.
   const refresh = chipRefreshBlock();
-  assert.ok(refresh.includes('monthlyFallbackBal'), 'Monthly keeps its own fallback figure');
-  assert.ok(refresh.includes("chip.textContent = `Monthly (Rs ${curBal > 0 ? curBal.toLocaleString('en-PK') : (monthlyFallbackBal > 0 ? monthlyFallbackBal.toLocaleString('en-PK') : '0')})`;"));
+  assert.ok(!refresh.includes('monthlyFallbackBal'), 'no Monthly fallback figure may remain in the refresh');
+  assert.ok(!refresh.includes('Monthly (Rs'), 'no Monthly label may remain in the refresh');
+  assert.ok(refresh.includes('packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES)'), 'Package fills from the customer package price');
   const click = chipClickBlock();
-  assert.ok(click.includes("amountInput.value = (cur > 0 ? cur : baseBalance).toFixed(2);"));
+  assert.ok(click.includes("amountInput.value = packagePrice.toFixed(2);"), 'the Package chip fills the package price');
+  assert.ok(!click.includes('baseBalance'), 'no Monthly base balance may remain in the click handler');
 });
 
 test('comments: the one-screen comment states the shared rule, not a difference from the entry chip', () => {

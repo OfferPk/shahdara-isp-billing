@@ -282,7 +282,13 @@ test('wiring: the controller imports the receipt preview module and the next rec
   assert.match(wiringSrc, /receipt-preview\.js/);
   assert.match(wiringSrc, /receiptPreviewFor/);
   assert.match(wiringSrc, /receiptPreviewHtml/);
-  assert.match(wiringSrc, /nextReceiptNumberFor, nextReceiptNumberLineText/);
+  // QC Modal Overhaul 2 (Part 2.3): the six explanation lines condensed
+  // into ONE muted subtitle, so nextReceiptNumberLineText is no longer
+  // imported — the subtitle (renderFormSubtitle) renders the next
+  // receipt number directly from nextReceiptNumberFor, and the confirm
+  // preview still uses it too. The module's own tests still pass.
+  assert.match(wiringSrc, /import \{ nextReceiptNumberFor \} from '\.\/next-receipt-number\.js';/);
+  assert.doesNotMatch(wiringSrc, /nextReceiptNumberLineText/);
 });
 
 test('wiring: the preview builder reads the same figures the save posts with', () => {

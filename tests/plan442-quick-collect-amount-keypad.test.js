@@ -268,6 +268,54 @@ test('wiring: the keypad host sits right after the amount field', () => {
   assert.ok(input < host && host < prefill);
 });
 
+test('wiring: the form keypad is hidden by default and the toggle reveals it', () => {
+  // QC Modal Overhaul 2 (addendum A1): the base spec said REMOVE
+  // the keypad — the user refined it to HIDE it by default with a
+  // small '⌨️ Keypad' toggle inside the amount input. The 12-button
+  // keypad stretched the form step to ~4 mobile screens when always
+  // visible; hidden, the form fits on one screen. The keypad code
+  // stays — only its default visibility changes.
+  assert.ok(
+    pageSrc.includes('<div id="kpdAmountKeypad" class="kpd-keypad" hidden></div>'),
+    'the form keypad host must carry hidden in the page',
+  );
+  assert.ok(
+    pageSrc.includes('<button type="button" id="quickCollectKeypadToggle" class="qc-keypad-toggle" aria-expanded="false" aria-controls="kpdAmountKeypad">⌨️ Keypad</button>'),
+    'the toggle must sit in the amount input with aria-expanded false',
+  );
+  const start = wiringSrc.indexOf("modal.querySelector('#quickCollectKeypadToggle')");
+  assert.notEqual(start, -1, 'the toggle must be wired in the controller');
+  const block = wiringSrc.slice(start, start + 600);
+  assert.match(block, /amountKeypadBox\.hidden = !willShow/);
+  assert.match(block, /keypadToggleBtn\.setAttribute\('aria-expanded', String\(willShow\)\)/);
+  assert.match(block, /if \(willShow\) amountInput\?\.focus\(\)/);
+  // The toggle never submits and never touches the amount — it only
+  // flips the host's hidden state.
+  assert.doesNotMatch(block, /requestSubmit/);
+  assert.doesNotMatch(block, /amountInput\.value =/);
+});
+
+test('wiring: the one-screen keypad is hidden by default and its toggle reveals it', () => {
+  // QC Modal Overhaul 2 (addendum A1): the one-screen step hides
+  // the same way — its host is re-created on every render, so the
+  // toggle is wired in bindOneScreenControls and the keypad returns
+  // to hidden on a re-render.
+  const oneScreenSrc = readFileSync(new URL('../quick-collect-one-screen.js', import.meta.url), 'utf8');
+  assert.ok(
+    oneScreenSrc.includes('<div id="qosOneScreenKeypad" class="kpd-keypad" role="group" aria-label="Amount keypad" hidden></div>'),
+    'the one-screen keypad host must carry hidden in the module HTML',
+  );
+  assert.ok(
+    oneScreenSrc.includes('<button type="button" id="qosOneScreenKeypadToggle" class="qc-keypad-toggle" aria-expanded="false" aria-controls="qosOneScreenKeypad">⌨️ Keypad</button>'),
+    'the one-screen toggle must carry aria-expanded false',
+  );
+  const start = wiringSrc.indexOf("stepOneScreen.querySelector('#qosOneScreenKeypadToggle')");
+  assert.notEqual(start, -1, 'the one-screen toggle must be wired in the controller');
+  const block = wiringSrc.slice(start, start + 600);
+  assert.match(block, /oneScreenKeypadBox\.hidden = !willShow/);
+  assert.match(block, /oneScreenKeypadToggle\.setAttribute\('aria-expanded', String\(willShow\)\)/);
+});
+
 test('the kpd element-id prefix is used by this plan only', () => {
   assert.equal((pageSrc.match(/id="kpd/g) || []).length, 1);
 });

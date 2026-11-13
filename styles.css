@@ -7932,11 +7932,96 @@ html, body {
   width: 100%;
   max-height: 92vh;
   overflow-y: auto;
+  /* QC Modal Overhaul 2: the card is the single scroller — when the
+     browser scrolls a focused field into view, keep 64px of clearance
+     at the top so the sticky header never clips the amount input.
+     The header stays sticky (the e2e sticky test pins it); the
+     clearance comes from scroll-padding, not from un-sticking it. */
+  scroll-padding-top: 64px;
   /* QC receipt-modal overhaul (§4.1.5): belt-and-braces against the +558px
      class of failure — the <pre> fix (§4.4) is the root-cause fix. */
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* QC Modal Overhaul 2: the amount field group keeps 64px of clearance
+   when the browser scrolls it into view (the card's scroll-padding
+   is the other half — both are needed, padding on the container and
+   margin on the target, or the focused input still slides under the
+   sticky header). */
+#quickCollectModal .qc-field-group {
+  scroll-margin-top: 64px;
+}
+
+/* QC Modal Overhaul 2: the global .modal input rules (width 100%,
+   height 40px, min-height 44px) stretch every checkbox into a
+   full-width 40px box — the split toggle and the advance checkbox
+   both showed the defect (a wide empty box beside a tiny label).
+   This scoped exemption restores checkboxes to their natural size
+   inside this modal only; the global rules are NOT changed. */
+#quickCollectModal input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  min-height: auto;
+  flex: 0 0 auto;
+}
+
+/* QC Modal Overhaul 2 (addendum A1): the keypad toggle — a small
+   pill that sits inside the amount input's right end (form step)
+   or inside the one-screen amount row. The input keeps room for it
+   via padding-right, so typed figures never run underneath it. The
+   toggle is 32px tall (below the global 44px button floor — it is
+   an in-field affordance, not a standalone action button) and uses
+   the modal's neutral chip colours, so no new hex is introduced. */
+.qc-amount-input-wrap {
+  position: relative;
+}
+.qc-amount-input-wrap .qc-amount-input {
+  padding-right: 100px;
+}
+.qc-keypad-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  /* 32px, not the global 44px button floor (which needs !important
+     to beat, same as the banner button) — the toggle sits INSIDE
+     the 40px amount input, so a 44px toggle would stick out. */
+  min-height: 32px !important;
+  height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--ds-border);
+  border-radius: 999px;
+  background: var(--ds-card);
+  color: var(--text-main, #0f172a);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qos-amount-display .qc-keypad-toggle {
+  position: static;
+  transform: none;
+  flex: none;
+}
+
+/* QC Modal Overhaul 2 (addendum A4): ONE focus colour for the
+   modal's inputs. The :focus rule already paints the emerald ring
+   (#cce9dd outline + #60a68d border), but the global :focus-visible
+   baseline paints BLUE (#2563eb !important) for keyboard focus — so
+   the same input showed green on mouse-focus and blue on
+   keyboard-focus. This scoped rule paints the emerald ring for
+   keyboard focus too, inside this modal only. The global baseline
+   is NOT changed; this wins by higher specificity, exactly as the
+   baseline comment allows ("Component-level :focus-visible rules
+   with higher specificity still win where they exist"). */
+#quickCollectModal .qc-input:focus-visible,
+#quickCollectModal input:focus-visible,
+#quickCollectModal select:focus-visible {
+  outline: 3px solid #cce9dd !important;
+  outline-offset: 2px !important;
+  border-color: #60a68d !important;
 }
 
 .qc-step {
@@ -8014,7 +8099,15 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 380px;
+  /* QC Modal Overhaul 2: the list cap rises 380px -> 460px — with
+     the figures back inline on Row 1 the cards measure 122px
+     (plain) / 170.6px (high-balance tag, figures wrapped to Row 2),
+     so a 460px list shows 2 full + most of a third (2.65 cards on
+     the mixed fixture, 2.57 all-badged, 3.5 all-plain) instead of
+     the 1 full + 1 partial the 380px cap showed — the "2.5–3 cards
+     on screen" target. The cap is the list's own scroll area; the
+     modal card still scrolls to bring the list into view. */
+  max-height: 460px;
   overflow-y: auto;
   padding: 2px;
 }
@@ -8232,12 +8325,12 @@ html, body {
   align-items: center;
   gap: 4px;
 }
-.qc3-package-val {
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--text-main, #0f172a);
-  white-space: nowrap;
-}
+/* QC Modal Overhaul 2: the .qc3-package-val rule is deleted with
+   the Monthly column it styled — the modal card no longer renders
+   a monthly figure (the dues badge already names the figure), and
+   Field Mode never used this class (its monthly figure is its own
+   render). The qc3_monthly_package i18n key stays in
+   nav-language.js (pinned by qc3 tests); only the render goes. */
 .qc3-collect {
   /* QC Modal Fix item 6: the user's emerald gradient + shadow,
      radius 10px, weight 600 — the tonal values live here (the one
@@ -8395,12 +8488,15 @@ html, body {
   color: #15803d;
 }
 
-/* Plan 376 — transaction entry pre-fill line under the amount field:
-   names the oldest open bill the starting amount came from. No colour
-   of its own, so no new hex colour is introduced. */
+/* QC Modal Overhaul 2 — the one muted subtitle under the amount
+   field (the Plan 376 prefill line + the Plan 381 next-receipt
+   preview folded into a single line). Muted, so it reads as a
+   reference, not a second amount. The muted colour is the existing
+   token, so no new hex colour is introduced. */
 .txp-prefill-line {
   margin: 4px 0 0;
   font-size: 12px;
+  color: var(--muted);
 }
 
 /* Plan 377 — live amount-in-words line beside the amount field: the
@@ -8411,14 +8507,6 @@ html, body {
   margin: 4px 0 0;
   font-size: 12px;
   font-style: italic;
-}
-
-/* Plan 381 — next-receipt-number preview line under the amount field:
-   the number this payment will receive, shown before saving. No
-   colour of its own, so no new hex colour is introduced. */
-.nrn-preview-line {
-  margin: 4px 0 0;
-  font-size: 12px;
 }
 
 /* Plan 432: the cash change calculator box and line — layout only,
@@ -8436,14 +8524,6 @@ html, body {
    bills the typed amount settles, in month order, before saving. No
    colour of its own, so no new hex colour is introduced. */
 .psp-preview {
-  margin: 4px 0 0;
-  font-size: 12px;
-}
-
-/* Plan 400 — live daily entry summary on the entry screen: today's
-   transaction count and total on this device, refreshed after each
-   save. No colour of its own, so no new hex colour is introduced. */
-.des-summary {
   margin: 4px 0 0;
   font-size: 12px;
 }
@@ -8530,21 +8610,6 @@ html, body {
   font-size: 16px;
   font-weight: 700;
   text-align: center;
-}
-
-/* Plan 447: the big name + mohalla confirmation line on the Quick
-   Collect payment form — the selected customer's name large enough
-   to catch a wrong-customer pick by eye, with mohalla and dues
-   beside it. Sizing only: the dues colour reuses the receipt
-   card's own balance classes, so no new colour enters the sheet. */
-.bnc-confirm-line {
-  margin: 10px 0 0;
-  font-size: 1.1rem;
-  line-height: 1.5;
-}
-
-.bnc-confirm-line .bnc-name {
-  font-size: 1.5rem;
 }
 
 /* Plan 448 — end-of-day summary on the Quick Collect picker screen:
@@ -8814,18 +8879,25 @@ html, body {
 }
 
 /* SISP-161: backdated payment-date chips — theme tokens only, so the
-   row follows dark mode like the rest of the sheet. */
+   row follows dark mode like the rest of the sheet. QC Modal
+   Overhaul 2: the four chips sit on ONE row (a 4-column grid), so
+   the date row never wraps to two lines. Each chip keeps its 44px
+   tap target; "Prev Month End" wraps to two lines inside its
+   column (min-width 0 + centred text) instead of overflowing it. */
 .qc-date-chips {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   margin-top: 6px;
 }
 
 .qc-date-chip {
+  min-width: 0;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
   padding: 4px 10px;
   font-size: 0.78rem;
   font-weight: 600;
@@ -9454,45 +9526,14 @@ html, body {
   font-size: 0.85rem;
 }
 
-/* QC Cash Modal Overhaul — the round total + today's collected
-   share one compact 2-column .ds-stat-box banner. The cells reuse
-   the directory strip's compact sizing (min-height 0, 8px 10px). */
-.qc-round-banner {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  margin: 8px 0 0;
-}
-.qc-round-banner .ds-stat-box {
-  min-height: 0;
-  padding: 8px 10px;
-}
-.qc-round-banner .rtt-round-totals {
-  margin: 0;
-}
+/* QC Modal Overhaul 2: the dead grid rule for the banner is gone —
+   the flex rule below is the only banner layout (the grid rule lost
+   to it on every property, and the banner test that read it now
+   reads the flex rule). */
 
-/* QC Cash Modal Overhaul — end-of-day summary + new customer share
-   one 2-column button row (40px). The 40px height needs !important:
-   the global button rule floors every button at 44px !important
-   (styles.css:801), and that rule is NOT changed. */
-.qc-picker-actions-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  margin: 8px 0 0;
-}
-.qc-picker-actions-row .secondary-button {
-  width: 100%;
-  min-height: 40px !important;
-  height: 40px;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  white-space: nowrap;
-}
+/* QC Modal Overhaul 2: the picker actions row is gone — the Day
+   Summary button moved into the banner as its third cell, so the
+   row and its button rule are deleted with it. */
 
 /* QC Cash Modal Overhaul — the expanded end-of-day summary is a
    clean bordered card with its close as an inline × at the top
@@ -9573,27 +9614,43 @@ html, body {
   white-space: nowrap;
 }
 
-/* QC Cash Modal Overhaul — the picker card: the figures row is the
-   KPI row below the identity row at every width (the QC-7 wrap
-   extended past its 360px gate — the squeeze the user reported
-   happened above 360px and in RTL, where the Outstanding figure
-   clipped as "Outstanding P..."). The priority badge sits top-right
-   of Row 1; the figures keep their full "Outstanding: PKR 3,000
-   DUE" label in the KPI row, so the dues figure appears exactly
-   once — the clipped Row-1 rendering is what is deleted, not the
-   dues figure itself (removing the figure would delete the dues
-   amount from the card entirely). Scoped to #quickCollectModal:
-   Field Mode shares .qc3-card-main with different children and is
-   untouched. The <=360px QC-7 media block stays (it still serves
-   Field Mode). */
+/* QC Modal Overhaul 2: the picker card's figures go back INLINE on
+   Row 1 — the QC Cash Modal Overhaul's full-width KPI row cost a
+   whole row per card (~39px), and the overhaul's "2.5–3 cards on
+   screen" cannot be met with it (measured: 205px badged / 171px
+   plain cards, 1 fully visible in the 380px list). This is a
+   deliberate reversal of that overhaul's Row-1 clip fix, and the
+   clip cannot return the same way: the name and subtitle both
+   ellipsis (nowrap + overflow hidden + text-overflow), the figure
+   itself is nowrap with min-content width, and the main button
+   wraps (flex-wrap above + the <=360px QC-7 block), so a long name
+   truncates with "…" and the figures drop to their own row when
+   they do not fit — the figure is never squeezed. The "Outstanding"
+   label stays (the dues figure appears exactly once). Scoped to
+   #quickCollectModal: Field Mode shares .qc3-card-main with
+   different children and is untouched. The <=360px QC-7 media block
+   stays (it still serves Field Mode). */
 #quickCollectModal .qc3-card-main {
   flex-wrap: wrap;
 }
 #quickCollectModal .qc3-card-main > .qc-card-right {
   align-self: flex-start;
 }
+/* QC Modal Overhaul 2: the identity column takes the leftover width
+   (flex-basis 0, grow 1) so the figures fit on Row 1 beside it when
+   they fit — with the default basis (content width) the wrap check
+   uses the long "Mohalla • Package" subtitle and the figures wrap
+   even for short names. The 140px floor keeps a short name fully
+   visible (badge + gap + ~90px of name); longer names ellipsis.
+   A card with a high-balance tag still wraps the figures to Row 2
+   (tag + figures + the floored identity exceed the row) — the wrap
+   is the safety valve, so the name is never crushed to a stub. */
+#quickCollectModal .qc3-card-main > .qc-card-left {
+  flex: 1 1 0;
+  min-width: 140px;
+}
 #quickCollectModal .qc3-figures {
-  flex: 0 0 100%;
+  flex: 0 0 auto;
   justify-content: flex-end;
 }
 #quickCollectModal .qc3-card-main > .qc2-tier-label {
@@ -9935,10 +9992,11 @@ html, body {
   margin-top: 12px;
 }
 
-/* (1) ONE compact 1-line summary bar: "Today: PKR X • Round: N".
-   The two hosts keep their DOM order (round total first, then the
-   day target — plan445 pins it) and their live text; the bar lays
-   them out in one row, Today first, with a • between them. The day
+/* (1) ONE compact 1-line summary bar: "Today: PKR X • Round: N" +
+   Day Summary. The three hosts keep their DOM order (round total
+   first, then the day target — plan445 pins it — then the button)
+   and their live text; the bar lays them out in one row, Today
+   first, with a • between them, the button last (order 3). The day
    target host renders display:contents, so its line joins the row
    while its progress track drops to its own full-width row below. */
 .qc-round-banner {
@@ -9982,11 +10040,25 @@ html, body {
   margin-top: 4px;
 }
 
-/* (2)+(10) The actions row is one button now: Day Summary spans the
-   row as a borderless tonal mint button. The "+ New customer" button
-   is gone from the markup, so the row is a single column. */
-.qc-picker-actions-row {
-  grid-template-columns: minmax(0, 1fr);
+/* QC Modal Overhaul 2: the Day Summary button is the banner's third
+   cell (order 3, after Today + Round) — compact at 32px so the bar
+   stays one line, centred like the old row button. The 32px height
+   needs !important: the global button rule floors every button at
+   44px !important (styles.css:801), and that rule is NOT changed.
+   The mint background/border/text still come from the
+   .eds-summary-button override below. */
+.qc-round-banner .eds-summary-button {
+  width: auto;
+  min-height: 32px !important;
+  height: 32px;
+  margin: 0;
+  order: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 .eds-summary-button {
   margin: 0;
@@ -10182,16 +10254,18 @@ html, body {
   white-space: nowrap;
 }
 
-/* (11) The one-screen amount display: POS-style, with a fixed PKR
-   badge and the emerald focus ring instead of the default blue. */
+/* (11) The one-screen amount display: a plain flex row with a fixed
+   PKR badge and the emerald focus ring instead of the default blue.
+   QC Modal Overhaul 2 (addendum A1): the thick outer green wrapper
+   (light-green background + green border + padding) is REMOVED — it
+   pushed Payment Method off the bottom of the one screen. The row
+   is the badge + the input + the keypad toggle now; the input keeps
+   its big green figure and its emerald focus ring, and the PKR
+   badge still marks it as the amount. */
 .qos-amount-display {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--ds-footer-good);
-  border: 1.5px solid var(--ds-success-border);
-  border-radius: 10px;
-  padding: 6px 10px;
 }
 .qos-pkr-badge {
   flex: none;
@@ -10283,7 +10357,7 @@ html, body {
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(100% + 4px);
+  top: calc(100% + 8px);
   z-index: 20;
   max-height: 220px;
   overflow-y: auto;
@@ -10293,7 +10367,12 @@ html, body {
   background: var(--modal-surface);
   border: 1px solid var(--ds-border);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  /* QC Modal Overhaul 2 (addendum A2): a cleaner, deeper shadow and
+     an 8px gap above the list, so the overlay never reads as
+     colliding with the buttons below it. The list is absolutely
+     positioned, so the separation is the gap + the shadow — a
+     margin-bottom on an absolute element moves nothing. */
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
 }
 .qos-combobox-option {
   display: flex;
@@ -14837,6 +14916,19 @@ dialog::backdrop {
      dialog rules above (equal-or-better specificity + later order). */
   #quickCollectModal.qc-success-open .modal-heading { margin-bottom: 0 !important; }
   #quickCollectModal.qc-success-open { padding-top: 8px !important; }
+
+  /* QC Modal Overhaul 2: the dialog itself must NOT scroll — the
+     card inside it is the single scroller. The shared mobile dialog
+     rule above makes every dialog overflow-y: auto (12 dialog types
+     share it), which nested a second scrollbar inside the card's
+     own. This modal-scoped override (same specificity, later order,
+     same media block) restores the dialog to visible, so the card
+     scrolls alone. The shared rule is NOT edited. It lives inside
+     this block (not a second @media block) so the QC-7 pin of
+     exactly one 640px dialog block stays green. */
+  dialog.quick-collect-modal {
+    overflow-y: visible !important;
+  }
 }
 
 /* Issue 264: Mobile Expenses empty state card with generous bottom padding so FAB never covers text */
@@ -15051,10 +15143,15 @@ dialog::backdrop {
   }
 }
 
-/* Quick Collect 3-Tap Flow (issue 220) & Method Chips */
+/* Quick Collect 3-Tap Flow (issue 220) & Method Chips — QC Modal
+   Overhaul 2: the method chips sit in a 3-column grid (Cash /
+   JazzCash / Easypaisa on row one, Bank / Raast / Other on row two),
+   so the method row is two tidy rows instead of a ragged wrap. The
+   big buttons keep their 56px height; every chip gets min-width 0
+   so a long label wraps inside its column instead of overflowing. */
 .qc-method-chips {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 6px;
 }
@@ -15101,6 +15198,18 @@ dialog::backdrop {
   font-size: 15px;
 }
 
+/* QC Modal Overhaul 2: the grid columns are minmax(0, 1fr), so every
+   method chip gets min-width 0 here — after the bwb-big rule, so it
+   wins at equal specificity — and a long label wraps inside its column
+   instead of overflowing it. The big buttons keep their 56px height.
+   The Other button is NOT in this selector: its min-width 0 lives in
+   its own base rule below, so the single-rule pin in
+   tests/plan438-quick-collect-big-wallet-method-buttons.test.js keeps
+   counting exactly one .bwb-other rule. */
+.qc-method-chips .quick-method-chip {
+  min-width: 0;
+}
+
 /* Plan 438: the Other button — the same size and colours as a small
    method chip, copied declaration for declaration from the chip
    rules above, so no new hex colour enters the file. It reveals the
@@ -15108,7 +15217,11 @@ dialog::backdrop {
 .bwb-other {
   flex: 1 1 auto;
   min-height: 44px;
-  min-width: 60px;
+  /* QC Modal Overhaul 2: min-width 0 (was 60px) — the Other button
+     sits in the 3-column method grid (minmax(0, 1fr) columns) and must
+     be allowed to shrink to its column like the other chips; it is
+     only used inside .qc-method-chips, so no other surface changes. */
+  min-width: 0;
   padding: 8px 12px;
   border-radius: 10px;
   border: 1px solid var(--line, #dce6e1);

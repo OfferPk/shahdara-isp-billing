@@ -35,14 +35,6 @@ function finitePositiveRupees(value) {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
-function formatRupees(amount) {
-  return amount.toLocaleString('en-PK');
-}
-
-function buttonLabel(words, amount) {
-  return amount === null ? words : `${words} (Rs ${formatRupees(amount)})`;
-}
-
 /**
  * The two quick amounts for the Add payment form step, in rupees:
  * the full dues, and half the full dues (rounded to whole rupees).
@@ -57,22 +49,9 @@ export function addPaymentDuesFigures(input = {}) {
   return { full, half };
 }
 
-/**
- * The two buttons for the Add payment form step, in the order full
- * dues, half dues. A button whose figure is known carries it in
- * data-apd-amount and shows it in its label; a button whose figure
- * cannot be known shows plain words and carries no amount, so
- * tapping it fills nothing. Buttons are type="button" — tapping one
- * never submits anything.
- */
-export function addPaymentDuesButtonsHtml(figures = {}) {
-  const { full = null, half = null } = figures ?? {};
-  const buttons = [
-    { words: 'Full dues', amount: finitePositiveRupees(full) },
-    { words: 'Half dues', amount: finitePositiveRupees(half) },
-  ];
-  return buttons.map(({ words, amount }) => {
-    const data = amount === null ? '' : ` data-apd-amount="${amount}"`;
-    return `<button type="button" class="qab-amount-chip"${data}>${buttonLabel(words, amount)}</button>`;
-  }).join('');
-}
+// QC Modal Overhaul 2: addPaymentDuesButtonsHtml is DELETED with the
+// row it rendered — the Full/Half chips live in the page now (the
+// merged chip row), and the figures above are the module's only
+// export. buttonLabel + formatRupees go with it: they served only
+// the deleted Html export. The module header above still describes
+// the shared figures rule (Plan 521), which is unchanged.

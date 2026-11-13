@@ -17,10 +17,11 @@
 // first; the pills group the offered methods (Cash, Easypaisa,
 // JazzCash, NayaPay/Raast/Bank Transfer, Shop Drop-off) while the
 // value each pill submits stays the exact stored method string —
-// the shop pill is an alias over the four stored shop methods, and
-// NayaPay/Raast/Bank stay three distinct values. The amount field
-// is a POS-style display with a fixed PKR badge, and the save
-// button names the amount it will save.
+// the shop pill is an alias over the two named shops ('Hassan Balla
+// Shop' vs 'Waseem Abbasi Shop', canonicalised from the stored
+// list's four spellings), and NayaPay/Raast/Bank stay three distinct
+// values. The amount field is a POS-style display with a fixed PKR
+// badge, and the save button names the amount it will save.
 export const QUICK_COLLECT_ONE_SCREEN_CHOOSE_CUSTOMER_TEXT = 'Choose customer';
 export const QUICK_COLLECT_ONE_SCREEN_CHOOSE_METHOD_TEXT = 'Choose method';
 export const QUICK_COLLECT_ONE_SCREEN_SAVE_TEXT = '✓ Save Payment';
@@ -304,12 +305,15 @@ function comboboxBadgeHtml(choice) {
   return `<span class="qos-due-badge ${tone}">${escapeHtml(amount)} Due</span>`;
 }
 
-// One combobox option: name + #ID, mohalla, and the Outstanding
-// badge (red/amber Due, green Paid, none when the figure is
-// unknown). All user text is escaped.
+// One combobox option: #ID first, then the name, mohalla, and the
+// Outstanding badge (red/amber Due, green Paid, none when the figure
+// is unknown). QC Modal Overhaul 2 (addendum A2): the account number
+// leads the line ('#N · NAME') so a long name can never clip it —
+// the name still ellipsises, the #ID never does. All user text is
+// escaped.
 export function quickCollectOneScreenComboboxOptionHtml(choice, selected = false) {
   if (!choice || typeof choice !== 'object') return '';
-  const label = choice.number ? `${choice.name} (#${choice.number})` : choice.name;
+  const label = choice.number ? `#${choice.number} · ${choice.name}` : choice.name;
   return `<li class="qos-combobox-option" role="option" aria-selected="${selected ? 'true' : 'false'}" data-qos-customer-id="${escapeHtml(choice.value)}"><span class="qos-option-main"><span class="qos-option-name">${escapeHtml(label)}</span><span class="qos-option-mohalla">${escapeHtml(choice.mohalla)}</span></span>${comboboxBadgeHtml(choice)}</li>`;
 }
 
@@ -323,7 +327,7 @@ export function quickCollectOneScreenComboboxHtml(choices, selectedId) {
   const list = Array.isArray(choices) ? choices : [];
   const selected = String(selectedId ?? '').trim();
   const picked = list.find((choice) => choice.value === selected) || null;
-  const searchValue = picked ? (picked.number ? `${picked.name} (#${picked.number})` : picked.name) : '';
+  const searchValue = picked ? (picked.number ? `#${picked.number} · ${picked.name}` : picked.name) : '';
   const options = list.map((choice) => quickCollectOneScreenComboboxOptionHtml(choice, choice.value === selected)).join('');
   return `<div class="qos-combobox">` +
     `<input id="qosOneScreenCustomerSearch" type="text" class="qc-input qos-combobox-input" role="combobox" aria-expanded="false" aria-controls="qosOneScreenCustomerList" aria-autocomplete="list" placeholder="${escapeHtml(QUICK_COLLECT_ONE_SCREEN_CUSTOMER_SEARCH_PLACEHOLDER)}" autocomplete="off" value="${escapeHtml(searchValue)}">` +
@@ -354,18 +358,36 @@ export function quickCollectOneScreenMethodKind(method) {
   return 'neutral';
 }
 
+// QC Modal Overhaul 2 (addendum A4): the two legacy shop spellings
+// resolve to the one unified shop — the same rule
+// shop-settlement.js canonicalShopName applies at read time (Hassan
+// + Balla are one shop). Shared by the pill builder and the
+// resolver, so a remembered legacy method resolves to the unified
+// shop instead of falling back to Cash. The stored values are never
+// renamed — a new pick simply submits the canonical method.
+function canonicalShopMethod(value) {
+  const text = String(value ?? '').trim();
+  if (text === 'Cash at Hassan shop' || text === 'Cash at Balla shop') return 'Cash at Hassan Balla shop';
+  return text;
+}
+
 // The pill set for the offered methods, in display order: Cash,
 // Easypaisa, JazzCash, NayaPay, Raast, Bank Transfer, Shop
 // Drop-off, then any unrecognised method in the caller's order.
 // shopMethods lists the stored shop values the group pill aliases,
-// in the caller's order. Empty entries are skipped, never offered.
+// in the caller's order — canonicalised to the two shops the user
+// named ('Hassan Balla Shop' vs 'Waseem Abbasi Shop'): the stored
+// list still carries the legacy spellings ('Cash at Hassan shop',
+// 'Cash at Balla shop') beside the unified one, and they resolve to
+// the same unified method before dedup. Empty entries are skipped,
+// never offered.
 export function quickCollectOneScreenMethodPills(methods) {
   const list = Array.isArray(methods) ? methods : [];
   const seen = new Set();
   const pills = [];
   const shopMethods = [];
   for (const method of list) {
-    const value = String(method ?? '').trim();
+    const value = canonicalShopMethod(method);
     if (!value || seen.has(value)) continue;
     seen.add(value);
     const kind = quickCollectOneScreenMethodKind(value);
@@ -387,9 +409,10 @@ export function quickCollectOneScreenMethodPills(methods) {
 }
 
 // The short label a shop pill shows in the sub-row: the shop's own
-// name ("Hassan", "Balla", "Hassan Balla", "Waseem Abbasi") — the
-// full stored value stays on the pill's data attribute and title,
-// so the short label never renames the method.
+// name ("Hassan Balla", "Waseem Abbasi") — the full stored value
+// stays on the pill's data attribute and title, so the short label
+// never renames the method. (The legacy "Hassan" / "Balla" shorts
+// never reach a pill: the builder canonicalises them first.)
 export function quickCollectOneScreenShopShortLabel(method) {
   const value = String(method ?? '').trim();
   return value.replace(/^Cash at /, '').replace(/ shop$/, '') || value;
@@ -403,7 +426,10 @@ export function quickCollectOneScreenShopShortLabel(method) {
 // back to Cash rather than submitting a method nobody offered.
 export function quickCollectOneScreenResolveMethod(method, methods) {
   const { pills, shopMethods } = quickCollectOneScreenMethodPills(methods);
-  const picked = String(method ?? '').trim();
+  // A remembered legacy shop method resolves to the unified shop
+  // (canonicalShopMethod above) — it IS that shop, so it must not
+  // fall back to Cash.
+  const picked = canonicalShopMethod(method);
   if (picked && pills.some((pill) => pill.value === picked)) return picked;
   if (picked && shopMethods.includes(picked)) return picked;
   if (pills.some((pill) => pill.value === 'Cash')) return 'Cash';
@@ -468,8 +494,12 @@ export function quickCollectOneScreenHtml({ entries, customers, methods, selecte
       <div class="qos-amount-display">
         <span class="qos-pkr-badge" aria-hidden="true">PKR</span>
         <input id="qosOneScreenAmount" type="number" step="0.01" min="0.01" max="999999" required inputmode="decimal" placeholder="Enter amount" class="qc-input qc-amount-input qos-amount-value" value="${escapeHtml(amount)}">
+        <!-- QC Modal Overhaul 2 (addendum A1): the keypad is hidden
+             by default on the one screen too — the same toggle as
+             the form step, inside the amount row, reveals it. -->
+        <button type="button" id="qosOneScreenKeypadToggle" class="qc-keypad-toggle" aria-expanded="false" aria-controls="qosOneScreenKeypad">⌨️ Keypad</button>
       </div>
-      <div id="qosOneScreenKeypad" class="kpd-keypad" role="group" aria-label="Amount keypad"></div>
+      <div id="qosOneScreenKeypad" class="kpd-keypad" role="group" aria-label="Amount keypad" hidden></div>
     </div>
     <div class="qc-field-group">
       <label class="qc-label" id="qosOneScreenMethodLabel">Payment Method <span class="qc-required">*</span></label>

@@ -223,52 +223,61 @@ test('acceptance: previewing never reserves or consumes a number', () => {
 // Wiring — the preview line lives on the transaction entry form
 // ---------------------------------------------------------------------------
 
-test('wiring: Quick Collect imports the preview and renders it on open and on month change', () => {
-  // Plan 433: the same import line now also brings in the next receipt
-  // number itself, so the receipt preview can show the number the save
-  // will stamp — the preview line import is unchanged in intent.
+test('wiring: Quick Collect imports the number and renders the subtitle on open and on month change', () => {
+  // QC Modal Overhaul 2: the next-receipt line is folded into the
+  // one-line form subtitle (renderFormSubtitle, in the prefill
+  // host) — the wiring imports only the number now, and the four
+  // renderNextReceiptLine call sites are renderFormSubtitle calls
+  // (split toggle change + split change listener + month change +
+  // post-reset re-render). Plan 433: the receipt preview still
+  // shows the number the save will stamp — that import is
+  // unchanged in intent.
   assert.ok(
-    quickCollectSrc.includes("import { nextReceiptNumberFor, nextReceiptNumberLineText } from './next-receipt-number.js';"),
+    quickCollectSrc.includes("import { nextReceiptNumberFor } from './next-receipt-number.js';"),
     'module import',
   );
   assert.ok(
-    quickCollectSrc.includes("getElementById('quickCollectNextReceiptLine')"),
-    'preview line host',
+    quickCollectSrc.includes("getElementById('quickCollectPrefillLine')"),
+    'subtitle host',
   );
-  const calls = (quickCollectSrc.match(/renderNextReceiptLine\(\);/g) || []).length;
-  // Plan 527: the count is three, not two — the split-toggle change
-  // listener calls it as `() => renderNextReceiptLine()` (no
-  // semicolon after the call, so it is not counted here), and the
-  // third statement call is the post-reset re-render in open: the
-  // split toggle is reset off without a change event, so the line
-  // must re-render after the reset or it would stay hidden on a
-  // fresh sheet. The two original call sites — form open and month
-  // change — are unchanged.
-  assert.equal(calls, 3, `renderNextReceiptLine called three times (form open + month change + post-reset re-render), found ${calls}`);
+  assert.ok(!quickCollectSrc.includes('renderNextReceiptLine('), 'no next-receipt render call may remain');
+  const calls = (quickCollectSrc.match(/renderFormSubtitle\(/g) || []).length;
+  assert.equal(calls, 5, `one subtitle definition + four calls (split change + listener + month change + post-reset), found ${calls}`);
   assert.ok(
-    quickCollectSrc.includes('function renderNextReceiptLine()'),
+    quickCollectSrc.includes('function renderFormSubtitle('),
     'render function defined',
   );
 });
 
-test('wiring: the form carries the preview line after the words line', () => {
+test('wiring: the form carries the subtitle host directly before the words line', () => {
+  // QC Modal Overhaul 2: the #quickCollectNextReceiptLine host is
+  // deleted — the subtitle renders into the prefill host, which sits
+  // directly before the words line under the amount field.
   assert.ok(
-    indexSrc.includes('<p id="quickCollectNextReceiptLine" class="nrn-preview-line" hidden></p>'),
-    'preview line element',
+    !indexSrc.includes('quickCollectNextReceiptLine'),
+    'the next-receipt host must be gone',
+  );
+  assert.ok(
+    indexSrc.includes('<p id="quickCollectPrefillLine" class="txp-prefill-line" hidden></p>'),
+    'subtitle host element',
   );
   const wordsAt = indexSrc.indexOf('id="quickCollectAmountWordsLine"');
-  const previewAt = indexSrc.indexOf('id="quickCollectNextReceiptLine"');
-  assert.ok(wordsAt > 0 && previewAt > wordsAt, 'preview line sits after the words line');
+  const subtitleAt = indexSrc.indexOf('id="quickCollectPrefillLine"');
+  assert.ok(wordsAt > 0 && subtitleAt > 0 && subtitleAt < wordsAt, 'subtitle host sits before the words line');
 });
 
-test('wiring: the preview rule adds no new hex colour to styles', () => {
-  const rule = stylesSrc.match(/\.nrn-preview-line[^{]*\{[^}]*\}/);
-  assert.ok(rule, 'preview rule exists');
-  const baseline = stylesSrc.replace(/\.nrn-preview-line[^{]*\{[^}]*\}/g, '');
+test('wiring: the subtitle rule adds no new hex colour to styles', () => {
+  // QC Modal Overhaul 2: the .nrn-preview-line rule is deleted with
+  // its line — the subtitle reuses the prefill line's muted rule,
+  // which carries no hex colour.
+  assert.ok(!stylesSrc.includes('.nrn-preview-line'), 'the next-receipt rule must be gone with its line');
+  const rule = stylesSrc.match(/\.txp-prefill-line[^{]*\{[^}]*\}/);
+  assert.ok(rule, 'subtitle rule exists');
+  const baseline = stylesSrc.replace(/\.txp-prefill-line[^{]*\{[^}]*\}/g, '');
   const baselineHexes = new Set((baseline.match(/#[0-9a-fA-F]{3,8}/g) || []).map((h) => h.toLowerCase()));
   const hexes = rule[0].match(/#[0-9a-fA-F]{3,8}/g) || [];
   for (const hex of hexes) {
-    assert.ok(baselineHexes.has(hex.toLowerCase()), `new hex colour ${hex} in the preview rule`);
+    assert.ok(baselineHexes.has(hex.toLowerCase()), `new hex colour ${hex} in the subtitle rule`);
   }
 });
 

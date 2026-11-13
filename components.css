@@ -2496,14 +2496,24 @@ body.field-mode-open { overflow: hidden; }
   color: var(--muted);
   margin-bottom: 6px;
 }
+/* QC Modal Overhaul 2: the shop chips sit in a 3-column grid, like
+   the method chips — one tidy row per three shops instead of a
+   ragged wrap. Each chip keeps its 44px tap target and gets
+   min-width 0 so a long shop name wraps inside its column. */
 .qc-shop-chips {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .qc-shop-chip {
   flex: 1 1 auto;
   min-height: 44px;
+  /* QC Modal Overhaul 2: min-width 0 lives in the base rule (not a
+     second scoped rule above it) so a long shop name wraps inside its
+     grid column — and so the base-rule scan in
+     tests/plan550-chips-44px-every-width.test.js keeps reading this
+     rule first. */
+  min-width: 0;
   padding: 7px 12px;
   border-radius: 10px;
   border: 1px solid var(--line);

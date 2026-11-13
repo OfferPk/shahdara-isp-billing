@@ -199,22 +199,31 @@ test('Plan 391: acceptance — the package button fills nothing when the price i
   assert.equal(packageChipLabel(price), 'Package price');
 });
 
-// ---- Wiring: the entry form carries the four buttons ----
+// ---- Wiring: the entry form carries the merged chip row ----
 
-test('Plan 391: the entry form carries full, package, 500, and 1,000 buttons', () => {
+// QC Modal Overhaul 2 (user spec Part 2.3 + addendum A2): the two old
+// chip rows (Plan 489 dues buttons + the 8-chip entry row) merged into
+// ONE row of six chips — Full dues, Half dues, Package, 2,000, 1,000,
+// 500. The Package chip is BACK (the base spec had dropped it; A2
+// brings it back with its exact figure). The Current Month chip stays
+// dropped (its figure was the oldest-bill balance the Full chip already
+// offers) and 1,500 goes (a redundant numeric). Numerics read
+// descending, 2,000 → 1,000 → 500, as the spec lists them.
+test('Plan 391: the entry form carries full, half, package, 2,000, 1,000, and 500 buttons', () => {
   const rowAt = indexSrc.indexOf('qc-quick-amount-chips');
   assert.ok(rowAt > 0, 'the quick-amount row must exist');
   const row = indexSrc.slice(rowAt, indexSrc.indexOf('</div>', rowAt));
-  for (const type of ['full', 'package', '500', '1000']) {
+  for (const type of ['full', 'half', 'package', '2000', '1000', '500']) {
     assert.ok(row.includes(`data-quick-amount="${type}"`), `missing ${type} button`);
   }
-  // The buttons sit in the spec order: full dues, package price,
-  // then the round figures — 500 before 1,000.
-  const order = ['full', 'package', '500', '1000'].map((type) => row.indexOf(`data-quick-amount="${type}"`));
-  assert.deepEqual([...order].sort((a, b) => a - b), order, 'buttons must read full, package, 500, 1,000');
-  // The earlier buttons are untouched: current month, 50%, 1,500, 2,000.
-  for (const type of ['current', 'half', '1500', '2000']) {
-    assert.ok(row.includes(`data-quick-amount="${type}"`), `existing ${type} button must stay`);
+  // The buttons sit in the spec order: full dues, half dues, package
+  // price, then the round figures descending — 2,000, 1,000, 500.
+  const order = ['full', 'half', 'package', '2000', '1000', '500'].map((type) => row.indexOf(`data-quick-amount="${type}"`));
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'buttons must read full, half, package, 2,000, 1,000, 500');
+  // The dropped chips are gone, not hidden: Current Month duplicated
+  // Full, and 1,500 was a redundant numeric.
+  for (const type of ['current', '1500']) {
+    assert.ok(!row.includes(`data-quick-amount="${type}"`), `dropped ${type} button must be gone`);
   }
 });
 
@@ -222,7 +231,9 @@ test('Plan 391: every quick amount button is a fill-only button, never a submit'
   const rowAt = indexSrc.indexOf('qc-quick-amount-chips');
   const row = indexSrc.slice(rowAt, indexSrc.indexOf('</div>', rowAt));
   const buttons = row.match(/<button[^>]*class="quick-amount-chip"[^>]*>/g) || [];
-  assert.ok(buttons.length >= 8, `expected the full row of buttons, found ${buttons.length}`);
+  // QC Modal Overhaul 2: the merged row is six chips (was eight
+  // across two rows) — Full, Half, Package, 2,000, 1,000, 500.
+  assert.ok(buttons.length === 6, `expected the merged row of six buttons, found ${buttons.length}`);
   for (const button of buttons) {
     assert.ok(button.includes('type="button"'), `chip must be type="button": ${button}`);
   }
@@ -238,22 +249,31 @@ test('Plan 391: the package and 500 buttons reuse the existing chip class — no
 
 // ---- Wiring: the collector wires the new buttons ----
 
-test('Plan 391: the collector imports the module', () => {
-  assert.ok(navSrc.includes("import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';"));
+// QC Modal Overhaul 2: the collector no longer imports the whole
+// quick-amount module — the merged chip row fills Full/Half from the
+// Plan 489 shared figures inline and the Package chip from
+// packagePriceForCustomer directly, so resolveQuickAmount and
+// packageChipLabel are no longer wired in (the module still exports
+// them, and its pure tests above still pass).
+test('Plan 391: the collector imports the package price helper', () => {
+  assert.ok(navSrc.includes("import { packagePriceForCustomer } from './quick-amount-buttons.js';"));
+  assert.ok(!navSrc.includes("resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js'"));
 });
 
 test('Plan 391: the chip labels refresh with the package price on open', () => {
   const labelBlock = navSrc.slice(navSrc.indexOf('// Update quick amount chips dynamic amounts'));
   assert.ok(labelBlock.includes('packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES)'));
-  assert.ok(labelBlock.includes("chip.textContent = packageChipLabel(packagePrice);"));
+  // QC Modal Overhaul 2 (addendum A2): the pills show their exact
+  // figures — 'Full dues (Rs X)', 'Half dues (Rs X)', 'Package (Rs X)'.
+  assert.ok(labelBlock.includes("chip.textContent = `Full dues (Rs ${fullBal > 0 ? fullBal.toLocaleString('en-PK') : '0'})`;"));
+  assert.ok(labelBlock.includes("chip.textContent = `Package (Rs ${packageBal !== null && packageBal > 0 ? packageBal.toLocaleString('en-PK') : '0'})`;"));
 });
 
 test('Plan 391: the chip tap fills the package price, and fills nothing when it is unknown', () => {
   const handler = navSrc.slice(navSrc.indexOf('// Wire quick amount helper chips'));
   assert.ok(handler.includes("} else if (type === 'package') {"));
-  assert.ok(handler.includes("resolveQuickAmount('package', { packagePrice: packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES) })"));
-  assert.ok(handler.includes('if (price !== null) {'));
-  assert.ok(handler.includes('amountInput.value = price.toFixed(2);'));
+  assert.ok(handler.includes("const packagePrice = packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES);"));
+  assert.ok(handler.includes('if (packagePrice !== null && packagePrice > 0) amountInput.value = packagePrice.toFixed(2);'));
 });
 
 test('Plan 391: the 500 button needs no new branch — the numeric branch already fills it', () => {

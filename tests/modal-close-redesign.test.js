@@ -65,9 +65,11 @@ test('modal close redesign: every dialog close button shows the back arrow', () 
       // Documented exceptions — user-specified standard ✕ closes
       // (see the audit test's DIALOG_CLOSE_EXCEPTIONS): the help guide
       // popup (QC Modal Fix item 14), the Bulk Collect modal
-      // (Bulk Collect Modal Fix item 5) and the Top Defaulters modal
-      // (Top Defaulters Modal Fix item 2).
-      if (id === 'helpGuideCloseBtn' || id === 'closeBulkCollectBtn' || id === 'closeTopDefaultersModalBtn') continue;
+      // (Bulk Collect Modal Fix item 5), the Top Defaulters modal
+      // (Top Defaulters Modal Fix item 2) and the Quick Collect modal
+      // (QC Modal Overhaul 2 — '✕' on close steps, '↩' kept on the
+      // success step per PR #1365).
+      if (id === 'helpGuideCloseBtn' || id === 'closeBulkCollectBtn' || id === 'closeTopDefaultersModalBtn' || id === 'closeQuickCollectModalBtn') continue;
       checked += 1;
       assert.equal(glyph, '↩', `${name}: dialog close button must show ↩, found ${JSON.stringify(glyph)}`);
     }

@@ -27033,7 +27033,7 @@
           <p class="eyebrow">FIELD RECOVERY &amp; BILLING</p>
           <h2 id="quickCollectTitle">Quick Collect (2-Tap Flow)</h2><button class="help-info-btn" type="button" data-help="collect_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label"><span data-ds-icon="Info"></span></button>
         </div>
-        <button id="closeQuickCollectModalBtn" class="close-button" type="button" aria-label="Close quick collect modal">↩</button>
+        <button id="closeQuickCollectModalBtn" class="close-button" type="button" aria-label="Close quick collect modal">✕</button>
       </div>
 
       <!-- Step 1: Customer Picker (Tap 1) -->
@@ -27076,7 +27076,7 @@
           <input id="quickCollectSearchInput"
                  type="search"
                  class="qc-search-input"
-                 placeholder="Search name, #ID, phone, or area..."
+                 placeholder="🔍 Search #ID, name, or phone"
                  aria-label="Search customers for quick collection"
                  autocomplete="off">
           <button id="quickCollectSearchClearBtn" class="qc-search-clear" type="button" aria-label="Clear search" hidden>×</button>
@@ -27109,37 +27109,24 @@
 
         <p id="mhfMohallaFilterSummary" class="mhf-summary" aria-live="polite"></p>
 
-        <!-- QC Modal Fix: the round total and today's collected
-             share ONE compact 1-line summary bar ("Today: PKR X •
-             Round: N · PKR Y"). The two elements and their live text
-             are unchanged in shape — only their copy is shorter now —
-             and the bar lays them out in one row (Today first, via
-             CSS order), with the thin target-progress strip under
-             the line when a day target is set. -->
+        <!-- QC Modal Overhaul 2: the round total, today's collected
+             AND the Day Summary share ONE compact bar — the button is
+             the third cell of the banner (after the target progress
+             in DOM order), so the picker loses its separate actions
+             row. The two live lines and their copy are unchanged;
+             only the button moved. The expanded summary stays
+             full-width below the banner, never a grid cell: it is
+             rendered into this region by the toggle, and hidden again
+             by its own inline close. -->
         <div class="qc-round-banner">
         <p id="rttRoundTotals" class="rtt-round-totals ds-stat-box" aria-live="polite"></p>
 
         <div id="dtpDailyTargetProgress" class="ds-stat-box" aria-live="polite"></div>
-        </div>
 
-        <!-- QC Modal Fix: the end-of-day summary button is the only
-             action in this row now — its label is the short
-             "Day Summary", and it spans the row in the mint tonal
-             style. The "+ New customer" button is GONE from the
-             middle of this modal: the modal is strictly for fast
-             cash collection, and a new customer is added from the
-             Customers screen instead. (The quick-add form host below
-             stays in the document, hidden and unwired without its
-             button, so the Plan 450 wiring that looks it up by id
-             still finds it.) -->
-        <div class="qc-picker-actions-row">
         <button id="edsEndOfDaySummaryButton" type="button" class="secondary-button eds-summary-button" aria-expanded="false" aria-controls="edsEndOfDaySummary">
           📊 Day Summary
         </button>
         </div>
-        <!-- The expanded summary stays full-width below the button row,
-             never a grid cell: it is rendered into this region by the
-             toggle, and hidden again by its own inline close. -->
         <div id="edsEndOfDaySummary" class="eds-summary" role="region" aria-label="End-of-day summary" aria-live="polite" hidden></div>
         <form id="ncaQuickAddForm" class="qc-form" novalidate hidden></form>
 
@@ -27179,8 +27166,6 @@
           <!-- Populated dynamically with customer details -->
         </div>
 
-        <p id="bncBigNameConfirm" class="bnc-confirm-line" aria-live="polite" hidden></p>
-
         <div id="quickCollectHandlingNoteBox" class="qc-handling-note-box">
           <!-- Plan 361: populated dynamically with the customer's handling note -->
         </div>
@@ -27193,36 +27178,50 @@
           <!-- SISP-101: populated dynamically with the 1-click late-fee waiver toggle -->
         </div>
 
-        <div id="quickCollectUptimeLine" class="qc-uptime-line" aria-live="polite">
-          <!-- Uptime tracking: one-line online/offline summary for the selected bill month -->
-        </div>
+        <!-- QC Modal Overhaul 2: Package Change + Uptime Concession
+             share one accordion — both were full-width rows on the
+             form step, and both are used rarely (a package change or
+             an outage concession), so they sit collapsed behind one
+             summary until the operator needs them. The concession box
+             above stays outside: it is the concession's own display,
+             and the uptime line's ⚡ button fills it. -->
+        <details class="qc-more-options qc-package-uptime-details">
+          <summary class="qc-more-options-summary">⚙️ Package Change &amp; Uptime Concession</summary>
+          <div id="quickCollectUptimeLine" class="qc-uptime-line" aria-live="polite">
+            <!-- Uptime tracking: one-line online/offline summary for the selected bill month -->
+          </div>
 
-        <div id="quickCollectPackageBox" class="qc-package-box">
-          <!-- Owner feature: Change Package — populated dynamically with the current package + catalogue picker -->
-        </div>
-
-        <p id="quickCollectDailyEntrySummary" class="des-summary" aria-live="polite"></p>
+          <div id="quickCollectPackageBox" class="qc-package-box">
+            <!-- Owner feature: Change Package — populated dynamically with the current package + catalogue picker -->
+          </div>
+        </details>
 
         <form id="quickCollectPaymentForm" class="qc-form" novalidate>
           <div class="qc-field-group">
             <label for="quickCollectAmountInput" class="qc-label">
               Amount Collected (PKR) <span class="qc-required">*</span>
             </label>
-            <input id="quickCollectAmountInput"
-                   type="number"
-                   step="0.01"
-                   min="0.01"
-                   max="999999"
-                   required
-                   inputmode="decimal"
-                   placeholder="Enter amount"
-                   class="qc-input qc-amount-input">
-            <div id="kpdAmountKeypad" class="kpd-keypad" role="group" aria-label="Amount keypad">
-              <!-- Plan 442: populated by the amount keypad — big digit keys for the amount field. -->
+            <div class="qc-amount-input-wrap">
+              <input id="quickCollectAmountInput"
+                     type="number"
+                     step="0.01"
+                     min="0.01"
+                     max="999999"
+                     required
+                     inputmode="decimal"
+                     placeholder="Enter amount"
+                     class="qc-input qc-amount-input">
+              <!-- QC Modal Overhaul 2 (addendum A1): the numpad is
+                   HIDDEN BY DEFAULT — the user refined the base spec's
+                   "remove it" to "collapse it, with a toggle". The
+                   toggle sits inside the amount input so the keypad
+                   is one tap away, but the form step fits on one
+                   screen without it. -->
+              <button type="button" id="quickCollectKeypadToggle" class="qc-keypad-toggle" aria-expanded="false" aria-controls="kpdAmountKeypad">⌨️ Keypad</button>
             </div>
+            <div id="kpdAmountKeypad" class="kpd-keypad" hidden></div>
             <p id="quickCollectPrefillLine" class="txp-prefill-line" hidden></p>
             <p id="quickCollectAmountWordsLine" class="aiw-words-line" hidden></p>
-            <p id="quickCollectNextReceiptLine" class="nrn-preview-line" hidden></p>
             <div id="quickCollectSettlementPreview" class="psp-preview" hidden></div>
             <fieldset id="quickCollectOverpaymentChoice" class="opc-choice" hidden>
               <legend class="opc-choice-legend">Extra amount — how should it be kept?</legend>
@@ -27233,27 +27232,32 @@
             <p id="quickCollectUnderpaymentWarning" class="upw-warning" hidden></p>
             <p id="quickCollectSuspendedWarning" class="spw-warning" hidden></p>
             <p id="quickCollectStandingInstructionLine" class="sin-standing-line" hidden></p>
+            <!-- QC Modal Overhaul 2: ONE deduplicated chip row — the
+                 Plan 489 dues buttons (Full/Half dues) and the entry
+                 chips are the same row now, with one static label.
+                 Full/Half fill from the shared figures (refreshed on
+                 open); addendum A2 brings the Package chip back with
+                 its exact figure ('Package (Rs X)'), the same labels
+                 the one screen's preset chips use. The fixed notes
+                 are 2,000 / 1,000 / 500. The dropped chips (Current
+                 Month, 1,500) were a second copy of a figure the
+                 field or the Full chip already offers. -->
+            <p class="qc-amount-group-label">Quick amounts</p>
             <div class="qc-quick-amount-chips" aria-label="Suggested quick amounts">
-              <button type="button" class="quick-amount-chip" data-quick-amount="full">Full Balance</button>
-              <button type="button" class="quick-amount-chip" data-quick-amount="package">Package price</button>
-              <button type="button" class="quick-amount-chip" data-quick-amount="current">Current Month</button>
-              <button type="button" class="quick-amount-chip" data-quick-amount="half">50%</button>
-              <button type="button" class="quick-amount-chip" data-quick-amount="500">500</button>
-              <button type="button" class="quick-amount-chip" data-quick-amount="1000">1,000</button>
-              <button type="button" class="quick-amount-chip" data-quick-amount="1500">1,500</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="full">Full dues</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="half">Half dues</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="package">Package</button>
               <button type="button" class="quick-amount-chip" data-quick-amount="2000">2,000</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="1000">1,000</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="500">500</button>
             </div>
             <p class="qc-amount-group-label qc-loose-change-label">Round-note tender</p>
             <div id="quickCollectLooseChangeChips" class="qc-loose-change-chips" aria-label="Loose change round-note tenders" hidden></div>
-            <!-- Plan 432: the cash change calculator — cash received,
-                 and the change due in plain words and figures. Shown
-                 only while a cash method is selected; it calculates
-                 only and posts nothing. -->
-            <div id="quickCollectCashChangeBox" class="chc-change-box" hidden>
-              <label for="quickCollectCashReceivedInput" class="qc-label">Cash received (PKR)</label>
-              <input id="quickCollectCashReceivedInput" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Cash handed over" class="qc-input">
-              <p id="quickCollectCashChangeLine" class="chc-change-line" aria-live="polite" hidden></p>
-            </div>
+            <!-- QC Modal Overhaul 2: the cash change calculator moved
+                 into the Month & Note Details below (with the split
+                 toggle) — it shows only while a cash method is
+                 selected, and the render auto-opens the details when
+                 change is owed. -->
           </div>
 
           <div id="quickCollectRemainderWaadaRow" class="qc-remainder-waada" hidden>
@@ -27417,6 +27421,103 @@
               <label for="quickCollectAdvanceTargetMonth" class="qc-label" data-i18n="adv_target_label">Advance for month</label>
               <select id="quickCollectAdvanceTargetMonth" class="qc-input"></select>
             </div>
+            <!-- Plan 432: the cash change calculator — cash received,
+                 and the change due in plain words and figures. Shown
+                 only while a cash method is selected; it calculates
+                 only and posts nothing. QC Modal Overhaul 2: it lives
+                 inside this details now, so the amount group stays
+                 short; the render auto-opens the details when change
+                 is owed. -->
+            <div id="quickCollectCashChangeBox" class="chc-change-box" hidden>
+              <label for="quickCollectCashReceivedInput" class="qc-label">Cash received (PKR)</label>
+              <input id="quickCollectCashReceivedInput" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Cash handed over" class="qc-input">
+              <p id="quickCollectCashChangeLine" class="chc-change-line" aria-live="polite" hidden></p>
+            </div>
+            <!-- SISP-121: Split tender — leg 1 is the main amount/method above;
+                 this block adds leg 2. Hidden unless the split toggle is on,
+                 so the ordinary 2-tap flow is unchanged. QC Modal Overhaul 2:
+                 the toggle + leg-2 fields live inside this details now, so
+                 the form step stays short until the operator opens it. -->
+            <div class="qc-field-group" style="margin-top:8px;">
+              <label class="qc-label" for="quickCollectSplitToggle" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="checkbox" id="quickCollectSplitToggle">
+                <span data-i18n="split_toggle_label">Split payment across 2 methods</span>
+              </label>
+            </div>
+            <div id="quickCollectSplitFields" class="qc-digital-fields" hidden>
+              <div class="qc-form-row">
+                <div class="qc-field-group">
+                  <label for="quickCollectSplitAmountInput" class="qc-label" data-i18n="split_leg2_amount_label">Leg 2 Amount (PKR)</label>
+                  <input id="quickCollectSplitAmountInput"
+                         type="number"
+                         step="0.01"
+                         min="0.01"
+                         max="999999"
+                         inputmode="decimal"
+                         placeholder="e.g. 1000"
+                         class="qc-input">
+                </div>
+                <div class="qc-field-group">
+                  <label for="quickCollectSplitMethodSelect" class="qc-label" data-i18n="split_leg2_method_label">Leg 2 Method</label>
+                  <select id="quickCollectSplitMethodSelect" class="qc-input"></select>
+                </div>
+              </div>
+              <p class="field-help qc-split-total-line" hidden></p>
+              <div id="quickCollectSplitDigitalFields" hidden>
+                <div class="qc-field-group">
+                  <label for="quickCollectSplitTransactionIdInput" class="qc-label" data-i18n="split_leg2_tid_label">Leg 2 Transaction ID / Ref</label>
+                  <input id="quickCollectSplitTransactionIdInput"
+                         type="text"
+                         maxlength="64"
+                         placeholder="e.g. 12345678901 (JazzCash / Easypaisa / Raast ID)"
+                         class="qc-input qc-txnid-input">
+                </div>
+                <!-- Plan 534: the leg-2 duplicate card — the same
+                     treatment as the leg-1 duplicate card below, beside
+                     the leg-2 TID field. It carries no id: it and its
+                     message, reason input and buttons are found by class
+                     through the split fields block. -->
+                <div class="qc-duplicate-card qc-split-duplicate-card" hidden role="alert">
+                  <div class="qc-duplicate-title">⚠️ Duplicate Transaction ID Detected — Leg 2</div>
+                  <p class="qc-duplicate-msg qc-split-duplicate-msg"></p>
+                  <div class="qc-field-group" style="margin-bottom:8px;">
+                    <label class="qc-label" style="font-size:12px;">Reason for using this ID again (required / وجہ لازمی)
+                      <input type="text" class="qc-input qc-split-duplicate-reason" placeholder="e.g. Combined receipt / مشترکہ رسید">
+                    </label>
+                  </div>
+                  <div class="qc-duplicate-actions">
+                    <button type="button" class="primary-button qc-split-duplicate-proceed qc-duplicate-proceed">Save anyway</button>
+                    <button type="button" class="secondary-button qc-split-duplicate-cancel" style="font-size:12px;padding:6px 12px;">Cancel &amp; Edit ID</button>
+                  </div>
+                </div>
+                <div class="qc-field-group">
+                  <label for="quickCollectSplitSenderNameInput" class="qc-label" data-i18n="spay_sender_name_label">Sender Name (as on wallet)</label>
+                  <input id="quickCollectSplitSenderNameInput"
+                         type="text"
+                         maxlength="100"
+                         data-i18n-placeholder="spay_sender_name_ph"
+                         placeholder="e.g. Ali Raza"
+                         class="qc-input">
+                </div>
+                <div class="qc-field-group">
+                  <label for="quickCollectSplitSenderDigitsInput" class="qc-label" data-i18n="spay_sender_digits_label">Sender Account Last 4 Digits</label>
+                  <input id="quickCollectSplitSenderDigitsInput"
+                         type="text"
+                         inputmode="numeric"
+                         maxlength="4"
+                         data-i18n-placeholder="spay_sender_digits_ph"
+                         placeholder="e.g. 3310"
+                         class="qc-input">
+                </div>
+                <div class="qc-field-group">
+                  <label for="quickCollectSplitOverrideReasonInput" class="qc-label" data-i18n="split_leg2_override_label">Leg 2 override reason (when no TID)</label>
+                  <input id="quickCollectSplitOverrideReasonInput"
+                         type="text"
+                         maxlength="100"
+                         class="qc-input">
+                </div>
+              </div>
+            </div>
           </details>
 
           <!-- Digital Payment Fields (JazzCash / Easypaisa / Raast / Bank) -->
@@ -27475,89 +27576,8 @@
           </div>
 
           
-          <!-- SISP-121: Split tender — leg 1 is the main amount/method above;
-               this block adds leg 2. Hidden unless the split toggle is on,
-               so the ordinary 2-tap flow is unchanged. -->
-          <div class="qc-field-group" style="margin-top:8px;">
-            <label class="qc-label" for="quickCollectSplitToggle" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-              <input type="checkbox" id="quickCollectSplitToggle">
-              <span data-i18n="split_toggle_label">Split payment across 2 methods</span>
-            </label>
-          </div>
-          <div id="quickCollectSplitFields" class="qc-digital-fields" hidden>
-            <div class="qc-form-row">
-              <div class="qc-field-group">
-                <label for="quickCollectSplitAmountInput" class="qc-label" data-i18n="split_leg2_amount_label">Leg 2 Amount (PKR)</label>
-                <input id="quickCollectSplitAmountInput"
-                       type="number"
-                       step="0.01"
-                       min="0.01"
-                       max="999999"
-                       inputmode="decimal"
-                       placeholder="e.g. 1000"
-                       class="qc-input">
-              </div>
-              <div class="qc-field-group">
-                <label for="quickCollectSplitMethodSelect" class="qc-label" data-i18n="split_leg2_method_label">Leg 2 Method</label>
-                <select id="quickCollectSplitMethodSelect" class="qc-input"></select>
-              </div>
-            </div>
-            <p class="field-help qc-split-total-line" hidden></p>
-            <div id="quickCollectSplitDigitalFields" hidden>
-              <div class="qc-field-group">
-                <label for="quickCollectSplitTransactionIdInput" class="qc-label" data-i18n="split_leg2_tid_label">Leg 2 Transaction ID / Ref</label>
-                <input id="quickCollectSplitTransactionIdInput"
-                       type="text"
-                       maxlength="64"
-                       placeholder="e.g. 12345678901 (JazzCash / Easypaisa / Raast ID)"
-                       class="qc-input qc-txnid-input">
-              </div>
-              <!-- Plan 534: the leg-2 duplicate card — the same
-                   treatment as the leg-1 duplicate card below, beside
-                   the leg-2 TID field. It carries no id: it and its
-                   message, reason input and buttons are found by class
-                   through the split fields block. -->
-              <div class="qc-duplicate-card qc-split-duplicate-card" hidden role="alert">
-                <div class="qc-duplicate-title">⚠️ Duplicate Transaction ID Detected — Leg 2</div>
-                <p class="qc-duplicate-msg qc-split-duplicate-msg"></p>
-                <div class="qc-field-group" style="margin-bottom:8px;">
-                  <label class="qc-label" style="font-size:12px;">Reason for using this ID again (required / وجہ لازمی)
-                    <input type="text" class="qc-input qc-split-duplicate-reason" placeholder="e.g. Combined receipt / مشترکہ رسید">
-                  </label>
-                </div>
-                <div class="qc-duplicate-actions">
-                  <button type="button" class="primary-button qc-split-duplicate-proceed qc-duplicate-proceed">Save anyway</button>
-                  <button type="button" class="secondary-button qc-split-duplicate-cancel" style="font-size:12px;padding:6px 12px;">Cancel &amp; Edit ID</button>
-                </div>
-              </div>
-              <div class="qc-field-group">
-                <label for="quickCollectSplitSenderNameInput" class="qc-label" data-i18n="spay_sender_name_label">Sender Name (as on wallet)</label>
-                <input id="quickCollectSplitSenderNameInput"
-                       type="text"
-                       maxlength="100"
-                       data-i18n-placeholder="spay_sender_name_ph"
-                       placeholder="e.g. Ali Raza"
-                       class="qc-input">
-              </div>
-              <div class="qc-field-group">
-                <label for="quickCollectSplitSenderDigitsInput" class="qc-label" data-i18n="spay_sender_digits_label">Sender Account Last 4 Digits</label>
-                <input id="quickCollectSplitSenderDigitsInput"
-                       type="text"
-                       inputmode="numeric"
-                       maxlength="4"
-                       data-i18n-placeholder="spay_sender_digits_ph"
-                       placeholder="e.g. 3310"
-                       class="qc-input">
-              </div>
-              <div class="qc-field-group">
-                <label for="quickCollectSplitOverrideReasonInput" class="qc-label" data-i18n="split_leg2_override_label">Leg 2 override reason (when no TID)</label>
-                <input id="quickCollectSplitOverrideReasonInput"
-                       type="text"
-                       maxlength="100"
-                       class="qc-input">
-              </div>
-            </div>
-          </div>
+          <!-- QC Modal Overhaul 2: the split toggle + leg-2 fields moved
+               into the Month & Note Details above — see there. -->
 
           <div id="quickCollectDuplicateWarning" class="qc-duplicate-card" hidden role="alert">
             <div class="qc-duplicate-title">⚠️ Duplicate Transaction ID Detected</div>

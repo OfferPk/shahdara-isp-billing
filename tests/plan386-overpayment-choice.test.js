@@ -334,26 +334,26 @@ test('Plan 386: the entry form imports the choice and renders it', () => {
 
 test('Plan 386: the choice refreshes on every keystroke, month, Advance, split, open, chip, and keypad tap', () => {
   const calls = navSrc.match(/renderOverpaymentChoice\(\)/g) || [];
-  // Definition plus nine refresh sites: month change, amount input,
+  // Definition plus eight refresh sites: month change, amount input,
   // Advance toggle, split toggle, form open, quick-amount chip,
-  // loose-change chip, amount keypad, Add payment dues buttons.
+  // loose-change chip, amount keypad.
   // Plan 442: the amount keypad is the eighth refresh site — a
   // keypad tap sets the amount, so the choice re-offers like
   // every other programmatic amount set.
-  // Plan 489: the Add payment dues buttons are the ninth refresh
-  // site — a button tap fills the amount, so the choice re-offers
-  // like every other programmatic amount set. The count moves from
-  // 9 to 10 for that one new call site only; the intent (the choice
-  // refreshes on every programmatic amount set) is unchanged.
+  // Plan 489: the Add payment dues buttons were the ninth refresh
+  // site — QC Modal Overhaul 2 deletes them (they ARE the merged
+  // chip row now), so the count drops by exactly that one site. No
+  // refresh is lost: the chip handler already re-offers the choice
+  // on every chip tap.
   // Plan 539: the Back-draft restore is the tenth refresh site — a
   // restored amount re-offers the choice like every other
   // programmatic amount set. The count moves from 10 to 11 for that
   // one new call site only; the intent is unchanged.
   // Sharafat 1: the leg-2 input is the eleventh refresh site —
   // typing the second leg re-offers the choice over the combined
-  // total, exactly like typing leg 1. The count moves from 11 to
-  // 12 for that one new call site only; the intent is unchanged.
-  assert.equal(calls.length, 12, `expected 12 renderOverpaymentChoice() sites, found ${calls.length}`);
+  // total, exactly like typing leg 1. The count moves from 10 to
+  // 11 for that one new call site only; the intent is unchanged.
+  assert.equal(calls.length, 11, `expected 11 renderOverpaymentChoice() sites, found ${calls.length}`);
 });
 
 test('Plan 386: the submit posts the choice and the dues through the collection path', () => {

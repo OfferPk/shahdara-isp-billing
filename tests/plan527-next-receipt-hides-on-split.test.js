@@ -7,7 +7,11 @@
 // condition to the line: hidden while the split toggle is checked,
 // shown again when it is unticked. Label/visibility only — no
 // change to receipt numbering, no change to the split flow, no
-// change to any figure.
+// change to any figure. QC Modal Overhaul 2: the line is folded
+// into the one-line form subtitle (renderFormSubtitle, in the
+// prefill host) — the gate survives as "the receipt part drops
+// while split is on, the bill part stays", and every renderNextReceiptLine
+// call site becomes a renderFormSubtitle call.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -37,14 +41,21 @@ function payment(id, date, amount) {
 // Gate — the line hides while the split toggle is checked
 // ---------------------------------------------------------------------------
 
-test('gate: the next-receipt line is gated on the split toggle', () => {
+test('gate: the next-receipt part drops from the subtitle while split is on', () => {
+  // QC Modal Overhaul 2: the line is folded into renderFormSubtitle
+  // — while split is on, the receipt part drops (the bill part
+  // stays), so no single receipt number is ever quoted for a split.
   assert.ok(
-    quickCollectSrc.includes("const line = !splitToggle?.checked && customer && month ? nextReceiptNumberLineText(customer, month) : '';"),
-    'renderNextReceiptLine hides the line while split is on',
+    quickCollectSrc.includes("const receipt = !splitToggle?.checked ? nextReceiptNumberFor(customer, month) : '';"),
+    'renderFormSubtitle drops the receipt part while split is on',
   );
   assert.ok(
-    !quickCollectSrc.includes("const line = customer && month ? nextReceiptNumberLineText(customer, month) : '';"),
-    'the un-gated line is gone',
+    !quickCollectSrc.includes("const receipt = nextReceiptNumberFor(customer, month);"),
+    'the un-gated receipt is gone',
+  );
+  assert.ok(
+    quickCollectSrc.includes("prefillLine.textContent = receipt ? `${billPart} · Next: ${receipt}` : billPart;"),
+    'split off shows the receipt part, split on shows the bill part only',
   );
 });
 
@@ -59,22 +70,22 @@ test('gate: the line still names the number when split is off', () => {
 // Wiring — ticking/unticking the split re-renders the line
 // ---------------------------------------------------------------------------
 
-test('wiring: the split toggle change re-renders the next-receipt line', () => {
+test('wiring: the split toggle change re-renders the subtitle', () => {
   assert.ok(
-    quickCollectSrc.includes("splitToggle?.addEventListener('change', () => renderNextReceiptLine());"),
+    quickCollectSrc.includes("splitToggle?.addEventListener('change', () => renderFormSubtitle());"),
     'split change listener',
   );
   const listeners = (quickCollectSrc.match(/splitToggle\?\.addEventListener\('change'/g) || []).length;
-  assert.equal(listeners, 5, `five split change listeners (visibility + overpayment + underpayment + cash change + next receipt), found ${listeners}`);
+  assert.equal(listeners, 5, `five split change listeners (visibility + overpayment + underpayment + cash change + subtitle), found ${listeners}`);
 });
 
-test('wiring: the line is re-rendered after the split reset on open', () => {
-  // The open path renders the line near the top, then resets the
+test('wiring: the subtitle is re-rendered after the split reset on open', () => {
+  // The open path renders the subtitle near the top, then resets the
   // split toggle OFF without a change event — and closing never
   // resets the toggle, so the top render can run while the toggle
   // still holds the previous opening's checked state. Without this
-  // re-render the line would stay hidden on a fresh sheet although
-  // split is off.
+  // re-render the receipt part would stay dropped on a fresh sheet
+  // although split is off.
   const resetAt = quickCollectSrc.indexOf('SISP-121: split always starts OFF');
   assert.ok(resetAt > 0, 'split reset block exists');
   const afterReset = quickCollectSrc.slice(resetAt, resetAt + 1200);
@@ -83,14 +94,18 @@ test('wiring: the line is re-rendered after the split reset on open', () => {
     'reset runs the visibility update',
   );
   assert.ok(
-    afterReset.indexOf('renderNextReceiptLine();') > afterReset.indexOf('updateSplitVisibility();'),
-    'line re-renders after the reset',
+    afterReset.indexOf('renderFormSubtitle(options);') > afterReset.indexOf('updateSplitVisibility();'),
+    'subtitle re-renders after the reset',
   );
 });
 
 test('wiring: the render is called at open, on month change, and after the reset', () => {
-  const calls = (quickCollectSrc.match(/renderNextReceiptLine\(\);/g) || []).length;
-  assert.equal(calls, 3, `three statement calls (open + month change + post-reset re-render), found ${calls}`);
+  // QC Modal Overhaul 2: renderNextReceiptLine is gone — its four
+  // call sites are renderFormSubtitle calls now (split toggle change
+  // + split change listener + month change + post-reset re-render).
+  const calls = (quickCollectSrc.match(/renderFormSubtitle\(/g) || []).length;
+  assert.equal(calls, 5, `one definition + four calls (split change + listener + month change + post-reset), found ${calls}`);
+  assert.ok(!quickCollectSrc.includes('renderNextReceiptLine('), 'no next-receipt render call may remain');
 });
 
 test('wiring: the preview uses the same split condition', () => {
@@ -111,15 +126,25 @@ test('wiring: the preview uses the same split condition', () => {
 
 test('boundary: receipt numbering is untouched — the pure module knows nothing about splits', () => {
   assert.ok(!moduleSrc.includes('split'), 'no split logic in the numbering module');
+  // QC Modal Overhaul 2: the wiring imports only the number
+  // (nextReceiptNumberFor) now — the line-text helper
+  // (nextReceiptNumberLineText) is folded into the subtitle and no
+  // longer imported by the controller.
   assert.ok(
-    quickCollectSrc.includes("import { nextReceiptNumberFor, nextReceiptNumberLineText } from './next-receipt-number.js';"),
-    'module import unchanged',
+    quickCollectSrc.includes("import { nextReceiptNumberFor } from './next-receipt-number.js';"),
+    'module import is the number only',
   );
+  assert.ok(!quickCollectSrc.includes('nextReceiptNumberLineText'), 'the line-text helper must not be imported');
 });
 
-test('boundary: no new element id — the existing line host and toggle are reused', () => {
+test('boundary: no new element id — the subtitle reuses the prefill host, the next-receipt host is gone', () => {
+  // QC Modal Overhaul 2: the #quickCollectNextReceiptLine host is
+  // deleted with its line; the subtitle renders into the prefill
+  // host (quickCollectPrefillLine) that already existed.
   const lineHosts = (quickCollectSrc.match(/getElementById\('quickCollectNextReceiptLine'\)/g) || []).length;
-  assert.equal(lineHosts, 1, `one next-receipt line host, found ${lineHosts}`);
+  assert.equal(lineHosts, 0, `no next-receipt line host may remain, found ${lineHosts}`);
+  const subtitleHosts = (quickCollectSrc.match(/getElementById\('quickCollectPrefillLine'\)/g) || []).length;
+  assert.equal(subtitleHosts, 1, `one subtitle host (the prefill line), found ${subtitleHosts}`);
   const toggles = (quickCollectSrc.match(/getElementById\('quickCollectSplitToggle'\)/g) || []).length;
   assert.equal(toggles, 1, `one split toggle host, found ${toggles}`);
 });

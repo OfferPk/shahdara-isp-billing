@@ -176,17 +176,22 @@ test('pool entries carry monthlyPackage, callHref and mapsUrl from the customer 
 
 // --- Pins: the QC picker cards -------------------------------------------
 
-test('picker cards show Outstanding vs Monthly package, from the customer figures', () => {
+test('picker cards show Outstanding once, from the customer figures', () => {
   const cards = cardSegments(renderQuickCollectPickerHtml(cardState(), '', 'all-dues').html);
   const byName = {};
   for (const c of cards) byName[c.name] = c;
   assert.equal(cards.length, 5);
-  assert.ok(byName['Priced Pinned'].html.includes('Monthly package'), 'the card must label the monthly figure');
-  assert.ok(byName['Priced Pinned'].html.includes('PKR 3,000'), 'outstanding and monthly figures both read 3,000 here');
-  assert.ok(byName['Priced No Pin'].html.includes('PKR 1,500'), 'monthly package 1,500');
-  assert.ok(byName['Catalogue Priced'].html.includes('PKR 2,000'), 'catalogue monthly package 2,000');
-  assert.ok(byName['Unpriced'].html.includes('qc3-package-val'), 'the monthly figure cell must exist even when unpriced');
-  assert.ok(byName['Unpriced'].html.includes('qc3-package-val">—<'), 'an unpriced customer shows the em dash, never a guessed amount');
+  // QC Modal Overhaul 2: the Monthly package column is GONE from the
+  // modal card — the dues badge is the one place the figure appears,
+  // and the column cost a full KPI row per card. The dues figure
+  // stays, fully labelled; no second figure, no guessed amount for
+  // an unpriced customer. Field Mode keeps its monthly figure.
+  assert.ok(!byName['Priced Pinned'].html.includes('Monthly package'), 'the monthly figure must be gone from the modal card');
+  assert.ok(!byName['Priced Pinned'].html.includes('qc3-package-val'), 'the monthly figure cell must be gone from the modal card');
+  assert.ok(byName['Priced Pinned'].html.includes('PKR 3,000'), 'the dues figure must stay, in the badge');
+  assert.ok(byName['Priced No Pin'].html.includes('PKR 1,500'), 'the dues figure must stay for the no-pin card');
+  assert.ok(byName['Catalogue Priced'].html.includes('PKR 2,000'), 'the dues figure must stay for the catalogue card');
+  assert.ok(byName['Unpriced'].html.includes('Outstanding'), 'the outstanding column must be labelled on every card');
   assert.ok(byName['Priced Pinned'].html.includes('Outstanding'), 'the outstanding column must be labelled too');
 });
 
@@ -200,10 +205,11 @@ test('picker cards carry Call / Location / Collect — real links when the data 
   assert.ok(pinned.includes('href="https://www.google.com/maps?q=33.7,73.1"'), 'Location must open the recorded pin');
   assert.ok(pinned.includes('data-qc3-action="location"'), 'Location must be marked as a card action');
   assert.ok(pinned.includes('data-qc3-action="collect"'), 'Collect must be an explicit button');
-  // QC Modal Fix item 4: the Collect label names the amount
-  // ("Collect PKR 3,000"), so the operator sees the figure on the
-  // button itself — a settled customer still shows plain "Collect".
-  assert.ok(pinned.includes('Collect PKR 3,000</button>'), 'Collect must label the amount to collect');
+  // QC Modal Overhaul 2: Collect is plain "Collect" — the dues badge
+  // above it ("PKR 3,000 DUE") already names the figure, so naming
+  // it again on the button was the second copy.
+  assert.ok(!pinned.includes('Collect PKR 3,000</button>'), 'Collect must not repeat the amount the dues badge already names');
+  assert.ok(pinned.includes('Collect</button>'), 'Collect must stay a plain label');
 });
 
 test('picker cards honestly disable Call without a phone and Location without a pin', () => {
@@ -229,7 +235,11 @@ test('picker card tap-to-collect is unchanged: the card still opens collection, 
   assert.ok(handler.includes("dataset.qc3Action !== 'collect'") || handler.includes('qc3Action === \'collect\''), 'only Collect falls through to the card path; Call/Location are plain links');
   const html2 = renderQuickCollectCustomerListHtml([{ id: 'c-1', customerNumber: 1, name: 'Plain Fixture', area: 'BARRIAN', phone: '', totalDues: 1000 }], null);
   assert.ok(html2.includes('data-customer-id="c-1"'), 'a plain fixture still renders its card id');
-  assert.ok(html2.includes('qc3-package-val">—<'), 'a plain fixture with no package fields dashes the monthly figure, never crashes');
+  // QC Modal Overhaul 2: the monthly figure cell is gone from the
+  // modal card, so a plain fixture with no package fields simply
+  // renders its dues badge — no dash cell, never a crash.
+  assert.ok(!html2.includes('qc3-package-val'), 'a plain fixture carries no monthly figure cell');
+  assert.ok(html2.includes('PKR 1,000'), 'a plain fixture still shows its dues in the badge');
   assert.ok(html2.includes('data-qc3-action="collect"'), 'a plain fixture still gets the Collect button');
 });
 

@@ -275,12 +275,20 @@ test('wiring: hand-written dues alone still offer their total when no bill is op
   assert.equal(defaults.suggestedAmount, 1500);
 });
 
-test('wiring: the form imports the module, shows the line, and the amount stays editable', () => {
+test('wiring: the form imports the module, shows the subtitle line, and the amount stays editable', () => {
   assert.ok(quickCollectSrc.includes("from './transaction-prefill.js'"));
   assert.ok(quickCollectSrc.includes('oldestOpenBillPrefill('));
-  assert.ok(quickCollectSrc.includes('transactionPrefillLineHtml('));
+  // QC Modal Overhaul 2: the controller no longer calls
+  // transactionPrefillLineHtml() or t('txp_line') — the five-line
+  // bill explanation condenses to one muted subtitle
+  // (renderFormSubtitle) in the same prefill host: 'Bill {month}
+  // (PKR {dues}) · Next: RCPT-{N}-{YYYYMM}-01'. The module function
+  // and the txp_line key stay (pure tests + the Plan 522 story pin),
+  // only the controller's use of them goes.
+  assert.ok(!quickCollectSrc.includes('transactionPrefillLineHtml('), 'the controller must not render the old prefill line');
+  assert.ok(!quickCollectSrc.includes("t('txp_line')"), 'the controller must not use the old prefill text');
+  assert.ok(quickCollectSrc.includes('renderFormSubtitle('), 'the subtitle must render into the prefill host');
   assert.ok(quickCollectSrc.includes('quickCollectPrefillLine'));
-  assert.ok(quickCollectSrc.includes("t('txp_line')"));
   assert.ok(indexSrc.includes('id="quickCollectPrefillLine"'));
   const amountInput = indexSrc.match(/<input id="quickCollectAmountInput"[^>]*>/);
   assert.ok(amountInput, 'amount input exists');

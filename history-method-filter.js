@@ -47,6 +47,7 @@ const HISTORY_METHOD_TYPE_LABELS = Object.freeze({
   credit: 'Credit',
   refund: 'Refund',
   adjustment: 'Adjustment',
+  info: 'Info',
 });
 
 const METHOD_CASH_ALIASES = new Set(['cash']);

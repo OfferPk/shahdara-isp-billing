@@ -162,7 +162,12 @@ test('Plan 507: the banner is the only Waada section — chips, custom date, hea
   const healthAt = html.indexOf('class="wada-health"');
   const badgeAt = html.indexOf('SCORE-BADGE');
   assert.ok(badgeAt > healthAt, 'reliability badge rides beside the health line');
-  assert.ok(html.includes('No open wada for this customer.'), 'no open wada reads as before');
+  // Profile Inner Tabs Overhaul (§4) — one empty state only: the
+  // duplicate 'No open wada' line is gone; the wada-health line below
+  // the form is the single empty state (in production it reads 'No
+  // wadas recorded for this customer.' when there are none).
+  assert.ok(!html.includes('wada-banner-none'), 'no duplicate empty line survives');
+  assert.ok(!html.includes('No open wada for this customer.'), 'the duplicate empty line is gone');
 });
 
 test('Plan 507: the banner shows the current promise above the quick-add form', () => {

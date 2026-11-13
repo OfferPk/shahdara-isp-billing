@@ -237,9 +237,17 @@ test('Plan D profile: action group is two equal columns at ≤480px', () => {
     'repeat\\(2, minmax\\(0, 1fr\\)\\)');
 });
 
-test('Plan D profile: payment shortcut, backdated link and tools span full rows', () => {
+test('Plan D profile: backdated link and tools span full rows; the payment shortcut does NOT span any more', () => {
+  // Profile Archive Button Visibility (user report 2026-11-13)
+  // deliberately reverses this pin's old shape: Record payment used
+  // to span the full row at ≤480px, hiding Archive two taps deep in
+  // More Actions > Payments. It now shares its row with Archive, so
+  // it leaves the spanning list — the backdated link and the
+  // technical tools keep spanning.
+  assert.ok(!planD.includes('.profile-action-group > .current-payment-shortcut'),
+    'the payment shortcut is out of the ≤480px spanning list');
   const decls = ruleDecls(planD,
-    '.profile-action-group > .current-payment-shortcut, .profile-action-group > .backdated-payment-link, .profile-action-group > .customer-technical-tools');
+    '.profile-action-group > .backdated-payment-link, .profile-action-group > .customer-technical-tools');
   assert.match(decls, /grid-column\s*:\s*1 \/ -1/,
     `full-row spans missing (has: ${decls.trim()})`);
 });
@@ -338,8 +346,16 @@ test('Plan D pinned: profile payment inputs are 46px with the DS border (billing
   assert.match(styles, /\.payment-form input, \.payment-form select, \.bill-form input, \.bill-form select \{ height: 46px; border: 1px solid var\(--ds-input-border\); border-radius: var\(--radius-sm\); \}/);
 });
 
-test('Plan D pinned: profile shortcut already spans a full row at ≤800px', () => {
-  assert.match(styles, /\.profile-action-group \.current-payment-shortcut\{grid-column:1\/-1\}/);
+test('Plan D pinned: profile shortcut NO LONGER spans a full row at ≤800px (Archive Button Visibility reversal)', () => {
+  // Profile Archive Button Visibility (user report 2026-11-13)
+  // deliberately reverses this pin: Record payment used to span the
+  // full row at ≤800px (and ≤620px), which left Archive buried two
+  // taps deep in More Actions > Payments. It now shares its row with
+  // Archive, so no rule anywhere may span it full-width.
+  assert.doesNotMatch(styles, /\.profile-action-group \.current-payment-shortcut\{grid-column:1\/-1\}/);
+  assert.doesNotMatch(styles, /\.current-payment-shortcut\{grid-column:1\/-1/);
+  assert.ok(styles.includes('@media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}.profile-action-group .text-button.danger{justify-self:stretch}}'),
+    'the ≤800px rule keeps the 2-column grid without the shortcut span');
 });
 
 test('Plan D pinned: Quick Collect customer names ellipsize, never overflow', () => {

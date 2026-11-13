@@ -86,8 +86,11 @@ function storesFor(stores, customerId, otherId) {
 // Profile Polish B (10) (user request 2026-11-12) reorders Row 1:
 // Edit / Clear dues / Delete / Wada / Record payment, all visible
 // above the tabs with no disclosure open; Archive moves down into
-// More Actions > Payments. The order pins below follow the new Row 1.
-test('Polish #24: header row order is Edit → Clear dues → Delete → Wada → Record payment, all visible above the tabs with no disclosure open (profile redesign D6, Profile Polish B (10))', () => {
+// More Actions > Payments. Profile Archive Button Visibility (user
+// report 2026-11-13) reverses that last seat: Archive joins Row 1
+// beside Record payment (six buttons) because the user could not
+// find it two taps deep. The order pins below follow the new Row 1.
+test('Polish #24: header row order is Edit → Clear dues → Delete → Wada → Record payment → Archive, all visible above the tabs with no disclosure open (profile redesign D6, Profile Polish B (10), Archive Button Visibility)', () => {
   const groupAt = index.indexOf('class="profile-action-group"');
   assert.ok(groupAt >= 0, 'action group exists');
   const editAt = index.indexOf('id="editProfileButton"', groupAt);
@@ -100,16 +103,16 @@ test('Polish #24: header row order is Edit → Clear dues → Delete → Wada �
   assert.ok(editAt > groupAt && clearAt > editAt && deleteAt > clearAt, 'Edit first, Clear dues second, Delete third');
   assert.ok(wadaAt > deleteAt, 'Wada sits next to Delete');
   assert.ok(recordAt > wadaAt, 'Record payment follows Wada');
-  assert.ok(archiveAt > detailsAt, 'Archive is no longer a Row 1 button — it moved down into the More actions disclosure');
+  assert.ok(archiveAt > recordAt && archiveAt < detailsAt, 'Archive is back in Row 1 beside Record payment — the Polish B (10) seat hid it two taps deep (user report 2026-11-13)');
   assert.ok(!index.includes('id="profileNewCustomerButton"'), 'no + New customer button in the header (D6)');
-  assert.ok(detailsAt > recordAt, 'the More actions disclosure still follows the five primary actions');
-  // None of the five sits inside a <details>: they are direct children
+  assert.ok(detailsAt > archiveAt, 'the More actions disclosure still follows the six primary actions');
+  // None of the six sits inside a <details>: they are direct children
   // of the action group, visible on every tab without opening anything.
   // The slice ends at the <details tag itself, which opens before its
   // id attribute appears in the markup.
   const detailsTagAt = index.lastIndexOf('<details', detailsAt);
   const groupSlice = index.slice(groupAt, detailsTagAt);
-  assert.ok(!groupSlice.includes('<details'), 'no disclosure wraps the five primary actions');
+  assert.ok(!groupSlice.includes('<details'), 'no disclosure wraps the six primary actions');
 });
 
 test('Polish #24: exactly one Delete button, in the header — the danger zone is gone', () => {
@@ -127,20 +130,29 @@ test('Polish #24: exactly one Delete button, in the header — the danger zone i
 
 // Profile Polish B (10) (user request 2026-11-12) swaps the two
 // seats: Record payment moves UP into the top action group and Archive
-// moves DOWN into More Actions > Payments, first in the grid. The
-// intent this test pins — the payment shortcut stays one tap away and
-// Archive stays reachable — is unchanged, only the seats swap.
-test('Polish #24: Record payment is up in the header action group; Archive is first in the Payments grid', () => {
+// moves DOWN into More Actions > Payments, first in the grid. Profile
+// Archive Button Visibility (user report 2026-11-13) reverses the
+// second half: the user could not find Archive two taps deep, so
+// Archive joins Row 1 beside Record payment and the Payments grid
+// keeps Advance + back-dated only. The intent this test pins — the
+// payment shortcut stays one tap away and Archive stays reachable —
+// is unchanged, only the seats swap back.
+test('Polish #24: Record payment and Archive are both up in the header action group; Archive is OUT of the Payments grid', () => {
   const groupAt = index.indexOf('class="profile-action-group"');
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
   const recordAt = index.indexOf('id="currentBillPaymentShortcut"', groupAt);
+  const archiveAt = index.indexOf('id="archiveCustomerButton"', groupAt);
   assert.ok(recordAt > groupAt && recordAt < detailsAt, 'Record payment sits in the header action group, ahead of the More actions disclosure');
+  assert.ok(archiveAt > recordAt && archiveAt < detailsAt, 'Archive sits in the header action group beside Record payment, ahead of the disclosure');
   const gridAt = index.indexOf('class="profile-more-actions-grid"');
   const qaAt = index.indexOf('id="customerTechnicalToolsDetails"');
-  const archiveAt = index.indexOf('id="archiveCustomerButton"', gridAt);
-  assert.ok(archiveAt > gridAt && archiveAt < qaAt, 'Archive is inside the More actions grid');
   const gridSlice = index.slice(gridAt, qaAt);
-  assert.ok(gridSlice.indexOf('id="archiveCustomerButton"') < gridSlice.indexOf('id="advancePaymentButton"'), 'Archive is first in the Payments grid');
+  assert.ok(!gridSlice.includes('id="archiveCustomerButton"'), 'Archive is nowhere in the More actions grid');
+  const paymentsAt = index.indexOf('data-i18n="prof_ma_cat_payments"');
+  const paymentsEnd = index.indexOf('</details>', paymentsAt);
+  const payments = index.slice(paymentsAt, paymentsEnd);
+  assert.ok(payments.includes('id="advancePaymentButton"'), 'Payments keeps Advance first');
+  assert.ok(payments.includes('id="backdatedPaymentButton"'), 'Payments keeps the back-dated entry');
   // A customer list card is one big tap-to-open button plus card
   // controls — a destructive action on a list row is the wrong place.
   const cardStart = app.indexOf('function customerCardMarkup(');

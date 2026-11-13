@@ -18,9 +18,16 @@ const ui = read('profile-ui.js');
 // Profile Polish B (user spec 2026-11-12, items (10)–(14) of the
 // 22-part profile spec):
 // (10) action buttons in ONE group: Edit, Clear dues, Delete, Record
-//      payment / Mark paid; Archive down to the Payments section;
-//      Wada ALSO up in the top group next to Delete (the existing
-//      Wada in Customer Communication stays put);
+//      payment / Mark paid, Archive; Wada ALSO up in the top group
+//      next to Delete (the existing Wada in Customer Communication
+//      stays put). Archive sat in More Actions > Payments from
+//      Profile Polish B (10) until the user report of 2026-11-13
+//      ("Record payment WALLA button lamba hai tu Shahid woh archive
+//      button kahi gum ho gaya hai") proved that seat unreachable two
+//      taps deep — the Profile Archive Button Visibility item
+//      deliberately reverses that seat: Archive joins Row 1 beside
+//      Record payment, and the Payments category keeps Advance +
+//      back-dated only (see its PR body).
 // (11) Customer information card buttons (QR Khata Card, Print card,
 //      Speak Due, Welcome Slip) in ONE group, EACH UNIQUE colour;
 // (12) "7/68 fields filled" as a PILL + a small COLOURFUL progress
@@ -36,11 +43,15 @@ const ui = read('profile-ui.js');
 
 // ------------------------------------------------------------ (10)
 
-test('Polish B (10): top action group holds Edit, Clear dues, Delete, Wada, Record payment — in that order, ahead of More actions', () => {
+test('Polish B (10): top action group holds Edit, Clear dues, Delete, Wada, Record payment, Archive — in that order, ahead of More actions', () => {
   const groupAt = index.indexOf('class="profile-action-group"');
   assert.ok(groupAt >= 0, 'action group exists');
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
-  const order = ['editProfileButton', 'clearDuesButton', 'deleteCustomerButton', 'topWadaButton', 'currentBillPaymentShortcut'];
+  // Profile Archive Button Visibility (user report 2026-11-13):
+  // Archive joins Row 1 beside Record payment — the Polish B (10)
+  // seat (Archive down in More Actions > Payments) hid it two taps
+  // deep, so this order test now pins the sixth Row 1 button.
+  const order = ['editProfileButton', 'clearDuesButton', 'deleteCustomerButton', 'topWadaButton', 'currentBillPaymentShortcut', 'archiveCustomerButton'];
   let previousAt = groupAt;
   for (const id of order) {
     const at = index.indexOf(`id="${id}"`, groupAt);
@@ -53,16 +64,25 @@ test('Polish B (10): top action group holds Edit, Clear dues, Delete, Wada, Reco
   }
 });
 
-test('Polish B (10): Archive is down in the Payments section, first in its grid', () => {
+test('Polish B (10): Archive is up in the header action group beside Record payment, NOT in the Payments section', () => {
+  // Deliberate reversal of the original Polish B (10) seat (see the
+  // header comment above): the user could not find Archive two taps
+  // deep in More Actions > Payments, so it now sits in Row 1.
+  const groupAt = index.indexOf('class="profile-action-group"');
+  const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
+  const archiveAt = index.indexOf('id="archiveCustomerButton"', groupAt);
+  const recordAt = index.indexOf('id="currentBillPaymentShortcut"', groupAt);
+  assert.ok(archiveAt > recordAt && archiveAt < detailsAt, 'Archive sits in the header action group, right after Record payment');
   const gridAt = index.indexOf('class="profile-more-actions-grid"');
   const qaAt = index.indexOf('id="customerTechnicalToolsDetails"');
-  const archiveAt = index.indexOf('id="archiveCustomerButton"', gridAt);
-  assert.ok(archiveAt > gridAt && archiveAt < qaAt, 'Archive is inside the More actions grid');
   const gridSlice = index.slice(gridAt, qaAt);
-  assert.ok(gridSlice.indexOf('id="archiveCustomerButton"') < gridSlice.indexOf('id="advancePaymentButton"'), 'Archive is first in the Payments grid');
+  assert.ok(!gridSlice.includes('id="archiveCustomerButton"'), 'Archive is nowhere in the More actions grid');
   const paymentsAt = index.indexOf('data-i18n="prof_ma_cat_payments"');
   const paymentsEnd = index.indexOf('</details>', paymentsAt);
-  assert.ok(index.indexOf('id="archiveCustomerButton"', paymentsAt) < paymentsEnd, 'Archive sits in the Payments category');
+  const payments = index.slice(paymentsAt, paymentsEnd);
+  assert.ok(!payments.includes('id="archiveCustomerButton"'), 'Archive is not in the Payments category any more');
+  assert.ok(payments.includes('id="advancePaymentButton"'), 'Payments keeps Advance');
+  assert.ok(payments.includes('id="backdatedPaymentButton"'), 'Payments keeps the back-dated entry');
 });
 
 test('Polish B (10): the Communication Wada stays put; both Wada buttons open the same dialog', () => {

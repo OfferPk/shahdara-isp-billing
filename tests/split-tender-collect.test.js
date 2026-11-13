@@ -871,8 +871,12 @@ test('Sharafat 2: a split that also settles the pending ticket charge still read
   assert.equal(combinedReceipt.balanceDueCents, 0);
   assert.equal(combinedReceipt.payableRemainingCents, 0);
   assert.equal(combinedReceipt.status, 'PAID');
+  // QC Success Card Polish (2026-11-13): the fully-paid split card
+  // hides the Still-owed row entirely — the PAID state is stated by
+  // the print sheet / still-owes pill, never by a "Fully paid" row.
   const card = renderSplitReceiptCardHtml(combinedReceipt);
-  assert.match(card, /Fully paid/);
+  assert.doesNotMatch(card, /Still owed/);
+  assert.doesNotMatch(card, /Fully paid/);
 });
 
 test('Sharafat 2: the builder counts a ticket charge only when the caller passes the ticket list', () => {

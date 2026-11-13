@@ -216,19 +216,24 @@ test('unpaid cards: finder shows the most recent receipts blank, and caps search
 });
 
 test('unpaid cards: finder panel exists on the Transactions screen and reuses the receipt actions', () => {
-  assert.ok(html.includes('id="receiptFinderSearch"'), 'finder search input exists');
+  // Transactions & Recent Receipts Polish §2: the finder search input
+  // is deleted — the unified bar feeds the finder — so the input,
+  // its translated placeholder attribute, and its listener pins are
+  // replaced by pins on the unified input feeding the finder query.
+  assert.ok(!html.includes('id="receiptFinderSearch"'), 'finder search input is deleted');
+  assert.ok(html.includes('id="transactionLiveSearch"'), 'unified search bar feeds the finder');
   assert.ok(html.includes('id="receiptFinderResults"'), 'finder results list exists');
   assert.ok(html.includes('id="receiptFinderCount"'), 'finder count line exists');
-  assert.ok(html.includes('data-i18n-placeholder="receipt_finder_search_placeholder"'), 'finder placeholder is translated');
-  assert.ok(app.includes("$('#receiptFinderSearch')?.addEventListener('input'"), 'finder input is wired');
-  assert.ok(app.includes('function renderReceiptFinder()'), 'finder render exists');
+  assert.ok(html.includes('id="receiptFinderShowMore"'), 'finder Show More button exists');
+  assert.ok(app.includes("receiptFinderQuery = event.currentTarget.value;"), 'unified listener feeds the finder query');
+  assert.ok(app.includes('function renderReceiptFinder(filteredList)'), 'finder render takes the filtered list');
   assert.ok(app.includes('function receiptFinderRowHtml(transaction, customerIndex)'), 'finder row builder exists');
-  assert.ok(app.includes('renderReceiptFinder();'), 'finder renders with the Transactions screen');
+  assert.ok(app.includes('renderReceiptFinder(transactions);'), 'finder renders with the filtered Transactions list');
   assert.ok(app.includes('receiptFinderQuery = \'\';'), 'clear-filters resets the finder');
   assert.ok(app.includes('data-receipt-finder-open'), 'finder rows reopen the receipt');
   assert.ok(app.includes("pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)"), 'finder rows re-send the PNG screenshot');
   assert.ok(app.includes("receiptWhatsAppActionMarkup(customer, { ...transaction,"), 'finder rows re-send the WhatsApp text');
-  for (const key of ['receipt_finder_heading', 'receipt_finder_note', 'receipt_finder_search_placeholder', 'receipt_finder_search_aria', 'receipt_finder_recent', 'receipt_finder_match', 'receipt_finder_more', 'receipt_finder_none', 'receipt_finder_empty', 'receipt_finder_open']) {
+  for (const key of ['receipt_finder_heading', 'receipt_finder_note', 'receipt_finder_search_placeholder', 'receipt_finder_search_aria', 'receipt_finder_recent', 'receipt_finder_match', 'receipt_finder_more', 'receipt_finder_none', 'receipt_finder_empty', 'receipt_finder_open', 'receipt_finder_show_more', 'receipt_finder_open_short', 'receipt_finder_whatsapp_short', 'receipt_finder_png_short']) {
     assert.ok(TRANSLATIONS.en[key], `English finder key exists: ${key}`);
     assert.ok(TRANSLATIONS.ur[key], `Urdu finder key exists: ${key}`);
   }

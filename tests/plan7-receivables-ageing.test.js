@@ -283,6 +283,88 @@ test('CSV escapes commas and quotes in names', () => {
   assert.match(ageingCsv(view, entries), /"Ayesha, ""Boss"""/);
 });
 
+// ---- Sharafat 15: unaged rows in the CSV ----
+// Sharafat 15 (parent decision 2026-11-13): unaged rows print under
+// the 'Unaged' bucket label instead of being dropped. All amounts in
+// these tests are integer CENTS (Sharafat 14) and the CSV pins exact
+// decimal rupees ("2500.00", never "250000").
+
+test('CSV includes unaged rows under the Unaged label (Sharafat 15)', () => {
+  const entries = [
+    entry({ billMonth: '2026-11', amount: 500000 }),
+    entry({ customerId: 'c2', customerName: 'Bilal', billMonth: 'unknown', amount: 250000 }),
+  ];
+  const view = buildReceivablesAgeing(entries, AS_OF);
+  const csv = ageingCsv(view, entries);
+  assert.match(csv, /Unaged,Bilal,Bani,unknown,2500\.00/);
+  assert.match(csv, /Current,Ayesha,Bani,2026-11,5000\.00/);
+});
+
+test('CSV row section and mohalla-totals section reconcile (Sharafat 15)', () => {
+  const entries = [
+    entry({ billMonth: '2026-11', amount: 500000 }),
+    entry({ customerId: 'c2', customerName: 'Bilal', billMonth: '2026-10', amount: 300000 }),
+    entry({ customerId: 'c3', customerName: 'Chand', mohalla: 'Shahdara', billMonth: 'unknown', amount: 250000 }),
+    entry({ customerId: 'c4', customerName: 'Dina', mohalla: 'Shahdara', billMonth: '2026-13', amount: 150000 }),
+  ];
+  const view = buildReceivablesAgeing(entries, AS_OF);
+  const csv = ageingCsv(view, entries);
+  const lines = csv.split('\n');
+  const blank = lines.indexOf('');
+  const rowLines = lines.slice(1, blank);
+  const totalLines = lines.slice(blank + 2);
+  assert.match(csv, /Unaged,Chand,Shahdara,unknown,2500\.00/);
+  assert.match(csv, /Unaged,Dina,Shahdara,2026-13,1500\.00/);
+  // Fixture names carry no commas/quotes, so a plain split is exact.
+  const rowSum = rowLines.reduce((sum, line) => sum + Number(line.split(',').at(-1)), 0);
+  const totalsSum = totalLines.reduce((sum, line) => sum + Number(line.split(',')[1]), 0);
+  assert.equal(rowSum, 12000);
+  assert.equal(totalsSum, 12000);
+  assert.equal(view.totalOutstanding, 1200000);
+  assert.equal(Math.round(rowSum * 100), view.totalOutstanding);
+});
+
+test('CSV with an all-unaged roster has only Unaged rows (Sharafat 15)', () => {
+  const entries = [
+    entry({ billMonth: 'unknown', amount: 500000 }),
+    entry({ customerId: 'c2', customerName: 'Bilal', mohalla: 'Shahdara', billMonth: '', amount: 250000 }),
+  ];
+  const view = buildReceivablesAgeing(entries, AS_OF);
+  const csv = ageingCsv(view, entries);
+  const lines = csv.split('\n');
+  const blank = lines.indexOf('');
+  const rowLines = lines.slice(1, blank);
+  assert.equal(rowLines.length, 2);
+  assert.match(rowLines[0], /^Unaged,Ayesha,Bani,unknown,5000\.00$/);
+  assert.match(rowLines[1], /^Unaged,Bilal,Shahdara,—,2500\.00$/);
+  assert.equal(view.totalOutstanding, 750000);
+});
+
+test('CSV with no unaged entries has no Unaged rows (Sharafat 15)', () => {
+  const entries = [
+    entry({ billMonth: '2026-11', amount: 500000 }),
+    entry({ customerId: 'c2', customerName: 'Bilal', billMonth: '2026-08', amount: 400000 }),
+  ];
+  const view = buildReceivablesAgeing(entries, AS_OF);
+  const csv = ageingCsv(view, entries);
+  assert.doesNotMatch(csv, /Unaged/);
+  // Aged rows are byte-identical to before this change.
+  assert.match(csv, /Current,Ayesha,Bani,2026-11,5000\.00/);
+  assert.match(csv, /3\+ months,Bilal,Bani,2026-08,4000\.00/);
+});
+
+test('CSV escapes commas and quotes in unaged rows too (Sharafat 15)', () => {
+  const entries = [entry({ customerName: 'Ayesha, "Boss"', billMonth: 'unknown', amount: 100000 })];
+  const view = buildReceivablesAgeing(entries, AS_OF);
+  assert.match(ageingCsv(view, entries), /Unaged,"Ayesha, ""Boss""",Bani,unknown,1000\.00/);
+});
+
+test('blank bill month prints a dash in the unaged row (Sharafat 15)', () => {
+  const entries = [entry({ billMonth: '', amount: 250000 })];
+  const view = buildReceivablesAgeing(entries, AS_OF);
+  assert.match(ageingCsv(view, entries), /Unaged,Ayesha,Bani,—,2500\.00/);
+});
+
 test('filename carries the as-of month', () => {
   assert.equal(ageingFilename(buildReceivablesAgeing([], AS_OF)), 'receivables-ageing-2026-11.csv');
 });

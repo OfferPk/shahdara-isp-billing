@@ -22,6 +22,7 @@ export const HISTORY_RUNNING_BALANCE_TYPE_LABELS = Object.freeze({
   credit: 'Credit',
   refund: 'Refund',
   adjustment: 'Adjustment',
+  info: 'Info',
 });
 
 function cleanRunningBalanceKey(value) {
@@ -48,15 +49,19 @@ function finiteRunningBalanceCents(value) {
 // add to what is owed; payments, advances and adjustments reduce it.
 // A credit entry that came from an overpayment is already counted
 // inside its source payment, so it moves nothing; a credit entry
-// from an approved adjustment reduces what is owed. A voided entry
-// is listed but moves nothing. A missing or non-finite amount is
-// not a number, never zero-filled into a movement: it moves nothing.
+// from an approved adjustment reduces what is owed. An informational
+// line (Sharafat 12 — ticket/add-on charges already inside the
+// payment cash) moves nothing by design: its amount is shown, never
+// charged twice. A voided entry is listed but moves nothing. A
+// missing or non-finite amount is not a number, never zero-filled
+// into a movement: it moves nothing.
 export function historyRunningBalanceExpectedDelta(entry) {
   if (!entry || typeof entry !== 'object') return 0;
   if (entry.voided === true) return 0;
   const amountCents = finiteRunningBalanceCents(entry.amountCents);
   if (amountCents === null) return 0;
   const type = cleanRunningBalanceKey(entry.type);
+  if (type === 'info') return 0;
   if (type === 'charge' || type === 'refund') return amountCents;
   if (type === 'payment' || type === 'advance' || type === 'adjustment') return -amountCents;
   if (type === 'credit') {
@@ -173,12 +178,22 @@ export function historyRunningBalanceMatchesDues(entries, currentDuesCents) {
       text: `Final balance ${formatRunningBalanceAmount(finalCents)} · current dues not recorded`,
     };
   }
+  // Sharafat 12: the engine clamps each bill's due at zero, so an
+  // overpaid customer reads as no dues even though the history final
+  // is a real credit — compare the final CLAMPED at zero, the same
+  // clamp as the engine, or every overpaid customer would read as a
+  // mismatch. The reported final stays the raw figure; only the
+  // comparison clamps.
+  const clampedFinalCents = Math.max(0, finalCents);
+  const matches = clampedFinalCents === dues;
   return {
     finalCents,
     duesCents: dues,
-    matches: finalCents === dues,
-    text: finalCents === dues
-      ? `Final balance ${formatRunningBalanceAmount(finalCents)} matches current dues`
+    matches,
+    text: matches
+      ? (finalCents < 0
+        ? `Final balance ${formatRunningBalanceAmount(finalCents)} matches current dues — overpaid, credit ${formatRunningBalanceAmount(-finalCents)}`
+        : `Final balance ${formatRunningBalanceAmount(finalCents)} matches current dues`)
       : `Final balance ${formatRunningBalanceAmount(finalCents)} does not match current dues ${formatRunningBalanceAmount(dues)}`,
   };
 }

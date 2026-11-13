@@ -393,7 +393,7 @@ test('bulkMohallaPillsHtml: All + one pill per mohalla in the pool, numbered ord
   assert.match(html, /data-bulk-mohalla="chamyaaa"[^>]*>Chamyaaa <span class="qc-count-badge">2<\/span>/);
   assert.match(html, /data-bulk-mohalla="kishtii"[^>]*>Kishtii <span class="qc-count-badge">1<\/span>/);
   assert.ok(!html.includes('Barrian'), 'a mohalla with nothing pending gets no pill');
-  assert.ok(html.indexOf('Chamyaaa') < html.indexOf('Kishtii'), 'numbered order (Chamyaa #4 before unlisted Kishtii)');
+  assert.ok(html.indexOf('Chamyaaa') < html.indexOf('Kishtii'), 'dues tie at PKR 3,000 — the numbered order breaks it (Chamyaa #4 before unlisted Kishtii)');
   // Selecting a pill marks it active; the count badges reuse the QC chip style.
   const picked = bulkMohallaPillsHtml(counts, 'kishtii');
   assert.match(picked, /data-bulk-mohalla="kishtii"[^>]*aria-pressed="true"/);

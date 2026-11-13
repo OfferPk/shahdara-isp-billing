@@ -27,6 +27,7 @@ const HISTORY_DATA_QUALITY_TYPE_LABELS = Object.freeze({
   credit: 'Credit',
   refund: 'Refund',
   adjustment: 'Adjustment',
+  info: 'Info',
 });
 
 function isBlankHistoryQuality(value) {

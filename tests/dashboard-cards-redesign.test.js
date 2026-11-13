@@ -71,7 +71,12 @@ test('every dashboard summary card adopted the shared card; plain KPI cards got 
     assert.ok(tag.includes('ds-stat'), `shared card applied: ${tag}`);
     assert.ok(/ds-stat--(brand|paid|info|pending|overdue|whatsapp)/.test(tag), `accent set: ${tag}`);
   }
-  const tiled = html.match(/<article class="summary-card [^"]*"><span class="ds-stat__icon"/g) || [];
+  // Collect Tab polish: the icon is now one level deeper — the §1
+  // single-row header wraps icon + title + KPI in a .ds-stat-head
+  // flex row, so the tile is the head's first child, not the
+  // article's. The count is still 2: QC-5 and QC-6 are the only
+  // plain KPI summary cards carrying an icon tile.
+  const tiled = html.match(/<article class="summary-card [^"]*">(?:<div class="ds-stat-head">)?<span class="ds-stat__icon"/g) || [];
   // Plan 471: the count is 19, not 18 — the new dashboard today card
   // is a plain KPI summary card with an icon tile, same shape as the
   // today's-collection card it follows.

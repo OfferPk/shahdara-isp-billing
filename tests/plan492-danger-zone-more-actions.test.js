@@ -42,31 +42,39 @@ const ACTION_IDS = [
   'openEquipmentRetrievalBtn',
 ];
 
-// Polish #24 — the danger zone is REMOVED: Delete moved into the
-// header action group (visible on every tab), so there is no zone left
-// to sit inside the mounts. This test pins the absence, not the
-// location: no zone markup, no zone title, no zone help key.
-test('Plan 492: the danger zone is gone — Delete lives in the header action group (polish #24)', () => {
-  assert.ok(!index.includes('class="profile-danger-zone"'), 'no danger-zone block remains in the markup');
-  assert.ok(!index.includes('id="profileDangerZoneTitle"'), 'no danger-zone title remains');
-  assert.ok(!index.includes('data-i18n="prof_danger_help"'), 'no danger-zone help copy remains');
+// Profile View Polish (user report 2026-11-13) deliberately REVERSES
+// Polish #24 here (same class as #1393's Archive reversal): the
+// danger zone RETURNS at the bottom of the Info tab, and Delete
+// leaves the header action group for it — Delete sat right beneath
+// Edit, one accidental tap from wiping the profile and its whole
+// history. The zone is rendered by app.js (not static markup), so
+// its title/help keys are the new prof_danger_zone_* pair; the old
+// dead prof_danger_title / prof_danger_help keys stay gone.
+test('Plan 492: the danger zone RETURNS at the Info-tab bottom — Delete lives there, not in the header action group (Profile View Polish reversal of polish #24)', () => {
+  assert.ok(app.includes('class="profile-danger-zone"'), 'the danger-zone block is rendered by app.js');
+  assert.ok(app.includes("t('prof_danger_zone_title')"), 'the zone heading is the Danger zone key');
+  assert.ok(app.includes("t('prof_danger_zone_help')"), 'the zone carries its help copy');
+  assert.ok(lang.includes("prof_danger_zone_title: 'Danger zone'"), 'the zone title key exists in English');
+  assert.ok(lang.includes("prof_danger_zone_title: 'خطرناک زون'"), 'the zone title key exists in Urdu');
   assert.ok(!lang.includes('prof_danger_title'), 'the dead danger-zone title key is gone from the dictionaries');
   assert.ok(!lang.includes('prof_danger_help'), 'the dead danger-zone help key is gone from the dictionaries');
-  const groupAt = index.indexOf('class="profile-action-group"');
-  const deleteAt = index.indexOf('id="deleteCustomerButton"', groupAt);
-  const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
-  assert.ok(deleteAt > groupAt && deleteAt < detailsAt, 'Delete sits in the header action group, ahead of the More actions disclosure');
-  assert.ok(index.includes('id="deleteCustomerButton"'), 'delete button keeps its id (polish #10 wiring attaches to it)');
+  assert.ok(!index.includes('id="deleteCustomerButton"'), 'Delete is not in the header action group any more');
+  assert.ok(app.includes('id="deleteCustomerButton"'), 'delete button keeps its id (the delegated wiring attaches to it)');
+  const zoneAt = app.indexOf('profile-danger-zone');
+  assert.ok(zoneAt > app.indexOf('Object.entries(PROFILE_SECTION_TAB)'), 'the zone is appended after the section-move loop — bottom of the Info tab');
 });
 
-// Polish #24 — the info mount group no longer claims the danger zone:
-// it was the zone's last anchor, and the zone is gone.
-test('Plan 492: mountCustomerProfileContent no longer mounts a danger zone into the Info panel (polish #24)', () => {
+// Profile View Polish — the zone is mounted into the Info panel
+// again, but NOT by mountCustomerProfileContent: renderCustomerProfileView
+// appends it after the section-move loop, so the mount group still
+// claims no zone (its info group still ends with the uptime section).
+test('Plan 492: mountCustomerProfileContent still mounts no danger zone — renderCustomerProfileView appends it after the move loop (Profile View Polish)', () => {
   assert.ok(
     app.includes("info:['.customer-meta','.uptime-section']"),
     'info group ends with the uptime section — no danger zone claimed',
   );
   assert.ok(!app.includes("'.profile-danger-zone'"), 'no mount group claims the danger zone anywhere');
+  assert.ok(app.indexOf('profile-danger-zone') > app.indexOf('Object.entries(PROFILE_SECTION_TAB)'), 'the zone append sits after the section-move loop');
 });
 
 test('Plan 492: the 12 quick actions live inside the More actions disclosure; Archive and Unarchive stay in the header row (Profile Archive Button Visibility)', () => {
@@ -141,12 +149,15 @@ test('Plan 492: disclosure grid keeps the #302 treatment inside the category gri
   );
 });
 
-// Polish #24 — the wiring still attaches to the same id (the button
-// moved, the handler did not), but the clean-account gate it used to
-// call is REMOVED: deleting a customer now deletes the profile and its
-// whole history, dues or not (user decision 2026-11-09).
-test('Plan 492: Delete wiring is untouched; the clean-account gate is REMOVED (polish #24)', () => {
-  assert.ok(app.includes("$('#deleteCustomerButton').addEventListener"), 'delete button wiring still attaches once at startup');
+// Profile View Polish — the wiring moves with the button: the
+// module-level $('#deleteCustomerButton').addEventListener cannot
+// survive the re-rendered zone node, so the handler is delegated on
+// #customerProfileView instead (same id, same handler body). The
+// clean-account gate stays REMOVED (polish #24, user decision
+// 2026-11-09).
+test('Plan 492: Delete wiring is delegated on #customerProfileView; the clean-account gate is REMOVED (polish #24, Profile View Polish)', () => {
+  assert.ok(app.includes("$('#customerProfileView')?.addEventListener('click'"), 'delete wiring attaches once, delegated on the profile view');
+  assert.ok(app.includes("event.target.closest('#deleteCustomerButton')"), 'delegation branches on the Delete id');
   assert.ok(app.includes('deleteCustomerButton'), 'delete handler references the same id');
   assert.ok(!app.includes('customerDeleteCleanCheck'), 'the gate import and its call are gone from app.js');
   assert.ok(!app.includes('customerDeleteRefusalText'), 'the gate refusal text is gone from app.js');

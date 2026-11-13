@@ -467,6 +467,27 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     renderCommand();renderClosings();renderComparison();renderBusinessHealthScore();renderIspInsights();renderAreaBreakdowns();renderRankings();renderRecovery();renderSmartAlerts();
   }
 
+  // Pucho + Profile Header Polish — the panel is collapsed by default into
+  // a 1-line bar (markup: #ownerCommandToggle + #ownerCommandBody hidden).
+  // The collapsed state lives in the DOM (hidden attribute + aria-expanded);
+  // it is in-memory only and never persisted — refresh() must not touch it.
+  const ownerPanel = $('#ownerCommandCenter');
+  const ownerToggle = $('#ownerCommandToggle');
+  const ownerBody = $('#ownerCommandBody');
+  const setOwnerExpanded = (expanded) => {
+    if (!ownerPanel || !ownerToggle || !ownerBody) return;
+    ownerBody.hidden = !expanded;
+    ownerToggle.setAttribute('aria-expanded', String(expanded));
+    ownerPanel.classList.toggle('is-expanded', expanded);
+    // Voice controls hide again when the panel collapses, so the next
+    // expand starts disarmed (the dropdown + note only show when armed).
+    if (!expanded) ownerPanel.classList.remove('voice-armed');
+  };
+  ownerToggle?.addEventListener('click', () => setOwnerExpanded(ownerBody?.hidden !== false));
+  // The #/assistant route (screen-router.js) expands through this — the
+  // panel must never be opened by removing or moving nodes.
+  if (typeof window !== 'undefined') window.expandOwnerCommandCenter = () => setOwnerExpanded(true);
+
   $('#ownerCommandForm')?.addEventListener('submit',event=>{event.preventDefault();lastQuery=$('#ownerCommandInput').value;renderCommand(lastQuery);});
   // Owner 5-part fix: the twelve Pucho catalogue questions are
   // rendered as clickable chips inside the unified card (the catalogue
@@ -476,6 +497,16 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   // Pucho engine, so tapping never needs typing.
   const catalogueEl=$('#puchoCatalogue');
   if(catalogueEl) catalogueEl.innerHTML=puchoCatalogueHtml();
+  // Pucho + Profile Header Polish — the two morning-queue buttons join the
+  // 12 catalogue chips in the same 2-row strip (the user's 14 = 12 + 2).
+  // They keep their ids, so bindUnifiedCenterPucho (app.js) still finds
+  // them; the now-empty queue row is removed.
+  const chipsGrid = catalogueEl?.querySelector('.owner-suggestion-chips');
+  const queueRow = document.getElementById('puchoQueueBtn')?.parentElement;
+  if (chipsGrid && queueRow) {
+    for (const button of [...queueRow.querySelectorAll('#puchoQueueBtn, #puchoQueueExportBtn')]) chipsGrid.append(button);
+    queueRow.remove();
+  }
   catalogueEl?.addEventListener('click',event=>{
     const chip=event.target.closest('[data-pucho-question]'); if(!chip)return;
     const question=chip.getAttribute('data-pucho-question');
@@ -489,6 +520,11 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   ['#compareMonthA','#compareMonthB'].forEach(selector=>$(selector)?.addEventListener('change',renderComparison));
   ['#rankingType','#rankingMonth','#rankingArea','#rankingPackage','#rankingStatus'].forEach(selector=>$(selector)?.addEventListener('change',()=>{rankingsShowAll=false;renderRankings();}));
   $('#ownerVoiceButton')?.addEventListener('click',async()=>{
+    // Pucho + Profile Header Polish — first mic tap arms voice mode: the
+    // language dropdown + status note stay hidden until armed, so they
+    // never take a row in the panel. Arming happens before the
+    // availability check so unsupported-browser messages are visible too.
+    ownerPanel?.classList.add('voice-armed');
     const status=$('#ownerVoiceStatus'),Constructor=window.SpeechRecognition??window.webkitSpeechRecognition,language=$('#ownerVoiceLanguage').value;
     if(!Constructor||typeof Constructor.available!=='function'){status.textContent='Local speech recognition is not supported in this browser. Typed English, Roman Urdu and Urdu commands still work.';return;}
     try{
@@ -534,7 +570,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     else if(action==='collection'){if(window.quickCollectModalController?.open){window.quickCollectModalController.open();}else{switchView('transactions');$('#transactionsView').scrollIntoView({behavior:'smooth',block:'start'});}}
     else if(action==='bills'||action==='reports'){switchView('reports');if(typeof renderMonthlyReport==='function')renderMonthlyReport();$('#billingReportsView').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='backup'){const p=$('#backupControls');if(p){p.hidden=false;$('#backupControlsToggle')?.setAttribute('aria-expanded','true');p.scrollIntoView({behavior:'smooth',block:'center'});}}
-    else if(action==='assistant'){switchView('customers');$('#ownerCommandCenter').scrollIntoView({behavior:'smooth',block:'center'});}
+    else if(action==='assistant'){switchView('customers');setOwnerExpanded(true);$('#ownerCommandCenter').scrollIntoView({behavior:'smooth',block:'center'});}
     else if(action==='alerts'){switchView('reports');$('#smartAlertsPanel').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='recovery'){switchView('reports');$('#duesRecoveryPanel').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='analytics'){switchView('analytics');renderAnalytics();$('#analyticsView').scrollIntoView({behavior:'smooth',block:'start'});}

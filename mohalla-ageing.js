@@ -34,6 +34,11 @@
 // plus its unaged amount equals its total. Rows sort by mohalla label
 // A-Z so any one of the 11 mohallas is found at a glance.
 //
+// Amounts are integer cents end-to-end (Sharafat 14, same as Plan 7):
+// the view this module reads already carries cents, sums stay in
+// cents, and only the display (formatAmount) rounds to whole rupees;
+// the CSV writes exact decimal rupees (mohallaAgeingCsv).
+//
 // Key normalisation matches Plan 7 exactly (trimmed, upper-cased,
 // leading "MOHALLA " stripped, internal whitespace collapsed; blank
 // maps to "UNASSIGNED" / "Unassigned"), so "Bani", "MOHALLA BANI" and
@@ -51,6 +56,8 @@ export const MOHALLA_AGEING_BUCKET_KEYS = Object.freeze(
   MOHALLA_AGEING_BUCKETS.map((bucket) => bucket.key),
 );
 
+// Sharafat 14: amounts are integer cents — Math.round here is only
+// the guard against non-integer input, never a rupee rounding.
 function num(value) {
   const n = Number(value);
   return Number.isFinite(n) ? Math.round(n) : 0;
@@ -75,7 +82,17 @@ function csvCell(value) {
 }
 
 function formatAmount(value) {
-  return `Rs. ${num(value).toLocaleString('en-US')}`;
+  // Sharafat 14: value is integer cents — round to whole rupees ONLY
+  // at display, so 150050 cents prints "Rs. 1,501", never "Rs. 150,050".
+  return `Rs. ${Math.round(num(value) / 100).toLocaleString('en-US')}`;
+}
+
+// Sharafat 14 (parent decision 2026-11-13): the CSV writes exact
+// decimal rupees — 150050 cents is "1500.50", never "150050" (cents
+// in a CSV would be misread as rupees). Two decimals always, so the
+// rows and the business-total line reconcile to the paisa.
+function formatCsvAmount(cents) {
+  return (num(cents) / 100).toFixed(2);
 }
 
 /**
@@ -267,17 +284,17 @@ export function mohallaAgeingCsv(summary) {
   for (const row of summary.rows) {
     lines.push([
       csvCell(row.label),
-      csvCell(row.byBucket.current),
-      csvCell(row.byBucket.one),
-      csvCell(row.byBucket.two),
-      csvCell(row.byBucket.threePlus),
-      csvCell(row.unaged),
-      csvCell(row.total),
+      csvCell(formatCsvAmount(row.byBucket.current)),
+      csvCell(formatCsvAmount(row.byBucket.one)),
+      csvCell(formatCsvAmount(row.byBucket.two)),
+      csvCell(formatCsvAmount(row.byBucket.threePlus)),
+      csvCell(formatCsvAmount(row.unaged)),
+      csvCell(formatCsvAmount(row.total)),
       csvCell(row.billCount),
       csvCell(row.note),
     ].join(','));
   }
-  lines.push(['Business total', '', '', '', '', '', csvCell(summary.businessTotal), '', ''].join(','));
+  lines.push(['Business total', '', '', '', '', '', csvCell(formatCsvAmount(summary.businessTotal)), '', ''].join(','));
   return lines.join('\n');
 }
 

@@ -3572,6 +3572,21 @@ export function filterNewCustomerMonths(months, startMonth, endMonth) {
  * unused credit remains attached to its original receipt until a later bill exists.
  */
 export function calculatePaymentAllocations(state) {
+  // Sharafat 11: one corrupt amount ("abc", imported via backup/CSV)
+  // makes moneyCents return NaN, and a single NaN poisons every sum it
+  // touches (actualReceiptsCents, balanceDueCents, credit generation).
+  // Every amount read inside this function is therefore treated as 0
+  // when it is not finite, so the row stays but its amount can never
+  // propagate NaN. moneyCents itself is NOT hardened — ~50 callers rely
+  // on its current behaviour — and the charge helpers are NOT changed
+  // either (exported, used outside this function); their line
+  // sanitizers already throw on a non-finite amount and the *LinesOf
+  // wrappers catch that and return [], so a corrupt charge line reads
+  // as a 0 charge without any change here.
+  const safeCents = (value) => {
+    const cents = moneyCents(value);
+    return Number.isFinite(cents) ? cents : 0;
+  };
   const byPaymentId = new Map();
   const byCustomerMonth = new Map();
   for (const customer of state.customers) {
@@ -3590,7 +3605,7 @@ export function calculatePaymentAllocations(state) {
     const applyCreditTransferOutStamps = (stampedBill, summary) => {
       const stamps = Array.isArray(stampedBill?.creditTransferOut) ? stampedBill.creditTransferOut : [];
       for (const stamp of stamps) {
-        const amountCents = moneyCents(stamp?.amount || 0);
+        const amountCents = safeCents(stamp?.amount || 0);
         if (!(amountCents > 0) || typeof stamp?.paymentId !== 'string' || !stamp.paymentId) continue;
         const entry = pendingCredits.find((credit) => credit.sourceSummary === summary && credit.paymentLedger.paymentId === stamp.paymentId);
         if (!entry || entry.remainingCents <= 0) continue;
@@ -3605,7 +3620,7 @@ export function calculatePaymentAllocations(state) {
       const summary = { customerId:customer.id, month:bill.month, billAmountCents:null, baseAmountCents:null, lateFeeCents:0, shiftingFeeCents:0, actualReceiptsCents:0, discountAppliedCents:0, sameMonthAppliedCents:0, creditAppliedCents:0, creditSources:[], balanceDueCents:null, excessGeneratedCents:0, creditForwardedCents:0, pendingCreditCents:0 };
       byCustomerMonth.set(key, summary);
       const payments = [...(bill.payments ?? [])].filter((p) => p?.voided !== true).sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
-      summary.actualReceiptsCents = payments.reduce((sum,payment) => sum + moneyCents(payment.amount), 0);
+      summary.actualReceiptsCents = payments.reduce((sum,payment) => sum + safeCents(payment.amount), 0);
       const amount = bill.dueAmount;
       if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
         // Unpriced bill: nothing can be applied to this month yet, so the whole
@@ -3614,7 +3629,7 @@ export function calculatePaymentAllocations(state) {
         // the bill was priced vanished from every later bill, the monthly
         // report and the dashboard pending-credit total.
         for (const payment of payments) {
-          const amountCents = moneyCents(payment.amount);
+          const amountCents = safeCents(payment.amount);
           // SISP-43: the ticket-charge portion of the receipt is consumed
           // by the tickets — only the rest is unused credit here.
           const ticketChargeCents = paymentTicketChargeCents(payment);
@@ -3630,7 +3645,7 @@ export function calculatePaymentAllocations(state) {
           // pure coverage (nothing has been applied yet) — it joins the
           // credit in full, reserved for its target month below, so the
           // customer is credited cash + discount = the full gross.
-          const prepayDiscountCents = prepayTermsOf(payment) ? moneyCents(payment.discount || 0) : 0;
+          const prepayDiscountCents = prepayTermsOf(payment) ? safeCents(payment.discount || 0) : 0;
           const creditCents = Math.max(0, amountCents - ticketChargeCents - addonChargeCents - manualBaqayaCents) + prepayDiscountCents;
           const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents, addonChargeCents, manualBaqayaCents, targetMonth:advancePaymentTargetMonth(payment), ...(prepayDiscountCents > 0 ? { prepayDiscountCreditCents:prepayDiscountCents } : {}) };
 
@@ -3644,9 +3659,9 @@ export function calculatePaymentAllocations(state) {
         continue;
       }
 
-      const baseAmountCents = moneyCents(amount);
-      const lateFeeCents = moneyCents(bill.lateFee || 0);
-      const shiftingFeeCents = moneyCents(bill.shiftingFee || 0);
+      const baseAmountCents = safeCents(amount);
+      const lateFeeCents = safeCents(bill.lateFee || 0);
+      const shiftingFeeCents = safeCents(bill.shiftingFee || 0);
       const billAmountCents = baseAmountCents + lateFeeCents + shiftingFeeCents;
       summary.billAmountCents = billAmountCents;
       summary.baseAmountCents = baseAmountCents;
@@ -3659,7 +3674,7 @@ export function calculatePaymentAllocations(state) {
       // before advance credit and receipts apply — the same treatment
       // the Khata Doctor formula gives it. The field is absent on every
       // legacy bill, so all existing allocations are unchanged.
-      dueRemainingCents -= Math.min(moneyCents(bill.depositOffsetAmount || 0), billAmountCents);
+      dueRemainingCents -= Math.min(safeCents(bill.depositOffsetAmount || 0), billAmountCents);
       // SISP-111: a cross-customer advance credit transfer stamped on
       // this bill (credit-transfer.js executeCreditTransfer) satisfies
       // part of the due with another customer's advance credit — no
@@ -3669,7 +3684,7 @@ export function calculatePaymentAllocations(state) {
       // the same treatment the Khata Doctor formula gives it. The
       // field is absent on every legacy bill, so all existing
       // allocations are unchanged.
-      dueRemainingCents -= Math.min(moneyCents(bill.creditTransferInAmount || 0), Math.max(0, dueRemainingCents));
+      dueRemainingCents -= Math.min(safeCents(bill.creditTransferInAmount || 0), Math.max(0, dueRemainingCents));
       // SISP-64: a bad-debt write-off waives what is left of this bill
       // (audited bill fields stamped by bad-debt-ledger.js
       // writeOffBadDebt). It reduces the due after the deposit offset
@@ -3679,7 +3694,7 @@ export function calculatePaymentAllocations(state) {
       // money the operator has declared uncollectible. The field is
       // absent on every legacy bill, so all existing allocations are
       // unchanged.
-      dueRemainingCents -= Math.min(moneyCents(bill.badDebtWriteOffAmount || 0), Math.max(0, dueRemainingCents));
+      dueRemainingCents -= Math.min(safeCents(bill.badDebtWriteOffAmount || 0), Math.max(0, dueRemainingCents));
       // FU1b: the SISP-40 referral credit and the SISP-30 outage
       // concession ride as audited bill fields exactly like the
       // deposit offset — billing-cycle.js withReferralCredit and
@@ -3695,8 +3710,8 @@ export function calculatePaymentAllocations(state) {
       // waivers can never drive the due negative or inflate the
       // excess credit a receipt generates. Both fields are absent
       // on legacy bills, so existing allocations are unchanged.
-      dueRemainingCents -= Math.min(moneyCents(bill.referralCreditAmount || 0), dueRemainingCents);
-      dueRemainingCents -= Math.min(moneyCents(bill.concessionAmount || 0), dueRemainingCents);
+      dueRemainingCents -= Math.min(safeCents(bill.referralCreditAmount || 0), dueRemainingCents);
+      dueRemainingCents -= Math.min(safeCents(bill.concessionAmount || 0), dueRemainingCents);
       // Merge reconciliation (lands with FU1b): the SISP-97 feeder-host
       // bijli credit rides as the same shape of audited bill field —
       // billing-cycle stamps feederHostCreditAmount WITHOUT rewriting
@@ -3705,7 +3720,7 @@ export function calculatePaymentAllocations(state) {
       // host's next cycle would carry phantom arrears equal to the
       // credit. Absent on legacy bills, so existing allocations are
       // unchanged.
-      dueRemainingCents -= Math.min(moneyCents(bill.feederHostCreditAmount || 0), dueRemainingCents);
+      dueRemainingCents -= Math.min(safeCents(bill.feederHostCreditAmount || 0), dueRemainingCents);
       // Polish #23: the first-month tag rides as the same shape of
       // audited bill field — applyFirstMonthWaiverToBill stamps
       // firstMonthWaivedAmount WITHOUT rewriting dueAmount and the
@@ -3714,7 +3729,7 @@ export function calculatePaymentAllocations(state) {
       // stay in the due list and the next cycle would carry phantom
       // arrears equal to the waived month. Absent on legacy bills, so
       // existing allocations are unchanged.
-      dueRemainingCents -= Math.min(moneyCents(bill.firstMonthWaivedAmount || 0), dueRemainingCents);
+      dueRemainingCents -= Math.min(safeCents(bill.firstMonthWaivedAmount || 0), dueRemainingCents);
       // Advance month targeting: a targeted credit is RESERVED for its
       // month — the loop below skips it while its target is still in
       // the future, so it can never settle an earlier bill. This bill
@@ -3742,7 +3757,7 @@ export function calculatePaymentAllocations(state) {
 
       let sameMonthReceiptCapacityCents = dueRemainingCents;
       for (const payment of payments) {
-        const amountCents = moneyCents(payment.amount);
+        const amountCents = safeCents(payment.amount);
         // SISP-43: only the bill portion of the receipt can settle this
         // bill or become credit — the ticket-charge portion is already
         // spent on the tickets named in the payment's stamp.
@@ -3755,7 +3770,7 @@ export function calculatePaymentAllocations(state) {
         // named in the payment's stamp, exactly like the ticket portion.
         const addonChargeCents = paymentAddonChargeCents(payment);
         const billPortionCents = Math.max(0, amountCents - ticketChargeCents - addonChargeCents - manualBaqayaCents);
-        const discountCents = moneyCents(payment.discount || 0);
+        const discountCents = safeCents(payment.discount || 0);
         const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false, ticketChargeCents, addonChargeCents, manualBaqayaCents, targetMonth:advancePaymentTargetMonth(payment) };
 
         byPaymentId.set(payment.id, paymentLedger);

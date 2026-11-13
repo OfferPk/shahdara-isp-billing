@@ -75,13 +75,43 @@ function rowByKey(counts, key) {
 
 // --- Counts: shape ---
 
-test('counts: one row per canonical mohalla in list order, zeros included', () => {
+test('counts: rows sort by pending dues first, zeros included at the bottom', () => {
+  // Quick Collect CSS tightening (user instruction 2026-11-13,
+  // parent decision D1): the dropdown lists the mohallas the
+  // operator most needs first — highest pending PKR first — NOT in
+  // list order. This REVERSES the QC-4 list-order pin. The rows
+  // still add up to the pool; only their order changes.
   const counts = quickCollectMohallaPendingCounts(pickerEntries(), MOHALLAS);
-  assert.deepEqual(counts.rows.map((row) => row.mohalla), ['BANII', 'GANGALL', 'KISHTII', 'Unassigned', 'NOWHERE']);
+  assert.deepEqual(counts.rows.map((row) => row.mohalla), ['BANII', 'GANGALL', 'Unassigned', 'NOWHERE', 'KISHTII']);
   assert.equal(rowByKey(counts, 'kishtii').count, 0);
   assert.equal(rowByKey(counts, 'kishtii').pendingPkr, 0);
   assert.equal(counts.totalCount, 7);
   assert.equal(counts.totalPendingPkr, 9600);
+});
+
+test('counts: equal PKR ties break by mohalla-number order; zero rows sit at the bottom with Unassigned last', () => {
+  // Parent decision D1: the fixed mohalla-number order is the
+  // tie-break (equal PKR, and inside the (0) group); Unassigned is
+  // last in the (0) group. An extra (a mohalla the list has never
+  // seen) has no number, so it sorts by name inside the (0) group.
+  const entries = [
+    { id: 'E1', name: 'One', customerNumber: 1, mohalla: 'GANGALL', totalDues: 1000 },
+    { id: 'E2', name: 'Two', customerNumber: 2, mohalla: 'BANII', totalDues: 1000 },
+    { id: 'E3', name: 'Three', customerNumber: 3, mohalla: 'KISHTII', totalDues: 0 },
+    { id: 'E4', name: 'Four', customerNumber: 4, totalDues: 0 },
+    { id: 'E5', name: 'Five', customerNumber: 5, mohalla: 'NOWHERE', totalDues: 0 },
+  ];
+  const counts = quickCollectMohallaPendingCounts(entries, MOHALLAS);
+  assert.deepEqual(counts.rows.map((row) => row.mohalla), ['BANII', 'GANGALL', 'KISHTII', 'NOWHERE', 'Unassigned']);
+});
+
+test('counts: a non-listed mohalla with dues sorts by PKR, not by name', () => {
+  const entries = [
+    { id: 'E1', name: 'One', customerNumber: 1, mohalla: 'BANII', totalDues: 1000 },
+    { id: 'E2', name: 'Two', customerNumber: 2, mohalla: 'ZEBRA', totalDues: 2500 },
+  ];
+  const counts = quickCollectMohallaPendingCounts(entries, MOHALLAS);
+  assert.deepEqual(counts.rows.map((row) => row.mohalla), ['ZEBRA', 'BANII', 'GANGALL', 'KISHTII']);
 });
 
 test('counts: each row counts its own mohalla and sums its pending PKR', () => {
@@ -148,14 +178,20 @@ test('counts: no Unassigned row when every entry has a mohalla', () => {
   assert.deepEqual(counts.rows.map((row) => row.mohalla), ['BANII', 'GANGALL', 'KISHTII']);
 });
 
-test('counts: a non-canonical pool mohalla gets its own row, in name order after the rest', () => {
+test('counts: a non-canonical pool mohalla gets its own row, sorted by dues with the rest', () => {
+  // Quick Collect CSS tightening (user instruction 2026-11-13,
+  // parent decision D1): this REVERSES the QC-4 "extras in name
+  // order after the rest" pin — an extra WITH dues sorts by PKR
+  // inside the active group, like any other row. Name order
+  // survives only inside the (0) group (see the tie-break test
+  // above).
   const entries = [
     { id: 'CUST-1', name: 'Ali One', customerNumber: 1, mohalla: 'ZULU TOWN', totalDues: 100 },
     { id: 'CUST-2', name: 'Zara Nine', customerNumber: 2, mohalla: 'NOWHERE', totalDues: 200 },
     { id: 'CUST-3', name: 'Bilal Two', customerNumber: 3, mohalla: 'BANII', totalDues: 300 },
   ];
   const counts = quickCollectMohallaPendingCounts(entries, MOHALLAS);
-  assert.deepEqual(counts.rows.map((row) => row.mohalla), ['BANII', 'GANGALL', 'KISHTII', 'NOWHERE', 'ZULU TOWN']);
+  assert.deepEqual(counts.rows.map((row) => row.mohalla), ['BANII', 'NOWHERE', 'ZULU TOWN', 'GANGALL', 'KISHTII']);
 });
 
 test('counts: the selected mohalla is always listed, at 0 when it has nothing pending', () => {
@@ -235,7 +271,7 @@ test('options: All carries the pool total and PKR; rows carry count and PKR', ()
     quickCollectMohallaPendingCounts(pickerEntries(), MOHALLAS),
     '',
   );
-  assert.match(html, /<option value="">All mohallas \(7 · PKR 9,600\)<\/option>/);
+  assert.match(html, /<option value="">All \(7 · PKR 9,600\)<\/option>/);
   assert.match(html, /<option value="BANII">BANII \(2 · PKR 5,000\)<\/option>/);
   assert.match(html, /<option value="GANGALL">GANGALL \(2 · PKR 2,500\)<\/option>/);
   assert.match(html, /<option value="Unassigned">Unassigned \(2 · PKR 1,200\)<\/option>/);
@@ -252,7 +288,7 @@ test('options: the PKR part is omitted when a row — or the whole pool — owes
     quickCollectMohallaPendingCounts([], MOHALLAS),
     '',
   );
-  assert.match(empty, /<option value="">All mohallas \(0\)<\/option>/);
+  assert.match(empty, /<option value="">All \(0\)<\/option>/);
   assert.match(empty, /<option value="BANII">BANII \(0\)<\/option>/);
 });
 
@@ -282,11 +318,11 @@ test('options: values and labels are escaped before they reach the page', () => 
 test('options: a missing counts object renders only the All option, never a crash', () => {
   assert.equal(
     quickCollectMohallaFilterCountOptionsHtml(null, ''),
-    '<option value="">All mohallas (0)</option>',
+    '<option value="">All (0)</option>',
   );
   assert.equal(
     quickCollectMohallaFilterCountOptionsHtml(undefined, ''),
-    '<option value="">All mohallas (0)</option>',
+    '<option value="">All (0)</option>',
   );
 });
 

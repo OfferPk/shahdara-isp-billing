@@ -2705,12 +2705,21 @@ test('setupMobileActionSheet supports customer contextual metadata and bottom na
 test('updateNavigationBadges computes active customer counts, overdue alert badges, and offline queue badges', async () => {
   const { updateNavigationBadges } = await import('../nav.js');
 
+  // Sharafat 10 (2026-11-13): the badge's overdue count comes from
+  // the Quick Collect picker pool, which now SKIPS damaged records
+  // (parent decision) — so these fixtures must be healthy records:
+  // a customer without a number is damaged and no longer counts as
+  // overdue. The fixtures also carry a bill month, because the
+  // allocation engine sorts bills by month unguarded (a monthless
+  // bill still throws — out of scope for this PR, flagged in the PR
+  // body). The month/number below only make the fixtures realistic;
+  // the badge arithmetic the test pins is unchanged.
   const state = {
     customers: [
-      { id: 'c1', name: 'Zahid', archived: false, status: 'active', bills: [{ dueAmount: '2000', status: 'pending' }] },
-      { id: 'c2', name: 'Kashif', archived: false, status: 'offline', bills: [{ dueAmount: '0', status: 'paid' }] },
-      { id: 'c3', name: 'Noman', archived: false, status: 'active', bills: [] },
-      { id: 'c4', name: 'Archived User', archived: true, status: 'active', bills: [{ dueAmount: '5000', status: 'pending' }] }
+      { id: 'c1', name: 'Zahid', customerNumber: 1, archived: false, status: 'active', bills: [{ month: '2026-11', dueAmount: '2000', status: 'pending' }] },
+      { id: 'c2', name: 'Kashif', customerNumber: 2, archived: false, status: 'offline', bills: [{ month: '2026-11', dueAmount: '0', status: 'paid' }] },
+      { id: 'c3', name: 'Noman', customerNumber: 3, archived: false, status: 'active', bills: [] },
+      { id: 'c4', name: 'Archived User', customerNumber: 4, archived: true, status: 'active', bills: [{ month: '2026-11', dueAmount: '5000', status: 'pending' }] }
     ],
     expenses: [{ id: 'e1', amount: 500 }],
     inventoryItems: [{ id: 'i1', name: 'Patch Cord' }, { id: 'i2', name: 'ONU' }]
@@ -3017,11 +3026,15 @@ test('updateNavigationBadges calculates overdue and queue metrics with alert sty
   };
 
   try {
+    // Sharafat 10 (2026-11-13): same as the test above — the overdue
+    // count comes from the picker pool, which now skips damaged
+    // records, so the fixtures carry a name, a number and a bill
+    // month; the badge arithmetic pinned below is unchanged.
     const state = {
       customers: [
-        { id: 'c1', status: 'active', bills: [{ dueAmount: 1500, status: 'unpaid' }] },
-        { id: 'c2', status: 'offline', bills: [{ dueAmount: 0, status: 'paid' }] },
-        { id: 'c3', archived: true, bills: [{ dueAmount: 3000, status: 'unpaid' }] }
+        { id: 'c1', name: 'Zahid', customerNumber: 1, status: 'active', bills: [{ month: '2026-11', dueAmount: 1500, status: 'unpaid' }] },
+        { id: 'c2', name: 'Kashif', customerNumber: 2, status: 'offline', bills: [{ month: '2026-11', dueAmount: 0, status: 'paid' }] },
+        { id: 'c3', name: 'Archived User', customerNumber: 3, archived: true, bills: [{ month: '2026-11', dueAmount: 3000, status: 'unpaid' }] }
       ],
       expenses: [],
       inventoryItems: []

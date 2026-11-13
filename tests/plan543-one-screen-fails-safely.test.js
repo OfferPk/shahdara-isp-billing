@@ -429,7 +429,13 @@ test('plan 543 wiring: archived skip in the options builder, guarded change hand
   const qc = readFileSync(new URL('../nav-quick-collect.js', import.meta.url), 'utf8');
   // The picker keeps its own identical rule, untouched.
   const pickerIdx = qc.indexOf('export function getPendingCollectionCustomers');
-  const pickerBlock = qc.slice(pickerIdx, pickerIdx + 800);
+  // Sharafat 10 (2026-11-13): the picker now opens with the
+  // damaged-record filter + comment before the loop, so the archived
+  // skip sits past the old 800-char window — slice to the function's
+  // closing brace instead, so the pin still asserts the skip lives
+  // INSIDE this function and nowhere else.
+  const pickerEnd = qc.indexOf('\n}\n', pickerIdx);
+  const pickerBlock = qc.slice(pickerIdx, pickerEnd === -1 ? pickerIdx + 800 : pickerEnd);
   assert.ok(pickerBlock.includes('if (customer.archived) continue;'), 'picker rule unchanged');
   // The change handler guards the defaults lookup.
   const bindIdx = qc.indexOf('function bindOneScreenControls()');

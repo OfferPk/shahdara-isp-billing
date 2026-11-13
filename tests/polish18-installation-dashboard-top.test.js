@@ -221,7 +221,11 @@ test('i18n: tile + panel keys exist once in en and ur, ur carries Urdu script', 
 test('wiring: renderInstallationDashboard builds the month breakdown from the join-month report', () => {
   const fn = appJs.slice(appJs.indexOf('function renderInstallationDashboard()'));
   const body = fn.slice(0, 1500);
-  assert.ok(body.includes('buildNewCustomerReport(state.customers'), 'month breakdown comes from the join-month report');
+  // Subscriber Count & Tab Isolation (D1): the join-month report is
+  // still the source, but it is built from the ACTIVE roster —
+  // countActiveCustomers' predicate — so archived customers never
+  // reach the month breakdown.
+  assert.ok(body.includes('buildNewCustomerReport((state.customers || []).filter('), 'month breakdown comes from the join-month report');
   assert.ok(body.includes('displayMonthName('), 'month labels use the shared month-name helper');
   assert.ok(body.includes('installationFeeHtml(totals, rows, monthly)'), 'monthly breakdown is passed to the dashboard html');
   assert.ok(body.includes("t('ida_month_heading')"), 'month heading is translated');

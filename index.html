@@ -31720,8 +31720,8 @@
           </div>
         </div>
         <div class="pending-actions-header-actions">
-          <button id="pendingActionsCopyDigestBtn" class="pending-header-icon-btn" type="button" data-i18n="pending_copy_list" aria-label="Copy action list">📋 Copy List</button>
-          <button id="closePendingActionsModalBtn" class="modal-close-btn" type="button" aria-label="Close pending actions">↩</button>
+          <button id="pendingActionsCopyDigestBtn" class="pending-header-icon-btn" type="button" aria-label="Copy action list"><span data-ds-icon="Copy" aria-hidden="true"></span><span data-i18n="pending_copy_list">Copy List</span></button>
+          <button id="closePendingActionsModalBtn" class="modal-close-btn" type="button" aria-label="Close pending actions">✕</button>
         </div>
       </header>
 
@@ -31732,7 +31732,7 @@
             <span id="pendingTabAllCount" class="tab-count-pill">0</span>
           </button>
           <button type="button" class="pending-actions-tab" data-pending-tab="receipts" role="tab" aria-selected="false">
-            <span data-i18n="pending_tab_receipts">Receipts</span>
+            <span data-ds-icon="MessageCircle" aria-hidden="true"></span><span data-i18n="pending_tab_receipts">Receipts</span>
             <span id="pendingTabReceiptsCount" class="tab-count-pill">0</span>
           </button>
           <button type="button" class="pending-actions-tab" data-pending-tab="promises" role="tab" aria-selected="false">
@@ -31751,9 +31751,7 @@
           <button id="pendingActionsMarkAllSharedBtn" type="button" class="btn-tool-secondary" data-i18n="pending_share_all" hidden>
             ✓ Mark All Shared
           </button>
-          <button id="pendingActionsClearNoPhoneBtn" type="button" class="btn-tool-secondary" data-i18n="pending_clear_nophone" hidden>
-            🧹 Clear No-Phone Receipts
-          </button>
+          <button id="pendingActionsClearNoPhoneBtn" type="button" class="btn-tool-secondary" hidden><span data-ds-icon="Trash2" aria-hidden="true"></span><span data-i18n="pending_clear_nophone">Clear No-Phone Receipts</span></button>
         </div>
       </div>
 

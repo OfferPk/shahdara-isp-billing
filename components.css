@@ -3750,11 +3750,20 @@ button:not([hidden]).help-info-btn {
    removed, Copy List in the header, footer removed), single-row tabs,
    compact cards with a one-line meta and right-pinned actions, so 3–4
    cards show at once instead of half a card. */
-.pending-actions-header { padding: 12px 16px 10px; align-items: center; }
+.pending-actions-header { padding: 8px 12px; align-items: center; flex-shrink: 0; }
 .pending-actions-header-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 .pending-header-icon-btn { background: var(--color-slate-100); border: 1px solid var(--color-slate-300); color: var(--color-slate-700); border-radius: 9px; padding: 6px 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer; min-height: 36px; white-space: nowrap; }
+/* Pending Actions Center compression: the header Copy button is 32px
+   tall on the single 48px header row (the base 36px above is shared
+   with nothing else, but the scoped rule keeps the deviation visible
+   next to the header it serves). The !important is required: the
+   app-wide `button:not([hidden])` rule (styles.css) floors every button
+   at 44px with !important. */
+#pendingActionsModal .pending-header-icon-btn { min-height: 32px !important; height: 32px !important; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; }
 .pending-actions-toolbar { padding: 10px 16px; gap: 8px; }
-.pending-actions-tabs { flex-wrap: nowrap; }
+/* Compression (D2): the tabs wrap at ALL widths — this rule used to say
+   nowrap and overrode the nav.css base, recreating the scroll clip. */
+.pending-actions-tabs { flex-wrap: wrap; }
 .pending-actions-list { padding: 12px 16px; }
 .pending-action-card { padding: 10px 12px; gap: 6px; }
 .pending-card-header { flex-wrap: wrap; gap: 6px; }

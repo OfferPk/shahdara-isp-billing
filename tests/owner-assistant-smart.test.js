@@ -118,6 +118,12 @@ const BANK = [
   ['20 Mbps package customers', 'package-customers', a => { assert.equal(a.count, 2); assert.equal(a.duesTotal, 5800); }],
   ['Package wise customers', 'package-customers', a => { assert.equal(a.distribution, true); assert.equal(a.count, 5); assert.equal(a.rows.find(row => row.package === '5 Mbps').customers, 1); }],
   // --- counts ---
+  // NOTE (Subscriber Count & Tab Isolation): the counts-overview BANK row
+  // below cannot catch an archived-counting regression — its fixture has
+  // zero archived customers, so the old (raw length) and new
+  // (countActiveCustomers) totals agree there. The dedicated
+  // 'counts-overview total excludes archived customers' test at the end
+  // of this file owns a 5-live + 1-archived state for exactly that.
   ['Total kitne customer hain?', 'counts-overview', a => { assert.equal(a.total, 5); assert.equal(a.active, 4); assert.equal(a.offline, 1); assert.equal(a.withDues, 3); assert.equal(a.duesTotal, 6300); assert.equal(a.billedThisMonth, 4); }],
   ['How many customers have dues?', 'counts-overview', a => { assert.equal(a.withDues, 3); }],
   ['is maheene kitne bill bane?', 'counts-overview', a => { assert.equal(a.billedThisMonth, 4); }],
@@ -165,4 +171,29 @@ test('smart assistant answers never mutate state', () => {
   const before = JSON.stringify(state);
   for (const [question] of BANK) ask(question);
   assert.equal(JSON.stringify(state), before);
+});
+
+// Subscriber Count & Tab Isolation: the counts-overview total used to be
+// state.customers.length, so an archived profile still counted as a
+// subscriber. The fix rewires it to countActiveCustomers (the same source
+// of truth as the dashboard KPI). This test owns its own 6-record state —
+// 5 live + 1 archived, no bills — and never touches the shared
+// fixtureState(), whose exact figures the ~100 BANK assertions above
+// depend on.
+test('counts-overview total excludes archived customers', () => {
+  let archivedState = createInitialState(['Live One', 'Live Two', 'Live Three', 'Live Four', 'Live Five', 'Archived Six']);
+  const profile = {
+    'seed-001': { packageSpeed: '10 Mbps', mohalla: 'Mohalla A', serviceStatus: 'active', addedOn: '2026-10-07' },
+    'seed-002': { packageSpeed: '10 Mbps', mohalla: 'Mohalla A', serviceStatus: 'active', addedOn: '2026-10-06' },
+    'seed-003': { packageSpeed: '10 Mbps', mohalla: 'Mohalla A', serviceStatus: 'active', addedOn: '2026-10-05' },
+    'seed-004': { packageSpeed: '10 Mbps', mohalla: 'Mohalla A', serviceStatus: 'active', addedOn: '2026-10-04' },
+    'seed-005': { packageSpeed: '10 Mbps', mohalla: 'Mohalla A', serviceStatus: 'active', addedOn: '2026-10-03' },
+    'seed-006': { packageSpeed: '10 Mbps', mohalla: 'Mohalla A', serviceStatus: 'active', addedOn: '2025-01-10', archived: true }
+  };
+  archivedState = { ...archivedState, customers: archivedState.customers.map(customer => ({ ...customer, ...profile[customer.id] })) };
+  const answer = answerOwnerCommand(archivedState, 'Total kitne customer hain?', today);
+  assert.equal(answer.intent, 'counts-overview');
+  assert.equal(answer.total, 5);
+  assert.equal(answer.archived, 1);
+  assert.equal(answer.active, 5);
 });

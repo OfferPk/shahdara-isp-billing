@@ -232,7 +232,15 @@ test('wiring source: the close-button handler branches on the success step, and 
   const btnAt = pageSrc.indexOf('id="closeQuickCollectModalBtn"');
   assert.ok(btnAt >= 0, 'header back button exists in the markup');
   assert.ok(pageSrc.slice(btnAt, btnAt + 200).includes('aria-label="Close quick collect modal"'), 'markup keeps the close label as the default');
-  assert.ok(pageSrc.slice(btnAt, btnAt + 200).includes('↩'), 'header button is the ↩ arrow the user circled');
+  // QC Modal Overhaul 2: the static markup is '✕' (the modal opens
+  // on the picker, a close step) — the '↩' appears only on the
+  // success step, swapped in by showStep(). A static '↩' would
+  // promise a back action the picker step does not perform.
+  assert.ok(pageSrc.slice(btnAt, btnAt + 200).includes('✕'), 'header button is ✕ in the static markup (picker step closes)');
+  const showStepAt = quickCollectSrc.indexOf('function showStep');
+  assert.ok(showStepAt >= 0, 'showStep exists');
+  const showStepBlock = quickCollectSrc.slice(showStepAt, showStepAt + 2000);
+  assert.ok(showStepBlock.includes("closeBtn.textContent = stepName === 'success' ? '↩' : '✕'"), 'showStep must swap the glyph per step — ↩ on success, ✕ elsewhere');
 });
 
 test('wiring source: both save paths land on this same success step, so one step check covers them', () => {

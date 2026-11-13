@@ -353,7 +353,10 @@ test('wiring: the clear lives in the two render functions and the call-site coun
 
   const cashAt = src.indexOf('function renderCashChange()');
   assert.ok(cashAt > -1, 'renderCashChange must be defined');
-  const cashFn = src.slice(cashAt, src.indexOf('function renderNextReceiptLine()', cashAt));
+  // QC Modal Overhaul 2: the old end anchor (renderNextReceiptLine)
+  // is deleted with its line — the subtitle render is the next
+  // function after the change render now.
+  const cashFn = src.slice(cashAt, src.indexOf('function renderFormSubtitle(', cashAt));
   assert.ok(cashFn.includes('cashChangeBox.hidden = !show;'), 'the box still hides on the same rule');
   assert.ok(cashFn.includes("if (!show && cashReceivedInput) cashReceivedInput.value = '';"),
     'the cash field clears whenever the box hides');
@@ -381,10 +384,18 @@ test('wiring: the clear lives in the two render functions and the call-site coun
   // combined total. The clear still lives only in the render
   // function above, so the count moves by exactly one and nothing
   // else changes.
-  assert.equal((src.match(/renderCashChange\(\)/g) || []).length, 13,
-    'renderCashChange call sites unchanged (12 sites + definition)');
-  assert.equal((src.match(/renderOverpaymentChoice\(\)/g) || []).length, 12,
-    'renderOverpaymentChoice call sites unchanged (11 sites + definition)');
+  // QC Modal Overhaul 2: the Plan 489 dues-buttons handler is
+  // deleted (its buttons ARE the entry chips now), so its
+  // renderCashChange site goes with it — 13 becomes 12. The chip
+  // handler refreshes the change on every fill, so no fill path
+  // loses the refresh.
+  assert.equal((src.match(/renderCashChange\(\)/g) || []).length, 12,
+    'renderCashChange call sites unchanged (11 sites + definition)');
+  // QC Modal Overhaul 2: same −1 as above — the deleted dues-buttons
+  // handler also refreshed the overpayment choice on a fill, and the
+  // chip handler covers it now.
+  assert.equal((src.match(/renderOverpaymentChoice\(\)/g) || []).length, 11,
+    'renderOverpaymentChoice call sites unchanged (10 sites + definition)');
   // The submit handler still reads the checked radio the same way —
   // the clear only changes what is checked, never how it is read.
   assert.ok(src.includes("overpaymentChoiceBox?.querySelector('input[name=\"quickCollectOverpaymentChoice\"]:checked')"),

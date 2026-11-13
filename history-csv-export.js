@@ -35,6 +35,7 @@ const HISTORY_CSV_EXPORT_TYPE_LABELS = Object.freeze({
   credit: 'Credit',
   refund: 'Refund',
   adjustment: 'Adjustment',
+  info: 'Info',
 });
 
 function cleanHistoryCsvKey(value) {

@@ -1258,12 +1258,19 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 }
 
 
-/* Give the selected customer title a full mobile row above its profile actions. */
+/* Pucho + Profile Header Polish: at phone widths the Active pill shares
+the top row with the 'CUSTOMER #N · {mohalla}' line (two columns), so it
+sits top-right instead of wrapping below the name. This deliberately
+reverses the full-mobile-row rule this block used to carry — the name
+column still shrinks (minmax(0,1fr)) and wraps, the accepted mobile
+trade-off. The 621–1180px stack in profile-ui.css stays: there the pane
+is only ~300px wide. */
 @media (max-width: 620px) {
   .detail-title-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
     justify-items: stretch;
+    align-items: flex-start;
     gap: 9px;
   }
   .detail-title-row > div:first-child { min-width: 0; }
@@ -1453,11 +1460,12 @@ dark-contrast.css already gives every .profile-service-status the
 dark base treatment. */
 .profile-service-status-vacation{background:var(--amber-bg);color:var(--amber)}
 .profile-service-status-vacation::before{background:var(--amber);box-shadow:0 0 0 3px var(--amber-bg)}
-/* Profile Polish A (5) — the merged single Active pill carries a
-Facebook-style blue verified tick: a blue circle with a white check.
-Both colours already exist in this sheet, so the §8.9 ratchet count
-does not move. */
-.profile-service-status-verified .profile-verified-tick{display:inline-flex;align-items:center;justify-content:center;flex:0 0 14px;width:14px;height:14px;border-radius:50%;background:#2563eb;color:#fff;font-size:9px;font-weight:800;line-height:1}
+/* Pucho + Profile Header Polish — the blue verified tick is gone: the
+merged single Active pill reads cleanly as '● Active' now. This
+deliberately reverses Profile Polish A (5)'s tick (its pins in
+tests/profile-polish-a.test.js were updated with why-comments); the
+merge itself (one pill + archive pill hidden) stays. #2563eb is still
+used elsewhere in this sheet, so the §8.9 ratchet count does not move. */
 /* Polish #28 Phase B (Req 3) — an empty optional value renders as a
 subtle muted dash, never as a loud missing-value warning. */
 .profile-empty-value{color:var(--muted)}
@@ -1540,7 +1548,7 @@ stat cells become pills. */
 .profile-tab-button{min-height:44px}
 .profile-tab-button:focus-visible,.profile-action-group button:focus-visible,.back-button:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
 @media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}.profile-action-group .current-payment-shortcut{grid-column:1/-1}.profile-action-group .text-button.danger{justify-self:stretch}}
-@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr);gap:13px}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:9px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:none;flex-flow:row wrap;align-items:flex-start;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{grid-column:1/-1;min-height:48px}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:6px}.current-bill-stat{min-height:56px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.profile-tab-button{min-height:44px;padding:7px 6px}}
+@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr) auto;gap:13px;align-items:flex-start}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:9px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:190px;flex-flow:column;align-items:flex-end;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{grid-column:1/-1;min-height:48px}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:6px}.current-bill-stat{min-height:56px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.profile-tab-button{min-height:44px;padding:7px 6px}}
 
 .receipt-whatsapp-action-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}.receipt-network-note{max-width:180px;color:var(--muted);font-size:9px;line-height:1.3;white-space:normal}
 
@@ -1610,8 +1618,25 @@ stat cells become pills. */
 .owner-command-answer:empty{display:none}
 .owner-command-answer>p:first-child{font-weight:700;color:var(--green)}
 .owner-answer-list{padding-left:20px;display:grid;gap:6px}
-.owner-suggestion-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.owner-suggestion-chip{white-space:normal;text-align:left}
+/* Pucho + Profile Header Polish — the 12 catalogue chips + the 2
+morning-queue buttons (the user's 14) share one 2-row horizontally
+scrollable strip: column flow, 2 rows, nowrap chips. The queue buttons
+are moved into this grid by setupOwnerCenter; their ids (and wiring)
+do not change. */
+.owner-suggestion-chips{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:max-content;gap:8px;overflow-x:auto;margin-top:10px;padding-bottom:2px}
+.owner-suggestion-chip{white-space:nowrap;text-align:left}
+/* Pucho + Profile Header Polish — collapsed-by-default bar, 1-row form,
+voice-armed controls and the answer-waiting dot. Token colours only. */
+.owner-command-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 4px;border:0;background:transparent;color:var(--ink);font:700 15px Manrope,sans-serif;letter-spacing:-.2px;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden}
+.owner-command-toggle [data-i18n="dash_owner_heading"]{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.owner-command-toggle .local-only-badge{margin:0 0 0 auto}
+.owner-command-answer-dot{display:none;flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:var(--green)}
+.owner-command-panel:not(.is-expanded):has(#ownerCommandAnswer:not(:empty)) .owner-command-answer-dot{display:inline-block}
+.owner-command-chevron{flex:0 0 auto;color:var(--muted);transition:transform .15s}
+.owner-command-toggle[aria-expanded="true"] .owner-command-chevron{transform:rotate(180deg)}
+.owner-command-body{margin-top:12px}
+.owner-voice-button{min-width:44px;padding:0 10px;font-size:16px}
+.owner-command-panel:not(.voice-armed) .owner-voice-language,.owner-command-panel:not(.voice-armed) #ownerVoiceStatus{display:none}
 .owner-report-panel{margin-top:19px}
 .owner-filter-grid{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:9px;margin:12px 0}
 .owner-filter-grid label,.performance-explain-form label,.recovery-customer-actions label{display:grid;gap:5px;color:#52685f;font-size:11px;font-weight:700;min-width:0}
@@ -1777,8 +1802,8 @@ stat cells become pills. */
   .owner-command-panel,.owner-report-panel{padding:13px;margin:11px 0;border-radius:13px}
   .owner-command-heading{align-items:center}
   .owner-command-heading h3,.owner-report-panel h3{font-size:17px}
-  .owner-command-form{grid-template-columns:1fr 1fr;gap:7px}
-  .owner-command-form input{grid-column:1/-1;width:100%;font-size:16px;min-height:46px}
+  .owner-command-form{grid-template-columns:minmax(0,1fr) auto auto;gap:7px}
+  .owner-command-form input{grid-column:auto;width:100%;font-size:16px;min-height:46px}
   .owner-command-form>button{min-height:44px}
   .owner-voice-language{grid-column:1/-1}
   .owner-voice-language select{font-size:16px}

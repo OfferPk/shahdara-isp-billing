@@ -227,15 +227,30 @@ test('archived customers refuse new entries but keep existing ones readable', ()
   assert.doesNotMatch(section, /data-edit-baqaya/);
 });
 
-test('audit rule: entries edit/remove only while fully unsettled; a void unlocks them', () => {
+// Sharafat 17 — WHY this test changed: the audit rule is no longer
+// "edit/remove only while fully unsettled". A partially-settled entry
+// now allows note/date edits (the amount stays locked, remove stays
+// locked); only a FULLY settled entry refuses every change. The old
+// test name stated the old rule, so the next reader would "fix" the
+// new behaviour back — the name and the assertions below pin the new
+// rule. The amount-change attempt still throws, but with the distinct
+// "amount is locked" message (it also matches /Void the payment first/
+// via its second sentence).
+test('audit rule (Sharafat 17): amount + remove stay locked on a partially-settled entry, note/date may change; a void unlocks them', () => {
   let state = withBaqaya(stateWithPaidBill());
   state = updateManualBaqayaEntry(state, 'cust-1', 'MBQ-101', { amount: 1800, date: '2026-09-12', note: 'Corrected' }, REF);
   assert.equal(state.customers[0].manualBaqaya[0].amount, 1800);
 
   const { nextState } = collect(state, 500);
+  // Partially settled (500 of 1,800): note/date edit is allowed...
+  const edited = updateManualBaqayaEntry(nextState, 'cust-1', 'MBQ-101', { amount: 1800, date: '2026-09-13', note: 'Typo fixed' }, REF);
+  assert.equal(edited.customers[0].manualBaqaya[0].note, 'Typo fixed');
+  assert.equal(edited.customers[0].manualBaqaya[0].date, '2026-09-13');
+  assert.equal(edited.customers[0].manualBaqaya[0].amount, 1800);
+  // ...but the amount is locked, and remove stays locked.
   assert.throws(
     () => updateManualBaqayaEntry(nextState, 'cust-1', 'MBQ-101', { amount: 100, date: '2026-09-12' }, REF),
-    /Void the payment first/
+    /amount is locked/
   );
   assert.throws(() => removeManualBaqayaEntry(nextState, 'cust-1', 'MBQ-101'), /Void the payment first/);
 

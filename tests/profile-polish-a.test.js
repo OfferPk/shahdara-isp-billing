@@ -104,16 +104,22 @@ test('Polish A (5): the header merges Active + Profile: Active into one pill onl
   const app = read('app.js');
   assert.ok(app.includes("!customer.archived && derivedServiceState.state === 'active'"), 'merge only for a live profile whose derived state is Active');
   assert.ok(app.includes('archiveStateBadge.hidden = isSingleActivePill'), 'the archive pill hides exactly when the pills merge');
-  assert.ok(app.includes('<span class="profile-verified-tick" aria-hidden="true">✓</span>'), 'the merged pill carries the blue verified tick');
-  assert.ok(app.includes('escapeHtml(derivedServiceState.label)'), 'the merged pill label is escaped');
+  // Pucho + Profile Header Polish deliberately reverses the tick: the
+  // merged pill reads cleanly as '● Active' now. The merge itself stays.
+  assert.ok(!app.includes('profile-verified-tick'), 'no verified tick anywhere in the render');
+  assert.ok(app.includes('serviceStatusBadge.textContent = derivedServiceState.label'), 'the merged pill is plain text now');
   const index = read('index.html');
   assert.ok(index.includes('id="profileServiceStatusBadge"'), 'the service badge element stays');
   assert.ok(index.includes('id="archiveStateBadge"'), 'the archive badge element stays (hidden by JS, not deleted)');
 });
 
-test('Polish A (5): the verified tick is a blue circle, reusing existing hex only', () => {
+// Pucho + Profile Header Polish deliberately reverses the tick rule
+// (styles.css) — the pill is plain '● Active' now. The rule's #2563eb
+// is still used elsewhere, so the §8.9 ratchet count holds.
+test('Polish A (5): the verified tick is GONE — Pucho + Profile Header Polish reverses it', () => {
   const styles = read('styles.css');
-  assert.match(styles, /\.profile-service-status-verified \.profile-verified-tick\{[^}]*border-radius:50%[^}]*background:#2563eb[^}]*color:#fff/, 'tick is a blue circle with a white check');
+  assert.ok(!styles.includes('profile-verified-tick'), 'no tick rule or class left in styles.css');
+  assert.ok(styles.includes('#2563eb'), 'the tick blue is still used elsewhere (ratchet count holds)');
 });
 
 // ------------------------------------------------------------ (6) billing heading pill

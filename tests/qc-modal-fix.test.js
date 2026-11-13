@@ -70,7 +70,13 @@ test('(1) the banner lays the two lines out in one row, Today first', () => {
 // --- (2) Day Summary, no New customer, compact footer ----------------
 
 test('(2) the picker shows a short Day Summary button and no New customer button', () => {
-  assert.match(html, /id="edsEndOfDaySummaryButton"[^>]*>\s*📊 Day Summary\s*</, 'Day Summary label must be short');
+  // Quick Collect CSS tightening (user instruction 2026-11-13,
+  // parent decision D4): the 📊 is gone — the button carries a
+  // BarChart3 ds-icon + "Day Summary" text (BarChart2 does not
+  // exist in ds-icons.js).
+  assert.match(html, /id="edsEndOfDaySummaryButton"[^>]*>[\s\S]*?Day Summary\s*</, 'Day Summary label must be short');
+  assert.ok(html.includes('data-ds-icon="BarChart3"'), 'Day Summary must carry a BarChart3 ds-icon');
+  assert.equal(html.includes('📊 Day Summary'), false, 'the 📊 emoji must be gone from the Day Summary button');
   assert.equal(html.includes('id="ncaNewCustomerButton"'), false, '+ New customer must be gone from the middle of the modal');
   assert.equal(html.includes('＋ New customer'), false, 'no New customer label anywhere in the modal');
   assert.match(html, /id="quickCollectOpenOneScreenBtn"[^>]*class="[^"]*\bqc-footer-btn\b"[^>]*>\s*⚡ Quick Entry\s*</, 'footer must read Quick Entry');
@@ -97,7 +103,14 @@ test('(3) the card subtitle is Mohalla • Package Name, never the scorer reason
   assert.ok(pickerHtml.includes('CHAMYAAA • 3Mbps / 100GB'), 'subtitle must read Mohalla • Package Name (mohalla in its stored form)');
   assert.equal(pickerHtml.includes('qc2-priority-reason'), false, 'no scorer reason under the name');
   assert.equal(pickerHtml.includes('Outstanding PKR 1,000 (+'), false, 'no truncated Outstanding line');
-  assert.ok(pickerHtml.includes('qc-card-right'), 'priority badge keeps its top-right seat');
+  // Quick Collect CSS tightening (user instruction 2026-11-13):
+  // the priority badge left its top-right seat (.qc-card-right,
+  // deleted from the picker render) for the chips row below the
+  // identity + figures row — the seat itself is pinned by the
+  // qc-cash-modal-overhaul badge test. This fixture has no scorer
+  // row and dues below the High threshold, so its card renders no
+  // chips row at all.
+  assert.equal(pickerHtml.includes('qc-card-right'), false, 'the picker card must not render the top-right column anymore');
 });
 
 // --- (4) One compact action row --------------------------------------
@@ -113,8 +126,14 @@ test('(4) the card has one compact action row with plain Collect', () => {
   assert.equal(pickerHtml.includes('Collect PKR 1,000'), false, 'Collect must not repeat the amount the dues badge names');
   assert.ok(pickerHtml.includes('Collect</button>'), 'Collect must stay a plain label');
   assert.ok(pickerHtml.includes('PKR 1,000'), 'the dues figure must stay on the card, in the badge');
-  assert.match(styles, /\.qc3-action-btn--icon\s*\{[^}]*min-height:\s*36px !important/, 'icon buttons must be 36px');
-  assert.match(styles, /\.qc3-collect\s*\{[^}]*flex:\s*1 1 auto/, 'Collect must take the remaining row width');
+  // Quick Collect CSS tightening (user instruction 2026-11-13): the
+  // modal's action row is ONE row at 40px — Call / Location flex 1,
+  // Collect flex 1.5. This REVERSES the QC Modal Fix item 6 wrap
+  // valve (36px icon buttons, Collect flex 1 1 auto) — the harness
+  // must prove the row at 360px AND 320px. The 36px / 1 1 auto base
+  // rules stay for Field Mode.
+  assert.match(styles, /#quickCollectModal \.qc3-action-btn--call,\s*#quickCollectModal \.qc3-action-btn--location\s*\{[^}]*flex:\s*1 1 0[^}]*min-height:\s*40px !important/, 'modal icon buttons must be 40px and share the row equally');
+  assert.match(styles, /#quickCollectModal \.qc3-collect\s*\{[^}]*flex:\s*1\.5 1 0/, 'modal Collect must take 1.5 shares of the row');
 });
 
 // --- (5) Priority badge matches the High filter ----------------------

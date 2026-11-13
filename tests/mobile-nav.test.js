@@ -150,6 +150,10 @@ test('nav.css includes desktop rail collapse styles and scroll-to-top button sty
   assert.match(navCss, /\.bottom-nav-badge/);
   assert.match(navCss, /\.scroll-top-button/);
   assert.match(navCss, /\.scroll-top-button\.is-visible/);
+  // Transactions & Recent Receipts Polish §5: the visible button is
+  // semi-transparent (0.85) so it never fully covers amounts and
+  // pills underneath it.
+  assert.match(navCss, /\.scroll-top-button\.is-visible\s*\{[^}]*opacity:\s*0\.85/);
 });
 
 test('updateNavigationBadges updates badge text and visibility correctly', async () => {
@@ -14629,7 +14633,7 @@ test('bilingual English / Urdu UI localization engine and RTL layout support (ag
   assert.equal(t('nav_collection', 'ur'), 'وصولی');
   assert.equal(t('status_paid', 'en'), 'Paid');
   assert.equal(t('status_paid', 'ur'), 'مکمل ادا شدہ');
-  assert.equal(t('qc_title', 'ur'), 'فوری نقد وصولی (2-Tap)');
+  assert.equal(t('qc_title', 'ur'), '⚡ فوری نقد وصولی (2-Tap)');
   assert.equal(t('search_title', 'ur'), '🔍 فوری صارف تلاش');
   assert.equal(t('rounds_title', 'ur'), '📋 فیلڈ وصولی روٹ لسٹ');
   assert.equal(t('nonexistent_key', 'en'), 'nonexistent_key');

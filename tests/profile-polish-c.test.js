@@ -118,7 +118,12 @@ test('Polish C (15): a section shell takes caller-owned summary HTML for the pil
 test('Polish C (15): the Service section header is the word-only status pill — the old "speed · label" summary is gone', () => {
   assert.ok(app.includes('summaryHtml: profileServiceStatusPillHtml(serviceState, { wordOnly: true })'), 'the Service section passes the word-only pill');
   assert.ok(!app.includes('summary: `${profileEmptyText(customer.packageSpeed)} · ${serviceState.label}`'), 'the old "speed · label" summary is gone');
-  assert.ok(app.includes('${profileServiceStatusPillHtml(serviceState)}'), 'the header badge still uses the default full-label pill');
+  // Profile View Polish §1b: the badges-row pill is gone (it duplicated
+  // the header badge) — the full-label pill now lives ONLY as the
+  // word-only Service summary above, and the header badge renders the
+  // derived state via #profileServiceStatusBadge instead.
+  assert.ok(!app.includes('${profileServiceStatusPillHtml(serviceState)}'), 'no full-label pill in the badges row any more');
+  assert.match(app, /profile-service-status-\$\{derivedServiceState\.modifier\}/, 'the header badge still follows the derived state');
 });
 
 // ------------------------------------------------------------ info texts

@@ -204,15 +204,16 @@ test('wiring: toggling the split — or reopening the sheet, which resets it —
   assert.ok(body.includes('renderSplitTotal();'), 'visibility change re-renders the total');
 });
 
-test('wiring: the five programmatic leg-1 setters re-render the total the same way a typed amount does', () => {
+test('wiring: the four programmatic leg-1 setters re-render the total the same way a typed amount does', () => {
   const calls = (wiringSrc.match(/renderSplitTotal\(\);/g) || []).length;
-  // Plan 539 adds the sixth statement call: the Back-draft restore
-  // sets the amount programmatically, so the total re-renders like
-  // every other programmatic amount set. The intent (the total
-  // refreshes on every programmatic amount set) is unchanged.
-  assert.equal(calls, 6, `six statement calls (visibility + dues buttons + chips + keypad + loose change + Back-draft restore), found ${calls}`);
+  // QC Modal Overhaul 2: the Plan 489 dues-buttons setter is gone
+  // with its handler — the dues buttons ARE the entry chips now, so
+  // the chip setter covers it. Five statement calls remain
+  // (visibility + chips + keypad + loose change + Back-draft
+  // restore). The intent (the total refreshes on every programmatic
+  // amount set) is unchanged.
+  assert.equal(calls, 5, `five statement calls (visibility + chips + keypad + loose change + Back-draft restore), found ${calls}`);
   for (const note of [
-    'Plan 533: a button-set amount',
     'Plan 533: a chip-set amount',
     'Plan 533: a keypad-set amount',
     'Plan 533: a loose-change tap',
@@ -221,11 +222,15 @@ test('wiring: the five programmatic leg-1 setters re-render the total the same w
   }
 });
 
-test('wiring: the Plan 527 pins still hold — no sixth split change listener, no extra next-receipt call', () => {
+test('wiring: the Plan 527 pins still hold — no sixth split change listener, no extra subtitle call', () => {
   const splitListeners = (wiringSrc.match(/splitToggle\?\.addEventListener\('change'/g) || []).length;
   assert.equal(splitListeners, 5, `five split change listeners, found ${splitListeners}`);
-  const receiptCalls = (wiringSrc.match(/renderNextReceiptLine\(\);/g) || []).length;
-  assert.equal(receiptCalls, 3, `three next-receipt calls, found ${receiptCalls}`);
+  // QC Modal Overhaul 2: the next-receipt render is folded into
+  // renderFormSubtitle — one definition + four calls (split change
+  // + split change listener + month change + post-reset re-render).
+  const subtitleCalls = (wiringSrc.match(/renderFormSubtitle\(/g) || []).length;
+  assert.equal(subtitleCalls, 5, `one subtitle definition + four calls, found ${subtitleCalls}`);
+  assert.ok(!wiringSrc.includes('renderNextReceiptLine('), 'no next-receipt render call may remain');
 });
 
 // ---------------------------------------------------------------------------

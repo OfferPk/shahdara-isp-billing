@@ -54,17 +54,21 @@ test('profile redesign: billing and actions sit inside the profile card; tabs an
   }
 });
 
-// (b) Header identity line — `{mohalla} · {phone}` under the name;
-// a missing half is omitted, never dashed; the line is empty when
-// both are missing.
-test('profile redesign: identity line joins mohalla and phone, omitting a missing half', () => {
-  assert.equal(profileIdentityLine({ mohalla: 'Sodaa', phone: '03012345678' }), 'Sodaa · 03012345678');
-  assert.equal(profileIdentityLine({ mohalla: 'Sodaa' }), 'Sodaa');
+// (b) Header identity line — phone-only under the name (Pucho +
+// Profile Header Polish, D3): the top row already shows
+// 'CUSTOMER #N · {mohalla}', so a mohalla here would print it twice.
+// A mohalla-only record now shows an empty identity line; the line
+// is empty (never dashed) when the phone is missing.
+test('profile redesign: identity line is phone-only, mohalla lives on the top row', () => {
+  assert.equal(profileIdentityLine({ mohalla: 'Sodaa', phone: '03012345678' }), '03012345678');
+  assert.equal(profileIdentityLine({ mohalla: 'Sodaa' }), '');
   assert.equal(profileIdentityLine({ phone: '03012345678' }), '03012345678');
   assert.equal(profileIdentityLine({}), '');
   assert.equal(profileIdentityLine({ mohalla: '  ', phone: '' }), '');
   assert.ok(app.includes("document.querySelector('.detail-identity-line')"), 'renderDetail writes the identity line');
   assert.ok(app.includes('profileIdentityLine(customer)'), 'renderDetail uses the identity-line helper');
+  // The top row carries the mohalla now (renderDetail, D3).
+  assert.ok(app.includes('` · ${detailMohalla}`'), 'top row appends the mohalla');
 });
 
 // (c) Header service pill — the badge shows the DERIVED service state

@@ -338,8 +338,12 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
     'dash_worklists_disc', 'dash_worklists_rec', 'dash_worklists_ready',
     'dash_charts_collapse', 'dash_charts_badge', 'dash_charts_eyebrow', 'dash_charts_heading', 'dash_charts_caption',
     'dash_prov_title', 'dash_prov_eyebrow', 'dash_prov_heading', 'dash_prov_explainer', 'dash_prov_empty',
-    'dash_owner_eyebrow', 'dash_owner_heading', 'dash_owner_note', 'dash_owner_badge',
-    'dash_owner_input_label', 'dash_owner_voice_btn', 'dash_owner_ask', 'dash_owner_voice_note',
+    // Pucho + Profile Header Polish: dash_owner_eyebrow is gone (the
+    // overline was deleted); dash_owner_voice_btn left the data-i18n list
+    // too — the voice button is icon-only now and carries the key as
+    // data-i18n-aria-label instead (asserted below).
+    'dash_owner_heading', 'dash_owner_note', 'dash_owner_badge',
+    'dash_owner_input_label', 'dash_owner_ask', 'dash_owner_voice_note',
   ]) {
     assert.ok(indexSrc.includes(`data-i18n="${key}"`), `index.html must carry data-i18n="${key}"`);
   }
@@ -353,6 +357,9 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
   assert.ok(indexSrc.includes('data-i18n-aria-label="dash_velocity_aria"'), 'velocity aria must be wired');
   assert.ok(indexSrc.includes('data-i18n-aria-label="dash_target_gauge_aria"'), 'target gauge aria must be wired');
   assert.ok(indexSrc.includes('data-i18n-placeholder="dash_owner_placeholder"'), 'owner input placeholder must be wired');
+  // Pucho + Profile Header Polish: the voice button is icon-only now, so
+  // the key rides as an aria label (data-i18n would wipe the 🎤 span).
+  assert.ok(indexSrc.includes('data-i18n-aria-label="dash_owner_voice_btn"'), 'voice button aria must be wired');
   // The voice-language label wraps its <select>: data-i18n would destroy the
   // select, so it is deliberately NOT wired (charts/modals follow-up).
   const voiceLabel = indexSrc.match(/<label class="owner-voice-language"[^>]*>/);

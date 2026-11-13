@@ -548,7 +548,12 @@ body.drawer-open {
 /* Floating Scroll to Top Button */
 .scroll-top-button {
   position: fixed;
-  bottom: 74px;
+  /* Pucho + Profile Header Polish — the scroll-top button sits ABOVE the
+     speed-dial trigger now: their boxes overlapped (mobile ~30×14px, more
+     on desktop) and the dial paints above at z-index 1040, so the '^'
+     button sat on top of the '+' trigger. Slot math: bottom nav 64px +
+     16px gap + 50px dial trigger + 12px clearance. */
+  bottom: calc(var(--bottom-nav-height, 60px) + 16px + 50px + 12px);
   right: 18px;
   width: 40px;
   height: 40px;
@@ -602,6 +607,15 @@ body.drawer-open {
 .scroll-top-button:focus-visible {
   outline: 3px solid var(--color-emerald-light);
   outline-offset: 2px;
+}
+
+/* Pucho + Profile Header Polish — while the speed-dial menu is open its
+   white action pills fan up into the scroll-top button's new slot, so the
+   button hides until the menu closes (the dial already hides itself under
+   dialogs/menus; this is the mirror rule for the scroll-top). */
+body:has(.mobile-speed-dial.is-open) #scrollTopButton {
+  opacity: 0;
+  pointer-events: none;
 }
 
 [data-theme="dark"] .sidebar-rail-toggle {
@@ -1738,7 +1752,7 @@ kbd {
   }
 
   .scroll-top-button {
-    bottom: 60px;
+    bottom: calc(var(--bottom-nav-height, 64px) + 16px + 50px + 12px);
     right: 12px;
     width: 34px;
     height: 34px;

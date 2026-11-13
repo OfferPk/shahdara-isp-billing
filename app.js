@@ -9452,7 +9452,11 @@ function renderDetail() {
     $('#customerReceiptSummary')?.insertAdjacentHTML('beforeend', `<div class="additional-pending-row">${addPendMarkup}</div>`);
     $('#customerReceiptSummary [data-additional-pending]')?.addEventListener('click', () => openAdditionalPendingDialog(customer.id));
   }
-  $('#detailCustomerNumber').textContent = t('prof_customer_number', null, { n: customer.customerNumber });
+  // Pucho + Profile Header Polish (D3) — the top row reads
+  // 'CUSTOMER #N · {mohalla}'; the mohalla leaves the identity line under
+  // the name (profileIdentityLine is phone-only now) so it never appears twice.
+  const detailMohalla = typeof customer.mohalla === 'string' ? customer.mohalla.trim() : '';
+  $('#detailCustomerNumber').textContent = t('prof_customer_number', null, { n: customer.customerNumber }) + (detailMohalla ? ` · ${detailMohalla}` : '');
   const shownName = displayCustomerName(customer, currentAppLanguage());
   const detailNameEl = $('#detailName');
   const detailNameSubEl = $('#detailNameSub');
@@ -9484,8 +9488,8 @@ function renderDetail() {
   }
   // Plan 494: no inline name editor to reset on re-render any more —
   // the header Edit name button opens the form instead.
-  // Profile redesign — the identity line under the name: "{mohalla} ·
-  // {phone}", omitting whichever half is missing; hidden when both are.
+  // Profile redesign — the identity line under the name is phone-only
+  // (Pucho + Profile Header Polish, D3); hidden when the phone is missing.
   const detailIdentityLineEl = document.querySelector('.detail-identity-line');
   if (detailIdentityLineEl) {
     const identityLine = profileIdentityLine(customer);
@@ -9513,17 +9517,15 @@ function renderDetail() {
   // service pill) AND "Profile: Active" (the archive pill) for the
   // same live profile: the same word twice. When the profile is live
   // AND the derived service state is Active, the two say the same
-  // thing — show ONE Active pill with a Facebook-style blue verified
-  // tick, and hide the archive pill. Every other combination keeps
-  // both pills: an archived-since date, or profile-active versus
-  // service-offline, is genuinely different information.
+  // thing — show ONE Active pill and hide the archive pill. Every other
+  // combination keeps both pills: an archived-since date, or
+  // profile-active versus service-offline, is genuinely different
+  // information. Pucho + Profile Header Polish deliberately reverses
+  // the Facebook-style blue verified tick the merge used to carry — the
+  // pill reads cleanly as '● Active' now; the merge itself stays.
   const isSingleActivePill = !customer.archived && derivedServiceState.state === 'active';
-  serviceStatusBadge.className = `profile-service-status profile-service-status-${derivedServiceState.modifier}${isSingleActivePill ? ' profile-service-status-verified' : ''}`;
-  if (isSingleActivePill) {
-    serviceStatusBadge.innerHTML = `${escapeHtml(derivedServiceState.label)}<span class="profile-verified-tick" aria-hidden="true">✓</span>`;
-  } else {
-    serviceStatusBadge.textContent = derivedServiceState.label;
-  }
+  serviceStatusBadge.className = `profile-service-status profile-service-status-${derivedServiceState.modifier}`;
+  serviceStatusBadge.textContent = derivedServiceState.label;
   serviceStatusBadge.setAttribute('aria-label', t('prof_service_badge_derived_aria', null, { label: derivedServiceState.label }));
   const archiveStateBadge = $('#archiveStateBadge');
   archiveStateBadge.hidden = isSingleActivePill;

@@ -94,10 +94,15 @@ test.describe('Owner Assistant smart answers', () => {
     expect(errors).toEqual([]);
   });
 
-  test('command center keeps its local-only, read-only promise labels', async ({ page, isMobile }) => {
+  // Pucho + Profile Header Polish: the 'LOCAL-ONLY · READ-ONLY ANSWERS'
+  // overline is gone — the 'Works offline' pill in the collapsed bar is
+  // the remaining local-only signal, and the note still promises nothing
+  // is edited by a question.
+  test('command center keeps its offline promise without the overline', async ({ page, isMobile }) => {
     const errors = trackErrors(page);
     await openAssistant(page, isMobile);
-    await expect(page.locator('#ownerCommandCenter')).toContainText('LOCAL-ONLY · READ-ONLY ANSWERS');
+    await expect(page.locator('#ownerCommandCenter')).not.toContainText('LOCAL-ONLY · READ-ONLY ANSWERS');
+    await expect(page.locator('#ownerCommandCenter')).toContainText('Works offline');
     await expect(page.locator('#ownerCommandCenter')).toContainText('Nothing is edited by a question.');
     expect(errors).toEqual([]);
   });

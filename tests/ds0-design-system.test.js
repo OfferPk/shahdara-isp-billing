@@ -292,7 +292,11 @@ test('DS-0 floating buttons: scroll-top is 40x40 on the right, shown only past 4
   // min-height in the base rule loses once the button is shown.
   const shown = ruleBlock(navSrc, '.scroll-top-button:not([hidden]) {');
   assert.ok(shown.includes('min-height: 40px !important'), 'scroll-top must clear the global 44px !important button floor when shown');
-  assert.ok(button.includes('bottom: 74px') && button.includes('right: 18px'), 'scroll-top must stay on the right');
+  // Pucho + Profile Header Polish: the scroll-top moved ABOVE the
+  // speed-dial trigger (their boxes overlapped; the dial paints above at
+  // z-index 1040). Bottom is now a calc (60px nav + 16 gap + 50 dial +
+  // 12 clearance = 138px), not 74px — right: 18px stays.
+  assert.ok(button.includes('bottom: calc(var(--bottom-nav-height, 60px) + 16px + 50px + 12px)') && button.includes('right: 18px'), 'scroll-top must stay on the right, above the dial');
   assert.ok(button.includes('background: var(--ds-brand)'), 'scroll-top must use the brand token');
   assert.ok(navJsSrc.includes('scrollY > 400'), 'scroll-top must appear only when scrolled past 400px (was 300)');
   assert.ok(!navJsSrc.includes('scrollY > 300'), 'the old 300px threshold must be gone');

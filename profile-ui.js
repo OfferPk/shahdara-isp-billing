@@ -741,15 +741,14 @@ export function profileServiceStatusPillHtml(serviceState, { wordOnly = false } 
   return `<span class="profile-service-status profile-service-status-${serviceState.modifier}">${escapeHtml(text)}</span>`;
 }
 
-// Profile redesign (Step 2) — the header identity line: `{mohalla} ·
-// {phone}` under the name. A missing half is omitted, never dashed;
-// the whole line is omitted (empty string) when both are missing.
-// Pure: reads only the record.
 export function profileIdentityLine(customer) {
-  const mohalla = typeof customer?.mohalla === 'string' ? customer.mohalla.trim() : '';
+  // Pucho + Profile Header Polish (D3): the identity line under the name
+  // is phone-only now — the top row already shows
+  // 'CUSTOMER #N · {mohalla}', so a mohalla here would print it twice.
+  // A missing phone still returns '' (the line is omitted, never dashed).
+  // Pure: reads only the record.
   const phone = typeof customer?.phone === 'string' ? customer.phone.trim() : '';
-  if (mohalla && phone) return `${mohalla} · ${phone}`;
-  return mohalla || phone;
+  return phone;
 }
 
 // SISP-8: vacation-hold summary for the profile view (Service group row)

@@ -33,6 +33,21 @@ export function generateReceiptNumber({ customerNumber, paymentDate, paymentId, 
   return `REC-${dateStr}-${custStr}-${idStr}`;
 }
 
+// QC Success Card Polish (2026-11-13): the card shows the SHORT form of a
+// stored receipt number — the per-customer-per-month sequence only
+// (RCPT-12-202611-03 -> RCPT-3) — because the user asked for simple
+// sequential numbers on the card. DISPLAY-ONLY: the stored number is the
+// payment's identity for receipt search, jump-to-receipt, reversal links,
+// gap audit, reprints, the offline queue and WhatsApp drafts, so the full
+// number is never rewritten — it stays in the card header's title and
+// data-full-receipt-number attributes. Numbers outside the RCPT pattern
+// (the REC- fallback, plain book integers) are returned as-is.
+export function shortReceiptNumber(value) {
+  const raw = typeof value === 'string' ? value.trim() : '';
+  const match = raw.match(/^RCPT-\d+-\d{6}-(\d+)$/);
+  return match ? `RCPT-${Number(match[1])}` : raw;
+}
+
 const text = value => typeof value === 'string' ? value.trim() : '';
 const positiveAmount = value => {
   if (value === null || value === undefined || value === '') return null;

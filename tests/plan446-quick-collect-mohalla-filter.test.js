@@ -334,7 +334,14 @@ test('wiring: the name and last-four lookups compose with the mohalla filter', (
 
 test('wiring: the picker step carries the filter select and count line, after the pills and before the list', () => {
   assert.ok(pageSrc.includes('<select id="mhfMohallaFilter"'), 'missing mohalla filter select');
-  assert.ok(pageSrc.includes('<option value="">All mohallas</option>'), 'missing All mohallas option');
+  // Quick Collect CSS tightening (user instruction 2026-11-13,
+  // parent decision D2): the picker's static fallback is the short
+  // "All" now, so it fits the native picker on one line. The other
+  // "All mohallas" options in the page (customer search, ticket
+  // log, dispatch queue) are other surfaces and keep their label.
+  const mhfSelect = pageSrc.slice(pageSrc.indexOf('id="mhfMohallaFilter"'), pageSrc.indexOf('</select>', pageSrc.indexOf('id="mhfMohallaFilter"')));
+  assert.ok(mhfSelect.includes('<option value="">All</option>'), 'the picker fallback must read "All"');
+  assert.ok(!mhfSelect.includes('All mohallas'), 'the picker fallback must not carry the long label');
   assert.ok(pageSrc.includes('<p id="mhfMohallaFilterSummary"'), 'missing filter count line');
   const pickStep = pageSrc.indexOf('id="quickCollectStepPick"');
   const pills = pageSrc.indexOf('class="qc-filter-pills"');

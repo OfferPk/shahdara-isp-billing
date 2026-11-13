@@ -176,11 +176,16 @@ export function renderCollectionInsightsCard(doc, summary) {
     : t('qc6_no_visits'));
   if (!summary.hasYesterdayData) {
     setText('.qc6-dod', '—');
+    setText('.qc6-dod-badge', '');
     setText('.qc6-dod-sub', t('qc6_no_yesterday'));
   } else {
     const pct = summary.dayOverDayChangePct ?? 0;
     const signedPct = (pct > 0 ? '+' : '') + String(pct);
-    setText('.qc6-dod', `${formatPKR((summary.dayOverDayChangeCents ?? 0) / 100)} (${signedPct}%)`);
+    // Collect Tab polish: the percent leaves the nowrap value (it
+    // clipped to "(+18...") and becomes a compact green badge under
+    // it, so the percent never truncates.
+    setText('.qc6-dod', formatPKR((summary.dayOverDayChangeCents ?? 0) / 100));
+    setText('.qc6-dod-badge', `${signedPct}%`);
     setText('.qc6-dod-sub', t('qc6_dod_sub', null, {
       today: formatPKR((summary.todayCollectedCents ?? 0) / 100),
       yesterday: formatPKR((summary.yesterdayCollectedCents ?? 0) / 100),

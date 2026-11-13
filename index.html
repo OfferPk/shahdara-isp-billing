@@ -271,18 +271,19 @@
       <section id="firstRunBanner" class="first-run-banner-host" hidden aria-label="First-run business setup"></section>
       <div class="home-kpi-strip" id="homeKpiStrip" role="region" aria-label="Key performance indicators" data-i18n-aria-label="dash_kpi_region_aria">
         <div class="home-kpi-card kpi-card-today ds-stat ds-stat--paid" id="kpiCardToday">
-          <span class="ds-stat__icon" aria-hidden="true">💰</span>
-          <span class="ds-stat__body">
-          <span class="home-kpi-label" data-i18n="dash_kpi_today">Today Collected</span>
+          <div class="home-kpi-head">
+            <span class="ds-icon-tile" data-ds-icon="HandCoins" aria-hidden="true"></span>
+            <span class="home-kpi-label" data-i18n="dash_kpi_today">Today Collected</span>
+          </div>
           <strong id="kpiTodayCollection" class="home-kpi-val">PKR 0</strong>
           <span class="home-kpi-sub" data-i18n="dash_kpi_today_sub">Today's cash</span>
-          </span>
         </div>
         <div class="home-kpi-card kpi-card-month ds-stat ds-stat--info" id="kpiCardMonth">
-          <span class="ds-stat__icon" aria-hidden="true">📊</span>
-          <span class="ds-stat__body">
-          <span class="home-kpi-label" data-i18n="dash_kpi_month">Month Collected / Billed</span>
-          <strong id="kpiMonthCollectionBilled" class="home-kpi-val">PKR 0 / 0</strong>
+          <div class="home-kpi-head">
+            <span class="ds-icon-tile" data-ds-icon="BarChart3" aria-hidden="true"></span>
+            <span class="home-kpi-label" data-i18n="dash_kpi_month">Month Collected / Billed</span>
+          </div>
+          <strong id="kpiMonthCollectionBilled" class="home-kpi-val">PKR 0</strong>
           <span class="home-kpi-sub" id="kpiMonthRateSub">Current month</span>
           <!-- Home Dashboard overhaul: the month KPI carries its own
                progress bar now (the "PKR 119,700 / PKR 194,300" figure
@@ -290,12 +291,12 @@
                the 62% in three places). The fill is found by class
                inside this card, so no new element id is needed. -->
           <span class="home-kpi-progress" aria-hidden="true"><span class="home-kpi-progress-fill"></span></span>
-          </span>
         </div>
         <div class="home-kpi-card kpi-card-dues ds-stat ds-stat--overdue" id="kpiCardDues">
-          <span class="ds-stat__icon" aria-hidden="true">⚠️</span>
-          <span class="ds-stat__body">
-          <span class="home-kpi-label" data-i18n="dash_kpi_dues">Total Dues</span>
+          <div class="home-kpi-head">
+            <span class="ds-icon-tile" data-ds-icon="AlertTriangle" aria-hidden="true"></span>
+            <span class="home-kpi-label" data-i18n="dash_kpi_dues">Total Dues</span>
+          </div>
           <strong id="kpiTotalDue" class="home-kpi-val">PKR 0</strong>
           <!-- Home Dashboard overhaul: the sub-line is the
                engine-based accounts-with-dues count (the figure the
@@ -305,7 +306,6 @@
                so a language switch never wipes the count. The id is
                REUSED from the deleted card, not a new one. -->
           <span class="home-kpi-sub" id="kpiCustomersWithDues">Outstanding balance</span>
-          </span>
         </div>
         <!-- Home Dashboard overhaul: the "Customers with Dues" card is
              gone — its count lives on the Total Dues card above. This
@@ -313,25 +313,27 @@
              from the deleted #cashInHandSection; renderDashboardCashInHand
              writes them by id, guarded, so the move is safe). -->
         <div class="home-kpi-card kpi-card-cashinhand ds-stat ds-stat--paid">
-          <span class="ds-stat__icon" aria-hidden="true">🏦</span>
-          <span class="ds-stat__body">
-          <span class="home-kpi-label" data-i18n="dash_cashinhand_title">Cash in hand now</span>
+          <div class="home-kpi-head">
+            <span class="ds-icon-tile" data-ds-icon="Landmark" aria-hidden="true"></span>
+            <span class="home-kpi-label" data-i18n="dash_cashinhand_title">Cash in hand now</span>
+          </div>
           <strong id="cihCashTotal" class="home-kpi-val">PKR 0</strong>
           <span class="home-kpi-sub" id="cihCashLine"></span>
-          </span>
         </div>
         <!-- Home Dashboard overhaul: the "Advance Held" card moved to
              the Collect tab (its holders dialog still opens from
              there). This slot is Active Subscribers — ids moved here
              from the deleted summary-grid card; the guarded KPI writes
              in renderDashboard land here now. -->
-        <div class="home-kpi-card kpi-card-active ds-stat ds-stat--whatsapp">
-          <span class="ds-stat__icon" aria-hidden="true">✅</span>
-          <span class="ds-stat__body">
-          <span class="home-kpi-label" data-i18n="dash_card_active">Active subscribers</span>
-          <strong id="dashboardActiveCustomers" class="home-kpi-val">0</strong>
-          <span class="home-kpi-sub" id="dashboardActiveCustomersPeriod">Manual active status · active subscriptions</span>
-          </span>
+        <div class="home-kpi-card kpi-card-active ds-stat ds-stat--whatsapp" id="kpiCardActive">
+          <div class="home-kpi-strip-left">
+            <span class="ds-icon-tile" data-ds-icon="CheckCircle" aria-hidden="true"></span>
+            <span class="home-kpi-label" data-i18n="dash_card_active">Active subscribers</span>
+          </div>
+          <div class="home-kpi-strip-right">
+            <strong id="dashboardActiveCustomers" class="home-kpi-val">0</strong>
+            <span class="home-kpi-sub" id="dashboardActiveCustomersPeriod">Manual active status · active subscriptions</span>
+          </div>
         </div>
       </div>
       <!-- Home Dashboard overhaul: ONE unified Share / Digest menu.
@@ -344,7 +346,7 @@
            standalone Morning Briefing buttons restyle (2-col tile
            grid); that queue item can be closed. -->
       <details class="home-share-menu" id="homeShareMenu">
-        <summary class="home-share-menu-summary"><span aria-hidden="true">📤</span><span data-i18n="dash_share_menu_title">Share / Digest</span></summary>
+        <summary class="home-share-menu-summary"><span data-ds-icon="Share2" aria-hidden="true"></span><span data-i18n="dash_share_menu_title">Share / Digest</span></summary>
         <div class="home-share-menu-items">
           <button id="copyMorningBriefingBtn" class="morning-briefing-copy-btn home-share-menu-item" type="button" data-i18n="brief_copy_btn">📋 Copy Morning Briefing</button>
           <button id="sendDailySummaryWhatsAppBtn" class="home-today-wa-btn home-share-menu-item" type="button" aria-label="Send to my WhatsApp (daily summary)" data-i18n-aria-label="dash_today_wa_aria">
@@ -405,9 +407,9 @@
       <section class="morning-briefing-section" id="morningBriefingSection" aria-labelledby="morningBriefingHeading">
         <div class="morning-briefing-card">
           <div class="morning-briefing-header">
-            <h3 id="morningBriefingHeading" class="morning-briefing-title" data-i18n="brief_heading">🌅 Morning Briefing</h3>
+            <h3 id="morningBriefingHeading" class="morning-briefing-title"><span data-ds-icon="Sun" aria-hidden="true"></span><span data-i18n="brief_heading">Morning Briefing</span></h3>
             <div class="morning-briefing-actions">
-              <button id="fieldDaySheetBtn" class="morning-briefing-copy-btn" type="button" data-i18n="fds_btn">🗓️ Print Field Day Sheet</button>
+              <button id="fieldDaySheetBtn" class="morning-briefing-copy-btn" type="button"><span data-ds-icon="Printer" aria-hidden="true"></span><span data-i18n="fds_btn">Print Day Sheet</span></button>
             </div>
           </div>
           <div class="morning-briefing-pills" id="morningBriefingPills">
@@ -428,7 +430,7 @@
             </button>
             <button type="button" class="morning-pill" id="briefPillBackup" data-brief-nav="backup">
               <span class="morning-pill-label" data-i18n="brief_backup_label">Backup</span>
-              <strong class="morning-pill-value" id="briefBackupValue">—</strong>
+              <span class="morning-pill-value-row"><span class="backup-status-dot" aria-hidden="true"></span><strong class="morning-pill-value" id="briefBackupValue">—</strong></span>
               <span class="morning-pill-sub" id="briefBackupSub"></span>
             </button>
           </div>
@@ -439,7 +441,7 @@
         <div class="home-today-card" id="homeTodaySummaryCard">
           <div class="home-today-header">
             <div class="home-today-title-wrap">
-              <span class="home-today-badge" data-i18n="dash_today_badge">📅 Aaj · Today</span>
+              <span class="home-today-badge"><span data-ds-icon="Calendar" aria-hidden="true"></span><span data-i18n="dash_today_badge">Aaj · Today</span></span>
               <h3 id="homeTodayHeading" class="home-today-title" data-i18n="dash_today_heading">Today's Summary · آج کا خلاصہ</h3>
               <p class="home-today-subtitle" id="homeTodayDateText">Live closing register &amp; collection status</p>
             </div>
@@ -528,14 +530,11 @@
            Leak Audit moved to Reports (billingReportsView) — the five
            zero-candidate audit cards live there, collapsing to one
            "✅ All 5 Audits Clear" pill when every count is 0. -->
-      <section class="partner-digest-section" aria-labelledby="partnerDigestHeading">
-        <div class="partner-digest-card">
-          <div class="partner-digest-header">
-            <h3 id="partnerDigestHeading" class="partner-digest-title" data-i18n="digest_title">📲 Daily Partner Digest</h3>
-          </div>
-          <p class="partner-digest-sub" data-i18n="digest_sub">One tap copies today’s summary for the partners — direct cash, shop unsettled cash, roznamcha drawer, remaining defaulters and today’s complaints.</p>
-        </div>
-      </section>
+      <!-- Home Dashboard polish: the static Daily Partner Digest card is
+           gone — it had no button and no wiring; the one-tap copy action
+           lives in the unified Share / Digest menu above
+           (#copyPartnerDigestBtn). The digest builder, its wiring and its
+           tests are untouched. -->
       <!-- Home Dashboard overhaul: Hardware / Optical Bottleneck
            Audit moved to Reports; Zone Field Dispatch Board moved to
            the Collect tab (transactionsView). -->
@@ -6387,6 +6386,7 @@
         <div class="data-safety-banner-main">
           <div class="data-safety-banner-info">
             <strong>Stored on this device only.</strong>
+            <details class="help-tip backup-help"><summary class="help-icon" aria-label="Backup and local storage guidance" aria-controls="backupGuidance">i</summary><span id="backupGuidance" class="help-tip-content" role="tooltip">Clearing site data, changing browsers or devices, storage eviction, or losing this device can remove the ledger. There is no account or cloud sync.</span></details>
             <span id="dataSafetyBannerDesc" class="data-safety-desc">No cloud sync. Download or share backups regularly.</span>
           </div>
           <div class="data-safety-banner-badges">
@@ -6398,7 +6398,6 @@
             <button id="dataSafetyProtectStorageBtn" class="action-btn-sm daily-slip-btn" type="button" title="Ask browser to protect storage from eviction">🛡️ Protect Storage</button>
           </div>
         </div>
-        <details class="help-tip backup-help"><summary class="help-icon" aria-label="Backup and local storage guidance" aria-controls="backupGuidance">i</summary><span id="backupGuidance" class="help-tip-content" role="tooltip">Clearing site data, changing browsers or devices, storage eviction, or losing this device can remove the ledger. There is no account or cloud sync.</span></details>
       </aside>
     </section>
 

@@ -62,7 +62,11 @@ test('every dashboard summary card adopted the shared card; plain KPI cards got 
   // today card + 3 duplicate metric cards + the standalone Cash in
   // Hand section). Every surviving article still carries the shared
   // card and an accent.
-  assert.ok(articles.length >= 32, `summary cards present (${articles.length})`);
+  // Subscriber Count & Tab Isolation: 32 -> 30 — the 2 deleted
+  // articles are the Receipt Verification + Field Tools cards, dropped
+  // per D2 (their modals live on via the More menu). The 22 moved
+  // cards still count; they only changed homes.
+  assert.ok(articles.length >= 30, `summary cards present (${articles.length})`);
   for (const tag of articles) {
     assert.ok(tag.includes('ds-stat'), `shared card applied: ${tag}`);
     assert.ok(/ds-stat--(brand|paid|info|pending|overdue|whatsapp)/.test(tag), `accent set: ${tag}`);

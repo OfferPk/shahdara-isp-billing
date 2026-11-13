@@ -86,6 +86,19 @@
 }
 .profile-more-actions-category-grid > .backdated-payment-link .qa-backdated-chevron { margin-left: auto; }
 
+/* Profile Polish F (22): More Actions — one QC token colour per category,
+   so each category's buttons read as a matching colourful group. The
+   order is the fixed order in index.html: Payments, Documents, Customer
+   Communication, Financial Management, Customer Support, Equipment
+   Management. Token colours only (profile-ui.css must stay hex-free);
+   the neutral .secondary-button border is kept. */
+.profile-more-actions-category:nth-of-type(1) .profile-more-actions-category-grid > button { background: var(--qc-mint-bg); color: var(--qc-emerald-text); }
+.profile-more-actions-category:nth-of-type(2) .profile-more-actions-category-grid > button { background: var(--qc-blue-bg); color: var(--qc-blue-text); }
+.profile-more-actions-category:nth-of-type(3) .profile-more-actions-category-grid > button { background: var(--qc-purple-bg); color: var(--qc-purple-text); }
+.profile-more-actions-category:nth-of-type(4) .profile-more-actions-category-grid > button { background: var(--qc-amber-bg); color: var(--qc-amber-text); }
+.profile-more-actions-category:nth-of-type(5) .profile-more-actions-category-grid > button { background: var(--qc-rose-bg); color: var(--qc-rose-text); }
+.profile-more-actions-category:nth-of-type(6) .profile-more-actions-category-grid > button { background: var(--qc-indigo-bg); color: var(--qc-indigo-text); }
+
 /* #302 (1024 px): the profile pane beside the customer list is only ~300 px wide, so the name ("NA/ZE/ER") and the
    eyebrow wrapped letter by letter next to the status chips. Stack the status chips under the name there. */
 @media (min-width: 621px) and (max-width: 1180px) {

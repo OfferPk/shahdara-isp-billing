@@ -94,10 +94,17 @@ const closeIntent = (b) => b.sharedClass || b.dataClose || ariaClose(b) || idClo
 //   - topDefaultersModal (Top Defaulters Modal Fix item 2, 2026-11-13):
 //     the user specified a clean neutral ✕ close for the Top Defaulters
 //     modal (the bottom green Close is removed with it).
+//   - quickCollectModal (QC Modal Overhaul 2, 2026-11-13): the glyph
+//     follows the ACTION — '✕' on the picker / form / confirm steps,
+//     '↩' KEPT on the success step (PR #1365: the success button is
+//     BACK via collectAnotherCustomer()). showStep() swaps the glyph
+//     per step, and the static markup is '✕' (the modal opens on the
+//     picker). A blanket '✕' would silently revert #1365.
 const DIALOG_CLOSE_EXCEPTIONS = {
   helpGuideDialog: 'helpGuideCloseBtn',
   bulkCollectModal: 'closeBulkCollectBtn',
   topDefaultersModal: 'closeTopDefaultersModalBtn',
+  quickCollectModal: 'closeQuickCollectModalBtn',
 };
 
 const sourceFiles = ['index.html', ...readdirSync(root).filter((f) => f.endsWith('.js'))];
@@ -155,9 +162,12 @@ test('SISP-87 audit: every shared-class close button renders the back arrow with
       if (!b.sharedClass) continue;
       // Documented ↩ exceptions (see DIALOG_CLOSE_EXCEPTIONS): the help
       // guide's ✕ close (QC Modal Fix item 14), the Bulk Collect
-      // modal's ✕ close (Bulk Collect Modal Fix item 5) and the Top
-      // Defaulters modal's ✕ close (Top Defaulters Modal Fix item 2).
-      if (b.id === 'helpGuideCloseBtn' || b.id === 'closeBulkCollectBtn' || b.id === 'closeTopDefaultersModalBtn') continue;
+      // modal's ✕ close (Bulk Collect Modal Fix item 5), the Top
+      // Defaulters modal's ✕ close (Top Defaulters Modal Fix item 2)
+      // and the Quick Collect modal's ✕-on-close-steps close (QC
+      // Modal Overhaul 2 — '✕' on picker/form/confirm, '↩' kept on
+      // success per PR #1365).
+      if (b.id === 'helpGuideCloseBtn' || b.id === 'closeBulkCollectBtn' || b.id === 'closeTopDefaultersModalBtn' || b.id === 'closeQuickCollectModalBtn') continue;
       checked += 1;
       assert.equal(b.text, '↩', `${name}: .${b.cls} button #${b.id || '?'} must show ↩, found ${JSON.stringify(b.text)}`);
       assert.ok(ariaClose(b), `${name}: .${b.cls} button #${b.id || '?'} must carry a Close aria-label`);
@@ -206,6 +216,14 @@ const BARE_GLYPH_ALLOWLIST = [
   // is the shared .close-btn (plus its own .td-close-btn hook), so the
   // redesign scanner picks it up too (see its own exception).
   { file: 'index.html', id: 'closeTopDefaultersModalBtn', why: 'Top Defaulters Modal Fix item 2: the Top Defaulters modal uses the user-specified clean neutral ✕ close' },
+  // QC Modal Overhaul 2: the ✕ on the Quick Collect modal IS a dialog
+  // close — the fourth documented exception to the ↩ rule, classified
+  // here so the audit enumerates it exactly once. The glyph follows
+  // the action: '✕' on picker/form/confirm, '↩' KEPT on the success
+  // step (PR #1365) — showStep() swaps it per step, and the static
+  // markup is '✕'. Its class is the shared .close-button, so the
+  // redesign scanner picks it up too (see its own exception).
+  { file: 'index.html', id: 'closeQuickCollectModalBtn', why: 'QC Modal Overhaul 2: the Quick Collect modal uses ✕ on close steps and ↩ on the success step (glyph follows action, PR #1365)' },
   // Plan 459: the × on a saved filter row removes only that filter —
   // an item-level micro-control, never a dialog close.
   { file: 'saved-search-filters.js', cls: 'fcs-clear-recent-btn', why: 'removes one saved filter row' },

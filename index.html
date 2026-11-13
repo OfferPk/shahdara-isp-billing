@@ -6361,6 +6361,24 @@
           </div>
         </div>
       </dialog>
+        <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
+        <article class="summary-card summary-pending-works ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_pending">📌 Pending Works</p>
+          <strong id="dashboardPendingWorksValue" class="summary-value">Nothing pending</strong>
+          <p id="dashboardPendingWorksPeriod" class="summary-period">Owner notes &amp; reminders</p>
+          <div id="pendingWorksSummary" class="pending-works-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_pending">📌 Pending Works</button>
+          </div>
+        </article>
+        <article class="summary-card summary-system-health ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_health">🩺 System Health</p>
+          <strong id="dashboardSystemHealthValue" class="summary-value">No records yet</strong>
+          <p id="dashboardSystemHealthPeriod" class="summary-period">All ledgers · counts · storage size</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSystemHealthModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_health">🩺 Health Center</button>
+          </div>
+        </article>
       <!-- Data-safety banner lives at the END of Home: it used to sit above every screen
            (right under the header), which put a backup warning in the user's face on every
            app open. It stays a distinct always-expanded section on Home — not collapsed —
@@ -6452,6 +6470,16 @@
       <button type="button" data-mobile-more="pwa-status" id="mobileMorePwaStatusBtn">📲 PWA &amp; App Shortcuts</button>
       <button type="button" data-mobile-more="install-pwa" id="mobileMoreInstallPwaBtn" hidden>⬇️ Install App</button>
       <button type="button" data-mobile-more="field-tools" id="mobileMoreFieldToolsBtn" class="more-menu-highlight-btn">🧰 Field &amp; Network Tools…</button>
+      <!-- Subscriber Count & Tab Isolation: the Receipt Verification card
+           moved here (its card is deleted) — same id, so the app.js
+           binding that opens the modal keeps working unchanged. -->
+      <button type="button" data-mobile-more="receipt-verify" id="openReceiptVerifyModalBtn" data-i18n="rverify_card">🔎 Receipt Verification</button>
+      <!-- Subscriber Count & Tab Isolation: the Tool Register button
+           moved here (its Field Tools card is deleted) — same id, so the
+           tool-custody module's binding that opens the modal keeps
+           working unchanged. The router returns null for the unknown
+           data-mobile-more action, exactly like receipt-verify above. -->
+      <button type="button" data-mobile-more="tool-custody" id="openToolCustodyModalBtn" data-i18n="dash_btn_tools">🔧 Tool Register</button>
 
       <!-- Collapsible Section: Operations & Intelligence Tools (moved from Home, #278) -->
       <details class="more-menu-field-details more-menu-ops-details" id="moreMenuOpsToolsDetails">
@@ -7107,231 +7135,6 @@
             </div>
         </div>
       </section>
-      <!-- Home Dashboard overhaul: registry & operations cards moved
-           here from Home. They render from the same guarded dashboard
-           writers; only their parent changed. -->
-      <article class="summary-card summary-billing-cycle ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_cycle">📅 Monthly Billing Cycle</p>
-          <strong id="dashboardBillingCycleValue" class="summary-value">No cycle run yet</strong>
-          <p id="dashboardBillingCyclePeriod" class="summary-period">Run a monthly cycle with arrears &amp; advance</p>
-          <div id="billingCycleSummary" class="billing-cycle-summary"></div>
-          <div id="billingCycleForecast" class="billing-cycle-summary billing-cycle-forecast"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_billing_cycle">📅 Billing Cycle</button>
-            <button id="openMonthEndWizardBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_month_end">🧾 Month-End Check</button>
-          </div>
-        </article>
-        <article class="summary-card summary-complaint-register ds-stat ds-stat--overdue">
-          <p class="summary-label" data-i18n="dash_card_complaint">🛠️ Complaint Register</p>
-          <strong id="dashboardComplaintValue" class="summary-value">No complaints</strong>
-          <p id="dashboardComplaintPeriod" class="summary-period">Open faults and resolution downtime</p>
-          <div id="complaintRegisterSummary" class="complaint-register-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_complaint">🛠️ Complaint Register</button>
-            <button id="openPostRepairCheckinModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="prc_open_btn">🤝 Post-Repair Check-Ins</button>
-          </div>
-        </article>
-        <article class="summary-card summary-field-tickets ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_tickets">🔧 Field Tickets</p>
-          <strong id="dashboardFieldTicketsValue" class="summary-value">No field tickets</strong>
-          <p id="dashboardFieldTicketsPeriod" class="summary-period">Lineman worklist and material use</p>
-          <div id="fieldTicketsSummary" class="field-tickets-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_tickets">🔧 Field Tickets</button>
-          </div>
-        </article>
-        <article class="summary-card summary-downtime-analytics ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_downtime">📉 Downtime Analytics</p>
-          <strong id="dashboardDowntimeValue" class="summary-value">No downtime</strong>
-          <p id="dashboardDowntimePeriod" class="summary-period">Per-customer and network outage hours</p>
-          <div id="downtimeAnalyticsSummary" class="downtime-analytics-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_downtime">📉 Downtime Analytics</button>
-          </div>
-        </article>
-        <article class="summary-card summary-upstream-sla ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</p>
-          <strong id="dashboardUpslaValue" class="summary-value">No upstream outages</strong>
-          <p id="dashboardUpslaPeriod" class="summary-period">Uplink downtime, availability and rebate claim for this month</p>
-          <div id="upstreamSlaSummary" class="upstream-sla-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openUpstreamSlaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</button>
-          </div>
-        </article>
-
-        <article class="summary-card summary-fleet-uptime ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="upt_fleet_title">📶 Fleet Uptime</p>
-          <strong id="dashboardFleetUptimeValue" class="summary-value">—</strong>
-          <p id="dashboardFleetUptimePeriod" class="summary-period">Recorded uptime across subscribers this month</p>
-          <div id="fleetUptimeSummary" class="fleet-uptime-summary"></div>
-        </article>
-
-        <article class="summary-card summary-splitter-map ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_splitter">🔌 Splitter Port Map</p>
-          <strong id="dashboardSplitterValue" class="summary-value">No splitter boxes</strong>
-          <p id="dashboardSplitterPeriod" class="summary-period">Splitter box port map and RX signal health</p>
-          <div id="splitterMapSummary" class="splitter-map-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_splitter">🔌 Splitter Port Map</button>
-            <button id="openDarkFiberModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_dark_fiber">🧵 Dark Fiber Finder</button>
-            <button id="openSpliceClosureModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="jcmap_open_btn">🧵 JC Splice Map</button>
-            <button id="openOpticalBudgetCalcBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="obcalc_button">📐 Link Budget</button>
-          </div>
-        </article>
-
-        <article class="summary-card summary-pon-capacity ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_poncap">📡 PON Port Capacity</p>
-          <strong id="dashboardPonCapacityValue" class="summary-value">No PON ports recorded</strong>
-          <p id="dashboardPonCapacityPeriod" class="summary-period">OLT PON port load, sold Mbps and saturation alerts</p>
-          <div id="ponCapacitySummary" class="pon-capacity-summary"></div>
-        </article>
-
-        <article class="summary-card summary-monthly-complaint-report ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_monthly_report">📋 Monthly Complaint Report</p>
-          <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
-          <p id="dashboardMonthlyReportPeriod" class="summary-period">4-part monthly report: summary, customers, causes, full log</p>
-          <div id="monthlyComplaintReportSummary" class="monthly-complaint-report-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_monthly_report">📋 Monthly Report</button>
-          </div>
-        </article>
-        <article class="summary-card summary-inventory-book ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_stock">📦 Stock Book</p>
-          <strong id="dashboardInventoryValue" class="summary-value">No stock recorded</strong>
-          <p id="dashboardInventoryPeriod" class="summary-period">Fiber, routers, converters &amp; field stock</p>
-          <div id="inventoryBookSummary" class="inventory-book-summary"></div>
-          <div id="fieldBagSummary" class="inventory-book-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_stock">📦 Stock Book</button>
-            <button id="openFieldBagModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_field_bag">🎒 Field Bag</button>
-            <button id="openSupplierKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="supkhata_btn_open">🏭 Supplier Khata</button>
-          </div>
-        </article>
-        <article class="summary-card summary-fiber-drums ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_drum_card">🧵 Fiber Drums</p>
-          <strong id="dashboardFiberDrumValue" class="summary-value">No drums tracked</strong>
-          <p id="dashboardFiberDrumPeriod" class="summary-period">Fiber drums &amp; jacket-mark cuts</p>
-          <div id="fiberDrumSummary" class="fiber-drum-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openFiberDrumModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_drum_btn">🧵 Drum Tracker</button>
-          </div>
-        </article>
-        <article class="summary-card summary-outage-impact ds-stat ds-stat--overdue">
-          <p class="summary-label" data-i18n="dash_card_outage">⚡ Feeder Outage Impact</p>
-          <strong id="dashboardOutageValue" class="summary-value">No feeder links</strong>
-          <p id="dashboardOutagePeriod" class="summary-period">Link customers to feeders to trace outages</p>
-          <div id="outageImpactSummary" class="outage-impact-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_trace_outage">⚡ Trace Outage Impact</button>
-            <button id="openEmergencyRunbookBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="runbook_open_btn">🚨 Emergency Runbook</button>
-            <button id="openStormInspectionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="storm_btn_open">🌦️ Post-Storm Checklist</button>
-          </div>
-        </article>
-        <article class="summary-card summary-daisy-chain ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</p>
-          <strong id="dashboardDaisyChainValue" class="summary-value">No feeder chains</strong>
-          <p id="dashboardDaisyChainPeriod" class="summary-period">Chain depth per zone, Hop 3+ warnings</p>
-          <div id="daisyChainSummary" class="daisy-chain-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openDaisyChainTreeModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</button>
-          </div>
-        </article>
-        <article class="summary-card summary-saad-visits ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_saad">🔧 Saad Visit Log</p>
-          <strong id="dashboardSaadVisitsValue" class="summary-value">No visits yet</strong>
-          <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
-          <div id="saadVisitsSummary" class="saad-visits-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_saad_visits">🔧 Saad Visits</button>
-          </div>
-        </article>
-        <article class="summary-card summary-pending-works ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_pending">📌 Pending Works</p>
-          <strong id="dashboardPendingWorksValue" class="summary-value">Nothing pending</strong>
-          <p id="dashboardPendingWorksPeriod" class="summary-period">Owner notes &amp; reminders</p>
-          <div id="pendingWorksSummary" class="pending-works-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_pending">📌 Pending Works</button>
-          </div>
-        </article>
-        <article class="summary-card summary-pole-landmark ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_pole">📍 Pole &amp; Landmark Directory</p>
-          <strong id="dashboardPoleLandmarkValue" class="summary-value">No poles mapped</strong>
-          <p id="dashboardPoleLandmarkPeriod" class="summary-period">Street pole, landmark &amp; drop-wire directory</p>
-          <div id="poleLandmarkSummary" class="pole-landmark-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cheatsheet">📍 Zone Lineman Cheat-Sheet</button>
-          </div>
-        </article>
-        <article class="summary-card summary-pole-registry ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_polereg">🌲 Pole Registry</p>
-          <strong id="dashboardPoleRegistryValue" class="summary-value">No poles registered</strong>
-          <p id="dashboardPoleRegistryPeriod" class="summary-period">Street pole assets &amp; attached drops</p>
-          <div id="poleRegistrySummary" class="pole-registry-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPoleRegistryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_polereg">🌲 Pole Registry</button>
-          </div>
-        </article>
-        <article class="summary-card summary-group-billing ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</p>
-          <strong id="dashboardGroupBillingValue" class="summary-value">No groups yet</strong>
-          <p id="dashboardGroupBillingPeriod" class="summary-period">Family / landlord groups</p>
-          <div id="groupBillingSummary" class="group-billing-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</button>
-          </div>
-        </article>
-        <article class="summary-card summary-hardware-recovery ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</p>
-          <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
-          <p id="dashboardHardwareRecoveryPeriod" class="summary-period">ISP-owned hardware at disconnected houses</p>
-          <div id="hardwareRecoverySummary" class="hardware-recovery-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</button>
-          </div>
-        </article>
-        <article class="summary-card summary-system-health ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_health">🩺 System Health</p>
-          <strong id="dashboardSystemHealthValue" class="summary-value">No records yet</strong>
-          <p id="dashboardSystemHealthPeriod" class="summary-period">All ledgers · counts · storage size</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSystemHealthModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_health">🩺 Health Center</button>
-          </div>
-        </article>
-        <article class="summary-card summary-receipt-verify ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="rverify_card">🔎 Receipt Verification</p>
-          <strong class="summary-value" data-i18n="rverify_card_value">VER code check</strong>
-          <p class="summary-period" data-i18n="rverify_card_period">Confirm a printed receipt is genuine and not voided</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openReceiptVerifyModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="rverify_btn">🔎 Verify Receipt</button>
-          </div>
-        </article>
-        <article class="summary-card summary-field-tools ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_tools">🔧 Field Tools</p>
-          <strong id="dashboardToolsValue" class="summary-value">No tools registered</strong>
-          <p id="dashboardToolsPeriod" class="summary-period">Splicer · OTDR · cleaver custody</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openToolCustodyModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_tools">🔧 Tool Register</button>
-          </div>
-        </article>
-        <article class="summary-card summary-lineman-scorecard ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_lineman">🧑‍🔧 Lineman Scorecard</p>
-          <strong id="dashboardLinemanScorecardValue" class="summary-value">No field activity</strong>
-          <p id="dashboardLinemanScorecardPeriod" class="summary-period">Resolved complaints · petty cash · collections this month</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openLinemanScorecardModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_lineman">🧑‍🔧 Scorecard</button>
-          </div>
-        </article>
-        <article class="summary-card summary-power-backup ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="pwr_card_label">🔋 Power Backup</p>
-          <strong id="dashboardPowerValue" class="summary-value">No UPS nodes yet</strong>
-          <p id="dashboardPowerPeriod" class="summary-period">UPS runtime &amp; WAPDA outage timer</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPowerBackupModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="pwr_btn_open">🔋 Power Nodes</button>
-          </div>
-        </article>
-    </div>
-    </section>
     <section id="transactionsView" class="transactions-view" aria-labelledby="transactionsHeading" hidden>
       <div class="transactions-pane">
         <div class="transactions-heading">
@@ -8001,6 +7804,72 @@
             <ul id="hwauditList" class="hwaudit-list" aria-label="Hardware and optical bottleneck suspects"></ul>
           </div>
         </section>
+        <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
+      <article class="summary-card summary-billing-cycle ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_cycle">📅 Monthly Billing Cycle</p>
+          <strong id="dashboardBillingCycleValue" class="summary-value">No cycle run yet</strong>
+          <p id="dashboardBillingCyclePeriod" class="summary-period">Run a monthly cycle with arrears &amp; advance</p>
+          <div id="billingCycleSummary" class="billing-cycle-summary"></div>
+          <div id="billingCycleForecast" class="billing-cycle-summary billing-cycle-forecast"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_billing_cycle">📅 Billing Cycle</button>
+            <button id="openMonthEndWizardBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_month_end">🧾 Month-End Check</button>
+          </div>
+        </article>
+        <article class="summary-card summary-complaint-register ds-stat ds-stat--overdue">
+          <p class="summary-label" data-i18n="dash_card_complaint">🛠️ Complaint Register</p>
+          <strong id="dashboardComplaintValue" class="summary-value">No complaints</strong>
+          <p id="dashboardComplaintPeriod" class="summary-period">Open faults and resolution downtime</p>
+          <div id="complaintRegisterSummary" class="complaint-register-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_complaint">🛠️ Complaint Register</button>
+            <button id="openPostRepairCheckinModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="prc_open_btn">🤝 Post-Repair Check-Ins</button>
+          </div>
+        </article>
+        <article class="summary-card summary-field-tickets ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_tickets">🔧 Field Tickets</p>
+          <strong id="dashboardFieldTicketsValue" class="summary-value">No field tickets</strong>
+          <p id="dashboardFieldTicketsPeriod" class="summary-period">Lineman worklist and material use</p>
+          <div id="fieldTicketsSummary" class="field-tickets-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_tickets">🔧 Field Tickets</button>
+          </div>
+        </article>
+        <article class="summary-card summary-monthly-complaint-report ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_monthly_report">📋 Monthly Complaint Report</p>
+          <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
+          <p id="dashboardMonthlyReportPeriod" class="summary-period">4-part monthly report: summary, customers, causes, full log</p>
+          <div id="monthlyComplaintReportSummary" class="monthly-complaint-report-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_monthly_report">📋 Monthly Report</button>
+          </div>
+        </article>
+        <article class="summary-card summary-saad-visits ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_saad">🔧 Saad Visit Log</p>
+          <strong id="dashboardSaadVisitsValue" class="summary-value">No visits yet</strong>
+          <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
+          <div id="saadVisitsSummary" class="saad-visits-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_saad_visits">🔧 Saad Visits</button>
+          </div>
+        </article>
+        <article class="summary-card summary-group-billing ds-stat ds-stat--brand">
+          <p class="summary-label" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</p>
+          <strong id="dashboardGroupBillingValue" class="summary-value">No groups yet</strong>
+          <p id="dashboardGroupBillingPeriod" class="summary-period">Family / landlord groups</p>
+          <div id="groupBillingSummary" class="group-billing-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</button>
+          </div>
+        </article>
+        <article class="summary-card summary-lineman-scorecard ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_lineman">🧑‍🔧 Lineman Scorecard</p>
+          <strong id="dashboardLinemanScorecardValue" class="summary-value">No field activity</strong>
+          <p id="dashboardLinemanScorecardPeriod" class="summary-period">Resolved complaints · petty cash · collections this month</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openLinemanScorecardModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_lineman">🧑‍🔧 Scorecard</button>
+          </div>
+        </article>
       </div>
     </section>
     <section id="analyticsView" class="phase3-view" aria-labelledby="analyticsHeading" hidden>
@@ -14595,6 +14464,95 @@
         <section id="areaBreakdowns" class="area-breakdowns-panel" aria-label="Area, zone and package breakdowns"></section>
         <section class="table-card"><div class="table-heading"><div><p class="eyebrow">ACTUAL INCIDENTS ONLY</p><h3>Network issues</h3></div><p class="chart-caption">Based only on manually recorded complaints/outages; no monitoring or inferred incidents.</p></div><ul id="networkIssuesList" class="network-issues-list"></ul></section>
         <p id="analyticsEmptyNotice" class="phase3-note" role="status"></p>
+        <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
+        <article class="summary-card summary-downtime-analytics ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_downtime">📉 Downtime Analytics</p>
+          <strong id="dashboardDowntimeValue" class="summary-value">No downtime</strong>
+          <p id="dashboardDowntimePeriod" class="summary-period">Per-customer and network outage hours</p>
+          <div id="downtimeAnalyticsSummary" class="downtime-analytics-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_downtime">📉 Downtime Analytics</button>
+          </div>
+        </article>
+        <article class="summary-card summary-upstream-sla ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</p>
+          <strong id="dashboardUpslaValue" class="summary-value">No upstream outages</strong>
+          <p id="dashboardUpslaPeriod" class="summary-period">Uplink downtime, availability and rebate claim for this month</p>
+          <div id="upstreamSlaSummary" class="upstream-sla-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openUpstreamSlaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</button>
+          </div>
+        </article>
+        <article class="summary-card summary-fleet-uptime ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="upt_fleet_title">📶 Fleet Uptime</p>
+          <strong id="dashboardFleetUptimeValue" class="summary-value">—</strong>
+          <p id="dashboardFleetUptimePeriod" class="summary-period">Recorded uptime across subscribers this month</p>
+          <div id="fleetUptimeSummary" class="fleet-uptime-summary"></div>
+        </article>
+        <article class="summary-card summary-splitter-map ds-stat ds-stat--brand">
+          <p class="summary-label" data-i18n="dash_card_splitter">🔌 Splitter Port Map</p>
+          <strong id="dashboardSplitterValue" class="summary-value">No splitter boxes</strong>
+          <p id="dashboardSplitterPeriod" class="summary-period">Splitter box port map and RX signal health</p>
+          <div id="splitterMapSummary" class="splitter-map-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_splitter">🔌 Splitter Port Map</button>
+            <button id="openDarkFiberModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_dark_fiber">🧵 Dark Fiber Finder</button>
+            <button id="openSpliceClosureModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="jcmap_open_btn">🧵 JC Splice Map</button>
+            <button id="openOpticalBudgetCalcBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="obcalc_button">📐 Link Budget</button>
+          </div>
+        </article>
+        <article class="summary-card summary-pon-capacity ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_poncap">📡 PON Port Capacity</p>
+          <strong id="dashboardPonCapacityValue" class="summary-value">No PON ports recorded</strong>
+          <p id="dashboardPonCapacityPeriod" class="summary-period">OLT PON port load, sold Mbps and saturation alerts</p>
+          <div id="ponCapacitySummary" class="pon-capacity-summary"></div>
+        </article>
+        <article class="summary-card summary-outage-impact ds-stat ds-stat--overdue">
+          <p class="summary-label" data-i18n="dash_card_outage">⚡ Feeder Outage Impact</p>
+          <strong id="dashboardOutageValue" class="summary-value">No feeder links</strong>
+          <p id="dashboardOutagePeriod" class="summary-period">Link customers to feeders to trace outages</p>
+          <div id="outageImpactSummary" class="outage-impact-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_trace_outage">⚡ Trace Outage Impact</button>
+            <button id="openEmergencyRunbookBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="runbook_open_btn">🚨 Emergency Runbook</button>
+            <button id="openStormInspectionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="storm_btn_open">🌦️ Post-Storm Checklist</button>
+          </div>
+        </article>
+        <article class="summary-card summary-daisy-chain ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</p>
+          <strong id="dashboardDaisyChainValue" class="summary-value">No feeder chains</strong>
+          <p id="dashboardDaisyChainPeriod" class="summary-period">Chain depth per zone, Hop 3+ warnings</p>
+          <div id="daisyChainSummary" class="daisy-chain-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openDaisyChainTreeModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</button>
+          </div>
+        </article>
+        <article class="summary-card summary-pole-landmark ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_pole">📍 Pole &amp; Landmark Directory</p>
+          <strong id="dashboardPoleLandmarkValue" class="summary-value">No poles mapped</strong>
+          <p id="dashboardPoleLandmarkPeriod" class="summary-period">Street pole, landmark &amp; drop-wire directory</p>
+          <div id="poleLandmarkSummary" class="pole-landmark-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cheatsheet">📍 Zone Lineman Cheat-Sheet</button>
+          </div>
+        </article>
+        <article class="summary-card summary-pole-registry ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_polereg">🌲 Pole Registry</p>
+          <strong id="dashboardPoleRegistryValue" class="summary-value">No poles registered</strong>
+          <p id="dashboardPoleRegistryPeriod" class="summary-period">Street pole assets &amp; attached drops</p>
+          <div id="poleRegistrySummary" class="pole-registry-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPoleRegistryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_polereg">🌲 Pole Registry</button>
+          </div>
+        </article>
+        <article class="summary-card summary-power-backup ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="pwr_card_label">🔋 Power Backup</p>
+          <strong id="dashboardPowerValue" class="summary-value">No UPS nodes yet</strong>
+          <p id="dashboardPowerPeriod" class="summary-period">UPS runtime &amp; WAPDA outage timer</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPowerBackupModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="pwr_btn_open">🔋 Power Nodes</button>
+          </div>
+        </article>
       </div>
     </section>
     <section id="inventoryView" class="phase3-view" aria-labelledby="inventoryHeading" hidden>
@@ -14641,6 +14599,37 @@
           <form id="inventoryMovementForm" class="phase3-form"><label>Item<select id="movementItemId" name="itemId" required><option value="">Choose item</option></select></label><label>Movement<select id="movementType" name="type" required><option value="">Choose movement</option><option value="receive">Receive / purchase</option><option value="install">Install / issue</option><option value="return">Return</option><option value="damage">Mark damaged</option><option value="correction">Stock correction</option></select></label><label>Actual quantity<input id="movementQuantity" name="quantity" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="Enter recorded quantity"></label><label>Movement date (PKT)<input id="movementDate" name="date" type="date" required></label><label>Source status (damage / correction)<select id="movementFromState" name="fromState"><option value="">Not applicable</option><option value="available">Available</option><option value="installed">Installed</option><option value="returned">Returned</option><option value="damaged">Damaged</option></select></label><label>Destination (correction only)<select id="movementToState" name="toState"><option value="">Not applicable / remove from trail</option><option value="available">Available</option><option value="installed">Installed</option><option value="damaged">Damaged</option><option value="returned">Returned</option></select></label><label>Assigned customer (optional)<select id="movementCustomerId" name="customerId"><option value="">Not assigned</option></select></label><label class="form-wide">Notes<textarea id="movementNotes" name="notes" maxlength="1000" rows="2" placeholder="Corrections require a note; record only actual movements"></textarea></label><div class="form-actions form-wide"><button class="primary-button" type="submit">Record actual movement</button></div></form>
           <div class="table-scroll"><table><thead><tr><th scope="col">Date</th><th scope="col">Item</th><th scope="col">Movement</th><th scope="col">Quantity</th><th scope="col">Status change</th><th scope="col">Customer</th><th scope="col">Notes</th><th scope="col">Action</th></tr></thead><tbody id="inventoryMovementTable"></tbody></table></div><p id="inventoryMovementsEmpty" class="empty-state">No stock movements have been entered.</p>
         </section>
+        <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
+        <article class="summary-card summary-inventory-book ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_stock">📦 Stock Book</p>
+          <strong id="dashboardInventoryValue" class="summary-value">No stock recorded</strong>
+          <p id="dashboardInventoryPeriod" class="summary-period">Fiber, routers, converters &amp; field stock</p>
+          <div id="inventoryBookSummary" class="inventory-book-summary"></div>
+          <div id="fieldBagSummary" class="inventory-book-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_stock">📦 Stock Book</button>
+            <button id="openFieldBagModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_field_bag">🎒 Field Bag</button>
+            <button id="openSupplierKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="supkhata_btn_open">🏭 Supplier Khata</button>
+          </div>
+        </article>
+        <article class="summary-card summary-fiber-drums ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_drum_card">🧵 Fiber Drums</p>
+          <strong id="dashboardFiberDrumValue" class="summary-value">No drums tracked</strong>
+          <p id="dashboardFiberDrumPeriod" class="summary-period">Fiber drums &amp; jacket-mark cuts</p>
+          <div id="fiberDrumSummary" class="fiber-drum-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openFiberDrumModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_drum_btn">🧵 Drum Tracker</button>
+          </div>
+        </article>
+        <article class="summary-card summary-hardware-recovery ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</p>
+          <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
+          <p id="dashboardHardwareRecoveryPeriod" class="summary-period">ISP-owned hardware at disconnected houses</p>
+          <div id="hardwareRecoverySummary" class="hardware-recovery-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</button>
+          </div>
+        </article>
       </div>
     </section>
     <section id="expensesView" class="phase3-view" aria-labelledby="expensesHeading" hidden>

@@ -413,7 +413,13 @@ function sortedGroups(map) { return [...map.entries()].sort(([a],[b])=>a.localeC
 
 export function buildPhase3Analytics(state,referenceDate=new Date()) {
   const currentMonth=pktMonth(referenceDate),months=sixMonths(referenceDate),today=pktDate(referenceDate);
-  const customerRows=uniqueCustomerRows(state.customers??[]),bills=allBills(state),payments=paymentEntries(state),expenses=state.expenses??[],incidents=customerRows.flatMap(customer=>(customer.incidents??[]).map(incident=>({customer,incident}))),areas=new Map();
+  // Subscriber Count & Tab Isolation (D1): the area summary is a CURRENT
+  // roster snapshot, so archived profiles are filtered at the population —
+  // every derived column (Profiles, active subscriptions, excluded, revenue,
+  // outstanding, complaints, new connections) then agrees on the same live
+  // roster. Archived profiles keep their bills/payments in the ledger; only
+  // this analytics population excludes them.
+  const customerRows=uniqueCustomerRows((state.customers??[]).filter(customer=>!customer.archived)),bills=allBills(state),payments=paymentEntries(state),expenses=state.expenses??[],incidents=customerRows.flatMap(customer=>(customer.incidents??[]).map(incident=>({customer,incident}))),areas=new Map();
   const billHistoryCustomerIds=new Set(bills.filter(({bill})=>bill.month<=currentMonth&&nonblank(bill.dueAmount)&&Number.isFinite(Number(bill.dueAmount))&&Number(bill.dueAmount)>0).map(({customer})=>customer.id));
   const revenueMap=serviceRevenueByCustomerMonth({customers:customerRows},currentMonth),outstanding=outstandingAtMonthEnd({customers:customerRows},currentMonth,referenceDate);
   const exclusionCounts={archived:0,cancelled:0,expired:0,notYetEffective:0,packageNotSet:0,priceNotSet:0};

@@ -45,7 +45,7 @@ import { formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js
 import { packageSuccessMessage, packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
-import { dailyEntrySummary, dailyEntrySummaryText } from './daily-entry-summary.js';
+import { dailyEntrySummary } from './daily-entry-summary.js';
 import { quickCollectRoundTotals, quickCollectRoundTotalsText } from './quick-collect-round-totals.js';
 import { dailyTargetProgress, dailyTargetProgressHtml } from './daily-target-progress.js';
 import { quickCollectEndOfDaySummary, quickCollectEndOfDaySummaryHtml } from './quick-collect-end-of-day-summary.js';
@@ -56,7 +56,7 @@ import {
 } from './quick-collect-new-customer-quick-add.js';
 import { getDayTarget } from './day-target.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
-import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
+import { packagePriceForCustomer } from './quick-amount-buttons.js';
 import {
   quickCollectOneScreenComboboxChoices,
   quickCollectOneScreenComboboxFilter,
@@ -70,7 +70,7 @@ import {
   quickCollectOneScreenShopShortLabel,
 } from './quick-collect-one-screen.js';
 import { oneScreenQuickAmountFigures, oneScreenQuickAmountButtonsHtml } from './one-screen-quick-amounts.js';
-import { addPaymentDuesFigures, addPaymentDuesButtonsHtml } from './add-payment-dues-buttons.js';
+import { addPaymentDuesFigures } from './add-payment-dues-buttons.js';
 import {
   NAME_PREFIX_LOOKUP_MIN_LETTERS,
   namePrefixLookupHtml,
@@ -161,10 +161,10 @@ import {
 } from './digital-payments-settings.js';
 import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } from './receipt-footer-studio.js';
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
-import { oldestOpenBillPrefill, transactionPrefillLineHtml } from './transaction-prefill.js';
+import { oldestOpenBillPrefill } from './transaction-prefill.js';
 import { duesAmountDefault } from './dues-amount-default.js';
 import { amountInWords, amountInWordsLineText } from './amount-in-words.js';
-import { nextReceiptNumberFor, nextReceiptNumberLineText } from './next-receipt-number.js';
+import { nextReceiptNumberFor } from './next-receipt-number.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
@@ -178,7 +178,6 @@ import {
 } from './success-next-steps.js';
 import { receiptShareDraftFor, receiptShareDraftHtml } from './receipt-share-draft.js';
 import { stillOwesCents, stillOwesLine, stillOwesLineHtml } from './quick-collect-still-owes.js';
-import { bigNameConfirmLine, bigNameConfirmLineHtml } from './quick-collect-big-name-confirm.js';
 import {
   secondConnectionStep,
   secondConnectionStepHtml,
@@ -2128,27 +2127,29 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     const dueLabel = hasDues
       ? `<strong class="qc-due-val">PKR ${c.totalDues.toLocaleString('en-PK')}</strong><span class="qc-due-tag">DUE</span>`
       : `<strong class="qc-due-val qc-val-settled">PKR 0</strong><span class="qc-settled-tag">SETTLED</span>`;
-    // QC-3: the proposed customer card — Outstanding vs Monthly
-    // package as two figure columns, and Call / Location / Collect
+    // QC-3: the proposed customer card — the dues figure once, as
+    // the bold "PKR X DUE" badge, and Call / Location / Collect
     // below. The fields come from the pool entry (qc3CardActions);
-    // plain fixtures without them fall back honestly: no priced
-    // package shows the em dash, no phone / no pin disables that
-    // action — never a guessed figure or a fake location.
+    // plain fixtures without them fall back honestly: no phone / no
+    // pin disables that action — never a guessed figure or a fake
+    // location.
+    // QC Modal Overhaul 2: the Monthly package column is GONE from
+    // the modal card — the dues badge already names the figure, and
+    // the column cost a full KPI row per card. Field Mode keeps its
+    // monthly figure (its own card render reads the pool's
+    // monthlyPackage field, which stays), and the pool builder is
+    // untouched.
     // QC Modal Fix: ONE compact action row — compact Call and
     // Location icon buttons on the left, the primary Collect button
-    // on the right, naming the amount it will collect ("Collect
-    // PKR 3,000") so the operator sees the figure before tapping.
-    // A settled customer keeps the plain Collect label: "Collect
-    // PKR 0" would promise a collection of nothing.
-    const monthlyPackage = c.monthlyPackage ?? null;
-    const monthlyPackageText = typeof monthlyPackage === 'number'
-      ? `PKR ${monthlyPackage.toLocaleString('en-PK')}`
-      : '—';
+    // on the right.
+    // QC Modal Overhaul 2: Collect is plain "Collect" now — the dues
+    // badge above it already names the figure, so naming it again
+    // on the button was the second copy. A settled customer keeps
+    // the plain Collect label: "Collect PKR 0" would promise a
+    // collection of nothing.
     const callHref = c.callHref ?? null;
     const mapsUrl = c.mapsUrl ?? null;
-    const collectLabel = hasDues
-      ? `${t('qc3_collect')} PKR ${c.totalDues.toLocaleString('en-PK')}`
-      : t('qc3_collect');
+    const collectLabel = t('qc3_collect');
     const actionsRow = `
       <div class="qc3-card-actions" role="group" aria-label="${escapeHtml(t('qc3_card_actions'))}">
         ${callHref
@@ -2167,7 +2168,7 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // the existing selectors, dark-theme rules and QC-2 accent still
     // apply; the inner main button is the tap-to-collect target.
     // Row 1 is the identity row: [#N] badge inline left of the name,
-    // the priority badge top-right. The figures are their own KPI row
+    // the priority badge top-right. The dues figure is its own KPI row
     // below it (never squeezed onto Row 1 — that squeeze clipped
     // "Outstanding P..." above 360px and in RTL), so the dues figure
     // appears exactly once, fully labelled. The .qc-card-right column
@@ -2195,10 +2196,6 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
             <span class="qc3-figure">
               <span class="qc3-figure-label">${escapeHtml(t('qc3_outstanding'))}</span>
               <span class="qc3-figure-value">${dueLabel}</span>
-            </span>
-            <span class="qc3-figure">
-              <span class="qc3-figure-label">${escapeHtml(t('qc3_monthly_package'))}</span>
-              <strong class="qc3-package-val">${monthlyPackageText}</strong>
             </span>
           </div>
           ${tierLabels}
@@ -2640,10 +2637,11 @@ export function setupQuickCollectModal({
   // on every open so the payment can be linked to the promise it
   // fulfils at entry time.
   const promiseLinkSelect = document.getElementById('quickCollectPromiseLinkSelect');
-  // Plan 400: the live daily entry summary line (null when the host
-  // page predates it) — today's transaction count and total on this
-  // device, refreshed on every open and after each save.
-  const dailyEntrySummaryEl = typeof document !== 'undefined' ? document.getElementById('quickCollectDailyEntrySummary') : null;
+  // Plan 400: the live daily entry summary line is REMOVED by the QC
+  // Modal Overhaul 2 (the stray "Today payments" line on the form
+  // step) — the daily-entry-summary module stays: its figures still
+  // feed the target progress (refreshDailyTargetProgress) and the
+  // end-of-day summary, and its pure tests are untouched.
   // Plan 439: the live round-total line (null when the host page
   // predates it) — the payments taken this round: count and total
   // amount on this device, refreshed on every open and after each
@@ -2685,9 +2683,6 @@ export function setupQuickCollectModal({
   // Plan 377: the live amount-in-words line beside the amount field
   // (null when the host page predates it).
   const wordsLine = typeof document !== 'undefined' ? document.getElementById('quickCollectAmountWordsLine') : null;
-  // Plan 381: the next-receipt-number preview line under the amount
-  // field (null when the host page predates it).
-  const nextReceiptLine = typeof document !== 'undefined' ? document.getElementById('quickCollectNextReceiptLine') : null;
   // Plan 385: the live settlement preview under the amount field
   // (null when the host page predates it).
   const settlementPreviewBox = typeof document !== 'undefined' ? document.getElementById('quickCollectSettlementPreview') : null;
@@ -2703,11 +2698,6 @@ export function setupQuickCollectModal({
   // Plan 388: the suspended-customer warning line under the amount field
   // (null when the host page predates it).
   const suspendedWarningLine = typeof document !== 'undefined' ? document.getElementById('quickCollectSuspendedWarning') : null;
-  // Plan 447: the big name + mohalla confirmation line host on the
-  // payment form (null when the host page predates it) — the selected
-  // customer's name in large text, mohalla, and current dues, shown
-  // before saving so a wrong-customer pick is caught by eye.
-  const bigNameConfirmEl = typeof document !== 'undefined' ? document.getElementById('bncBigNameConfirm') : null;
   // Plan 444: the pending-clearance flag line under the method picker
   // (null when the host page predates it) — shown while the chosen
   // method is a Bank Transfer, so the customer knows at the counter
@@ -2795,25 +2785,43 @@ export function setupQuickCollectModal({
     const line = show ? cashChangeLineText(cashReceivedInput?.value, amountInput?.value) : '';
     cashChangeLine.textContent = line;
     cashChangeLine.hidden = line === '';
+    // QC Modal Overhaul 2: the change box lives inside the optional
+    // details now — when change is owed, open the details so the box
+    // is visible instead of hidden inside a closed section. Setting
+    // .open when already open is a no-op, so this is safe on every
+    // keystroke. No new split listener: the Plan 527 five-listener
+    // pin stays exactly five.
+    if (line !== '' && moreOptionsDetails) moreOptionsDetails.open = true;
   }
-  // Plan 381: the preview always names the number THIS payment will
-  // receive — the active customer's record against the month
-  // currently picked — so a month switch re-numbers the preview
-  // before anything is saved. Read-only: rendering never reserves
-  // or consumes a number, and a customer with no usable number
-  // shows nothing extra. Plan 527: a split payment issues TWO
-  // receipt numbers, so no single number can be quoted — the line
-  // hides while the split toggle is checked, the same condition the
-  // receipt preview already uses (buildReceiptPreview passes split:
-  // true and the preview returns null); unticking the split shows
-  // it again.
-  function renderNextReceiptLine() {
-    if (!nextReceiptLine) return;
+  // QC Modal Overhaul 2: the one muted subtitle under the amount
+  // field — the prefill line (Plan 376) and the next-receipt preview
+  // (Plan 381) folded into a single line: "Bill {month} (PKR
+  // {dues}) · Next: RCPT-{N}-{YYYYMM}-01". It renders into the
+  // prefill host (quickCollectPrefillLine), so the host and its
+  // muted style stay. The words line (Plan 377) and the settlement
+  // preview (Plan 385) stay as separate live lines — they depend on
+  // the typed amount, not the bill. The subtitle hides when no bill
+  // is open (the prefill's rule), when the sheet opens with an empty
+  // amount (Plan 490) or a carried-over amount (Polish #13) — the
+  // same hides the prefill line had — and drops the receipt part
+  // while a split is on (Plan 527: a split issues two numbers, so
+  // no single number can be quoted).
+  function renderFormSubtitle(openOptions) {
+    if (!prefillLine) return;
+    const hideForOpen = openOptions && (openOptions.emptyAmount === true || (openOptions.amountOverride !== undefined && openOptions.amountOverride !== null));
+    const prefill = activeDefaults?.prefill ?? null;
     const month = monthSelect?.value || activeDefaults?.targetMonth;
     const customer = activeDefaults?.customer ?? null;
-    const line = !splitToggle?.checked && customer && month ? nextReceiptNumberLineText(customer, month) : '';
-    nextReceiptLine.textContent = line;
-    nextReceiptLine.hidden = line === '';
+    const dues = activeDefaults?.totalDues;
+    if (hideForOpen || !prefill || !customer || !month || !Number.isFinite(dues)) {
+      prefillLine.textContent = '';
+      prefillLine.hidden = true;
+      return;
+    }
+    const receipt = !splitToggle?.checked ? nextReceiptNumberFor(customer, month) : '';
+    const billPart = `Bill ${month} (PKR ${dues.toLocaleString('en-PK')})`;
+    prefillLine.textContent = receipt ? `${billPart} · Next: ${receipt}` : billPart;
+    prefillLine.hidden = false;
   }
   // Plan 533: the live split total — leg 1 + leg 2 as typed, so the
   // operator checks the split against what the customer handed over
@@ -2987,28 +2995,13 @@ export function setupQuickCollectModal({
     pendingClearanceFlagEl.hidden = flag === '';
   }
 
-  // Plan 447: the big confirmation line — the selected customer's
-  // name in large text, mohalla, and current dues, refreshed every
-  // time the form opens for a customer, so the operator sees who
-  // the payment is about to be saved against before tapping Save.
-  // It confirms only: rendering posts nothing and changes no record.
-  // The dues figure is the same shared total the picker shows and
-  // the amount defaults to — open bill balances plus unpaid manual
-  // baqaya — never the payable remainder (ticket and boost charges
-  // are not dues). With no selected customer the host is cleared
-  // and hidden, exactly like the other live lines.
-  function renderBigNameConfirm() {
-    if (!bigNameConfirmEl) return;
-    if (!activeDefaults || !activeCustomerId) {
-      bigNameConfirmEl.innerHTML = '';
-      bigNameConfirmEl.hidden = true;
-      return;
-    }
-    const line = bigNameConfirmLine(activeDefaults.customer ?? null, activeDefaults.totalDues + activeDefaults.manualBaqayaPending);
-    const html = line ? bigNameConfirmLineHtml(line) : '';
-    bigNameConfirmEl.innerHTML = html;
-    bigNameConfirmEl.hidden = html === '';
-  }
+  // QC Modal Overhaul 2: the Plan 447 big-name confirmation line is
+  // REMOVED — the form step's customer header box already names the
+  // customer, and the duplicate large heading cost a full screen row
+  // on the one-screen target. The pure module
+  // (quick-collect-big-name-confirm.js) stays unreferenced: its
+  // figures are still the shared dues total, and deleting a pure
+  // module would orphan its tests for no benefit.
   // Plan 382: the save confirmation summary — built from the same
   // reads the submit handler posts with, so the figures the operator
   // confirms are exactly the figures the save will record. Returns
@@ -3520,6 +3513,10 @@ export function setupQuickCollectModal({
       if (!dateInput) return;
       const chipKind = chip.getAttribute('data-qc-date-chip');
       if (chipKind === 'custom') {
+        // QC Modal Overhaul 2: the picker shows only on Custom — unhide
+        // the input BEFORE focusing it, or focus + showPicker are
+        // no-ops on a hidden field (showPicker throws on one).
+        dateInput.hidden = false;
         dateInput.focus();
         try { dateInput.showPicker?.(); } catch { /* picker unsupported — focus alone is enough */ }
         return;
@@ -3532,6 +3529,8 @@ export function setupQuickCollectModal({
         // Plan 544: light the tapped chip at once (the dispatched
         // events land in the listeners below too — both paths agree).
         syncDateChips();
+        // QC Modal Overhaul 2: a preset chip hides the picker again.
+        syncDateInputVisibility();
       }
     });
   });
@@ -3549,6 +3548,20 @@ export function setupQuickCollectModal({
     dateChips.forEach(chip => {
       chip.classList.toggle('is-active', chip.getAttribute('data-qc-date-chip') === active);
     });
+  }
+
+  // QC Modal Overhaul 2: the date picker shows only on Custom — the
+  // four shortcut chips cover every ordinary date, so the input stays
+  // hidden until the operator taps Custom. Visibility follows the
+  // chip, never a hand edit: the input/change listeners re-light the
+  // chips only, so typing a date by hand never hides the field
+  // mid-edit (a hand-typed date keeps the input visible until the
+  // next chip tap or reopen). Callers: the chip taps, every
+  // programmatic date set (open, draft/entry restore, one-screen
+  // re-date), and the future-date refusal, which focuses the input.
+  function syncDateInputVisibility() {
+    if (!dateInput) return;
+    dateInput.hidden = paymentDateChipForDate(dateInput.value, getPakistanLocalDate()) !== 'custom';
   }
 
   // Plan 544: a hand edit of the date re-lights the chips (a chip tap
@@ -3570,9 +3583,9 @@ export function setupQuickCollectModal({
     // switch resets it and re-plans against the newly picked bill.
     waiverTicked = false;
     if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect.value);
-    // Plan 381: the preview belongs to the picked month too — a month
-    // switch re-numbers it before anything is saved.
-    renderNextReceiptLine();
+    // QC Modal Overhaul 2: the subtitle belongs to the picked month
+    // too — a month switch re-numbers it before anything is saved.
+    renderFormSubtitle();
     // Plan 385: the settlement preview belongs to the picked month
     // too — a month switch re-settles it before anything is saved.
     renderSettlementPreview();
@@ -3704,7 +3717,7 @@ export function setupQuickCollectModal({
   // Plan 527: splitting the payment hides the next-receipt line (a
   // split issues two receipt numbers, so no single number can be
   // quoted), and un-splitting shows it again.
-  splitToggle?.addEventListener('change', () => renderNextReceiptLine());
+  splitToggle?.addEventListener('change', () => renderFormSubtitle());
   splitMethodSelect?.addEventListener('change', updateSplitVisibility);
 
   function updateCounts() {
@@ -3717,23 +3730,9 @@ export function setupQuickCollectModal({
     if (duesCountEl) duesCountEl.textContent = allDues.length;
     if (highDuesCountEl) highDuesCountEl.textContent = highDues.length;
     if (allCountEl) allCountEl.textContent = all.length;
-    refreshDailyEntrySummary();
     refreshRoundTotals();
     refreshDailyTargetProgress();
     refreshEndOfDaySummary();
-  }
-
-  // Plan 400: refresh the live daily entry summary on the entry
-  // screen from the transactions recorded on this device. It runs
-  // inside updateCounts, so it refreshes on every open and after
-  // each save, from the fresh state. It summarises only — it
-  // settles nothing and changes no record.
-  function refreshDailyEntrySummary() {
-    if (!dailyEntrySummaryEl) return;
-    const state = getState();
-    if (!state || !Array.isArray(state.customers)) return;
-    const summary = dailyEntrySummary(listTransactions(state), getPakistanLocalDate());
-    dailyEntrySummaryEl.textContent = dailyEntrySummaryText(summary);
   }
 
   // Plan 439: refresh the live round total on the picker screen from
@@ -3999,6 +3998,17 @@ export function setupQuickCollectModal({
     if (closeBtn && typeof closeBtn.setAttribute === 'function') {
       closeBtn.setAttribute('aria-label', stepName === 'success' ? 'Back to customer list' : 'Close quick collect modal');
     }
+    // QC Modal Overhaul 2: the glyph follows the ACTION, not the step
+    // name — '✕' closes (picker / form / confirm / one-screen), '↩'
+    // goes BACK on the success card (collectAnotherCustomer resets
+    // to the picker, PR #1365). A blanket '✕' would silently revert
+    // #1365; the success step keeps its back arrow. The static
+    // markup is '✕' (the modal opens on the picker), and the
+    // close-button audit carries this button as its fourth
+    // documented exception.
+    if (closeBtn && typeof closeBtn.textContent !== 'undefined') {
+      closeBtn.textContent = stepName === 'success' ? '↩' : '✕';
+    }
     // Polish 21 (Req 7): the tick animation must visibly play on EVERY
     // showing. The base rules carry no animation (it would run once at
     // page load while the step is hidden), so re-trigger it here: drop
@@ -4058,8 +4068,14 @@ export function setupQuickCollectModal({
       // exists for the month and no concession is stamped on it yet.
       // Free connections never get a bill, so for them the button is
       // absent just like the manual concession control is.
+      // QC Modal Overhaul 2: no offline minutes, no concession to
+      // fill — the button hides when the month was fully online, so
+      // a tap can never open the concession box for a zero-minute
+      // outage. summary.offlineMinutes is the same figure the
+      // concession suggestion reads (buildMonthlyUptime), so the
+      // gate and the fill can never disagree.
       const bill = customer.bills?.find(b => b.month === month);
-      if (bill && !(Number(bill.concessionAmount) > 0)) {
+      if (bill && !(Number(bill.concessionAmount) > 0) && summary.offlineMinutes > 0) {
         const fillBtn = document.createElement('button');
         fillBtn.type = 'button';
         fillBtn.className = 'apply-late-fee-btn';
@@ -4235,6 +4251,9 @@ export function setupQuickCollectModal({
       dateInput.value = entries.date;
       // Plan 544: the restored date re-lights its chip.
       syncDateChips();
+      // QC Modal Overhaul 2: the restored date decides whether the
+      // picker shows (a custom date keeps it visible).
+      syncDateInputVisibility();
     }
     if (transactionIdInput) transactionIdInput.value = entries.transactionId || '';
     if (senderNameInput) senderNameInput.value = entries.senderName || '';
@@ -4528,6 +4547,10 @@ export function setupQuickCollectModal({
       const differsNote = (!isFree && !isPaused && formTargetMonth && formTargetMonth !== month)
         ? `<p class="qc-package-note">${escapeHtml(t('qcpkg_applies_differs', null, { month: monthLabel(formTargetMonth) }))}</p>`
         : '';
+      // QC Modal Overhaul 2: the catalogue order is NOT the price
+      // order (package-catalog.js lists 1000, 1600, 1500, 2500, 2000,
+      // 3000) — the dropdown sorts a render-local copy ascending by
+      // price, so the catalogue's source order is untouched.
       packageBox.innerHTML = `
         <div class="qc-package-row">
           <span class="qc-package-current">📦 ${escapeHtml(currentText)}</span>
@@ -4535,7 +4558,7 @@ export function setupQuickCollectModal({
         <div class="qc-package-row">
           <select id="quickCollectPackageSelect" class="qc-input" aria-label="${escapeHtml(t('qcpkg_label'))}">
             <option value="">${escapeHtml(t('qcpkg_pick'))}</option>
-            ${BILL_PACKAGES.map(p => `<option value="${escapeHtml(p.id)}" ${currentPkg && p.id === currentPkg.id ? 'disabled' : ''}>${escapeHtml(p.label)} · ${escapeHtml(formatPKR(p.price))}</option>`).join('')}
+            ${[...BILL_PACKAGES].sort((a, b) => a.price - b.price).map(p => `<option value="${escapeHtml(p.id)}" ${currentPkg && p.id === currentPkg.id ? 'disabled' : ''}>${escapeHtml(p.label)} · ${escapeHtml(formatPKR(p.price))}</option>`).join('')}
           </select>
           <button type="button" class="secondary-button qc-package-apply" data-qc-change-package disabled>${escapeHtml(t('qcpkg_change_btn'))}</button>
         </div>
@@ -4642,6 +4665,9 @@ export function setupQuickCollectModal({
     if (dateInput) dateInput.value = draft.date;
     // Plan 544: the restored date re-lights its chip.
     syncDateChips();
+    // QC Modal Overhaul 2: the restored date decides whether the
+    // picker shows (a custom date keeps it visible).
+    syncDateInputVisibility();
     if (methodSelect) {
       methodSelect.value = draft.method;
       syncMethodChips(draft.method);
@@ -4735,29 +4761,17 @@ export function setupQuickCollectModal({
         dueAmountVal.textContent = activeDefaults.balanceDue.toLocaleString('en-PK');
       }
 
-      // Plan 447: the form opens with the big name + mohalla + dues
-      // line already shown for the picked customer, so the operator
-      // checks the name before saving. Every pick re-opens the form,
-      // so the line always names the currently selected customer.
-      renderBigNameConfirm();
-
       // Prefill fields
       if (amountInput) {
         amountInput.value = activeDefaults.suggestedAmount > 0 ? activeDefaults.suggestedAmount.toFixed(2) : '';
         amountInput.max = '999999';
       }
-      // Plan 376 / Plan 522: name the oldest open bill as a
-      // reference under the field, so the operator sees which bill
-      // is oldest and what is still open on it — not a
-      // typed-from-memory figure. The line never claims the oldest
-      // bill is the starting amount: since Plan 429 the field holds
-      // full dues. Hidden when no bill is open: a customer with no
-      // open bill offers nothing.
-      if (prefillLine) {
-        const prefillHtml = transactionPrefillLineHtml(activeDefaults.prefill, { line: t('txp_line') });
-        prefillLine.innerHTML = prefillHtml;
-        prefillLine.hidden = prefillHtml === '';
-      }
+      // QC Modal Overhaul 2: the Plan 376 prefill line is gone — the
+      // subtitle (renderFormSubtitle, below) renders the bill +
+      // next-receipt facts into the same host. The Plan 490 and
+      // Polish #13 hides below stay: they clear the host on a repeat
+      // or carried-over open, and the subtitle honours the same
+      // conditions when it renders.
       // Plan 490: a repeat open carries nothing over — same customer,
       // empty amount. The prefill line is hidden too: with no amount
       // prefilled there is no bill the amount "came from". Every
@@ -4799,10 +4813,10 @@ export function setupQuickCollectModal({
       // Plan 377: the form opens with the suggested amount already
       // typed, so the words start shown, not blank.
       renderAmountWordsLine();
-      // Plan 381: the form opens with the number this payment will
-      // receive already shown, so the operator can answer the
-      // customer before anything is saved.
-      renderNextReceiptLine();
+      // QC Modal Overhaul 2: the form opens with the subtitle already
+      // shown for the picked customer, so the operator can tell the
+      // customer which bill it settles and which number it will get.
+      renderFormSubtitle(options);
       // Plan 385: the form opens with the settlement preview already
       // shown for the suggested amount, so the operator can tell the
       // customer which months it settles before anything is saved.
@@ -4830,6 +4844,9 @@ export function setupQuickCollectModal({
       syncMethodChips(activeDefaults.defaultMethod ?? '');
       // Plan 544: the prefilled date (today) lights the Today chip.
       syncDateChips();
+      // QC Modal Overhaul 2: the prefilled date is today, so the
+      // picker starts hidden — it shows only on Custom.
+      syncDateInputVisibility();
       // Plan 432: the cash field starts empty for the new customer,
       // and the calculator refreshes for the pre-selected method.
       if (cashReceivedInput) cashReceivedInput.value = '';
@@ -4980,8 +4997,8 @@ export function setupQuickCollectModal({
       // change event, and the render at the top of this open ran
       // while the toggle could still hold the previous opening's
       // checked state (closing never resets it) — re-render so the
-      // line is visible again for the fresh sheet.
-      renderNextReceiptLine();
+      // subtitle is visible again for the fresh sheet.
+      renderFormSubtitle(options);
       currentScreenshotDataUrl = '';
       if (screenshotInput) screenshotInput.value = '';
       if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = true;
@@ -4995,53 +5012,40 @@ export function setupQuickCollectModal({
 
       // Update quick amount chips dynamic amounts (#281)
       if (quickAmountChips && activeDefaults) {
-        // Plan 521: the "Full" and "50%" chips use the Plan 489
+        // Plan 521: the "Full" and "Half" chips use the Plan 489
         // figures — the Plan 429 full-dues default
         // (activeDefaults.suggestedAmount), half of it rounded to
         // whole rupees, nothing when it works out to nothing — so
         // "Full" and "Half" mean one thing on every surface: the
-        // chip row, the Plan 489 dues buttons and the one screen all
-        // fill from the same figure. suggestedAmount already lifts
-        // to the whole payable when ticket (SISP-43), boost
-        // (SISP-106) or manual baqaya charges are pending (see
-        // getCustomerPaymentDefaults), so no separate branch is
-        // needed here; the oldest-bill-only balanceDue is never the
-        // chip's base.
+        // chip row and the one screen all fill from the same figure.
+        // QC Modal Overhaul 2: the Plan 489 dues buttons are gone —
+        // they ARE this chip row now. Addendum A2 brings the Package
+        // chip back (the base spec had dropped it): the pills show
+        // their exact figures — 'Full dues (Rs X)', 'Half dues
+        // (Rs X)', 'Package (Rs X)' — the same labels the one
+        // screen's preset chips already use, so the two steps agree.
+        // The Current Month chip stays dropped (its figure was the
+        // oldest-bill balance the Full chip already offers).
+        // suggestedAmount already lifts to the whole payable when
+        // ticket (SISP-43), boost (SISP-106) or manual baqaya
+        // charges are pending (see getCustomerPaymentDefaults), so no
+        // separate branch is needed here; the oldest-bill-only
+        // balanceDue is never the chip's base.
         const chipFigures = addPaymentDuesFigures({ fullDues: activeDefaults.suggestedAmount });
         const fullBal = chipFigures.full ?? 0;
         const halfBal = chipFigures.half ?? 0;
-        // The Monthly chip still falls back to the oldest-bill /
-        // total-dues figure when neither the current month nor the
-        // full dues offer anything (unchanged — out of Plan 521's
-        // scope).
-        const monthlyFallbackBal = (activeDefaults.ticketChargesPending > 0 || activeDefaults.addonChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
-
-          ? activeDefaults.payableTotal
-          : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
-        const curBal = (activeDefaults.currentMonthBalance && activeDefaults.currentMonthBalance > 0)
-          ? activeDefaults.currentMonthBalance
-          : activeDefaults.suggestedAmount;
-        // Plan 391: the package-price chip shows the customer's own
-        // package price when it is known, plain words when it is not.
-        const packagePrice = packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES);
+        const packageBal = packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES);
         quickAmountChips.forEach(chip => {
           const type = chip.getAttribute('data-quick-amount');
           if (type === 'full') {
-            chip.textContent = `Full (Rs ${fullBal > 0 ? fullBal.toLocaleString('en-PK') : '0'})`;
-          } else if (type === 'package') {
-            chip.textContent = packageChipLabel(packagePrice);
-          } else if (type === 'current') {
-            chip.textContent = `Monthly (Rs ${curBal > 0 ? curBal.toLocaleString('en-PK') : (monthlyFallbackBal > 0 ? monthlyFallbackBal.toLocaleString('en-PK') : '0')})`;
+            chip.textContent = `Full dues (Rs ${fullBal > 0 ? fullBal.toLocaleString('en-PK') : '0'})`;
           } else if (type === 'half') {
-            chip.textContent = `50% (Rs ${halfBal > 0 ? halfBal.toLocaleString('en-PK') : '0'})`;
+            chip.textContent = `Half dues (Rs ${halfBal > 0 ? halfBal.toLocaleString('en-PK') : '0'})`;
+          } else if (type === 'package') {
+            chip.textContent = `Package (Rs ${packageBal !== null && packageBal > 0 ? packageBal.toLocaleString('en-PK') : '0'})`;
           }
         });
       }
-
-      // Plan 489: the form step's full-dues / half-dues buttons
-      // refresh for the picked customer, from the same amount
-      // default the field was just filled with.
-      renderAddPaymentDuesButtons();
 
       // SISP-116: loose-change chips for the payable just computed.
       renderLooseChangeChips();
@@ -5103,72 +5107,15 @@ export function setupQuickCollectModal({
     row.innerHTML = oneScreenQuickAmountButtonsHtml(figures);
   }
 
-  // Plan 528: one small group label above an amount row, created once
-  // and left in place afterwards. The label only names the row — it
-  // never changes a button, a figure, or a tap — so a re-render that
-  // finds its row already labelled does nothing.
-  function ensureAmountGroupLabel(row, text) {
-    if (!row) return;
-    const previous = row.previousElementSibling;
-    if (previous && previous.classList && previous.classList.contains('qc-amount-group-label')) return;
-    const label = document.createElement('p');
-    label.className = 'qc-amount-group-label';
-    label.textContent = text;
-    row.before(label);
-  }
-
-  // Plan 489: the Add payment form step's own one-tap amount
-  // buttons — full dues, half dues — one row ahead of the entry
-  // form's chip row. The full dues are the amount default the form
-  // already fills the field with (Plan 429); half is half of it
-  // rounded to whole rupees, and fills nothing when it works out to
-  // nothing. The row is rendered by the module and refreshed whenever
-  // the customer changes; tapping a button only fills the amount
-  // field, exactly as if the figure had been typed.
-  function renderAddPaymentDuesButtons() {
-    if (!stepForm || !amountInput) return;
-    const chipsRow = stepForm.querySelector('.qc-quick-amount-chips');
-    if (!chipsRow) return;
-    let duesRow = stepForm.querySelector('.apd-row');
-    if (!duesRow) {
-      duesRow = document.createElement('div');
-      duesRow.className = 'qc-quick-amount-chips apd-row';
-      chipsRow.before(duesRow);
-      duesRow.addEventListener('click', (event) => {
-        const button = event.target?.closest?.('[data-apd-amount]');
-        if (!button || !amountInput) return;
-        const amount = Number(button.getAttribute('data-apd-amount'));
-        if (!Number.isFinite(amount) || amount <= 0) return;
-        amountInput.value = amount.toFixed(2);
-        // A button-set amount refreshes the same live lines a typed
-        // amount refreshes, exactly like the entry form's chips.
-        if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
-        renderAmountWordsLine();
-        renderCashChange();
-        renderSettlementPreview();
-        renderOverpaymentChoice();
-        renderUnderpaymentWarning();
-        amountInput.focus();
-        renderRemainderWaadaRow();
-        // Plan 533: a button-set amount re-computes the split total
-        // the same way.
-        renderSplitTotal();
-      });
-    }
-    const figures = addPaymentDuesFigures({
-      fullDues: activeDefaults?.suggestedAmount ?? null,
-    });
-    duesRow.innerHTML = addPaymentDuesButtonsHtml(figures);
-    // Plan 528: the three amount rows each carry a small group label
-    // above them, so "Full" and "Full dues" stop looking like the same
-    // button twice. The dues label goes above the dues row and the
-    // quick-amounts label above the entry chip row — in that order,
-    // so the page reads dues label, dues row, chip label, chip row.
-    // The loose-change label lives in the page and hides with its row.
-    ensureAmountGroupLabel(duesRow, 'Pay in full / half');
-    ensureAmountGroupLabel(chipsRow, 'Quick amounts');
-  }
-
+  // QC Modal Overhaul 2: Plan 528's ensureAmountGroupLabel and Plan
+  // 489's renderAddPaymentDuesButtons are BOTH deleted — the merged
+  // chip row carries its one static "Quick amounts" label in the
+  // page, and the dues buttons ARE the Full/Half chips now. The
+  // loose-change label stays in the page (it hides with its row),
+  // and the .qc-amount-group-label rule stays for both static
+  // labels. The figures module (add-payment-dues-buttons.js) stays:
+  // its figures still drive the chip row and the one screen — only
+  // its Html export goes, with the row it rendered.
   function bindOneScreenControls() {
     if (!stepOneScreen) return;
     // QC Modal Fix: the customer "select" is now the combobox's
@@ -5386,6 +5333,20 @@ export function setupQuickCollectModal({
       syncOneScreenSaveLabel();
       amountInputOne.focus();
     });
+    // QC Modal Overhaul 2 (addendum A1): the one-screen keypad is
+    // hidden by default too — its toggle sits inside the amount row
+    // (see quick-collect-one-screen.js). The host is re-created on
+    // every render, so the toggle is wired here with the rest of the
+    // one-screen controls, and the keypad returns to hidden on a
+    // re-render.
+    const oneScreenKeypadToggle = stepOneScreen.querySelector('#qosOneScreenKeypadToggle');
+    oneScreenKeypadToggle?.addEventListener('click', () => {
+      if (!oneScreenKeypadBox) return;
+      const willShow = oneScreenKeypadBox.hidden;
+      oneScreenKeypadBox.hidden = !willShow;
+      oneScreenKeypadToggle.setAttribute('aria-expanded', String(willShow));
+      if (willShow) amountInputOne?.focus();
+    });
     amountInputOne?.addEventListener('input', syncOneScreenSaveLabel);
     syncOneScreenSaveLabel();
     customerSelect?.addEventListener('change', () => {
@@ -5490,6 +5451,9 @@ export function setupQuickCollectModal({
     // today — if the TID switch then shows the form step, its chips
     // must already agree with the date (Plan 543).
     syncDateChips();
+    // QC Modal Overhaul 2: the re-date is today, so the picker stays
+    // hidden on the form step too.
+    syncDateInputVisibility();
     if (monthSelect) monthSelect.value = activeDefaults.targetMonth;
     // Plan 543: the one screen does not collect a Transaction ID or an
     // override reason, so a digital payment with neither would fail
@@ -5978,42 +5942,28 @@ export function setupQuickCollectModal({
     chip.addEventListener('click', () => {
       if (!amountInput || !activeDefaults) return;
       const type = chip.getAttribute('data-quick-amount');
-      // Plan 521: the "Full" and "50%" chips fill from the Plan 489
-      // figures — the Plan 429 full-dues default
+      // Plan 521: the "Full dues" and "Half dues" chips fill from the
+      // Plan 489 figures — the Plan 429 full-dues default
       // (activeDefaults.suggestedAmount), half of it rounded to
       // whole rupees, nothing when it works out to nothing — the
-      // same shared rule the Plan 489 dues buttons and the one
-      // screen follow. suggestedAmount already lifts to the whole
-      // payable when ticket, boost or manual baqaya charges are
-      // pending, so no separate branch is needed here; the old
-      // Rs 500 fallback was an invented figure and is gone.
+      // same shared rule the one screen follows. QC Modal Overhaul
+      // 2: the Plan 489 dues buttons are gone — they ARE this chip
+      // row now. Addendum A2 brings the Package chip back: it fills
+      // the customer's package price (the same rule the one screen's
+      // Package chip uses); the Current Month chip stays dropped.
+      // suggestedAmount already lifts to the whole payable when
+      // ticket, boost or manual baqaya charges are pending, so no
+      // separate branch is needed here; the old Rs 500 fallback was
+      // an invented figure and is gone.
       const chipFigures = addPaymentDuesFigures({ fullDues: activeDefaults.suggestedAmount });
-      // The Monthly chip still falls back to the oldest-bill /
-      // total-dues figure when neither the current month nor the
-      // full dues offer anything (unchanged — out of Plan 521's
-      // scope).
-      const baseBalance = (activeDefaults.ticketChargesPending > 0 || activeDefaults.addonChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
-
-        ? activeDefaults.payableTotal
-        : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
 
       if (type === 'full') {
         if (chipFigures.full !== null) amountInput.value = chipFigures.full.toFixed(2);
-      } else if (type === 'package') {
-        // Plan 391: the package-price chip fills the customer's own
-        // package price; with no known price it fills nothing and
-        // leaves the amount field exactly as it was.
-        const price = resolveQuickAmount('package', { packagePrice: packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES) });
-        if (price !== null) {
-          amountInput.value = price.toFixed(2);
-        }
-      } else if (type === 'current') {
-        const cur = (activeDefaults.currentMonthBalance && activeDefaults.currentMonthBalance > 0)
-          ? activeDefaults.currentMonthBalance
-          : activeDefaults.suggestedAmount;
-        amountInput.value = (cur > 0 ? cur : baseBalance).toFixed(2);
       } else if (type === 'half') {
         if (chipFigures.half !== null) amountInput.value = chipFigures.half.toFixed(2);
+      } else if (type === 'package') {
+        const packagePrice = packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES);
+        if (packagePrice !== null && packagePrice > 0) amountInput.value = packagePrice.toFixed(2);
       } else {
         const val = Number(type);
         if (Number.isFinite(val)) {
@@ -6041,36 +5991,56 @@ export function setupQuickCollectModal({
     });
   });
 
-  // Plan 442: the on-screen numeric keypad host (null when the host
-  // page predates it) — big digit keys for the amount field, so the
-  // operator never needs the phone's own keyboard at the counter.
-  const amountKeypadBox = typeof document !== 'undefined' ? document.getElementById('kpdAmountKeypad') : null;
+  // QC Modal Overhaul 2 (addendum A1): the form-step keypad is
+  // HIDDEN BY DEFAULT — the user refined the base spec's "remove
+  // it" to "collapse it, with a toggle". The 12-button keypad
+  // stretched the form step to ~4 mobile screens when always
+  // visible; hidden, the form fits on one screen, and the '⌨️
+  // Keypad' toggle inside the amount input reveals it in one tap.
+  // The keypad module (quick-collect-amount-keypad.js) is shared
+  // with the one-screen step (#qosOneScreenKeypad), which hides
+  // the same way. A keypad tap sets the amount, so the change
+  // re-computes (and every other live line refreshes) the same way
+  // a typed amount does; the keypad posts nothing.
   function renderAmountKeypad() {
-    if (!amountKeypadBox) return;
-    amountKeypadBox.innerHTML = amountKeypadHtml();
+    const amountKeypadBox = modal.querySelector('#kpdAmountKeypad');
+    if (amountKeypadBox) amountKeypadBox.innerHTML = amountKeypadHtml();
   }
-  renderAmountKeypad();
 
-  // Plan 442: a keypad tap enters exactly its digit into the amount
-  // field — identical to typing it, so the form's normal submit
-  // records it, exactly like a typed amount. Backspace drops the
-  // last digit, clear empties the field. The keypad posts nothing.
-  // A keypad tap sets the amount, so the change re-computes the same way.
+  const amountKeypadBox = modal.querySelector('#kpdAmountKeypad');
   amountKeypadBox?.addEventListener('click', (event) => {
     const key = event.target?.closest?.('[data-kpd-key]');
     if (!key || !amountInput) return;
     amountInput.value = amountKeypadApplyKey(amountInput.value, key.getAttribute('data-kpd-key'));
-    if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
     renderAmountWordsLine();
     renderCashChange();
     renderSettlementPreview();
     renderOverpaymentChoice();
     renderUnderpaymentWarning();
-    amountInput.focus();
-    renderRemainderWaadaRow();
     // Plan 533: a keypad-set amount re-computes the split total the same way.
     renderSplitTotal();
+    renderRemainderWaadaRow();
+    // SISP-101: the waiver gate re-plans explicitly, with the same
+    // guard the chip handler uses — a bare renderWaiverBox() would
+    // clear the box without re-rendering it (its guard returns
+    // before the plan when the customer or month is missing).
+    if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
+    amountInput.focus();
   });
+
+  // The keypad toggle: one tap reveals the hidden keypad, a second
+  // hides it again. It never submits (type="button") and never
+  // touches the amount — it only flips the host's hidden state and
+  // its own aria-expanded, so a screen reader announces the state.
+  const keypadToggleBtn = modal.querySelector('#quickCollectKeypadToggle');
+  keypadToggleBtn?.addEventListener('click', () => {
+    if (!amountKeypadBox) return;
+    const willShow = amountKeypadBox.hidden;
+    amountKeypadBox.hidden = !willShow;
+    keypadToggleBtn.setAttribute('aria-expanded', String(willShow));
+    if (willShow) amountInput?.focus();
+  });
+  renderAmountKeypad();
 
   // SISP-116: a loose-change chip tap fills the tendered round amount
   // into the amount input — identical to typing it (the form's normal
@@ -7030,6 +7000,11 @@ export function setupQuickCollectModal({
         // (Plans 292/296) — an inline error under the date field with
         // focus, not a toast alone; the toast is only the fallback
         // when the field is missing.
+        // QC Modal Overhaul 2: the picker hides unless Custom — unhide
+        // it before the error focuses it, or the focus (and the inline
+        // error under it) lands on a hidden field the operator cannot
+        // see. A future date is a custom date, so the picker shows.
+        if (dateInput) dateInput.hidden = false;
         const dateMsg = t('bdate_future_error');
         if (!showQuickCollectFieldError(dateInput, 'quickCollectDateError', dateMsg)
           && typeof onToast === 'function') {

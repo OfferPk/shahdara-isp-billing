@@ -3093,6 +3093,12 @@ export function applyLateFeeToBill(state, customerId, month, { amount = 100, rea
   if (Number(bill.firstMonthWaivedAmount) > 0) throw new Error('Cannot apply a late fee to a month tagged as the first month free — a 0 bill cannot be late.');
   const lateFeeNum = Number(amount);
   if (!Number.isFinite(lateFeeNum) || lateFeeNum <= 0) throw new Error('Late fee amount must be a positive number.');
+  // Sharafat 16: re-application is refused — a live fee is never silently
+  // overwritten (applying 100 then 200 used to leave 200 with no notice).
+  // A waived fee is lateFee: 0, which is NOT an existing fee, so
+  // waive → reapply stays allowed (see late-fee-waiver.test.js).
+  const existingFee = Number(bill.lateFee) || 0;
+  if (existingFee > 0) throw new Error(`Bill for month ${month} already has a late fee of PKR ${existingFee}.`);
   const cleanFee = Math.round(lateFeeNum * 100) / 100;
   const cleanReason = String(reason || 'Late payment surcharge').trim();
   const amountHistory = [...(bill.amountHistory ?? [])];

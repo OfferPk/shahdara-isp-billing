@@ -387,6 +387,62 @@ export function findOverdueBillsWithLateFeeStatus(state, {
 }
 
 /**
+ * Batch apply late fee to selected customer bills upon explicit owner action,
+ * reporting per-bill outcomes so the caller can tell the operator which
+ * bills got the fee and which were skipped — and why. Sharafat 16: a bill
+ * that already carries a fee is refused (see applyLateFeeToBill), never
+ * silently overwritten; a duplicate key in one batch cannot double-apply.
+ * @param {Object} state
+ * @param {Array<{ customerId: string, month: string }>} billKeys
+ * @param {Object} [options]
+ * @param {number} [options.amount=100]
+ * @param {string} [options.reason]
+ * @param {Date} [options.referenceDate=new Date()]
+ * @returns {{ state: Object, applied: Array<{ customerId: string, month: string }>, skipped: Array<{ customerId: string, month: string, code: string, reason: string, existingFee?: number }> }} Updated state plus the per-bill outcome lists. Skip codes: 'already-has-fee' (live fee exists), 'invalid-key' (missing customer or month), 'other' (any other refusal, e.g. tagged first month or missing bill).
+ */
+export function applyLateFeeToEligibleBillsWithReport(state, billKeys, {
+  amount = 100,
+  reason = 'Late payment surcharge / جرمانہ تاخیر ادائیگی',
+  referenceDate = new Date()
+} = {}) {
+  const empty = { state, applied: [], skipped: [] };
+  if (!Array.isArray(billKeys) || !billKeys.length) return empty;
+  let currentState = state;
+  const applied = [];
+  const skipped = [];
+  const findBill = (customerId, month) => {
+    const customer = currentState?.customers?.find(c => c.id === customerId);
+    return customer?.bills?.find(b => b.month === month) ?? null;
+  };
+  for (const item of billKeys) {
+    if (!item?.customerId || !item?.month) {
+      skipped.push({ customerId: item?.customerId ?? null, month: item?.month ?? null, code: 'invalid-key', reason: 'Missing customer or month.' });
+      continue;
+    }
+    // Sharafat 16: refuse up front when a live fee already exists, so the
+    // skip is reported instead of being swallowed by the catch below.
+    const existingBill = findBill(item.customerId, item.month);
+    const existingFee = Number(existingBill?.lateFee) || 0;
+    if (existingFee > 0) {
+      skipped.push({ customerId: item.customerId, month: item.month, code: 'already-has-fee', reason: `Bill for month ${item.month} already has a late fee of PKR ${existingFee}.`, existingFee });
+      continue;
+    }
+    try {
+      currentState = applyLateFeeToBill(currentState, item.customerId, item.month, {
+        amount,
+        reason
+      }, referenceDate);
+      applied.push({ customerId: item.customerId, month: item.month });
+    } catch (err) {
+      // Any other refusal (tagged first month, missing bill, bad amount)
+      // is reported, never swallowed.
+      skipped.push({ customerId: item.customerId, month: item.month, code: 'other', reason: err?.message || 'Late fee could not be applied.' });
+    }
+  }
+  return { state: currentState, applied, skipped };
+}
+
+/**
  * Batch apply late fee to selected customer bills upon explicit owner action.
  * @param {Object} state
  * @param {Array<{ customerId: string, month: string }>} billKeys
@@ -401,20 +457,7 @@ export function applyLateFeeToEligibleBills(state, billKeys, {
   reason = 'Late payment surcharge / جرمانہ تاخیر ادائیگی',
   referenceDate = new Date()
 } = {}) {
-  if (!Array.isArray(billKeys) || !billKeys.length) return state;
-  let currentState = state;
-  for (const item of billKeys) {
-    if (!item?.customerId || !item?.month) continue;
-    try {
-      currentState = applyLateFeeToBill(currentState, item.customerId, item.month, {
-        amount,
-        reason
-      }, referenceDate);
-    } catch {
-      // Continue applying to other valid items
-    }
-  }
-  return currentState;
+  return applyLateFeeToEligibleBillsWithReport(state, billKeys, { amount, reason, referenceDate }).state;
 }
 
 /**
@@ -925,12 +968,23 @@ export function setupLateFeeModal({ getState, updateState, toast }) {
       if (!ask) {
         return;
       }
-      const updated = applyLateFeeToEligibleBills(getState(), selected, {
+      const report = applyLateFeeToEligibleBillsWithReport(getState(), selected, {
         amount,
         reason: config.reason
       });
-      updateState(updated);
-      toast?.(`Applied PKR ${amount} late fee to ${selected.length} customer bills.`);
+      updateState(report.state);
+      // Sharafat 16: the toast reports what actually happened — a bill
+      // that already had a fee is refused, never silently overwritten,
+      // so the old "applied to N bills" claim can no longer over-count.
+      const alreadyCount = report.skipped.filter(s => s.code === 'already-has-fee').length;
+      const otherCount = report.skipped.length - alreadyCount;
+      const appliedNoun = report.applied.length === 1 ? 'customer bill' : 'customer bills';
+      let toastMsg = report.applied.length
+        ? `Applied PKR ${amount} late fee to ${report.applied.length} ${appliedNoun}.`
+        : 'No late fee applied.';
+      if (alreadyCount) toastMsg += ` ${alreadyCount} already had a late fee and ${alreadyCount === 1 ? 'was' : 'were'} skipped.`;
+      if (otherCount) toastMsg += ` ${otherCount} could not be applied.`;
+      toast?.(toastMsg);
       renderModalContent();
     });
   }
@@ -992,12 +1046,18 @@ export function setupLateFeeModal({ getState, updateState, toast }) {
 
         if (!ask) return;
 
-        const updated = applyLateFeeToBill(getState(), custId, month, {
-          amount: config.defaultAmount,
-          reason: config.reason
-        });
-        updateState(updated);
-        toast?.(`Applied PKR ${config.defaultAmount} late fee to bill ${month}.`);
+        try {
+          const updated = applyLateFeeToBill(getState(), custId, month, {
+            amount: config.defaultAmount,
+            reason: config.reason
+          });
+          updateState(updated);
+          toast?.(`Applied PKR ${config.defaultAmount} late fee to bill ${month}.`);
+        } catch (err) {
+          // Sharafat 16: re-application is refused — surface the refusal
+          // in a toast instead of throwing out of the click handler.
+          toast?.(err?.message || 'Late fee could not be applied.');
+        }
         renderModalContent();
         return;
       }

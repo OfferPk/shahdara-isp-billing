@@ -15893,6 +15893,11 @@ dialog::backdrop {
   gap: 8px;
   margin-bottom: 10px;
 }
+/* Profile Inner Tabs Overhaul (§2) — the grid rule below sizes every
+ * input 100% × 40px, which stretches the down-payment checkbox into a
+ * giant box; the checkbox keeps its own 22px box (the :814 44px floor
+ * is button-only, so no !important is needed here). */
+.kist-add-grid input[type="checkbox"]{width:22px;height:22px;min-height:22px;flex:none}
 .kist-add-grid input {
   width: 100%;
   min-width: 0;
@@ -16497,6 +16502,10 @@ real pills. No new hex anywhere. */
 .pcp-form label{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
 .pcp-form select,.pcp-form input{height:38px;border:1px solid #adc9f1;border-radius:8px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0;max-width:100%}
 .pcp-form select:focus,.pcp-form input:focus{outline:3px solid #cce9dd;border-color:#60a68d}
+/* Profile Inner Tabs Overhaul (§1) — at phone width the form labels
+ * stack above their inputs instead of sitting beside them and clipping
+ * at the edge; each label takes a full row. */
+@media(max-width:620px){.pcp-form label{display:flex;flex-direction:column;align-items:flex-start;gap:4px;flex-basis:100%}.pcp-form label select,.pcp-form label input{width:100%}}
 #packageChangePreviewResult .package-change-preview-incomplete{margin:8px 0;padding:10px 12px;border:1px solid #adc9f1;border-radius:12px;background:#e5efff;color:#174b87;font-size:12px;line-height:1.5}
 .ql-summary-pill{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;white-space:normal;overflow-wrap:anywhere}
 #qualityLogList .empty-state{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;white-space:normal;overflow-wrap:anywhere}
@@ -16581,7 +16590,7 @@ section[aria-label="Welcome pack"] > p.welcome-pack-missing{display:flex;flex-wr
 .profile-hardware-custody .occupancy-risk-warning{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid var(--qc-amber-strong-border);border-radius:999px;background:var(--qc-amber-soft-bg);color:var(--qc-amber-strong-text);font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
 /* F7 — first-bill preview: the table keeps its layout and becomes a teal
  * card; the total row stays bold. */
-#firstBillPreviewResult .first-bill-preview{margin:6px 0;border:1px solid #9acbad;border-radius:12px;background:#e7f2ec;overflow:hidden}
+#firstBillPreviewResult .first-bill-preview{margin:6px 0;border:1px solid #9acbad;border-radius:12px;background:#e7f2ec;overflow-x:auto;overflow-y:hidden}
 #firstBillPreviewResult .first-bill-preview table{width:100%;border-collapse:collapse}
 #firstBillPreviewResult .first-bill-preview tfoot td{font-weight:700;color:#0e5b4d}
 /* F8 — banners and whole-section states that are pills/cards, not rows. */
@@ -16719,7 +16728,14 @@ section[aria-label="Welcome pack"] > p.welcome-pack-missing{display:flex;flex-wr
 .wada-banner-overdue{background:#fdeceb;color:#a3433a;border:1px solid #f0dbd8}
 .wada-banner-actions{display:flex;gap:6px;flex:0 0 auto}
 .wada-banner-actions button{border:1px solid rgba(0,0,0,.14);background:#fff;border-radius:7px;padding:6px 9px;font:600 11px 'DM Sans',sans-serif;cursor:pointer;color:var(--ink)}
-.wada-quick-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:8px;align-items:end;margin-top:10px}
+.wada-quick-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:end;margin-top:10px}
+/* Profile Inner Tabs Overhaul (§4) — chips on one full row above a
+ * 2-col Promised date | Amount row; note + button below, full width.
+ * (The ≤620px rule below keeps 1fr 1fr columns, so the 2-col row holds
+ * at phone width too.) */
+.wada-quick-form .waada-chip-row{grid-column:1/-1}
+.wada-quick-form label[for="wadaQuickNote"]{grid-column:1/-1}
+.wada-quick-form #wadaQuickSaveBtn{grid-column:1/-1}
 .wada-quick-form label{display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:#4b6259;min-width:0}
 .wada-quick-form label .pcp-field-pill{align-self:flex-start}
 .wada-quick-form input{height:38px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
@@ -16879,11 +16895,27 @@ same chevron pattern as the month cards, tokens only, no new hex. */
 .profile-detail-section summary::after{content:'⌄';font-size:18px;color:var(--muted);margin-left:auto;transition:transform .15s}
 .profile-detail-section[open] summary::after{transform:rotate(180deg)}
 .profile-detail-section summary h3{margin:0;font-size:15px;flex:1;min-width:0}
-.profile-section-summary{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.profile-section-summary{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .profile-section-body{display:grid;gap:12px;padding:14px 15px 16px;border-top:1px solid var(--line)}
 /* Polish #28 Phase C — the per-section Edit button sits between the
 summary text and the chevron; it must not stretch or shrink. */
 .profile-section-edit{flex:none;min-height:0;padding:4px 10px;font-size:12px}
+/* Profile Inner Tabs Overhaul (§6) — secondary forms collapse into
+ * accordions, default closed, no persistence. Shape mirrors
+ * .pay-optional-details: text-only <summary>, chevron at the end. */
+.profile-accordion{border:1px solid var(--ds-line);border-radius:var(--ds-radius);background:var(--ds-card);padding:0 12px 12px}
+.profile-accordion summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;font-size:12px;font-weight:700;color:var(--ds-label)}
+.profile-accordion summary::-webkit-details-marker{display:none}
+.profile-accordion summary::after{content:'⌄';font-size:18px;color:var(--muted);margin-left:auto;transition:transform .15s}
+.profile-accordion[open] summary::after{transform:rotate(180deg)}
+.profile-accordion-body{display:grid;gap:8px}
+/* Profile Inner Tabs Overhaul (§2) — the Wada 'i' (and every other
+ * profile help button) was a stretched 44px oval: the global button
+ * rule floors every button at 44px !important with no base
+ * .help-info-btn rule. The profile sections get their own 32px round
+ * button, mirroring the Quick Collect modal's scoped rule; the global
+ * rule is NOT changed. */
+.profile-detail-section .help-info-btn{width:32px;height:32px;min-width:32px;min-height:32px!important;margin-inline-start:0;flex-shrink:0}
 /* Polish #28 Phase C — the value copy button sits beside its value in
 the same row; the dd becomes a flex row so the button never stretches. */
 .profile-readonly-field dd.profile-copy-dd{display:flex;align-items:center;gap:6px}

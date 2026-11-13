@@ -4201,12 +4201,12 @@ export const TRANSLATIONS = {
 
     // Pending Actions Center
     drawer_pending_actions: 'Pending Actions',
-    pending_actions_title: 'Pending Actions Center',
+    pending_actions_title: 'Pending Actions',
     pending_actions_subtitle: 'Unshared WhatsApp receipts, collection promises & offline queue',
-    pending_copy_list: '📋 Copy List',
-    pending_clear_nophone: '🧹 Clear No-Phone Receipts',
+    pending_copy_list: 'Copy List',
+    pending_clear_nophone: 'Clear No-Phone Receipts',
     pending_tab_all: 'All Pending',
-    pending_tab_receipts: '📱 WhatsApp Receipts',
+    pending_tab_receipts: 'WhatsApp Receipts',
     pending_tab_promises: '🤝 Promises Due',
     pending_tab_offline: '💾 Offline Queue',
     pending_no_actions: 'No pending actions! All receipts shared and follow-ups completed.',
@@ -8815,12 +8815,12 @@ export const TRANSLATIONS = {
 
     // Pending Actions Center (اردو)
     drawer_pending_actions: 'زیر التواء کام',
-    pending_actions_title: 'ایکشن سینٹر - زیر التواء کام',
+    pending_actions_title: 'زیر التواء کام',
     pending_actions_subtitle: 'غیر ارسال شدہ واٹس ایپ رسیدیں، وعدے اور آف لائن کیو',
-    pending_copy_list: '📋 فہرست کاپی کریں',
-    pending_clear_nophone: '🧹 بغیر فون والی رسیدیں صاف کریں',
+    pending_copy_list: 'فہرست کاپی کریں',
+    pending_clear_nophone: 'بغیر فون والی رسیدیں صاف کریں',
     pending_tab_all: 'تمام زیر التواء',
-    pending_tab_receipts: '📱 واٹس ایپ رسیدیں',
+    pending_tab_receipts: 'واٹس ایپ رسیدیں',
     pending_tab_promises: '🤝 ادائیگی کے وعدے',
     pending_tab_offline: '💾 آف لائن کیو',
     pending_no_actions: 'کوئی زیر التواء کام نہیں! تمام رسیدیں بھیج دی گئیں اور کام مکمل ہیں۔',

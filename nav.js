@@ -435,7 +435,21 @@ export function setupScrollToTop() {
     });
 
     let ticking = false;
+    // Transactions & Recent Receipts Polish §5: the button hides ~2s
+    // after the operator stops scrolling (it reappears on the next
+    // scroll event). The timer only governs how long the button
+    // LINGERS — the >400px appearance threshold is unchanged (DS-0).
+    let idleTimer = null;
+    const scheduleIdleHide = () => {
+      if (idleTimer !== null && typeof clearTimeout === 'function') clearTimeout(idleTimer);
+      if (typeof setTimeout !== 'function') return;
+      idleTimer = setTimeout(() => {
+        btn.hidden = true;
+        btn.classList.toggle('is-visible', false);
+      }, 2000);
+    };
     window.addEventListener('scroll', () => {
+      scheduleIdleHide();
       if (!ticking) {
         ticking = true;
         const update = () => {

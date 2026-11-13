@@ -33,6 +33,7 @@ import {
 import { calculatePlanMigrationProration } from './form-validation.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
 import { sanitizeRoundingTag } from './bill-rounding-helper.js';
+import { countActiveCustomers } from './pending-works.js';
 
 const monthKey = (date = new Date()) => {
   const d = new Date(date);
@@ -515,7 +516,7 @@ export function auditBillingCorrectness(state, referenceDate = new Date()) {
     auditTimestamp: referenceDate.toISOString(),
     auditDate: currentDateStr,
     currentMonth,
-    totalCustomers: customers.length,
+    totalCustomers: countActiveCustomers(customers),
     activeCustomers: customers.filter(c => !c.archived && c.serviceStatus === 'active').length,
     archivedCustomers: customers.filter(c => c.archived).length,
     totalBills,

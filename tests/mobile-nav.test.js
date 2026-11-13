@@ -14629,7 +14629,7 @@ test('bilingual English / Urdu UI localization engine and RTL layout support (ag
   assert.equal(t('nav_collection', 'ur'), 'وصولی');
   assert.equal(t('status_paid', 'en'), 'Paid');
   assert.equal(t('status_paid', 'ur'), 'مکمل ادا شدہ');
-  assert.equal(t('qc_title', 'ur'), '⚡ فوری نقد وصولی (2-Tap)');
+  assert.equal(t('qc_title', 'ur'), 'فوری نقد وصولی (2-Tap)');
   assert.equal(t('search_title', 'ur'), '🔍 فوری صارف تلاش');
   assert.equal(t('rounds_title', 'ur'), '📋 فیلڈ وصولی روٹ لسٹ');
   assert.equal(t('nonexistent_key', 'en'), 'nonexistent_key');

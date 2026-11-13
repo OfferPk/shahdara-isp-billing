@@ -143,10 +143,19 @@ const EXPECTED_ICON_NAMES = [
   // Home Dashboard polish (Nov 2026) adds 3: Calendar (Today badge),
   // Landmark (Cash in Hand bank glyph) and CheckCircle (Active
   // Subscribers) replace the last 3D emoji in the KPI strip / Today card.
-  'Calendar', 'Landmark', 'CheckCircle',
+  // (Landmark is shared with Collect Tab polish — listed once below.)
+  'Calendar', 'CheckCircle',
+  // Collect Tab & Field Operations Dashboard Polish (Nov 2026) adds 10:
+  // Target (Today's Field Recovery), TrendingUp (Collection insights),
+  // Landmark (Advance Held), Store / Coins / Wifi (Shop Cash +
+  // Installation Tracker), Briefcase / Plug (Zone Field Dispatch Board)
+  // and ChevronLeft / ChevronRight (Collected Feed pagination) — the
+  // Collect dashboard loses its last 3D emoji.
+  'Target', 'TrendingUp', 'Landmark', 'Store', 'Coins', 'Wifi',
+  'Briefcase', 'Plug', 'ChevronLeft', 'ChevronRight',
 ];
 
-test('DS-0 icons: the full §3.2 path set is exported (63 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish + 6 QC cash modal overhaul + 3 home dashboard polish)', () => {
+test('DS-0 icons: the full §3.2 path set is exported (72 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish + 6 QC cash modal overhaul + 3 home dashboard polish + 10 collect tab polish, Landmark shared — counted once)', () => {
   assert.deepEqual([...DS_ICON_NAMES].sort(), [...EXPECTED_ICON_NAMES].sort(), 'ds-icons.js must export exactly the §3.2 icon set');
   for (const name of EXPECTED_ICON_NAMES) {
     assert.ok(isDsIconName(name), `${name} must be a known icon name`);

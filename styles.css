@@ -8956,6 +8956,44 @@ html, body {
   color: #16a34a;
 }
 
+/* QC Success Card Polish (2026-11-13): the Amount row is one green
+   pill — label + amount inside, in the QC mint palette (tokens.css
+   --qc-mint-bg / --qc-mint-border / --qc-emerald-text). The 1px
+   border adds 2px to the row height; a fully-paid card gives back
+   43px from the hidden Still-owed row, so the card still fits its
+   recorded budget (see the plan552 + polish17 fit tests). The
+   customer name is golden with a crown: the gold reuses the ID-pill
+   gold #704600 — no new hex. The sender's last-4 digits leave the
+   bracketed label and become their own small mint pill. */
+.qc-receipt-amount-row.qc-amount-pill {
+  align-items: center;
+  background: var(--qc-mint-bg);
+  border: 1px solid var(--qc-mint-border);
+  border-radius: 999px;
+  padding: 2px 14px;
+}
+.qc-receipt-amount-row.qc-amount-pill .qc-receipt-label {
+  color: var(--qc-emerald-text);
+  font-weight: 700;
+}
+.qc-customer-golden {
+  color: #704600;
+}
+.qc-sender-digits-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--qc-mint-bg);
+  border: 1px solid var(--qc-mint-border);
+  color: var(--qc-emerald-text);
+  margin-left: 6px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 .qc-receipt-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -9201,9 +9239,13 @@ html, body {
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header > .qc-receipt-id { white-space: nowrap; margin-left: auto; }
 
 /* C4: amount 1.5rem → 1.3rem (still the largest figure on the card),
-   amount row padding 4 → 2px. */
+   amount row padding 4 → 2px. QC Success Card Polish (2026-11-13):
+   the row is a pill now, so the success-open rule pins the PILL's
+   padding (2px 14px — vertical stays 2px, horizontal is the pill
+   shape); the plain-row rule is gone because every amount row on
+   the card carries .qc-amount-pill. */
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount { font-size: 1.3rem; }
-#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount-row { padding: 2px 0; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount-row.qc-amount-pill { padding: 2px 14px; }
 
 /* C5: grid gap 8 → 6px; Area select becomes a ~30px pill (spec §4.3.4).
    The old 34px height was dead code — styles.css:802 floors every select

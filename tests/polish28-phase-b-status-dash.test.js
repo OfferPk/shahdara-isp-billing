@@ -316,7 +316,10 @@ test('phase B Req 3: money rows dash empty values; profit names the missing comp
   // value still dashes through profileEmptyTax when it has no figure.
   assert.ok(money.includes("[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))]"), 'sales tax must dash when it has no figure');
   assert.ok(money.includes("[t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)]"), 'purchase cost must dash when empty');
-  assert.ok(money.includes("[t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)]"), 'selling amount must dash when empty');
+  // Profile Inner Tabs Overhaul (§3, D2a) — the selling row now labels
+  // the STORED price as what it is; the value still dashes through
+  // profileEmptyMoney when empty, which is the behaviour pinned here.
+  assert.ok(money.includes("[t('prof_field_selling_stored'), profileEmptyMoney(customer.monthlySellingAmount)]"), 'selling amount must dash when empty');
   assert.ok(money.includes("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]"), 'profit must dash with the missing-component note when null');
 });
 

@@ -74,7 +74,11 @@ test('floating scroll-top button is hidden until scrolled', () => {
   const hidden = ruleBody(css, /\.scroll-top-button\[hidden\] \{([^}]*)\}/);
   assert.match(hidden, /display: none/);
   const visible = ruleBody(css, /\.scroll-top-button\.is-visible \{([^}]*)\}/);
-  assert.match(visible, /opacity: 1/);
+  // Transactions & Recent Receipts Polish §5 (D2): the visible button
+  // is deliberately semi-transparent (0.85, was 1) so it never fully
+  // covers amounts and pills underneath it. Geometry and the
+  // >400px threshold are unchanged (Pucho §4 owns them).
+  assert.match(visible, /opacity: 0\.85/);
   assert.match(visible, /pointer-events: auto/);
 });
 

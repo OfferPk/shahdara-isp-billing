@@ -1100,6 +1100,10 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 /* Unpaid Cards: the Recent receipts finder on the Transactions
    screen — a compact panel above the ledger. Tokens and borders
    only; no new hex. */
+/* Transactions & Recent Receipts Polish §2: the count line and its ℹ️
+   button share one flex row, so the button never takes its own row
+   when .transactions-heading stacks its children at ≤620px. */
+.transactions-count-row { display: flex; align-items: center; gap: 6px; }
 .receipt-finder {
   margin: 12px 0;
   padding: 12px;
@@ -1109,17 +1113,6 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 }
 .receipt-finder-head h3 { margin: 0; font-size: 13px; }
 .receipt-finder-note { margin: 2px 0 8px; color: var(--muted); font-size: 11px; }
-#receiptFinderSearch {
-  width: 100%;
-  height: 40px;
-  border: 1px solid #dce6e1;
-  border-radius: 9px;
-  background: #fff;
-  padding: 0 11px;
-  color: var(--ink);
-  font: 500 13px 'DM Sans', sans-serif;
-}
-#receiptFinderSearch:focus { outline: 3px solid #cce9dd; border-color: #60a68d; }
 .receipt-finder-count { margin: 8px 0 0; color: var(--muted); font-size: 11px; font-weight: 600; }
 .receipt-finder-results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
 .receipt-finder-row {
@@ -1137,8 +1130,19 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .receipt-finder-name { font-weight: 700; overflow-wrap: anywhere; }
 .receipt-finder-meta { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 .receipt-finder-amount { font-weight: 800; font-variant-numeric: tabular-nums; }
-.receipt-finder-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.receipt-finder-actions .secondary-button { min-height: 32px; padding: 0 10px; font-size: 11px; }
+/* Transactions & Recent Receipts Polish §4: the receipt ID never
+   breaks mid-token (nowrap monospace badge); the three actions sit
+   on ONE 3-column grid row that always spans the full row width. */
+.receipt-finder-receipt-id { white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.receipt-finder-actions { flex: 1 1 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.receipt-finder-actions .secondary-button { min-height: 32px; padding: 0 10px; font-size: 11px; background: var(--color-slate-50); color: var(--color-slate-700); }
+.receipt-finder-action-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.receipt-finder-actions .receipt-whatsapp-action-wrap { align-items: stretch; }
+.receipt-finder-actions .receipt-network-note { display: none; }
+.receipt-finder-actions .receipt-whatsapp-action, .receipt-finder-actions .receipt-phone-help { min-height: 32px; font-size: 11px; }
+.receipt-finder-actions .receipt-whatsapp-action { background: var(--qc-mint-bg); color: var(--qc-emerald-text); font-weight: 700; border-color: var(--qc-mint-border); }
+.receipt-finder-actions .print-receipt-button { min-height: 32px; font-size: 11px; background: var(--qc-blue-bg); color: var(--qc-blue-text); }
+.receipt-finder-show-more { margin-top: 8px; width: 100%; }
 .customer-card-controls {
   display: grid;
   gap: 8px;
@@ -17280,7 +17284,7 @@ the same row; the dd becomes a flex row so the button never stretches. */
 .tx-search-row input[type="search"] { flex: 1 1 auto; min-width: 0; height: 44px; border: 1px solid #dce6e1; border-radius: 9px; background: #fff; padding: 0 11px; color: var(--ink); font: 500 16px 'DM Sans', sans-serif; }
 .tx-search-row input[type="search"]:focus { outline: 3px solid #cce9dd; border-color: #60a68d; }
 .tx-filters-toggle { flex: 0 0 auto; white-space: nowrap; }
-.tx-quick-pills { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.tx-quick-pills { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; padding-right: 16px; scrollbar-width: none; }
 .tx-quick-pills::-webkit-scrollbar { display: none; }
 .tx-pill { flex: 0 0 auto; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line, #dfe8e3); background: #fff; color: var(--ink); font: 600 12px 'DM Sans', system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
 .tx-pill[aria-pressed="true"] { background: var(--ds-brand, #0e5b4d); border-color: var(--ds-brand, #0e5b4d); color: #fff; }

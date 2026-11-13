@@ -165,7 +165,9 @@ test('top bar: one unified search input, six quick pills, and a collapsible adva
   const html = read('index.html');
   // The unified input lives in the top bar, before the filters panel.
   assert.ok(html.indexOf('id="transactionLiveSearch"') < html.indexOf('id="txAdvancedFilters"'));
-  assert.ok(html.includes('placeholder="Search name, phone, amount, reference, or receipt no."'));
+  // Transactions & Recent Receipts Polish §2: the unified placeholder
+  // is the spec's "Search customer, #ID, amount, or receipt #...".
+  assert.ok(html.includes('placeholder="Search customer, #ID, amount, or receipt #..."'));
   assert.ok(html.includes('id="txAdvancedFiltersToggle"'));
   assert.ok(html.includes('aria-controls="txAdvancedFilters"'));
   assert.ok(html.includes('<div class="transaction-filters" id="txAdvancedFilters" hidden>'));

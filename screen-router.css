@@ -721,6 +721,12 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
 .pkr-note-chip{display:inline-flex;align-items:center;padding:1px 6px;border-radius:6px;background:var(--mint);border:1px solid var(--line);color:var(--green-dark);font-size:10px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .pkr-note-remainder{display:inline-flex;align-items:center;padding:1px 6px;border-radius:6px;background:var(--amber-bg);border:1px solid var(--line);color:var(--amber);font-size:10px;font-weight:700;white-space:nowrap}
 
+/* Transactions & Recent Receipts Polish §1 (D1): the recovery-screen
+   hide rule that used to sit here is deleted — the Subscriber Count &
+   Tab Isolation move took the loose <main> summary cards into their
+   home tabs, so the rule matched nothing anymore. Do NOT re-add a
+   per-screen hide: the mount bug is fixed, not papered over. */
+
 /* Home Dashboard polish (A4): the Collect button is a solid emerald
    32px pill that never clips (nowrap + flex-shrink: 0). Placed after
    the dark block so both the light rule and its dark override win;
@@ -748,12 +754,3 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
 [data-theme="dark"] .overdue-collect-link:hover {
   background: var(--ds-brand-hover);
 }
-
-/* Dues Recovery Overhaul: the home dashboard's operational summary
-   cards (Monthly Billing Cycle, Complaint Register, …) are loose
-   <article> children of <main> — the view switcher never hides them
-   — so on the Dues Recovery screen they rendered above the recovery
-   queue and the collector scrolled past all of them to reach it
-   (probe: panel at ~4590px, scrollY 0). On the recovery screen they
-   stay on Home, where they belong; the queue renders first. */
-body[data-screen="recovery"] main > article.summary-card{display:none}

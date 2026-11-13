@@ -7138,7 +7138,7 @@
       <div class="transactions-pane">
         <div class="transactions-heading">
           <div><p class="eyebrow">LOCAL PAYMENT HISTORY</p><h2 id="transactionsHeading">Transactions</h2><p class="transactions-subtitle">Every recorded payment · newest first</p></div>
-          <p id="transactionsCount" class="transactions-count" role="status">0 transactions</p><button class="help-info-btn" type="button" data-help="correct_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
+          <div class="transactions-count-row"><p id="transactionsCount" class="transactions-count" role="status">0 transactions</p><button class="help-info-btn" type="button" data-help="correct_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button></div>
         </div>
         <!-- Transactions Screen Overhaul: one unified search bar at the
              top (live search + refine + reference + receipt number in a
@@ -7147,7 +7147,7 @@
              12-field form no longer sits below the list. -->
         <div class="tx-topbar">
           <div class="tx-search-row">
-            <input id="transactionLiveSearch" type="search" autocomplete="off" placeholder="Search name, phone, amount, reference, or receipt no." aria-label="Search payments by name, phone, amount, reference, or receipt number">
+            <input id="transactionLiveSearch" type="search" autocomplete="off" placeholder="Search customer, #ID, amount, or receipt #..." aria-label="Search payments by name, phone, amount, reference, or receipt number">
             <button id="txAdvancedFiltersToggle" class="secondary-button tx-filters-toggle" type="button" aria-expanded="false" aria-controls="txAdvancedFilters">Filters &amp; sort</button>
           </div>
           <div class="tx-quick-pills" role="group" aria-label="Quick filters">
@@ -7166,9 +7166,9 @@
              re-sends it (WhatsApp text / PNG screenshot). -->
         <section class="receipt-finder" aria-labelledby="receiptFinderHeading">
           <div class="receipt-finder-head"><h3 id="receiptFinderHeading" data-i18n="receipt_finder_heading">Recent receipts</h3><p class="receipt-finder-note" data-i18n="receipt_finder_note">Find any receipt — reopen it or send it again.</p></div>
-          <input id="receiptFinderSearch" type="search" autocomplete="off" placeholder="Find a receipt — customer name, phone, or customer ID" data-i18n-placeholder="receipt_finder_search_placeholder" data-i18n-aria-label="receipt_finder_search_aria" aria-label="Find a receipt by customer name, phone, or customer ID">
           <p id="receiptFinderCount" class="receipt-finder-count" role="status" aria-live="polite"></p>
           <ul id="receiptFinderResults" class="receipt-finder-results" aria-label="Recent receipts"></ul>
+          <button id="receiptFinderShowMore" class="secondary-button receipt-finder-show-more" type="button" data-i18n="receipt_finder_show_more" hidden>Show More (25 per page)</button>
         </section>
         <div class="tx-summary-row">
           <div id="transactionSummaryBar" class="transaction-summary-bar" aria-live="polite">

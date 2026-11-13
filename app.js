@@ -608,7 +608,7 @@ import { largeCashApprovalMarkup, requiresLargeCashApproval, LARGE_CASH_DEFAULT_
 import { categoryTagMarkup, filterTransactionsByCategoryTag, transactionCategoryTagCounts, transactionCategoryTagLabel, transactionCategoryTagSelectOptions } from './transaction-category-tag.js';
 import { urduNoteMarkup } from './urdu-note.js';
 import { crossPaymentNoteMarkup, crossPaymentsMadeBy, crossPaymentsMadeSectionHtml } from './cross-payment-note.js';
-import { normalizeReceiptNumber, findTransactionByReceiptNumber, receiptNumberSearchLineText, receiptNumberSearchRowMarkup } from './receipt-number-search.js';
+import { normalizeReceiptNumber, findTransactionByReceiptNumber, receiptNumberSearchLineText, receiptNumberSearchRowMarkup, receiptNumberOfRow } from './receipt-number-search.js';
 import { findReceipts } from './receipt-finder.js';
 import { customerIdPillClass, customerHealthReasonPillClass, healthScoreBandClass } from './customer-card-style.js';
 import { billMonthChoiceOf, normalizeBillMonthChoice, billMonthSelectOptions, billMonthChoiceLineText } from './bill-month-selector.js?v=1.11.0';
@@ -4174,7 +4174,7 @@ function receiptSmsSlipMarkup(customer, receipt) {
   if (!sms.valid) return '';
   return `<a class="receipt-whatsapp-action receipt-sms-action" href="${escapeHtml(sms.url)}" aria-label="${escapeHtml(t('sms_slip_aria', null, { number: customer.customerNumber, name: customer.name }))}">${escapeHtml(t('sms_slip_btn'))}</a>`;
 }
-function receiptWhatsAppActionMarkup(customer, receiptInput, { askLabel = null } = {}) {
+function receiptWhatsAppActionMarkup(customer, receiptInput, { askLabel = null, draftLabel = null } = {}) {
   // SISP-96: the WhatsApp draft closes with the owner-configured receipt
   // footer (ONE builder in receipt-footer-studio.js), attached here as
   // receiptFooterText. '' when unconfigured — the draft then stays
@@ -4188,7 +4188,10 @@ function receiptWhatsAppActionMarkup(customer, receiptInput, { askLabel = null }
     return `${smsMarkup}<button class="receipt-phone-help" type="button" data-edit-receipt-phone="${escapeHtml(customer.id)}" aria-label="${label} for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)} before preparing this receipt" title="Use this customer's full international number including country code.">${label}</button>`;
   }
   if (action.type !== 'draft') return smsMarkup || '<span class="whatsapp-receipt-unavailable">Receipt draft unavailable for this customer.</span>';
-  const whatsappMarkup = `<span class="receipt-whatsapp-action-wrap"><a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; an internet connection is required to open WhatsApp; it will not send automatically" title="Draft prepared locally; internet is required to open WhatsApp.">WhatsApp receipt</a><small class="receipt-network-note">Internet required to open WhatsApp.</small></span>`;
+  // Transactions & Recent Receipts Polish §4: the draft anchor text
+  // defaults to 'WhatsApp receipt' everywhere; the finder passes its
+  // concise label via draftLabel so the anchor fits one grid column.
+  const whatsappMarkup = `<span class="receipt-whatsapp-action-wrap"><a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; an internet connection is required to open WhatsApp; it will not send automatically" title="Draft prepared locally; internet is required to open WhatsApp.">${escapeHtml(draftLabel || 'WhatsApp receipt')}</a><small class="receipt-network-note">Internet required to open WhatsApp.</small></span>`;
   // SISP-76: an SMS-preference customer sees the SMS slip first.
   // SISP-91: decided by the ONE channel mapping (receiptChannelPreference),
   // so an explicit 'sms' channel and the legacy prefersSms flag agree.
@@ -5795,6 +5798,10 @@ let transactionLiveSearch = '';
 // goes live at two characters (see normalizeReceiptFinderQuery) — a
 // two-digit customer number is a complete customer ID.
 let receiptFinderQuery = '';
+// Transactions & Recent Receipts Polish §3: the finder pages at 25
+// receipts per page (Show More), starting at the first 25 — reset to 25
+// whenever the query, the active pill, or Clear filters changes.
+let receiptFinderShown = 25;
 // Plan 465: the refine box — the second term typed on the
 // Transactions screen; '' means no refine. The refine only goes
 // live at three or more characters (see normalizeLedgerRefine).
@@ -5978,6 +5985,9 @@ function applyTransactionQuickPill(pill) {
   } else if (pill === 'partial') {
     transactionStatusFilter = 'partial';
   }
+  // Transactions & Recent Receipts Polish §3: a new pill resets the
+  // finder to its first 25 rows, like the list resets to page 1.
+  receiptFinderShown = 25;
   transactionCurrentPage = 1;
   renderTransactions();
 }
@@ -6163,10 +6173,16 @@ function renderTransactions() {
   transactions = sortTransactionsList(transactions, transactionSortBy);
 
   const total = listTransactions(state).length;
-  $('#transactionsCount').textContent = `${transactions.length} of ${total} recorded ${total === 1 ? 'payment' : 'payments'}`;
+  const summary = calculateTransactionSummary(transactions);
+  // Transactions & Recent Receipts Polish §2: the count line carries the
+  // filtered total from the SAME summary object the summary bar reads
+  // (#txSummaryTotal below), so the two totals agree by construction.
+  // Rupees throughout — summary.totalAmount is never divided by 100.
+  // (Pre-existing asymmetry, not fixed here: the N/M counts include
+  // voided rows as history while the total excludes them per SISP-34.)
+  $('#transactionsCount').textContent = `${transactions.length} of ${total} recorded ${total === 1 ? 'payment' : 'payments'} • ${formatAmount(summary.totalAmount)}`;
   $('#transactionsEmpty').hidden = transactions.length > 0;
 
-  const summary = calculateTransactionSummary(transactions);
   const totalEl = $('#txSummaryTotal');
   const avgEl = $('#txSummaryAverage');
   if (totalEl) totalEl.textContent = formatAmount(summary.totalAmount);
@@ -6431,8 +6447,11 @@ function renderTransactions() {
   bindReceiptPhoneActions(transactionList);
   // Transactions Screen Overhaul: the quick pills' counts and
   // pressed state always describe the ledger as recorded.
+  // Transactions & Recent Receipts Polish §3: the finder shows the
+  // receipts matching the SELECTED pill (and the unified search) — it
+  // receives the already-filtered list, not the whole ledger.
   syncTransactionQuickPills(listTransactions(state), todayKey);
-  renderReceiptFinder();
+  renderReceiptFinder(transactions);
 }
 // Unpaid Cards: the Recent receipts finder — a quick path over the
 // local ledger on the Transactions screen. Blank box: the 10 most
@@ -6441,10 +6460,29 @@ function renderTransactions() {
 // or re-sends it (WhatsApp text / PNG screenshot) with the same
 // builders the transaction rows use. The input lives outside the
 // results list, so re-rendering the results never steals focus.
+// Transactions & Recent Receipts Polish §4: the finder method pill
+// reuses .method-chip — shop-cash variants fold under Cash, like the
+// list rows do (methodSlug), and the label is the same short label the
+// list rows show (shop name for shop cash, else the method).
+function receiptFinderMethodChipClass(method) {
+  const slug = methodSlug(method);
+  if (slug === 'cash' || slug.startsWith('cash-')) return 'cash';
+  if (slug === 'easypaisa') return 'easypaisa';
+  if (slug === 'jazzcash') return 'jazzcash';
+  if (slug === 'raast') return 'raast';
+  if (slug === 'bank' || slug === 'bank-transfer') return 'bank';
+  return 'other';
+}
 function receiptFinderRowHtml(transaction, customerIndex) {
   const { customer, bill, payment } = resolveTransactionCustomer(transaction, customerIndex);
   const pid = escapeHtml(transaction.paymentId);
-  const meta = `${escapeHtml(humanDate(transaction.date))} · ${escapeHtml(transaction.method)}${receiptNumberSearchRowMarkup(transaction, generateReceiptNumber)}`;
+  // The receipt ID is wrapped at the finder call site only — the shared
+  // receiptNumberSearchRowMarkup stays plain text (the Transactions
+  // "Find by receipt number" flow pins it), and the ID is displayed
+  // as-is: stored numbers win over derived ones, nothing is renumbered.
+  const receiptRef = receiptNumberOfRow(transaction, generateReceiptNumber);
+  const receiptBadge = receiptRef ? ` · <span class="receipt-finder-receipt-id">Receipt ${escapeHtml(receiptRef)}</span>` : '';
+  const meta = `${escapeHtml(humanDate(transaction.date))} · <span class="method-chip ${receiptFinderMethodChipClass(transaction.method)}">${escapeHtml(shortTransactionMethodLabel(transaction.method))}</span>${receiptBadge}`;
   const main = `<span class="receipt-finder-main"><span class="receipt-finder-name">#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}</span><span class="receipt-finder-meta">${meta}</span></span><strong class="receipt-finder-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>`;
   // A receipt whose customer, bill or payment no longer resolves
   // still shows (it is ledger history) but carries no actions —
@@ -6452,24 +6490,44 @@ function receiptFinderRowHtml(transaction, customerIndex) {
   if (!customer || !bill || !payment) return `<li class="receipt-finder-row">${main}</li>`;
   const receiptData = buildPaymentReceipt(customer, bill, payment);
   const receiptBillStatus = receiptData?.status === 'PAID' ? 'paid' : receiptData?.status === 'PARTIAL' ? 'partial' : null;
-  const whatsapp = receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus: receiptBillStatus, status: receiptData?.status ?? null, billAmount: receiptData?.nominalPrice ?? null, balanceDueCents: receiptData?.balanceDueCents ?? null, ticketCharges: receiptData?.ticketCharges ?? [], salesTaxCents: receiptData?.salesTaxCents ?? null, area: receiptData?.area ?? null, advanceCredit: receiptData?.advanceCredit ?? null, waivedAmount: receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown: buildArrearsBreakdown(customer, (customer.bills ?? []).find((billEntry) => billEntry.month === transaction.month)), ...autoPackageFieldForDraft(payment) }, { askLabel: 'WhatsApp receipt' });
-  return `<li class="receipt-finder-row">${main}<span class="receipt-finder-actions"><button class="secondary-button" type="button" data-receipt-finder-open data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="${escapeHtml(t('receipt_finder_open'))} — ${escapeHtml(transaction.customerName)}">${escapeHtml(t('receipt_finder_open'))}</button>${whatsapp}${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}</span></li>`;
+  const whatsapp = receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus: receiptBillStatus, status: receiptData?.status ?? null, billAmount: receiptData?.nominalPrice ?? null, balanceDueCents: receiptData?.balanceDueCents ?? null, ticketCharges: receiptData?.ticketCharges ?? [], salesTaxCents: receiptData?.salesTaxCents ?? null, area: receiptData?.area ?? null, advanceCredit: receiptData?.advanceCredit ?? null, waivedAmount: receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown: buildArrearsBreakdown(customer, (customer.bills ?? []).find((billEntry) => billEntry.month === transaction.month)), ...autoPackageFieldForDraft(payment) }, { askLabel: 'WhatsApp receipt', draftLabel: t('receipt_finder_whatsapp_short') });
+  // The three actions sit in ONE 3-column grid row (see styles.css):
+  // Open (short label; the aria-label keeps the full key), the WhatsApp
+  // markup in its own cell (its <small> network note is hidden in the
+  // finder — the anchor already carries the same text as its title —
+  // and an SMS-slip anchor, when present, stacks under it in the same
+  // cell), and the PNG button with its short label.
+  return `<li class="receipt-finder-row">${main}<span class="receipt-finder-actions"><button class="secondary-button" type="button" data-receipt-finder-open data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="${escapeHtml(t('receipt_finder_open'))} — ${escapeHtml(transaction.customerName)}">${escapeHtml(t('receipt_finder_open_short'))}</button><span class="receipt-finder-action-cell">${whatsapp}</span>${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber, t('receipt_finder_png_short'))}</span></li>`;
 }
-function renderReceiptFinder() {
+// Transactions & Recent Receipts Polish §2/§3: the finder reads the
+// UNIFIED search query (its own input is deleted) and shows the
+// receipts matching the active pill — it receives the filtered list
+// from renderTransactions, defaulting to the whole ledger for
+// standalone callers. Paging lives here in app.js (receipt-finder.js
+// stays pure): the first page shows receiptFinderShown (25) rows and
+// Show More adds 25; the count line names { shown, total } in both
+// modes (recent total = the filtered list's length; search total =
+// the full match count from findReceipts).
+function renderReceiptFinder(filteredList) {
   const list = $('#receiptFinderResults');
   const countEl = $('#receiptFinderCount');
+  const showMoreBtn = $('#receiptFinderShowMore');
   if (!list) return;
-  const found = findReceipts(listTransactions(state), receiptFinderQuery, { deriveReceiptNumber: generateReceiptNumber });
+  const entries = Array.isArray(filteredList) ? filteredList : listTransactions(state);
+  const found = findReceipts(entries, receiptFinderQuery, { recentLimit: receiptFinderShown, searchLimit: receiptFinderShown, deriveReceiptNumber: generateReceiptNumber });
   const customerIndex = indexCustomers(state.customers);
   list.innerHTML = found.rows.map(transaction => receiptFinderRowHtml(transaction, customerIndex)).join('');
+  const totalAvailable = found.mode === 'search' ? found.total : entries.length;
+  const shown = found.rows.length;
+  if (showMoreBtn) showMoreBtn.hidden = totalAvailable <= shown;
   if (countEl) {
     const query = receiptFinderQuery.trim();
     if (found.rows.length === 0) {
       countEl.textContent = found.mode === 'search' ? t('receipt_finder_none', null, { query }) : t('receipt_finder_empty');
     } else if (found.mode === 'search') {
-      countEl.textContent = t('receipt_finder_match', null, { count: found.total, query }) + (found.total > found.rows.length ? ` ${t('receipt_finder_more', null, { shown: found.rows.length, total: found.total })}` : '');
+      countEl.textContent = t('receipt_finder_match', null, { count: found.total, query }) + (found.total > shown ? ` ${t('receipt_finder_more', null, { shown, total: found.total })}` : '');
     } else {
-      countEl.textContent = t('receipt_finder_recent', null, { count: found.rows.length });
+      countEl.textContent = t('receipt_finder_recent', null, { shown, total: totalAvailable });
     }
   }
   list.querySelectorAll('[data-receipt-finder-open]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
@@ -12562,8 +12620,12 @@ $('#transactionAmountMax').addEventListener('input', event => { transactionAmoun
 // Transactions Screen Overhaul: this input is the one smart search
 // bar at the top — the same keystrokes also match a reference and
 // an exact receipt number (see searchLedgerUnified).
-$('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
-$('#receiptFinderSearch')?.addEventListener('input', event => { receiptFinderQuery = event.currentTarget.value; renderReceiptFinder(); });
+// Transactions & Recent Receipts Polish §2: ONE search bar — the
+// unified input feeds the finder too (its own input is deleted), so
+// the finder follows the same keystrokes with its own 2-char floor;
+// a new query resets the finder to its first 25 rows.
+$('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; receiptFinderQuery = event.currentTarget.value; receiptFinderShown = 25; transactionCurrentPage = 1; renderTransactions(); });
+$('#receiptFinderShowMore')?.addEventListener('click', () => { receiptFinderShown += 25; renderTransactions(); });
 // Plan 465: the refine box — narrowing only the already-found list
 // on every keystroke; clearing the box (or dropping below three
 // characters) restores the full first list.
@@ -12679,8 +12741,7 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   resetTransactionFilterState();
   transactionQuickPill = 'all';
   receiptFinderQuery = '';
-  const receiptFinderInput = $('#receiptFinderSearch');
-  if (receiptFinderInput) receiptFinderInput.value = '';
+  receiptFinderShown = 25;
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');
   if (reportSearch) reportSearch.value = '';

@@ -96,4 +96,8 @@ export function renderDashboardCreditBalances(doc, summary) {
   if (lineEl) lineEl.textContent = creditBalancesCountText(summary);
   const emptyEl = doc.getElementById('crbCreditEmpty');
   if (emptyEl) emptyEl.hidden = (summary.count ?? 0) > 0;
+  // Collect Tab polish: no credit outstanding collapses the card to
+  // one compact row (same class as the upcoming-dues card above).
+  const card = totalEl?.closest?.('.collection-forecast-card');
+  if (card?.classList) card.classList.toggle('collection-forecast-card--compact-zero', (summary.count ?? 0) === 0);
 }

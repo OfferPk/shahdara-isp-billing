@@ -18,7 +18,7 @@
 // All helpers are pure except load/saveBillingCycles and the modal setup.
 // Tests use synthetic data only; no customer, bill or payment data is ever
 // fabricated here.
-import { calculatePaymentAllocations, formatPKR, localDateTimeValue, paymentAddonChargeCents, paymentManualBaqayaCents, paymentTicketChargeCents } from './core.js';
+import { calculatePaymentAllocations, formatPKR, isZeroPricedBill, localDateTimeValue, paymentAddonChargeCents, paymentManualBaqayaCents, paymentTicketChargeCents } from './core.js';
 
 import { advancePlansForBilledLines, advancePlansForCoveredKist, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
@@ -197,7 +197,10 @@ export function planCustomerCycleLine(customer, month, referralQueued = 0, feede
   let existingKistTotal = 0;
   if (existing) {
     const amount = Number(existing.dueAmount);
-    if (!Number.isFinite(amount) || amount <= 0) return { ...base, skipped: true, reason: 'unpriced-bill' };
+    // Sharafat 18: a flagged zero bill is priced at zero, not
+    // unpriced — the line proceeds with price 0 (arrears still ride
+    // the gross, so a free month never erases them).
+    if (!isZeroPricedBill(existing) && (!Number.isFinite(amount) || amount <= 0)) return { ...base, skipped: true, reason: 'unpriced-bill' };
     // Rate-locked: never recompute an existing bill's amount. Its dueAmount
     // already includes any kist billed earlier, so recover the package part
     // by subtracting that kist — otherwise the kist would be counted twice.

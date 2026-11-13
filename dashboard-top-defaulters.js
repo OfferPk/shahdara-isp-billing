@@ -59,14 +59,13 @@ import {
   contactChannelLabel,
   contactMarkedMessage,
   contactedToday,
-  markContactedLabel,
   stampContact
 } from './contact-cooldown-tracker.js';
 import {
-  classifyDefaulterFromMonths,
-  defaulterSegmentChipHtml
+  classifyDefaulterFromMonths
 } from './defaulter-risk-segment.js';
 import { areaFilterKey, customerAreaKey } from './area-operations.js';
+import { canonicalMohalla } from './phase3.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -217,7 +216,13 @@ export function calculateTopDefaulters(state, {
         name: c.name || 'Unnamed Subscriber',
         phone: c.phone || '',
         area: c.area || 'Shahdara',
-        mohalla: c.mohalla || '',
+        // Top Defaulters polish (2026-11-13): normalize the mohalla once
+        // here so the card, the CSV Mohalla column and the print/briefing
+        // rows share one value (canonicalMohalla folds spelling variants
+        // like "Mohalla Bani" to the fixed-list label; a stored value that
+        // matches nothing keeps its own label — a literally truncated
+        // stored value cannot be recovered, that is a live-ledger data fix).
+        mohalla: canonicalMohalla(c.mohalla || '')?.label || '',
         address: c.address || '',
         serviceStatus: c.serviceStatus || 'active',
         package: c.packageSpeed || c.package || 'Standard',
@@ -450,13 +455,20 @@ export function renderTopDefaultersSvg(defaulterData) {
   const accounts = defaulterData?.accounts ? defaulterData.accounts.slice(0, 10) : [];
   const metrics = defaulterData?.metrics || {};
 
-  const svgWidth = 600;
+  // Top Defaulters polish (2026-11-13): narrower viewBox so the 600-wide
+  // layout stops rendering at 0.53x on a phone — at 380 wide the scale is
+  // ~0.84x, so 12px labels render at ~10px effective and stay legible.
+  // The concentration badge moves to its own row under the subtitle (the
+  // title would collide with a top-right badge at this width); the legend
+  // row costs 20px of height (+45 -> +65).
+  const svgWidth = 380;
   const barHeight = 22;
   const barGap = 10;
-  const startY = 85;
-  const labelWidth = 145;
-  const maxBarWidth = 330;
-  const height = Math.max(220, startY + (accounts.length * (barHeight + barGap)) + 45);
+  const startY = 105;
+  const labelWidth = 120;
+  const maxBarWidth = 160;
+  const height = Math.max(220, startY + (accounts.length * (barHeight + barGap)) + 65);
+  const legendY = startY + (accounts.length * (barHeight + barGap)) + 8;
 
   const maxDues = accounts.length ? Math.max(...accounts.map(a => a.totalOutstanding)) : 1000;
 
@@ -466,16 +478,18 @@ export function renderTopDefaultersSvg(defaulterData) {
     const isCritical = acc.riskCategory === 'critical';
     const isHigh = acc.riskCategory === 'high';
     const barFill = isCritical ? 'url(#defaulterCritGrad)' : isHigh ? 'url(#defaulterHighGrad)' : 'url(#defaulterModGrad)';
-    const safeName = escapeXml(acc.name.length > 18 ? acc.name.slice(0, 17) + '…' : acc.name);
+    // Name trimmed to 15 chars: at 12px the label column (120px from
+    // x=18) fits ~15 chars before the bar starts.
+    const safeName = escapeXml(acc.name.length > 15 ? acc.name.slice(0, 14) + '…' : acc.name);
     const safeArea = escapeXml(acc.area || 'Shahdara');
 
     return `
       <g class="defaulter-svg-row" data-cust-id="${escapeXml(acc.id)}">
         <!-- Rank and Name -->
-        <text x="18" y="${y + 15}" font-family="system-ui, sans-serif" font-size="11" font-weight="600" fill="var(--text-color, #1e293b)">
+        <text x="18" y="${y + 15}" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="var(--text-color, #1e293b)">
           #${acc.rank} ${safeName}
         </text>
-        <text x="18" y="${y + 26}" font-family="system-ui, sans-serif" font-size="9" fill="var(--text-muted, #64748b)">
+        <text x="18" y="${y + 26}" font-family="system-ui, sans-serif" font-size="10" fill="var(--text-muted, #64748b)">
           ${safeArea} · ${acc.unpaidMonthsCount}m
         </text>
 
@@ -483,7 +497,7 @@ export function renderTopDefaultersSvg(defaulterData) {
         <rect x="${labelWidth}" y="${y}" width="${width}" height="${barHeight}" rx="4" fill="${barFill}"/>
 
         <!-- Amount Value Label -->
-        <text x="${labelWidth + width + 8}" y="${y + 15}" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="${isCritical ? '#ef4444' : isHigh ? '#f97316' : '#10b981'}">
+        <text x="${labelWidth + width + 8}" y="${y + 15}" font-family="system-ui, sans-serif" font-size="12" font-weight="700" style="fill:${isCritical ? 'var(--td-risk-critical)' : isHigh ? 'var(--td-risk-high)' : 'var(--td-risk-moderate)'}">
           PKR ${acc.totalOutstanding.toLocaleString()}
         </text>
       </g>
@@ -502,8 +516,8 @@ export function renderTopDefaultersSvg(defaulterData) {
           <stop offset="100%" stop-color="#ea580c"/>
         </linearGradient>
         <linearGradient id="defaulterModGrad" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#10b981"/>
-          <stop offset="100%" stop-color="#059669"/>
+          <stop offset="0%" style="stop-color:var(--td-risk-moderate)"/>
+          <stop offset="100%" style="stop-color:var(--td-risk-moderate-deep)"/>
         </linearGradient>
       </defs>
 
@@ -512,16 +526,17 @@ export function renderTopDefaultersSvg(defaulterData) {
 
       <!-- Header Title -->
       <text x="20" y="28" font-family="system-ui, sans-serif" font-size="14" font-weight="700" fill="var(--text-color, #1e293b)">Top Defaulters Debt Concentration</text>
-      <text x="20" y="44" font-family="system-ui, sans-serif" font-size="11" fill="var(--text-muted, #64748b)">Leading outstanding subscriber accounts ranked by total cumulative overdue</text>
+      <text x="20" y="44" font-family="system-ui, sans-serif" font-size="11" fill="var(--text-muted, #64748b)">Outstanding accounts ranked by total cumulative overdue</text>
 
-      <!-- Concentration Badge -->
-      <rect x="${svgWidth - 170}" y="14" width="150" height="28" rx="6" fill="rgba(239, 68, 68, 0.1)"/>
-      <text x="${svgWidth - 95}" y="32" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#dc2626" text-anchor="middle">
+      <!-- Concentration Badge (own row under the subtitle: at a 380
+           viewBox the title would collide with a top-right badge) -->
+      <rect x="20" y="58" width="170" height="24" rx="6" fill="rgba(239, 68, 68, 0.1)"/>
+      <text x="105" y="74" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#dc2626" text-anchor="middle">
         Top Debt: ${metrics.topConcentrationPercent || 0}% of Receivables
       </text>
 
       <!-- Subheader divider -->
-      <line x1="20" y1="58" x2="${svgWidth - 20}" y2="58" stroke="var(--border-color, #e2e8f0)" stroke-width="1"/>
+      <line x1="20" y1="92" x2="${svgWidth - 20}" y2="92" stroke="var(--border-color, #e2e8f0)" stroke-width="1"/>
 
       <!-- Bars -->
       ${accounts.length ? barElements : `
@@ -530,10 +545,23 @@ export function renderTopDefaultersSvg(defaulterData) {
         </text>
       `}
 
+      ${accounts.length ? `
+      <!-- Risk legend (one line, between the last bar and the telemetry
+           divider; the spec's "top of the chart" is the crowded title
+           row, so the legend lives here where it fits at 380 wide) -->
+      <g font-family="system-ui, sans-serif" font-size="10" fill="var(--text-color, #1e293b)">
+        <circle cx="26" cy="${legendY - 4}" r="5" style="fill:var(--td-risk-critical)"/>
+        <text x="36" y="${legendY}">Critical (3m+ / 60d+)</text>
+        <circle cx="162" cy="${legendY - 4}" r="5" style="fill:var(--td-risk-high)"/>
+        <text x="172" y="${legendY}">High (2m / 30d+)</text>
+        <circle cx="272" cy="${legendY - 4}" r="5" style="fill:var(--td-risk-moderate)"/>
+        <text x="282" y="${legendY}">Moderate (1m)</text>
+      </g>` : ''}
+
       <!-- Bottom telemetry banner -->
       <line x1="20" y1="${height - 35}" x2="${svgWidth - 20}" y2="${height - 35}" stroke="var(--border-color, #e2e8f0)" stroke-width="1"/>
       <text x="24" y="${height - 15}" font-family="system-ui, sans-serif" font-size="10" fill="var(--text-muted, #64748b)">
-        Top Accounts Dues: <tspan font-weight="700" fill="#ef4444">PKR ${(metrics.topDefaultersDues || 0).toLocaleString()}</tspan> · Total Portfolio: <tspan font-weight="700" fill="var(--text-color, #0f172a)">PKR ${(metrics.totalReceivablesDues || 0).toLocaleString()}</tspan>
+        Top Accounts Dues: <tspan font-weight="700" style="fill:var(--td-risk-critical)">PKR ${(metrics.topDefaultersDues || 0).toLocaleString()}</tspan> · Total Portfolio: <tspan font-weight="700" fill="var(--text-color, #0f172a)">PKR ${(metrics.totalReceivablesDues || 0).toLocaleString()}</tspan>
       </text>
     </svg>
   `;
@@ -980,7 +1008,11 @@ export function setupTopDefaultersModal(state, {
               : '';
 
           // SISP-159: risk segment chip (theme-token safety-badge tones).
-          const segmentBadge = acc.riskSegment ? defaulterSegmentChipHtml(acc.riskSegment) : '';
+          // Top Defaulters polish (2026-11-13, D-B): the chip is NOT
+          // rendered on the card any more — its words ("Polite Reminder")
+          // duplicate the Polite action button below it. The row still
+          // carries acc.riskSegment as data; the helper stays exported
+          // and tested in defaulter-risk-segment.js.
 
           // SISP-148: do-not-suspend shield badge — the customer still
           // owes and stays on the list; only suspension skips them.
@@ -1022,21 +1054,20 @@ export function setupTopDefaultersModal(state, {
                   <small>${acc.oldestOverdueDays}d overdue</small>
                 </div>
               </div>
-              ${waadaBadge ? `<div class="defaulter-card-waada">${waadaBadge}</div>` : ''}
               <div class="defaulter-card-meta">
                 <div class="defaulter-months-tags">${monthsList}</div>
                 <span class="defaulter-card-lastpay">${lastPayText}</span>
                 ${riskBadge}
+                ${waadaBadge}
+                ${escalationBadge}
               </div>
               ${waadaScoreBadge ? `<div class="defaulter-waada-badge">${waadaScoreBadge}</div>` : ''}
-              ${escalationBadge ? `<div class="defaulter-escalation-badge">${escalationBadge}</div>` : ''}
               ${vacationBadge ? `<div class="defaulter-waada-badge">${vacationBadge}</div>` : ''}
-              ${segmentBadge ? `<div class="defaulter-waada-badge">${segmentBadge}</div>` : ''}
               ${shieldBadge ? `<div class="defaulter-waada-badge">${shieldBadge}</div>` : ''}
               ${contactBadge ? `<div class="defaulter-contact-badge">${contactBadge}</div>` : ''}
               <div class="defaulter-card-actions">
                 <button type="button" class="defaulter-reminder-btn defaulter-reminder-polite" data-cust-id="${escapeHtml(acc.id)}" title="Open a polite WhatsApp reminder draft">
-                  🟢 Polite Reminder
+                  🟢 Polite
                 </button>
                 <button type="button" class="defaulter-reminder-btn defaulter-reminder-final" data-cust-id="${escapeHtml(acc.id)}" title="Open a final-notice WhatsApp draft">
                   🟠 Final Notice
@@ -1050,11 +1081,11 @@ export function setupTopDefaultersModal(state, {
                   🤝 Waada
                 </button>
                 <button type="button" class="btn-xs secondary-button defaulter-contact-btn" data-cust-id="${escapeHtml(acc.id)}" aria-expanded="false" title="${escapeHtml(t('cct_mark_title'))}">
-                  ✓ ${escapeHtml(markContactedLabel())}
+                  ✓ ${escapeHtml(t('cct_contacted'))}
                 </button>
                 ${contactPicker}
                 <button type="button" class="btn-xs secondary-button defaulter-view-btn" data-cust-id="${escapeHtml(acc.id)}" title="View subscriber profile">
-                  Profile
+                  👤 Profile
                 </button>
               </div>
             </article>

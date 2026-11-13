@@ -477,10 +477,20 @@ export function fullHistoryEntries(input = {}) {
 
 // Amounts print with no decimals for whole rupees (PKR 1,500) and one
 // decimal for a paisa remainder (PKR 1,500.5), the same shape the
-// entry-screen formatters use.
+// entry-screen formatters use. A figure the list cannot read prints
+// as a bare dash, the same "not a number" rendering receipt-money.js
+// uses — never PKR 0, which would invent money out of nothing.
 export function formatHistoryAmount(cents) {
+  // Sharafat 13: guard the RAW value before Number() — Number(null)
+  // is 0, Number('') is 0 and Number(true) is 1, so a plain
+  // Number.isFinite(Number(cents)) check would still print PKR 0
+  // for null/blank and PKR 1 for true. Same guard shape as
+  // finiteRunningBalanceCents in history-running-balance.js.
+  if (cents === null || cents === undefined) return '—';
+  if (typeof cents === 'boolean') return '—';
+  if (typeof cents === 'string' && cents.trim() === '') return '—';
   const amount = Number(cents);
-  if (!Number.isFinite(amount)) return 'PKR 0';
+  if (!Number.isFinite(amount)) return '—';
   const sign = amount < 0 ? '-' : '';
   const text = (Math.abs(amount) / 100).toLocaleString('en-US', {
     minimumFractionDigits: 0,

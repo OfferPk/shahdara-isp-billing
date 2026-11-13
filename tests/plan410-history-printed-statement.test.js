@@ -82,11 +82,17 @@ test('amount: a negative balance prints with the minus before PKR', () => {
   assert.equal(formatPrintedStatementAmount(-150050), '-PKR 1,500.5');
 });
 
-test('amount: a figure the list cannot read prints as PKR 0, exactly as the list does', () => {
-  assert.equal(formatPrintedStatementAmount(null), 'PKR 0');
-  assert.equal(formatPrintedStatementAmount(undefined), 'PKR 0');
-  assert.equal(formatPrintedStatementAmount(NaN), 'PKR 0');
-  assert.equal(formatPrintedStatementAmount('not a number'), 'PKR 0');
+// Sharafat 13: a figure the list cannot read used to print 'PKR 0',
+// inventing money out of nothing. The repo money rule is
+// null/undefined/empty/boolean = "not a number", never zero — so it
+// prints the bare dash, exactly as the on-screen list does, so the
+// paper never disagrees with the screen. A real zero still prints
+// 'PKR 0'.
+test('amount: a figure the list cannot read prints as a dash, never PKR 0', () => {
+  assert.equal(formatPrintedStatementAmount(null), '—');
+  assert.equal(formatPrintedStatementAmount(undefined), '—');
+  assert.equal(formatPrintedStatementAmount(NaN), '—');
+  assert.equal(formatPrintedStatementAmount('not a number'), '—');
 });
 
 test('amount: the statement formatter mirrors the on-screen formatter on every input', () => {

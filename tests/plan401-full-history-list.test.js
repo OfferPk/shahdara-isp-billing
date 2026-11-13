@@ -333,7 +333,19 @@ test('Plan 401: history amounts print whole rupees with no decimals', () => {
   assert.equal(formatHistoryAmount(150050), 'PKR 1,500.5');
   assert.equal(formatHistoryAmount(-50000), '-PKR 500');
   assert.equal(formatHistoryAmount(0), 'PKR 0');
-  assert.equal(formatHistoryAmount(Number.NaN), 'PKR 0');
+});
+
+// Sharafat 13: a figure the list cannot read used to print 'PKR 0',
+// inventing money out of nothing (and Number(true) even printed
+// 'PKR 1'). The repo money rule is null/undefined/empty/boolean =
+// "not a number", never zero — so it prints the bare dash, the same
+// rendering receipt-money.js uses. A real zero still prints 'PKR 0'.
+test('Plan 401: a figure the list cannot read prints as a dash, never PKR 0', () => {
+  assert.equal(formatHistoryAmount(Number.NaN), '—');
+  assert.equal(formatHistoryAmount(null), '—');
+  assert.equal(formatHistoryAmount(undefined), '—');
+  assert.equal(formatHistoryAmount(true), '—');
+  assert.equal(formatHistoryAmount(''), '—');
 });
 
 test('Plan 401: running notes read in plain words', () => {

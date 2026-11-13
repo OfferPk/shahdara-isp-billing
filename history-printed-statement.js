@@ -80,11 +80,19 @@ function finitePrintedStatementCents(value) {
 // Amounts print in the same shape the on-screen history uses:
 // no decimals for whole rupees (PKR 1,500), one decimal for a
 // paisa remainder (PKR 1,500.5), the minus sign before PKR. A
-// figure the list cannot read prints as PKR 0, exactly as the
-// list does, so the paper never disagrees with the screen.
+// figure the list cannot read prints as a bare dash, exactly as the
+// list does, so the paper never disagrees with the screen (Sharafat
+// 13: the screen prints '—' for a figure that is not a number, so
+// the paper must too — PKR 0 would invent money out of nothing).
 export function formatPrintedStatementAmount(cents) {
+  // Sharafat 13: guard the RAW value before Number() — Number(null)
+  // is 0, Number('') is 0 and Number(true) is 1. Same guard shape
+  // as finitePrintedStatementCents above and formatHistoryAmount.
+  if (cents === null || cents === undefined) return '—';
+  if (typeof cents === 'boolean') return '—';
+  if (typeof cents === 'string' && cents.trim() === '') return '—';
   const amount = Number(cents);
-  if (!Number.isFinite(amount)) return 'PKR 0';
+  if (!Number.isFinite(amount)) return '—';
   const sign = amount < 0 ? '-' : '';
   const text = (Math.abs(amount) / 100).toLocaleString('en-US', {
     minimumFractionDigits: 0,

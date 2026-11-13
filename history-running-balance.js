@@ -137,10 +137,14 @@ export function historyRunningBalanceChainCheck(entries) {
 
 // Amounts print with no decimals for whole rupees (PKR 1,500) and one
 // decimal for a paisa remainder (PKR 1,500.5), the same shape the
-// entry-screen formatters use.
+// entry-screen formatters use. A figure the list cannot read prints
+// as a bare dash — finiteRunningBalanceCents already returns null
+// for a missing, boolean, blank or non-finite figure (not a number,
+// never zero, exactly as receipt-money.js renders it), so the null
+// branch must not fall back to PKR 0.
 export function formatRunningBalanceAmount(cents) {
   const amount = finiteRunningBalanceCents(cents);
-  if (amount === null) return 'PKR 0';
+  if (amount === null) return '—';
   const sign = amount < 0 ? '-' : '';
   const text = (Math.abs(amount) / 100).toLocaleString('en-US', {
     minimumFractionDigits: 0,

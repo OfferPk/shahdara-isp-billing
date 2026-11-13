@@ -158,45 +158,50 @@ test('line html: an unusable line renders nothing', () => {
 
 // --- Wiring ---
 
-test('wiring: the Quick Collect controller imports the big-name line', () => {
-  assert.ok(wiringSrc.includes("from './quick-collect-big-name-confirm.js'"), 'missing module import');
-  assert.ok(wiringSrc.includes('bigNameConfirmLine, bigNameConfirmLineHtml'), 'missing line imports');
+test('wiring: the Quick Collect controller no longer imports the big-name line', () => {
+  // QC Modal Overhaul 2: the big-name confirmation line is REMOVED
+  // from the payment form — it was the duplicate large heading the
+  // spec deletes (the customer header above already names the
+  // customer). The module file stays, unreferenced, with its pure
+  // tests untouched; only the wiring goes.
+  assert.ok(!wiringSrc.includes("from './quick-collect-big-name-confirm.js'"), 'the module import must be gone');
+  assert.ok(!wiringSrc.includes('bigNameConfirmLine, bigNameConfirmLineHtml'), 'the line imports must be gone');
+  assert.ok(!wiringSrc.includes('bigNameConfirmLine'), 'no big-name line reference may remain in the controller');
 });
 
-test('wiring: the big-name host is read on the payment form', () => {
-  assert.ok(wiringSrc.includes("getElementById('bncBigNameConfirm')"), 'missing host lookup');
+test('wiring: the big-name host is no longer read on the payment form', () => {
+  // QC Modal Overhaul 2: the host is deleted with the line — see
+  // the import test above for why.
+  assert.ok(!wiringSrc.includes("getElementById('bncBigNameConfirm')"), 'the host lookup must be gone');
 });
 
-test('wiring: the render reads the selected customer and the shared dues total', () => {
-  assert.ok(wiringSrc.includes('function renderBigNameConfirm()'), 'missing render function');
-  assert.ok(
-    wiringSrc.includes('bigNameConfirmLine(activeDefaults.customer ?? null, activeDefaults.totalDues + activeDefaults.manualBaqayaPending)'),
-    'render must read the selected customer with open-bill dues plus unpaid manual baqaya',
-  );
+test('wiring: no big-name render reads the selected customer anymore', () => {
+  // QC Modal Overhaul 2: renderBigNameConfirm() is deleted with the
+  // line — the customer header above the form already names the
+  // customer, mohalla and dues.
+  assert.ok(!wiringSrc.includes('function renderBigNameConfirm()'), 'the render function must be gone');
+  assert.ok(!wiringSrc.includes('renderBigNameConfirm'), 'no big-name render reference may remain');
 });
 
-test('wiring: the line renders once per customer open — every pick refreshes it', () => {
+test('wiring: the line renders never — no render call remains in the form open', () => {
   const calls = wiringSrc.match(/renderBigNameConfirm\(\);/g) || [];
-  assert.equal(calls.length, 1, `expected 1 render call inside openCustomerCollectionForm, found ${calls.length}`);
+  assert.equal(calls.length, 0, `expected 0 render calls, found ${calls.length}`);
   // Plan 490: the form open takes an optional repeat options object,
-  // so the signature carries it — the open itself is unchanged, and
-  // the render call still sits inside it.
+  // so the signature carries it — the open itself is unchanged, only
+  // the big-name render inside it is gone.
   assert.ok(wiringSrc.includes('function openCustomerCollectionForm(customerId, options = {})'), 'missing form open');
-  const openAt = wiringSrc.indexOf('function openCustomerCollectionForm(customerId, options = {})');
-  const callAt = wiringSrc.indexOf('renderBigNameConfirm();');
-  assert.ok(callAt > openAt, 'render call must sit inside the form open');
 });
 
-test('page: the big-name host sits on the payment form under the customer header', () => {
-  assert.ok(pageSrc.includes('<p id="bncBigNameConfirm"'), 'missing big-name host');
-  assert.ok(pageSrc.includes('class="bnc-confirm-line"'), 'missing big-name class');
-  assert.ok(pageSrc.includes('aria-live="polite"'), 'missing live region on the line');
+test('page: the big-name host is gone from the payment form', () => {
+  // QC Modal Overhaul 2: the host is deleted — the form step fits on
+  // one screen without the duplicate large heading. The customer
+  // header and the handling note box stay, in the same order.
+  assert.ok(!pageSrc.includes('<p id="bncBigNameConfirm"'), 'the big-name host must be gone');
+  assert.ok(!pageSrc.includes('class="bnc-confirm-line"'), 'the big-name class must be gone from the page');
   const headerAt = pageSrc.indexOf('quickCollectCustomerHeader');
-  const lineAt = pageSrc.indexOf('bncBigNameConfirm');
   const noteAt = pageSrc.indexOf('quickCollectHandlingNoteBox');
-  assert.ok(headerAt !== -1 && lineAt !== -1 && noteAt !== -1, 'form hosts missing');
-  assert.ok(lineAt > headerAt, 'line must sit after the customer header');
-  assert.ok(lineAt < noteAt, 'line must sit before the handling note box');
+  assert.ok(headerAt !== -1 && noteAt !== -1, 'form hosts missing');
+  assert.ok(headerAt < noteAt, 'the customer header must still sit before the handling note box');
 });
 
 // --- Fences ---
@@ -265,15 +270,11 @@ test('fences: the fenced modules never reference the big-name line', () => {
 
 // --- Styles ---
 
-test('styles: the big-name rule sizes only — no new hex', () => {
+test('styles: the big-name rules are gone with the line — no dead sizing left', () => {
+  // QC Modal Overhaul 2: the host is deleted, so its sizing rules go
+  // with it (the dead-rule precedent: a rule with no element is
+  // deleted, not left behind). The no-new-hex invariant is vacuous
+  // now — there is no .bnc- rule left to carry one.
   const rules = stylesSrc.match(/\.bnc-[^{]+\{[^}]*\}/g) || [];
-  assert.ok(rules.length >= 1, 'missing .bnc-confirm-line rule');
-  const baseline = stylesSrc.replace(/\.bnc-[^{]+\{[^}]*\}/g, '');
-  const baselineHexes = new Set((baseline.match(/#[0-9a-fA-F]{3,8}/g) || []).map((h) => h.toLowerCase()));
-  for (const rule of rules) {
-    const hexes = rule.match(/#[0-9a-fA-F]{3,8}/g) || [];
-    for (const hex of hexes) {
-      assert.ok(baselineHexes.has(hex.toLowerCase()), `new hex colour ${hex} in rule ${rule.slice(0, 60)}`);
-    }
-  }
+  assert.equal(rules.length, 0, `expected no .bnc- rules, found ${rules.length}`);
 });

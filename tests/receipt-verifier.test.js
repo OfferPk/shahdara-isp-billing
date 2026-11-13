@@ -239,7 +239,11 @@ test('every rverify_ key used by the dialog and the dashboard card exists in Eng
   }
 });
 
-test('wiring: app.js sets up the modal, index.html carries the dialog + dashboard button, CSS uses tokens only', () => {
+test('wiring: app.js sets up the modal, index.html carries the dialog + trigger button, CSS uses tokens only', () => {
+  // Subscriber Count & Tab Isolation: the trigger button moved off the
+  // deleted Receipt Verification card onto the More menu (same id, so
+  // the app.js binding below is unchanged) — "dashboard button" in the
+  // old test name meant this trigger, not a card.
   const appSource = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   const indexSource = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const cssSource = fs.readFileSync(new URL('../components.css', import.meta.url), 'utf8');

@@ -4012,7 +4012,7 @@ export const TRANSLATIONS = {
     prof_qa_thermal: 'Thermal Cycling QA',
 
     // 2-Tap Quick Collect Sheet
-    qc_title: '⚡ Quick Collect Cash',
+    qc_title: 'Quick Collect Cash',
     // QC-11: home top shortcuts (Quick Collect / Bulk Collect / Record
     // Payment at the top of home, below the search). Labels are the
     // user-named features; subtitles reuse the flows' own words.
@@ -8637,7 +8637,7 @@ export const TRANSLATIONS = {
     prof_qa_thermal: 'تھرمل سائیکلنگ QA',
 
     // 2-Tap Quick Collect Sheet
-    qc_title: '⚡ فوری نقد وصولی (2-Tap)',
+    qc_title: 'فوری نقد وصولی (2-Tap)',
     // QC-11: home top shortcuts (see the EN block above).
     qc11_top_label: 'سب سے زیادہ استعمال',
     qc11_quick_collect: 'فوری وصولی',
@@ -9864,8 +9864,16 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
   }
 
   // 8. Update Quick Collect Modal
+  // Quick Collect CSS tightening (user instruction 2026-11-13): the
+  // title carries a Zap SVG in its own span now, so the text goes
+  // into .qc-title-text — writing textContent onto the h2 would wipe
+  // the icon. The ⚡ was removed from the qc_title strings with it
+  // (the icon is the lightning now). The fallback keeps the old
+  // behaviour for any markup without the span.
   const qcTitle = container.querySelector('#quickCollectTitle');
-  if (qcTitle) qcTitle.textContent = t('qc_title', activeLang);
+  const qcTitleText = container.querySelector('#quickCollectTitle .qc-title-text');
+  if (qcTitleText) qcTitleText.textContent = t('qc_title', activeLang);
+  else if (qcTitle) qcTitle.textContent = t('qc_title', activeLang);
 
   const qcSearch = container.querySelector('#quickCollectSearchInput');
   if (qcSearch) qcSearch.setAttribute('placeholder', t('qc_search_placeholder', activeLang));

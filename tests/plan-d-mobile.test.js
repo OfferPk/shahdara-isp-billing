@@ -354,7 +354,11 @@ test('Plan D pinned: profile shortcut NO LONGER spans a full row at ≤800px (Ar
   // Archive, so no rule anywhere may span it full-width.
   assert.doesNotMatch(styles, /\.profile-action-group \.current-payment-shortcut\{grid-column:1\/-1\}/);
   assert.doesNotMatch(styles, /\.current-payment-shortcut\{grid-column:1\/-1/);
-  assert.ok(styles.includes('@media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}.profile-action-group .text-button.danger{justify-self:stretch}}'),
+  // Profile View Polish: Delete left Row 1 for the Info-tab danger
+  // zone, so the dead `.text-button.danger{justify-self:stretch}`
+  // clause is gone from the ≤800px rule — the rule now ends after
+  // the 2-column grid, which is unchanged.
+  assert.ok(styles.includes('@media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}}'),
     'the ≤800px rule keeps the 2-column grid without the shortcut span');
 });
 

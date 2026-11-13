@@ -179,15 +179,22 @@ test('backup safe-merge: field tools travel in settings.fieldTools and restore o
   assert.equal(identical.conflicts.filter((entry) => entry.field.startsWith('Field tool')).length, 0);
 });
 
-test('wiring: app.js imports the module, dashboard card + modal exist, dist entry list unchanged', () => {
+test('wiring: app.js imports the module, More-menu trigger + modal exist, dist entry list unchanged', () => {
   const appJs = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.ok(appJs.includes("from './tool-custody-register.js'"));
   assert.ok(appJs.includes('setupToolCustodyModal'));
   assert.ok(appJs.includes('fieldTools: loadFieldTools()'));
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  for (const id of ['toolCustodyModal', 'toolCustodyForm', 'toolCustodyList', 'toolCustodyCloseBtn', 'openToolCustodyModalBtn', 'dashboardToolsValue']) {
+  // Subscriber Count & Tab Isolation: the Field Tools card is deleted,
+  // so #dashboardToolsValue no longer exists — its card-level summary
+  // is gone by design and the count lives only in the modal's own
+  // #toolCustodyCountNote. The modal trigger keeps its id, moved from
+  // the deleted card into the More menu, so the module binding is
+  // unchanged; the SISP-82 dashboard writer block was removed with it.
+  for (const id of ['toolCustodyModal', 'toolCustodyForm', 'toolCustodyList', 'toolCustodyCloseBtn', 'openToolCustodyModalBtn']) {
     assert.ok(html.includes(`id="${id}"`), `index.html missing #${id}`);
   }
+  assert.ok(html.includes('data-mobile-more="tool-custody"'), 'Tool Register trigger lives in the More menu');
   const build = fs.readFileSync(new URL('../build.mjs', import.meta.url), 'utf8');
   assert.ok(!build.includes('tool-custody-register.js'), 'module must be inlined via app.js only (dist stays 25)');
 });

@@ -145,9 +145,11 @@ test('app wires the banner, the sticky save and the live counter', () => {
   assert.match(app, /function updateProfileCompletionCounter\(\)/);
   // Profile Polish B (12): the counter is computed once into
   // `completion` and rendered as a pill + progress bar, so the old
-  // inline `countProfileCompletion(customer).text` call is gone — the
-  // live counter still renders the counted text.
+  // inline `countProfileCompletion(customer).text` call is gone.
+  // Profile View Polish: the counter and the checklist merged into
+  // ONE details bar — the live counted text now renders through the
+  // i18n title (filled/total params), not escapeHtml(completion.text).
   assert.match(app, /const completion = countProfileCompletion\(customer\);/);
-  assert.match(app, /escapeHtml\(completion\.text\)/);
+  assert.match(app, /t\('prof_completion_details_title', null, \{ filled: completion\.filled, total: completion\.total \}\)/);
   assert.match(app, /countProfileCompletionFromControls\(\[/);
 });

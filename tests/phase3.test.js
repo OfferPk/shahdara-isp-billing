@@ -102,6 +102,28 @@ test('area summary rolls up the parent area with nested zones and keeps manual o
   assert.equal(report.onlineOffline.online,1);assert.equal(report.onlineOffline.offline,1);assert.equal(report.onlineOffline.notSet,72);assert.equal(report.onlineOffline.denominator,2);assert.equal(report.onlineOffline.onlinePercent,50);
 });
 
+// Subscriber Count & Tab Isolation: the Analytics area summary used to
+// count archived profiles as "Profiles" (the population was the raw
+// roster). The fix filters the population to non-archived customers in
+// buildPhase3Analytics, so an archived profile drops out of every
+// area/zone/package rollup — not just the headline count. Replicates the
+// area-summary setup above, then archives seed-001.
+test('area summary excludes archived customers from profiles, revenue and package rollups',()=>{
+  let state=createInitialState(SAMPLE_NAMES);
+  state=editProfile(state,'seed-001',{zone:'Central',mohalla:'North',address:'Road 1',serviceStatus:'active',monthlySellingAmount:'100',packageSpeed:'10 Mbps',connectionDate:'2026-09-03'});
+  state=editProfile(state,'seed-002',{zone:'Central',mohalla:'North',serviceStatus:'offline',monthlySellingAmount:'200',packageSpeed:'15 Mbps'});
+  state=editProfile(state,'seed-003',{mohalla:'South',address:'Road 2',serviceStatus:'not-set'});
+  state={...state,customers:state.customers.map(customer=>customer.id==='seed-001'?{...customer,bills:[directBill('2026-09',100,[{id:'p1',date:'2026-09-10',amount:40,method:'Cash'}])]}:customer.id==='seed-002'?{...customer,bills:[directBill('2026-09',200)]}:customer)};
+  state={...state,customers:state.customers.map(customer=>customer.id==='seed-001'?{...customer,archived:true}:customer)};
+  const report=buildPhase3Analytics(state,ref),area=report.areaRows.find(row=>row.level==='area'&&row.area==='Area: North'),zone=report.areaRows.find(row=>row.level==='zone'&&row.area==='Zone: Central');
+  assert.equal(area.customerCount,1);assert.equal(area.billedRevenue,200);assert.equal(area.outstanding,200);assert.equal(area.activeCustomers,1);assert.equal(area.onlinePercent,0);assert.equal(area.onlineDenominator,1);assert.equal(area.arpu,200);assert.equal(area.newConnections,0);
+  assert.equal(zone.customerCount,1);assert.equal(zone.parentArea,'Area: North');
+  assert.equal(report.unassignedArea.profiles,71);
+  assert.equal(report.packageRows.find(row=>row.package==='10 Mbps'),undefined);
+  assert.equal(report.packageRows.find(row=>row.package==='15 Mbps').customers,1);
+  assert.equal(report.onlineOffline.online,0);assert.equal(report.onlineOffline.offline,1);assert.equal(report.onlineOffline.denominator,1);
+});
+
 test('area, mohalla, zone and package keys normalize Unicode, whitespace and case without fuzzy merging',()=>{
   let state=createInitialState(SAMPLE_NAMES);
   const profiles=[

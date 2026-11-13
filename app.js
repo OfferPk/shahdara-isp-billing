@@ -698,7 +698,7 @@ import { SUPPLIER_KHATA_KEY, addSupplierPayout, addSupplierPurchase, loadSupplie
 import { buildSystemHealthReport, setupSystemHealthCenter, summarizeSystemHealth } from './system-health-center.js';
 import { setupSpeedCounterEntryModal, submitSpeedEntryBatch } from './speed-counter-entry.js';
 import { COMMISSION_RULES_KEY, loadCommissionRules, saveCommissionRules, setupCommissionModal } from './collector-commission.js';
-import { FIELD_TOOLS_KEY, fieldToolsSummary, loadFieldTools, saveFieldTools, setupToolCustodyModal } from './tool-custody-register.js';
+import { FIELD_TOOLS_KEY, loadFieldTools, saveFieldTools, setupToolCustodyModal } from './tool-custody-register.js';
 import { SPLICE_CLOSURES_KEY, loadSpliceClosures, saveSpliceClosures, setupSpliceClosureModal } from './fiber-splice-closure.js';
 // SISP-156: guarded 1-click payment channel reassignment (imported only
 // here, so the bundle graph keeps it inside the existing chunks).
@@ -2828,20 +2828,6 @@ function renderDashboard() {
         ? t('dash_health_period_empty')
         : t('dash_health_period', null, { size: health.sizeLabel, ledgers: health.ledgerCount });
   }
-  // SISP-82: field tool custody card (register totals; detail + actions
-  // live in the tool custody modal).
-  const toolsValueEl = $('#dashboardToolsValue');
-  if (toolsValueEl) {
-    const tools = fieldToolsSummary(loadFieldTools());
-    const toolsPeriodEl = $('#dashboardToolsPeriod');
-    if (tools.totalCount === 0) {
-      toolsValueEl.textContent = t('dash_tools_empty');
-      if (toolsPeriodEl) toolsPeriodEl.textContent = t('dash_tools_period_empty');
-    } else {
-      toolsValueEl.textContent = t('dash_tools_total', null, { count: tools.totalCount });
-      if (toolsPeriodEl) toolsPeriodEl.textContent = `${t('dash_tools_out', null, { count: tools.assignedCount })}${tools.maintenanceCount ? ` · ${t('dash_tools_maintenance', null, { count: tools.maintenanceCount })}` : ''}`;
-    }
-  }
   // SISP-39: lineman monthly scorecard card (resolved complaints across
   // field staff this month; detail lives in the scorecard modal).
   const linemanValueEl = $('#dashboardLinemanScorecardValue');
@@ -3684,7 +3670,7 @@ function buildUrduTenure(customer) {
 function renderNewCustomersPanel() {
   const mount = $('#newCustomersPanel');
   if (!mount) return;
-  const report = buildNewCustomerReport(state.customers, new Date());
+  const report = buildNewCustomerReport(state.customers.filter(customer => !customer.archived), new Date());
   const ranges = newCustomerQuickRanges(new Date());
   const NEWCUST_RANGE_KEYS = { thisMonth: 'cust_newcust_this_month', lastMonth: 'cust_newcust_last_month', last3Months: 'cust_newcust_last_3_months', last6Months: 'cust_newcust_last_6_months' };
   // Customers Directory Polish: short labels for the 1-row segmented
@@ -3887,7 +3873,7 @@ function renderCustomers() {
   const unifiedEmptyText = customerSearchField === UNIFIED_IDENTIFIER_FIELD_ID && searched.length === 0
     ? unifiedIdentifierEmptyText(customerQuery)
     : '';
-  const activeTotal = searched.filter(customer => !customer.archived).length;
+  const activeTotal = countActiveCustomers(searched);
   const archivedTotal = searched.filter(customer => customer.archived).length;
 
   // Pagination for Active Roster
@@ -3996,7 +3982,7 @@ function renderCustomers() {
   }
   $('#customerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && customerAreaFilter === 'all' && active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
   $('#archivedCustomerCount').textContent = archived.length === archivedTotal ? archivedTotal : `${archived.length}/${archivedTotal}`;
-  $('#welcomeCount').textContent = state.customers.filter(customer => !customer.archived).length;
+  $('#welcomeCount').textContent = countActiveCustomers(state.customers);
   const emptySearch = $('#noSearchResults');
   if (emptySearch) {
     emptySearch.textContent = unifiedEmptyText || (customerQuery.trim() || customerAreaFilter !== 'all' ? t('cust_no_matching') : t('cust_no_match_filters'));
@@ -38928,7 +38914,7 @@ function renderInstallationDashboard() {
   // panel's month logic (buildNewCustomerReport) — months are JOIN
   // months, never payment months, and customers with no join date
   // are counted in the undated note, never forced into a month.
-  const joinReport = buildNewCustomerReport(state.customers || [], new Date());
+  const joinReport = buildNewCustomerReport((state.customers || []).filter(customer => !customer.archived), new Date());
   const monthly = {
     heading: t('ida_month_heading'),
     rows: joinReport.months.map((entry) => ({

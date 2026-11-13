@@ -128,7 +128,10 @@ function nextWorkId(items) {
   return `PW-${max + 1}`;
 }
 
-/** Non-archived customers only — archived profiles never count. */
+/** Non-archived customers only — archived profiles never count.
+ *  Counts the non-archived ROSTER, not serviceStatus === 'active'
+ *  customers: the KPI strip's narrower "active service" predicate is a
+ *  different number and must never be substituted for this one. */
 export function countActiveCustomers(customers) {
   if (!Array.isArray(customers)) return 0;
   return customers.filter((c) => c && !c.archived).length;

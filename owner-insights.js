@@ -5,6 +5,7 @@ import { canonicalMohalla, canonicalPackage, RECOVERY_MOHALLA_ORDER, recoveryMoh
 // filter and every other importer keep one stable source.
 export { RECOVERY_MOHALLA_ORDER, recoveryMohallaRank, compareMohallaAreas, sortMohallaNamesByNumberedOrder };
 import { isVoidedPayment } from './payment-void-audit.js';
+import { countActiveCustomers } from './pending-works.js';
 
 const cents = value => Math.round(Number(value || 0) * 100);
 const amount = value => Number((value / 100).toFixed(2));
@@ -581,7 +582,7 @@ export function answerOwnerCommand(state, query, referenceDate = new Date()) {
 
   if ((customerWord || /\bbills?\b/u.test(text)) && matched.status === 'none' && !negatedPay && !packageSpeedMatch && (has('total', 'kul', 'overall', 'count', 'kitna') || /\bhow many\b/u.test(text))) {
     const live = state.customers.filter(customer => !customer.archived);
-    return { intent:'counts-overview', month, total:state.customers.length, active:live.filter(customer => customer.serviceStatus === 'active').length, offline:live.filter(customer => customer.serviceStatus === 'offline').length, notSet:live.filter(customer => (customer.serviceStatus ?? 'not-set') === 'not-set').length, archived:state.customers.length - live.length, withDues:new Set(allOutstanding.map(row => row.customer.id)).size, duesTotal:amount(allOutstanding.reduce((sum, row) => sum + row.balance, 0)), billedThisMonth:new Set(entries.filter(row => row.bill.month === month).map(row => row.customer.id)).size };
+    return { intent:'counts-overview', month, total:countActiveCustomers(state.customers), active:live.filter(customer => customer.serviceStatus === 'active').length, offline:live.filter(customer => customer.serviceStatus === 'offline').length, notSet:live.filter(customer => (customer.serviceStatus ?? 'not-set') === 'not-set').length, archived:state.customers.length - live.length, withDues:new Set(allOutstanding.map(row => row.customer.id)).size, duesTotal:amount(allOutstanding.reduce((sum, row) => sum + row.balance, 0)), billedThisMonth:new Set(entries.filter(row => row.bill.month === month).map(row => row.customer.id)).size };
   }
 
   if (outstandingIntent && !whoIntent && matched.status === 'none' && !matched.nameLike) {

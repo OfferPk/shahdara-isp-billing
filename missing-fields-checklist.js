@@ -8,16 +8,18 @@
 // field list the counter itself counts, it returns exactly the fields
 // that are empty, in the same order the form shows them, plus the
 // section HTML that lists them by name. The list renders collapsed
-// behind a <details> whose summary carries the heading and the count
-// (Plan 512), so a sparse profile shows one line instead of dozens of
-// rows. Tapping one jumps to that field for editing (the jump itself
-// lives in app.js and reuses the existing error-jump scroll-and-focus
-// behaviour).
+// behind a <details> whose summary carries the fields-filled title,
+// the show-missing label and a neutral bar (Profile View Polish —
+// the counter and the checklist merged into one bar), so a sparse
+// profile shows one line instead of dozens of rows. Tapping one
+// jumps to that field for editing (the jump itself lives in app.js
+// and reuses the existing error-jump scroll-and-focus behaviour).
 //
 // This module lists only. It fills nothing by itself, it scores
 // nothing, and it holds no percentage or count of filled fields —
 // the completeness score lives in a separate module and is not
-// recomputed here. It reads no store and writes no record; the
+// recomputed here; the caller passes the precomputed percent in
+// for the summary bar. It reads no store and writes no record; the
 // checklist never changes any bill, payment, or customer record by
 // itself. The caller supplies the field list and the display names,
 // so this module never reads the form or the clock and never drifts
@@ -75,46 +77,36 @@ function escapeMissingFieldsHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-// Profile Polish B (12) — the missing-fields bar tone: red while
-// more than half the fields are still missing, yellow once the
-// majority is filled. Internal only: the module exports no scoring
-// function (Plan 363), so the tone is computed here, not exported.
-function missingFieldsBarTone(missingCount, total) {
-  if (!Number.isFinite(total) || total <= 0) return null;
-  const safeMissing = Number.isFinite(missingCount) && missingCount > 0 ? Math.min(missingCount, total) : 0;
-  return safeMissing / total > 0.5 ? 'red' : 'yellow';
-}
-
-// The checklist section HTML for the profile. `missing` is the array
-// from missingProfileFields; `labels` maps each control id to the
-// display name the form itself shows (a missing label falls back to
-// the field key, never to a blank); `texts` carries the heading and
-// the all-filled line in the app's current language. A complete
-// profile shows the all-filled line and no jump buttons. Every label
-// is escaped, so a field name can never break the markup.
+// Profile View Polish — the merged details bar: the fields-filled
+// counter and this checklist are ONE collapsible <details> now (the
+// caller passes the already-interpolated summary title, the
+// show/hide labels and the live percent via `texts`). The summary
+// carries the title, the show-missing label and a neutral slate /
+// emerald bar; the body is the same jump list in the same order.
+// A complete profile shows the all-filled line and no show label.
+// The old count pill + red/yellow missing-share bar are gone: the
+// tone bands made a valid profile look broken. This module still
+// scores nothing — the percent arrives precomputed from the caller.
 export function missingFieldsChecklistHtml(missing, labels, texts) {
   const items = Array.isArray(missing) ? missing : [];
   const names = labels && typeof labels === 'object' ? labels : {};
-  const heading = texts?.heading || 'Missing fields';
+  const title = texts?.title || texts?.heading || 'Profile Details';
+  const showMissing = texts?.showMissing || '';
   const allFilled = texts?.allFilled || 'All fields filled';
+  const rawPercent = Number(texts?.percent);
+  const percent = Number.isFinite(rawPercent) ? Math.min(100, Math.max(0, Math.round(rawPercent))) : 0;
   if (items.length === 0) {
-    return `<section class="mfc-checklist" aria-label="${escapeMissingFieldsHtml(heading)}"><h4 class="mfc-heading">${escapeMissingFieldsHtml(heading)}</h4><p class="mfc-all-filled">${escapeMissingFieldsHtml(allFilled)}</p></section>`;
+    return `<details class="profile-completion-details mfc-checklist" aria-label="${escapeMissingFieldsHtml(title)}"><summary class="profile-details-summary"><span class="ds-action-icon" data-ds-icon="ClipboardList" aria-hidden="true"></span><span class="profile-details-title">${escapeMissingFieldsHtml(title)}</span><span class="profile-details-bar" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeMissingFieldsHtml(title)}"><span class="profile-details-fill" style="width:${percent}%"></span></span></summary><p class="mfc-all-filled">${escapeMissingFieldsHtml(allFilled)}</p></details>`;
   }
   const rows = items.map((item) => {
     const name = names[item.controlId] || item.fieldKey;
     return `<li><button type="button" class="mfc-jump" data-missing-field="${escapeMissingFieldsHtml(item.controlId)}">${escapeMissingFieldsHtml(name)}</button></li>`;
   }).join('');
-  // Plan 512 — the list sits collapsed behind a <details>: a sparse
-  // profile no longer renders dozens of jump rows above the profile
-  // itself. The summary carries the heading and the count, so the
-  // operator sees how many fields are missing without opening it;
-  // expanding still shows the same jump buttons in the same order.
-  // Profile Polish B (12) — the count is a pill holding the plain
-  // number (no parens), plus a red/yellow bar of the missing share
-  // when the caller passes the counted total; without a total the
-  // bar is omitted and the pill still shows.
-  const barTone = missingFieldsBarTone(items.length, texts?.total);
-  const barPercent = barTone === null ? 0 : Math.round((items.length / texts.total) * 100);
-  const bar = barTone === null ? '' : `<span class="mfc-bar" role="progressbar" aria-valuenow="${barPercent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeMissingFieldsHtml(heading)}"><span class="mfc-bar-fill mfc-bar-fill-${barTone}" style="width:${barPercent}%"></span></span>`;
-  return `<section class="mfc-checklist" aria-label="${escapeMissingFieldsHtml(heading)}"><details class="mfc-details"><summary class="mfc-summary">${escapeMissingFieldsHtml(heading)} <span class="mfc-count-pill">${items.length}</span>${bar}</summary><ul class="mfc-list">${rows}</ul></details></section>`;
+  // The summary carries the title, the show-missing label and the
+  // neutral bar, so the operator sees how many fields are missing
+  // without opening it; expanding still shows the same jump buttons
+  // in the same order. The ▾ is a text glyph the app already uses
+  // (e.g. 'Receipt ▾'); the caller swaps it for the hide label when
+  // the details opens (see the toggle listener in app.js).
+  return `<details class="profile-completion-details mfc-checklist" aria-label="${escapeMissingFieldsHtml(title)}"><summary class="profile-details-summary"><span class="ds-action-icon" data-ds-icon="ClipboardList" aria-hidden="true"></span><span class="profile-details-title">${escapeMissingFieldsHtml(title)}</span><span class="profile-details-sep">•</span><span class="profile-details-toggle-text">${escapeMissingFieldsHtml(showMissing)} ▾</span><span class="profile-details-bar" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeMissingFieldsHtml(title)}"><span class="profile-details-fill" style="width:${percent}%"></span></span></summary><ul class="mfc-list">${rows}</ul></details>`;
 }

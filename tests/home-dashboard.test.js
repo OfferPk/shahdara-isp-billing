@@ -21,6 +21,9 @@ const homeStart = page.indexOf('id="billingDashboard"');
 const moreStart = page.indexOf('id="mobileMoreMenu"');
 const collectStart = page.indexOf('id="transactionsView"');
 const reportsStart = page.indexOf('id="billingReportsView"');
+const analyticsStart = page.indexOf('id="analyticsView"');
+const inventoryStart = page.indexOf('id="inventoryView"');
+const expensesStart = page.indexOf('id="expensesView"');
 const homeEnd = moreStart;
 const collectEnd = reportsStart;
 
@@ -133,14 +136,33 @@ test('reports tab holds the thermometer, comparison, matrix and audits', () => {
   }
 });
 
-test('more tab holds the registries and operations tools', () => {
-  for (const key of [
-    'dash_card_splitter', 'dash_card_poncap', 'dash_card_stock',
-    'dash_drum_card', 'dash_card_health', 'dash_card_tools',
-    'dash_card_lineman', 'pwr_card_label', 'upt_fleet_title'
-  ]) {
-    inside(`data-i18n="${key}"`, moreStart, collectStart, key);
+test('moved registry cards live in their D2 home views (Subscriber Count & Tab Isolation)', () => {
+  // Subscriber Count & Tab Isolation (D2): the 24 loose global cards
+  // moved into their designated tabs. This test's old shape pinned
+  // them by byte range between the More menu and the Transactions
+  // view — a range that only contained them because they were loose
+  // <main> children sitting there, not because they belonged to More.
+  // The move itself is pinned card by card in
+  // subscriber-count-tab-isolation.test.js; here the same homes are
+  // asserted from the tab side.
+  // Analytics: splitter, PON capacity, power backup, fleet uptime.
+  for (const key of ['dash_card_splitter', 'dash_card_poncap', 'pwr_card_label', 'upt_fleet_title']) {
+    inside(`data-i18n="${key}"`, analyticsStart, inventoryStart, key);
   }
+  // Inventory: stock book + fiber drums.
+  for (const key of ['dash_card_stock', 'dash_drum_card']) {
+    inside(`data-i18n="${key}"`, inventoryStart, expensesStart, key);
+  }
+  // Home: system health.
+  inside('data-i18n="dash_card_health"', homeStart, homeEnd, 'dash_card_health');
+  // Reports: lineman scorecard.
+  inside('data-i18n="dash_card_lineman"', reportsStart, page.length, 'dash_card_lineman');
+  // The Field Tools card is DELETED, not moved: its label is gone
+  // from the page, and its two modals stay reachable from the More
+  // menu (the field-tools entry + the Tool Register trigger).
+  assert.ok(!page.includes('data-i18n="dash_card_tools"'), 'Field Tools card label is gone with the card');
+  assert.ok(page.includes('data-mobile-more="field-tools"'), 'Field Tools modal lives in the More menu');
+  assert.ok(page.includes('data-mobile-more="tool-custody"'), 'Tool Register trigger lives in the More menu');
   assert.ok(page.includes('id="mobileMoreDailyClosingBtn"'), 'Daily Closing tile lives in the More menu');
 });
 

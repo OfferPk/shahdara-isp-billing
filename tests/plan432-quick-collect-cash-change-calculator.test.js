@@ -171,35 +171,40 @@ test('wiring: splitting the payment hides the calculator, and un-splitting re-sh
 test('wiring: the form opens with an empty cash field and a fresh calculator', () => {
   const start = wiringSrc.indexOf("syncMethodChips(activeDefaults.defaultMethod ?? '');");
   assert.ok(start > -1, 'form-open method pre-select must exist');
-  const block = wiringSrc.slice(start, start + 400);
+  // QC Modal Overhaul 2: the slice is 700 chars, not 400 — the
+  // date-visibility sync (Plan 544 + the overhaul's hide-unless-
+  // Custom) sits between the method pre-select and the cash reset.
+  const block = wiringSrc.slice(start, start + 700);
   assert.ok(block.includes("if (cashReceivedInput) cashReceivedInput.value = '';"));
   assert.ok(block.includes('renderCashChange();'));
 });
 
 test('wiring: a programmatic amount set re-computes the change — concession, waiver, chips, loose change, keypad', () => {
-  // Twelve call sites plus the definition itself.
+  // Eleven call sites plus the definition itself.
   // Plan 442: the amount keypad is the tenth programmatic
   // amount-set site — a keypad tap sets the amount, so the change
   // re-computes like every other site.
-  // Plan 489: the Add payment dues buttons are the eleventh
-  // programmatic amount-set site — a button tap fills the amount,
-  // so the change re-computes like every other site. The count
-  // moves from 11 to 12 for that one new call site only; the intent
-  // (every programmatic amount set re-computes the change) is
-  // unchanged.
-  // Plan 539: the Back-draft restore is the twelfth programmatic
+  // Plan 489: the Add payment dues buttons were the eleventh
+  // programmatic amount-set site — QC Modal Overhaul 2 deletes
+  // them (they ARE the merged chip row now), so the count drops by
+  // exactly that one site. No refresh is lost: the chip handler
+  // already re-computes the change on every chip tap.
+  // Plan 539: the Back-draft restore is the eleventh programmatic
   // amount-set site — a restored amount re-computes the change like
-  // every other site. The count moves from 12 to 13 for that one
+  // every other site. The count moves from 11 to 12 for that one
   // new call site only; the intent is unchanged.
   const calls = (wiringSrc.match(/renderCashChange\(\)/g) || []).length;
-  assert.equal(calls, 13, `expected 12 renderCashChange call sites + the definition, found ${calls}`);
+  assert.equal(calls, 12, `expected 11 renderCashChange call sites + the definition, found ${calls}`);
   for (const anchor of [
     'the concession sets the amount, so the change',
     'the waiver tick sets the amount, so the change',
     'a chip-set amount re-computes the change',
     'a loose-change tap fills the amount, so the change',
     'keypad tap sets the amount, so the change',
-    'A button-set amount refreshes the same live lines',
+    // QC Modal Overhaul 2: the 'A button-set amount refreshes the
+    // same live lines' anchor went with the deleted Plan 489 dues
+    // buttons — the buttons ARE the chip row now, and the chip
+    // anchor above covers their refresh.
   ]) {
     assert.ok(wiringSrc.includes(anchor), `missing refresh comment: ${anchor}`);
   }

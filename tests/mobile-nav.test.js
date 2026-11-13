@@ -2708,10 +2708,12 @@ test('updateNavigationBadges computes active customer counts, overdue alert badg
   // Sharafat 10 (2026-11-13): the badge's overdue count comes from
   // the Quick Collect picker pool, which now SKIPS damaged records
   // (parent decision) — so these fixtures must be healthy records:
-  // a bill without a month (or a customer without a number) is
-  // damaged and no longer counts as overdue. The month/number below
-  // only make the fixtures realistic; the badge arithmetic the test
-  // pins is unchanged.
+  // a customer without a number is damaged and no longer counts as
+  // overdue. The fixtures also carry a bill month, because the
+  // allocation engine sorts bills by month unguarded (a monthless
+  // bill still throws — out of scope for this PR, flagged in the PR
+  // body). The month/number below only make the fixtures realistic;
+  // the badge arithmetic the test pins is unchanged.
   const state = {
     customers: [
       { id: 'c1', name: 'Zahid', customerNumber: 1, archived: false, status: 'active', bills: [{ month: '2026-11', dueAmount: '2000', status: 'pending' }] },

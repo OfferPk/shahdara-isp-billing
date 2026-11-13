@@ -108,10 +108,15 @@ test('§8.4 pills: exactly two, settle badge absent, charged label when charges 
 
 // 5. Receipt card: merged row, DD/MM/YYYY next due, Amount Collected
 // once, no second summary card.
-test('§8.5 receipt card: merged row, DD/MM/YYYY next due, Amount Collected once, no second card', () => {
+test('§8.5 receipt card: merged row hidden when fully paid, DD/MM/YYYY next due, Amount Collected once, no second card', () => {
+  // QC Success Card Polish (2026-11-13): the fully-paid FIXTURE hides
+  // the merged Still-owed row entirely — the settled state is stated
+  // by the still-owes pill, so no "Still owed" and no "Fully paid"
+  // text appear on the card. The partial/charged cases keep the row
+  // (see the §8.4 test above).
   const html = renderQuickCollectReceiptCardHtml({ ...FIXTURE }, { nextDueDateText: '05/12/2026' });
-  assert.ok(html.includes('Still owed'), 'merged row must be present');
-  assert.ok(html.includes('Fully paid'), 'fully-paid merged row must read Fully paid');
+  assert.ok(!html.includes('Still owed'), 'fully-paid card must not carry a Still owed row');
+  assert.ok(!html.includes('Fully paid'), 'fully-paid card must not carry a Fully paid row');
   assert.ok(!html.includes('Remaining Balance'), 'no Remaining Balance row may remain');
   assert.ok(!html.includes('PKR 0'), 'no PKR 0 text may appear');
   assert.ok(html.includes('05/12/2026'), 'next due date must be DD/MM/YYYY');
@@ -120,13 +125,14 @@ test('§8.5 receipt card: merged row, DD/MM/YYYY next due, Amount Collected once
   assert.ok(!html.includes('Amount paid'), 'no Amount paid duplicate may appear');
   assert.ok(!pageSrc.includes('id="snsSuccessNextSteps"'), 'second summary card container must be absent');
   assert.ok(!pageSrc.includes('id="rptRepeatPayment"'), 'repeat host must be absent');
-  // Split card: same merged row.
+  // Split card: same hidden row when fully paid.
   const split = renderSplitReceiptCardHtml(
     { legs: [{ method: 'Cash', amountCents: 100000 }], totalReceivedCents: 100000, balanceDueCents: 0, status: 'paid' },
     '',
     { nextDueDateText: '05/12/2026', chargesPending: false },
   );
-  assert.ok(split.includes('Still owed') && split.includes('Fully paid'), 'split card must carry the merged row');
+  assert.ok(!split.includes('Still owed'), 'fully-paid split card must not carry a Still owed row');
+  assert.ok(!split.includes('Fully paid'), 'fully-paid split card must not carry a Fully paid row');
   assert.ok(split.includes('05/12/2026'), 'split card must show the DD/MM/YYYY next due date');
 });
 

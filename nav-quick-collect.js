@@ -395,6 +395,43 @@ function escapeHtml(str) {
 }
 
 /**
+ * Sharafat 10: a customer record is damaged when the picker cannot
+ * trust it — no usable name, no usable customer number, or a payment
+ * with no date / no id. Any of those throws inside the picker loop
+ * (`name.toLowerCase`, the payment date/id sort) or silently
+ * scrambles the order (a missing number makes the number sort `NaN`).
+ * A record without an `id` is NOT damaged: the engine only reads it
+ * as a lookup key, never as a sort key. A bill with no month is NOT
+ * covered here — the bill-month sort (:421 in the pool loop, :617 in
+ * getCustomerPaymentDefaults) is the same crash class but out of
+ * scope for this PR, flagged in the PR body, not silently fixed.
+ * Parent decision (2026-11-13): damaged records are SKIPPED from the
+ * picker pool, never sorted last, never thrown.
+ *
+ * @param {Object} customer
+ * @returns {boolean}
+ */
+function isDamagedPickerCustomer(customer) {
+  if (!customer || typeof customer !== 'object') return true;
+  if (typeof customer.name !== 'string' || !customer.name.trim()) return true;
+  const n = customer.customerNumber;
+  if (n === null || n === undefined || String(n).trim() === '' || !Number.isFinite(Number(n))) return true;
+  // Only the payments are inspected: a payment without a date or id
+  // throws the payment sort in the loop and in the allocation engine.
+  // Bills are deliberately NOT inspected for a missing month — that
+  // sort (:421) is out of scope for this PR (see the PR body).
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  for (const bill of bills) {
+    for (const payment of bill?.payments ?? []) {
+      if (!payment || typeof payment !== 'object') return true;
+      if (typeof payment.date !== 'string' || !payment.date.trim()) return true;
+      if (payment.id === null || payment.id === undefined || String(payment.id).trim() === '') return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Retrieves unarchived customers formatted for quick field collection.
  * Sorted with largest dues first for fast field recovery.
  *
@@ -406,12 +443,24 @@ function escapeHtml(str) {
  */
 export function getPendingCollectionCustomers(state, query = '', filterType = 'all-dues', referenceDate = new Date()) {
   if (!state || !Array.isArray(state.customers)) return [];
-  const allocations = calculatePaymentAllocations(state);
+  // Sharafat 10: damaged records are skipped BEFORE the allocation
+  // engine runs — the engine sorts payments by date/id with no guard,
+  // so a dateless payment throws inside calculatePaymentAllocations
+  // before this loop ever runs. Allocations are per-customer (keyed
+  // by customer id, with a per-customer credit pool), so excluding
+  // damaged customers cannot change a healthy customer's figures.
+  // The loop below iterates the same healthy list, so its own
+  // payment date/id sort and the name search can never see a damaged
+  // record either. (A bill with no month still throws in the engine
+  // and in the loop's month sort — that sort is out of scope for
+  // this PR, flagged in the PR body, not silently fixed.)
+  const healthyCustomers = state.customers.filter((c) => !isDamagedPickerCustomer(c));
+  const allocations = calculatePaymentAllocations({ ...state, customers: healthyCustomers });
   const currentMonth = monthsForHistory(referenceDate)[0];
   const normalizedQuery = String(query ?? '').normalize('NFKC').trim().toLowerCase();
 
   const list = [];
-  for (const customer of state.customers) {
+  for (const customer of healthyCustomers) {
     if (customer.archived) continue;
 
     let totalDuesCents = 0;
@@ -559,6 +608,34 @@ function neverBilledNoteText(count) {
   return n === 1
     ? '1 customer has never been billed — not shown as paid-up.'
     : `${n} customers have never been billed — they are not shown as paid-up.`;
+}
+
+/** Sharafat 10: non-archived customers the picker skips as damaged
+ * (see isDamagedPickerCustomer) — counted so the picker can say how
+ * many it is hiding instead of silently dropping them. An archived
+ * damaged record is not counted: archiving already hides it, and the
+ * count is about records the operator would otherwise expect to see.
+ *
+ * @param {Object} state
+ * @returns {number}
+ */
+export function countSkippedDamagedCustomers(state) {
+  return (state?.customers ?? []).filter((c) => !c?.archived && isDamagedPickerCustomer(c)).length;
+}
+
+/** Sharafat 10: the sentence the picker shows about the damaged
+ * records it skips — empty when there are none, so the picker renders
+ * exactly as before.
+ *
+ * @param {number} count
+ * @returns {string}
+ */
+function skippedDamagedNoteText(count) {
+  const n = Number(count) || 0;
+  if (n <= 0) return '';
+  return n === 1
+    ? '1 damaged customer record was skipped — it is not shown in this list.'
+    : `${n} damaged customer records were skipped — they are not shown in this list.`;
 }
 
 // QC-12: the bill-status dropdown above the picker search (Unpaid /
@@ -1873,7 +1950,12 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
   // QC-2: the existing dues-recovery score, flattened by customer id
   // so each card can surface its tier + reason. The caller owns the
   // clock (today); a customer with no scorer row gets no badge.
-  const priorityById = qc2PriorityByCustomerId(state ? buildSmartDuesRecovery(state, new Date()) : null);
+  // Sharafat 10: the priority scorer runs the allocation engine over
+  // the roster it is handed, which throws on a damaged record — so it
+  // scores the damaged-free roster. Damaged customers are out of the
+  // pool anyway, so no card ever misses a badge.
+  const healthyState = { ...state, customers: (state?.customers ?? []).filter((c) => !isDamagedPickerCustomer(c)) };
+  const priorityById = qc2PriorityByCustomerId(state ? buildSmartDuesRecovery(healthyState, new Date()) : null);
   const allCollected = customers.length === 0
     && (filterType === 'all-dues' || filterType === 'high-dues')
     && !String(query ?? '').trim()
@@ -1901,6 +1983,17 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
   const paidListNote = paidNote
     ? `<p class="qc-paid-note">${escapeHtml(paidNote)}</p>`
     : '';
+  // Sharafat 10: the count of damaged records the pool skipped, shown
+  // ledger-wide like the Sharafat 9 never-billed note — only when no
+  // query and no mohalla narrow the list, never as a count of a
+  // narrowed list.
+  const skippedDamaged = countSkippedDamagedCustomers(state);
+  const damagedNote = !String(query ?? '').trim()
+    && !quickCollectMohallaFilterKey(mohallaFilter)
+    ? skippedDamagedNoteText(skippedDamaged) : '';
+  const damagedListNote = damagedNote
+    ? `<p class="qc-paid-note">${escapeHtml(damagedNote)}</p>`
+    : '';
   // SISP-77: same-name badges are computed against the FULL ledger (a
   // namesake with no dues still makes this pick ambiguous), then handed
   // to the list renderer keyed by customer id.
@@ -1914,8 +2007,8 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
     withoutFee,
     mohallaCounts,
     html: needsSetup
-      ? renderQuickCollectNeedsSetupHtml(withoutFee)
-      : allCollected ? renderQuickCollectAllCollectedHtml() : paidEmpty ? renderQuickCollectPaidEmptyHtml(neverBilled) : paidListNote + renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter, priorityById)
+      ? damagedListNote + renderQuickCollectNeedsSetupHtml(withoutFee)
+      : allCollected ? damagedListNote + renderQuickCollectAllCollectedHtml() : paidEmpty ? damagedListNote + renderQuickCollectPaidEmptyHtml(neverBilled) : paidListNote + damagedListNote + renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter, priorityById)
   };
 }
 

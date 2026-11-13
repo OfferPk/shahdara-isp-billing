@@ -5,6 +5,7 @@
 import { trapModalFocus, initUniversalDialogController } from './nav-accessibility.js';
 import { getPendingCollectionCustomers } from './nav-quick-collect.js';
 import { dsIcon } from './ds-icons.js';
+import { countActiveCustomers } from './pending-works.js';
 
 export function setupNavigationDrawer({
   onNavigate,
@@ -182,7 +183,7 @@ export function updateNavigationBadges(state, options = {}) {
   const hasDoc = typeof document !== 'undefined' && typeof document.querySelectorAll === 'function';
 
   const customers = Array.isArray(state.customers) ? state.customers : [];
-  const totalCustomers = customers.filter(c => !c.archived).length;
+  const totalCustomers = countActiveCustomers(customers);
   const expensesCount = Array.isArray(state.expenses) ? state.expenses.length : 0;
   const inventoryCount = Array.isArray(state.inventoryItems) ? state.inventoryItems.length : 0;
 

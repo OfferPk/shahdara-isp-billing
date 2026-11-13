@@ -281,12 +281,15 @@ test('wiring: the controller imports the success next steps module', () => {
   // QC receipt-modal overhaul: the panel rendering is superseded by the
   // merged Still-owed row — the controller imports only the computation
   // functions and label constants now, never the panel builders.
+  // QC Success Card Polish (2026-11-13): the fully-paid label left
+  // the controller — the merged row is hidden at 0 and the still-owes
+  // pill alone states the settled state.
   assert.match(wiringSrc, /success-next-steps\.js/);
   assert.match(wiringSrc, /successNextStepsNextDueDate/);
   assert.match(wiringSrc, /successNextStepsChargesPending/);
   assert.match(wiringSrc, /SUCCESS_NEXT_STEPS_STILL_OWED_TEXT/);
   assert.match(wiringSrc, /SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT/);
-  assert.match(wiringSrc, /SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT/);
+  assert.doesNotMatch(wiringSrc, /SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT/);
   assert.doesNotMatch(wiringSrc, /successNextStepsFromReceipt/);
   // successNextStepsHtml survives only as a comment naming the label
   // logic's lineage — never imported or called.

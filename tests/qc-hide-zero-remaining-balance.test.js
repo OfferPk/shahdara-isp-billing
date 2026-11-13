@@ -113,15 +113,17 @@ test('hide-zero-remaining: a NaN remainder hides the row, never PKR NaN', () => 
   assert.ok(!html.includes('NaN'), 'no NaN text anywhere on the card');
 });
 
-test('hide-zero-remaining: string figures follow the badge/draft coercion — "1000" shows a figure, "0" reads Fully paid', () => {
+test('hide-zero-remaining: string figures follow the badge/draft coercion — "1000" shows a figure, "0" hides the row', () => {
   const shown = renderQuickCollectReceiptCardHtml(baseReceipt({ payableRemaining: '1000' }));
   assert.ok(shown.includes('Still owed'), 'string "1000" is > 0, so the row shows');
   assert.ok(shown.includes('PKR 1,000'), 'string "1000" prints its figure');
-  // QC receipt-modal overhaul (decision (j)): the merged row is ALWAYS
-  // shown — string "0" reads "Fully paid", never hides, never "PKR 0".
+  // QC Success Card Polish (2026-11-13): the merged row is HIDDEN
+  // when the figure is 0 — string "0" hides the row, never reads
+  // "Fully paid" and never "PKR 0". The settled state is stated by
+  // the still-owes pill.
   const settled = renderQuickCollectReceiptCardHtml(baseReceipt({ payableRemaining: '0' }));
-  assert.ok(settled.includes('Still owed'), 'string "0" still shows the merged row');
-  assert.ok(settled.includes('Fully paid'), 'string "0" reads Fully paid');
+  assert.ok(!settled.includes('Still owed'), 'string "0" must hide the merged row');
+  assert.ok(!settled.includes('Fully paid'), 'string "0" must not read Fully paid on the card');
   assert.ok(!settled.includes('PKR 0'), 'no PKR 0 text');
 });
 
@@ -133,16 +135,19 @@ test('hide-zero-remaining: the WhatsApp draft still documents settlement with PK
   assert.ok(text.includes('PAID IN FULL'), text);
 });
 
-test('hide-zero-remaining: the settled state is still stated by the still-owes pill and the merged row', () => {
+test('hide-zero-remaining: the settled state is still stated by the still-owes pill, not the merged row', () => {
   // The pill: a fully-paid line still reads "✓ Bill dues fully paid".
   const pill = stillOwesLineHtml({ stillOwed: 0, fullyPaid: true });
   assert.ok(pill.includes('✓ Bill dues fully paid'), pill);
-  // QC receipt-modal overhaul: the settle badge is gone (deduped) — the
-  // merged Still-owed row states the settled state instead ("Fully paid").
+  // QC receipt-modal overhaul: the settle badge is gone (deduped).
+  // QC Success Card Polish (2026-11-13): the merged Still-owed row
+  // is HIDDEN when fully paid — the pill alone states the settled
+  // state, so the card carries neither "Still owed" nor "Fully paid".
   assert.ok(!quickCollectSrc.includes('function renderSettleStatusBadge()'), 'badge render must be gone');
   assert.ok(!quickCollectSrc.includes("settled ? '✓ Settle in Full' : '⏳ Partial Payment'"), 'badge texts must be gone');
   const html = renderQuickCollectReceiptCardHtml(baseReceipt());
-  assert.ok(html.includes('Still owed') && html.includes('Fully paid'), 'merged row must state the settled state');
+  assert.ok(!html.includes('Still owed'), 'fully-paid card must not carry a Still owed row');
+  assert.ok(!html.includes('Fully paid'), 'fully-paid card must not carry a Fully paid row');
 });
 
 /* ---------------- Split card ---------------- */

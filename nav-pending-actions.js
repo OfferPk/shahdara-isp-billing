@@ -38,6 +38,7 @@ import {
   escapeHtml
 } from './nav-quick-profile.js';
 import { pendingReceiptForShare, pendingReceiptShortMonthLabel } from './pending-receipt-month.js';
+import { dsIcon } from './ds-icons.js';
 import { getOfflineSyncQueue } from './nav.js';
 
 export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
@@ -665,7 +666,12 @@ export function setupPendingActionsModal(options = {}) {
     updatePendingActionsBadges(summary);
 
     if (countBadge) {
-      countBadge.textContent = summary.counts.total > 0 ? `${summary.counts.total} Pending` : 'All Clear';
+      // Compression: the header badge is a bare count ([29] in the spec),
+      // not "29 Pending" — the words make the badge wrap to two lines at
+      // 360px, growing the title row to 40px and the header to 57px. The
+      // number is locale-neutral; the red/green class still carries the
+      // state (alert = pending, success = all clear).
+      countBadge.textContent = String(summary.counts.total);
       countBadge.classList.toggle('badge-alert', summary.counts.total > 0);
       countBadge.classList.toggle('badge-success', summary.counts.total === 0);
     }
@@ -737,10 +743,10 @@ export function setupPendingActionsModal(options = {}) {
         // (bill month first, payment date second) — same source as the
         // WhatsApp draft, so the card and the share never disagree.
         const monthShort = pendingReceiptShortMonthLabel(r);
-        const metaLine = `Rs. ${Number(r.amount).toLocaleString()} • ${escapeHtml(r.method)}${monthShort ? ` • ${escapeHtml(monthShort)}` : ''} • 📞 ${escapeHtml(phoneFormatted)}`;
+        const metaLine = `Rs. ${Number(r.amount).toLocaleString()} • ${escapeHtml(r.method)}${monthShort ? ` • ${escapeHtml(monthShort)}` : ''} • <span class="pending-phone-nowrap">📞 ${escapeHtml(phoneFormatted)}</span>`;
         card.innerHTML = `
           <div class="pending-card-header">
-            <span class="pending-card-badge badge-receipt">📱 Unshared Receipt</span>
+            <span class="pending-card-badge badge-receipt">${dsIcon('Receipt', 12)} Unshared Receipt</span>
             <span class="pending-card-date">${escapeHtml(formatDisplayDate(r.date))}</span>
           </div>
           <div class="pending-card-body">
@@ -751,11 +757,11 @@ export function setupPendingActionsModal(options = {}) {
             <div class="pending-card-meta-line">${metaLine}${hasPhone ? '' : ` <button type="button" class="btn-secondary pending-add-phone-btn" data-customer-id="${escapeHtml(r.customerId)}">+ Add Phone</button>`}</div>
           </div>
           <div class="pending-card-actions">
-            <button type="button" class="btn-primary pending-wa-btn" data-receipt-id="${escapeHtml(r.paymentId)}">
-              <span>📱 Send WhatsApp</span>
-            </button>
             <button type="button" class="btn-secondary pending-mark-shared-btn" data-receipt-id="${escapeHtml(r.paymentId)}" title="Mark as sent without opening WhatsApp">
               <span>✓ Mark Shared</span>
+            </button>
+            <button type="button" class="btn-primary pending-wa-btn" data-receipt-id="${escapeHtml(r.paymentId)}">
+              <span>${dsIcon('MessageCircle', 14)} Send WhatsApp</span>
             </button>
           </div>
         `;

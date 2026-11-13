@@ -223,7 +223,13 @@ test('i18n: every digest_* key exists in both dictionaries with the same shape',
 test('wiring: dashboard section, app.js copy handler, token-only styles, build-graph reachability', async () => {
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(index.includes('id="copyPartnerDigestBtn"'), 'index.html carries the copy button');
-  assert.ok(index.includes('data-i18n="digest_title"'), 'section title is translated');
+  // Home Dashboard polish (§2): the static Daily Partner Digest card
+  // is DELETED (it had no button and no wiring); the one-tap copy
+  // action lives in the Share / Digest menu, so digest_title no longer
+  // appears in the markup. The digest builder, its wiring and its
+  // tests are untouched.
+  assert.ok(!index.includes('partner-digest-section'), 'the static digest card is gone');
+  assert.ok(!index.includes('data-i18n="digest_title"'), 'the deleted card title is gone with it');
   assert.ok(index.includes('data-i18n="digest_copy"'), 'button label is translated');
 
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');

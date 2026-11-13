@@ -227,12 +227,12 @@ test('plan565 PIN: Fixture B(b) — newTotalDues 0 wins over newBalanceDue 500 o
   assert.ok(draft.includes('⚖️ *Remaining Balance:* PKR 0'), draft);
   assert.ok(draft.includes('PAID IN FULL'), draft);
   const html = renderQuickCollectReceiptCardHtml(receipt);
-  // QC receipt-modal overhaul (§4.3.2, decision (j)): the merged
-  // Still-owed row is ALWAYS shown — a fully-settled receipt reads
-  // "Fully paid" (green), never "PKR 0" and never a hidden row. This
-  // deliberately replaces PR #1332's hide-zero rule for this row; the
-  // draft and the image receipt still show PKR 0.
-  assert.equal(cardRemainingOf(html), 'Fully paid', html);
+  // QC Success Card Polish (2026-11-13): the merged Still-owed row
+  // is HIDDEN when the canonical figure is 0 — the settled state is
+  // stated by the still-owes pill, so no "Fully paid" row and no
+  // "PKR 0" text ever appear on the card. The draft and the image
+  // receipt still show PKR 0.
+  assert.equal(cardRemainingOf(html), null, html);
   const { fills } = await imageFills(receipt);
   assert.equal(imageBalanceOf(fills), 'PKR 0', JSON.stringify(fills));
   assert.match(imageStatusOf(fills), /Bill settled in full/, JSON.stringify(fills));
@@ -259,9 +259,10 @@ test('plan565 PIN: a partial bill payment (600 of 1,000, no tickets) reads PKR 0
   assert.ok(draft.includes('⚖️ *Remaining Balance:* PKR 0'), draft);
   assert.ok(draft.includes('PAID'), draft);
   const html = renderQuickCollectReceiptCardHtml({ ...receipt, id: 'receipt-partial' });
-  // The card renders "Fully paid" at 0, never "PKR 0" (see
-  // cardRemainingOf above) — the Still-owed row carries the figure.
-  assert.equal(cardRemainingOf(html), 'Fully paid', html);
+  // The card hides the Still-owed row at 0, never "PKR 0" (see
+  // cardRemainingOf above) — the settled state is stated by the
+  // still-owes pill.
+  assert.equal(cardRemainingOf(html), null, html);
 });
 
 /* ---------------- Wiring pins: slip + badge chains ---------------- */
@@ -283,14 +284,19 @@ test('plan565 WIRING: merged Still-owed row uses the canonical chain', () => {
   // QC receipt-modal overhaul (§4.3.2): the settle badge is gone — the
   // merged Still-owed row is the one card surface that reads the
   // canonical remaining figure, and it branches on remainingPayable > 0
-  // (PKR X when owed, "Fully paid" at 0).
+  // (PKR X when owed, row hidden at 0 — QC Success Card Polish,
+  // 2026-11-13; the settled state is stated by the still-owes pill).
   assert.ok(
     quickCollectSrc.includes('const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;'),
     'card builder computes the canonical remaining figure'
   );
   assert.ok(
-    quickCollectSrc.includes('remainingPayable > 0 ? `PKR ${formatReceiptMoneyFigure(remainingPayable)}` : escapeHtml(SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT)'),
-    'merged row branches on remainingPayable > 0'
+    quickCollectSrc.includes('remainingPayable > 0 ? `'),
+    'merged row renders only when remainingPayable > 0'
+  );
+  assert.ok(
+    !quickCollectSrc.includes('SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT'),
+    'card builder must not reference the Fully paid text — the row is hidden at 0'
   );
   assert.ok(!quickCollectSrc.includes('function renderSettleStatusBadge()'), 'settle render must be gone');
 });

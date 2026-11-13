@@ -176,7 +176,7 @@ function remSize(block) {
   return parseFloat(m[1]);
 }
 
-test('Plan 552 fit budget: the tax row costs ~43px; a taxed receipt computes to 724px, 24px over the 700px gate', () => {  const labelBlock = ruleBlock(stylesSrc, '.qc-meta-label {');
+test('Plan 552 fit budget: the tax row costs ~43px; a fully-paid taxed receipt computes to 683px, a partial one to 726px', () => {  const labelBlock = ruleBlock(stylesSrc, '.qc-meta-label {');
   const gridBlock = ruleBlock(stylesSrc, '.qc-receipt-grid {');
   const successGrid = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid {');
   const bodyBlock = ruleBlock(stylesSrc, 'body {');
@@ -189,23 +189,35 @@ test('Plan 552 fit budget: the tax row costs ~43px; a taxed receipt computes to 
   const rowCostPx = Math.round(labelPx + valuePx + gapPx);
   assert.equal(rowCostPx, 43, `tax row cost must be 43px (label ${labelPx}px + value ${valuePx}px + gap ${gapPx}px)`);
   const POLISH_21_COMPUTED_TOTAL_PX = 681;
-  const taxedTotalPx = POLISH_21_COMPUTED_TOTAL_PX + rowCostPx;
-  assert.equal(taxedTotalPx, 724, 'taxed receipt computed total must be 724px');
-  assert.ok(taxedTotalPx > 700, 'the taxed total is 24px OVER the 700px gate — recorded here, to be confirmed by the phone screenshot');
+  // QC Success Card Polish (2026-11-13): the fully-paid card hides
+  // the Still-owed row (−43px, exactly cancelling the tax row's
+  // +43px) and the amount pill's 1px border adds 2px: 681 + 2 =
+  // 683px — 17px UNDER the 700px gate. A partial card keeps the row:
+  // 681 + 43 + 2 = 726px, 26px over. The 681 baseline predates the
+  // phone row; the polish17 fit test owns the live total, and
+  // re-baselining this test's arithmetic is a separate small item,
+  // not folded in here.
+  const fullyPaidTaxedTotalPx = POLISH_21_COMPUTED_TOTAL_PX + 2;
+  assert.equal(fullyPaidTaxedTotalPx, 683, 'fully-paid taxed receipt computed total must be 683px');
+  assert.ok(fullyPaidTaxedTotalPx <= 700, 'the fully-paid taxed total is 17px UNDER the 700px gate — recorded here, to be confirmed by the phone screenshot');
+  const partialTaxedTotalPx = POLISH_21_COMPUTED_TOTAL_PX + rowCostPx + 2;
+  assert.equal(partialTaxedTotalPx, 726, 'partial taxed receipt computed total must be 726px');
+  assert.ok(partialTaxedTotalPx > 700, 'the partial taxed total is 26px OVER the 700px gate — recorded here, to be confirmed by the phone screenshot');
 });
 
-test('Plan 552: the Month row renders on the taxed card and now adds the fourth row (the merged row is always shown)', () => {
+test('Plan 552: the Month row renders on the taxed card; the grid stays at 3 rows (the Still-owed row is hidden when fully paid)', () => {
   // Month-name fix: the taxed fixture already carries month '2026-11',
   // so the card now renders a Month / November row between Date &
-  // Method and Area. QC receipt-modal overhaul (§4.3.2, decision (j)):
-  // the merged Still-owed + Next-due row is ALWAYS shown — the taxed
-  // fixture is fully paid, so it reads "Fully paid" instead of hiding
-  // — and it adds two half-width items. The grid goes from 6
-  // half-width items (3 rows) without the Month row to 7 (4 rows)
-  // with it, so the Month row ADDS the fourth row (43px). The 681
-  // baseline predates the phone row; the polish17 fit test owns the
-  // live total (736px), and re-baselining this test's 724px arithmetic
-  // is a separate small item, not folded in here.
+  // Method and Area. QC Success Card Polish (2026-11-13): the taxed
+  // fixture is fully paid, so it hides the Still-owed row instead of
+  // reading "Fully paid" — the grid is Customer, Mobile, Date &
+  // Method, Month, Area, Next due date = 6 half-width items in 3
+  // rows (was 7 / 4); without the Month row it is 5 items, still 3
+  // rows — the Month row no longer adds a fourth row (43px), it fills
+  // the row the hidden Still-owed row vacated. The 681 baseline
+  // predates the phone row; the polish17 fit test owns the live total,
+  // and re-baselining this test's arithmetic is a separate small item,
+  // not folded in here.
   const html = renderQuickCollectReceiptCardHtml(taxedReceipt());
   const at = html.indexOf('>Month<');
   assert.ok(at >= 0, 'taxed card must carry the Month row');
@@ -225,7 +237,7 @@ test('Plan 552: the Month row renders on the taxed card and now adds the fourth 
   };
   const noMonth = taxedReceipt();
   delete noMonth.month;
-  assert.equal(halfWidth(html), 7, 'seven half-width items with the Month row (merged Still-owed + Next-due row always shown)');
-  assert.equal(Math.ceil(halfWidth(html) / 2), 4, '4 half-width rows with the Month row');
-  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row — the Month row adds the fourth row, cost 43px');
+  assert.equal(halfWidth(html), 6, 'six half-width items with the Month row (Still-owed row hidden when fully paid)');
+  assert.equal(Math.ceil(halfWidth(html) / 2), 3, '3 half-width rows with the Month row');
+  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row — the Month row fills the vacated row, cost 0px');
 });

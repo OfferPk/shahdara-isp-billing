@@ -54,13 +54,12 @@ import {
   monthsForHistory,
   manualBaqayaOutstandingCents
 } from './core.js';
-import { buildPaymentReceipt, RECEIPT_URDU_NOTE } from './receipt.js';
+import { buildPaymentReceipt, RECEIPT_URDU_NOTE, shortReceiptNumber } from './receipt.js';
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 import { normalizeTid } from './wallet-reconciliation.js';
 import { t } from './nav-language.js';
 import {
-  SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT,
   SUCCESS_NEXT_STEPS_STILL_OWED_TEXT,
   SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT,
   SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT,
@@ -936,8 +935,10 @@ export function splitBadgeMarkup(payment) {
  * Quick Collect success-step card for a combined split receipt —
  * same qc-receipt-* classes as renderQuickCollectReceiptCardHtml, so
  * the existing styles (and print behaviour) apply unchanged. Shows the
- * total received, BOTH legs with their real receipt numbers, and the
- * remaining balance. When the caller passes the Area select markup
+ * total received, BOTH legs with their short receipt numbers, and the
+ * remaining balance when anything is still owed — the row is hidden
+ * when fully paid (QC Success Card Polish, 2026-11-13; the settled
+ * state is stated by the still-owes pill). When the caller passes the Area select markup
  * (polish 6, part B — the same select the ordinary card uses), the
  * Area row shows that select instead of plain text; without it the
  * row stays plain text, exactly as before.
@@ -956,7 +957,7 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { next
   const legRows = combined.legs.map(leg => `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))} · ${escapeHtml(leg.method)}${leg.voided ? ` (${escapeHtml(t('split_voided_leg'))})` : ''}</span>
-          <strong class="qc-meta-val">PKR ${Number(leg.amount).toLocaleString('en-PK')} · ${escapeHtml(leg.receiptNumber)}${leg.transactionId ? ` · TID ${escapeHtml(leg.transactionId)}` : ''}</strong>
+          <strong class="qc-meta-val">PKR ${Number(leg.amount).toLocaleString('en-PK')} · ${escapeHtml(shortReceiptNumber(leg.receiptNumber))}${leg.transactionId ? ` · TID ${escapeHtml(leg.transactionId)}` : ''}</strong>
         </div>`).join('');
   // Sharafat 1: the waived-fee and remainder-waada rows, in the single
   // card's exact shape (same labels, same dictionary keys) — each
@@ -986,7 +987,7 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { next
         <span class="qc-receipt-id">${escapeHtml(t('split_receipt_title'))}</span>
       </div>
 
-      <div class="qc-receipt-amount-row">
+      <div class="qc-receipt-amount-row qc-amount-pill">
         <span class="qc-receipt-label">${escapeHtml(t('split_total_received'))}</span>
         <strong class="qc-receipt-amount">PKR ${Number(combined.totalReceived).toLocaleString('en-PK')}</strong>
       </div>
@@ -994,16 +995,17 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { next
       <div class="qc-receipt-grid">
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Customer</span>
-          <strong class="qc-meta-val">${escapeHtml(combined.customerName)} (#${escapeHtml(String(combined.customerNumber))})</strong>
+          <strong class="qc-meta-val qc-customer-golden">👑 ${escapeHtml(combined.customerName)} ${escapeHtml(String(combined.customerNumber))}</strong>
         </div>
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Area / Location</span>
           ${areaSelectHtml ? areaSelectHtml : `<strong class="qc-meta-val">${escapeHtml(combined.area)}</strong>`}
         </div>
+        ${remaining > 0 ? `
         <div class="qc-receipt-item">
           <span class="qc-meta-label">${escapeHtml(remaining > 0 && chargesPending ? SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT : SUCCESS_NEXT_STEPS_STILL_OWED_TEXT)}</span>
-          <strong class="qc-meta-val ${remaining > 0 ? 'has-balance' : 'zero-balance'}">${remaining > 0 ? `PKR ${Number(remaining).toLocaleString('en-PK')}` : escapeHtml(SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT)}</strong>
-        </div>
+          <strong class="qc-meta-val has-balance">PKR ${Number(remaining).toLocaleString('en-PK')}</strong>
+        </div>` : ''}
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Next due date</span>
           <strong class="qc-meta-val">${escapeHtml(nextDueDateText || SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT)}</strong>

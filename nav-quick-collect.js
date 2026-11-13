@@ -31,6 +31,8 @@ import {
   manualBaqayaOutstandingCents,
   planManualBaqayaSettlement,
   paymentSenderLabel,
+  paymentSenderTitle,
+  paymentSenderDigits,
   prepayTermsOf,
   whatsappPhoneFor,
   receiptPhoneSaveField,
@@ -150,7 +152,7 @@ import {
 } from './waada-queue.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
 import { ensureUrduFont, t } from './nav-language.js';
-import { buildReceiptPaymentHistory, historyRowLabel } from './receipt.js';
+import { buildReceiptPaymentHistory, historyRowLabel, shortReceiptNumber } from './receipt.js';
 import {
   getDigitalPaymentsSettings,
   hasConfiguredDigitalPayments,
@@ -170,7 +172,6 @@ import { dsIcon } from './ds-icons.js';
 import {
   successNextStepsNextDueDate,
   successNextStepsChargesPending,
-  SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT,
   SUCCESS_NEXT_STEPS_STILL_OWED_TEXT,
   SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT,
   SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT,
@@ -2171,20 +2172,29 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
   // non-finite figure is Plan 566's guard, not this plan's.
   const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
   // QC receipt-modal overhaul (§4.3.2, decision (j)): the merged
-  // Still-owed row below REPLACES the Remaining Balance row (PR #1332)
-  // and is ALWAYS shown — "Fully paid" (green, .zero-balance) when the
-  // Plan 565 figure is 0, "PKR X" (amber, .has-balance) when > 0 — so
-  // there is exactly one still-owed row on the card. This is a narrow,
-  // deliberate change to PR #1332's hide-zero rule for this row only:
-  // no "PKR 0" text ever appears; the settled state is also stated by
-  // the still-owes pill. When ticket/boost charges are pending, the
-  // label reads the Plan 526 charged label — the same label logic
-  // as successNextStepsHtml. (A non-finite figure is
-  // Plan 566's guard, not this item's: it reads "Fully paid" here.)
+  // Still-owed row below REPLACES the Remaining Balance row (PR #1332).
+  // QC Success Card Polish (2026-11-13): the row is shown ONLY when the
+  // Plan 565 figure is > 0 ("PKR X", amber, .has-balance) and HIDDEN
+  // entirely when the customer is fully paid — the settled state is
+  // stated by the still-owes pill, so no "Fully paid" row and no
+  // "PKR 0" text ever appear on the card. When ticket/boost charges
+  // are pending, the label reads the Plan 526 charged label — the same
+  // label logic as successNextStepsHtml. (A non-finite figure is
+  // Plan 566's guard, not this item's.)
   const chargesPending = successNextStepsChargesPending(receipt);
   const mergedOwedLabel = remainingPayable > 0 && chargesPending
     ? SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT
     : SUCCESS_NEXT_STEPS_STILL_OWED_TEXT;
+  // QC Success Card Polish (2026-11-13): the account's last 4 digits
+  // leave the bracketed sender label and become their own small pill
+  // beside the sender name. The receipt already carries senderTitle /
+  // senderDigits (stamped on the save path from the stored payment);
+  // a receipt that only carries the combined label falls back to it,
+  // pill-less. Title wins over the combined label so the name is
+  // never printed twice.
+  const senderTitle = receipt.senderTitle ?? paymentSenderTitle(receipt);
+  const senderDigits = receipt.senderDigits ?? paymentSenderDigits(receipt);
+  const senderDisplay = senderTitle || receipt.senderLabel || '';
   // BUT HOUSE fix: the card shows the customer's mobile number — the
   // live-state resolution (whatsappPhone first, else the primary
   // phone) passed in by the caller, falling back to the receipt's
@@ -2252,13 +2262,16 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
              is a labelled chip ("Receipt No." + the id in the
              Transaction ID row's .qc-txnid-code): the card was the only
              receipt surface showing the number with no label at all.
-             The id stays byte-identical — never respaced — so the
-             operator can copy it into receipt search. -->
+             QC Success Card Polish: the chip shows the SHORT form
+             (RCPT-12-202611-03 -> RCPT-3) — the full stored number
+             stays in the title + data-full-receipt-number attributes
+             and everywhere else (search, draft, reprint), so the
+             operator can still copy the exact number. -->
         ${sharedBadge}
-        <span class="qc-receipt-ref"><span class="qc-receipt-label">Receipt No.</span> <span class="qc-receipt-id qc-txnid-code">${escapeHtml(receipt.receiptNumber)}</span></span>
+        <span class="qc-receipt-ref"><span class="qc-receipt-label">Receipt No.</span> <span class="qc-receipt-id qc-txnid-code" title="${escapeHtml(receipt.receiptNumber)}" data-full-receipt-number="${escapeHtml(receipt.receiptNumber)}">${escapeHtml(shortReceiptNumber(receipt.receiptNumber))}</span></span>
       </div>
 
-      <div class="qc-receipt-amount-row">
+      <div class="qc-receipt-amount-row qc-amount-pill">
         <span class="qc-receipt-label">Amount Collected</span>
         <strong class="qc-receipt-amount">PKR ${formatReceiptMoneyFigure(receipt.amount)}</strong>
       </div>
@@ -2266,7 +2279,7 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
       <div class="qc-receipt-grid">
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Customer</span>
-          <strong class="qc-meta-val">${escapeHtml(receipt.customerName)} (#${escapeHtml(String(receipt.customerNumber))})</strong>
+          <strong class="qc-meta-val qc-customer-golden">👑 ${escapeHtml(receipt.customerName)} ${escapeHtml(String(receipt.customerNumber))}</strong>
         </div>
         ${phoneRow}
         ${receipt.connection ? `
@@ -2321,15 +2334,16 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
           <span class="qc-meta-label">Transaction ID / Ref</span>
           <strong class="qc-meta-val"><code class="qc-txnid-code">${escapeHtml(receipt.transactionId)}</code></strong>
         </div>` : ''}
-        ${receipt.senderLabel ? `
+        ${senderDisplay || senderDigits ? `
         <div class="qc-receipt-item full-width" data-qc-receipt-sender>
           <span class="qc-meta-label">${escapeHtml(t('spay_sender_name_label'))}</span>
-          <strong class="qc-meta-val">${escapeHtml(receipt.senderLabel)}</strong>
+          <strong class="qc-meta-val">${senderDisplay ? escapeHtml(senderDisplay) : ''}${senderDigits ? `<span class="qc-sender-digits-pill">…${escapeHtml(senderDigits)}</span>` : ''}</strong>
         </div>` : ''}
+        ${remainingPayable > 0 ? `
         <div class="qc-receipt-item">
           <span class="qc-meta-label">${escapeHtml(mergedOwedLabel)}</span>
-          <strong class="qc-meta-val ${remainingPayable > 0 ? 'has-balance' : 'zero-balance'}">${remainingPayable > 0 ? `PKR ${formatReceiptMoneyFigure(remainingPayable)}` : escapeHtml(SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT)}</strong>
-        </div>
+          <strong class="qc-meta-val has-balance">PKR ${formatReceiptMoneyFigure(remainingPayable)}</strong>
+        </div>` : ''}
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Next due date</span>
           <strong class="qc-meta-val">${escapeHtml(nextDueDateText || SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT)}</strong>

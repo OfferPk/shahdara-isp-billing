@@ -306,8 +306,15 @@ test('status merge: the merged Still-owed row is written from the same receipt f
     'card builder must compute the canonical remaining figure',
   );
   assert.ok(
-    quickCollectSrc.includes('remainingPayable > 0 ? `PKR ${formatReceiptMoneyFigure(remainingPayable)}` : escapeHtml(SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT)'),
-    'merged row must branch on remainingPayable > 0',
+    quickCollectSrc.includes('remainingPayable > 0 ? `'),
+    'merged row must render only when remainingPayable > 0',
+  );
+  // QC Success Card Polish (2026-11-13): the row is hidden at 0 — no
+  // "Fully paid" text on the card; the still-owes pill states the
+  // settled state.
+  assert.ok(
+    !quickCollectSrc.includes('SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT'),
+    'card builder must not reference the fully-paid text',
   );
   assert.ok(!quickCollectSrc.includes("'✓ Settle in Full'"), 'settle badge text must be gone');
   assert.ok(!quickCollectSrc.includes("'⏳ Partial Payment'"), 'partial badge text must be gone');
@@ -324,7 +331,8 @@ test('status merge: compact badge sizing (12px, 2px 8px) + 6px section gap', () 
   assert.ok(badge.includes('padding: 2px 8px'), 'saved badge must take the card-badge padding');
   assert.ok(badge.includes('margin: 0'), 'saved badge margin must stay 0 inside the row');
   // The settle host is gone (QC receipt-modal overhaul §4.3.2) — the
-  // merged Still-owed row in the card carries the settled state now.
+  // still-owes pill carries the settled state now (QC Success Card
+  // Polish: the merged Still-owed row is hidden when fully paid).
   assert.ok(!stylesSrc.includes('.qc-receipt-badge.settled'), 'no settle-badge sizing may remain');
 });
 

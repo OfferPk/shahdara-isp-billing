@@ -91,20 +91,25 @@ function ruleBlock(css, selectorWithBrace) {
   return css.slice(open + 1, close);
 }
 
-test('REPRO: the header carries a "Receipt No." label immediately before a byte-identical id', () => {
+test('REPRO: the header carries a "Receipt No." label immediately before the SHORT id', () => {
   const header = headerOf(renderQuickCollectReceiptCardHtml(baseReceipt()));
   assert.ok(header.includes('Receipt No.'), 'header must label the number');
-  // The id is never decomposed, respaced or regrouped: the operator
-  // copies it into receipt search, and normalizeReceiptNumber strips
-  // whitespace but NOT '·' separators, so a respaced display would
-  // fail search and mismatch paper.
-  assert.ok(header.includes(`>${RECEIPT_ID}<`), 'id must be byte-identical');
+  // QC Success Card Polish (2026-11-13): the chip shows the SHORT
+  // form (RCPT-12-202611-01 -> RCPT-1) — the user asked for simple
+  // sequential numbers on the card. The short form is never respaced
+  // or regrouped; the full stored number stays in the title +
+  // data-full-receipt-number attributes (one hover away) and in the
+  // draft/PNG/reprint, so the operator can still copy the exact
+  // number. The stored number is unchanged — this is display-only.
+  assert.ok(header.includes('>RCPT-1<'), 'chip must show the short form');
   assert.ok(!header.includes('RCPT-12 · 202611 · 01'), 'id must never be respaced or regrouped');
+  assert.ok(header.includes(`title="${RECEIPT_ID}"`), 'full number must stay in the title');
+  assert.ok(header.includes(`data-full-receipt-number="${RECEIPT_ID}"`), 'full number must stay in the data attribute');
   const labelAt = header.indexOf('Receipt No.');
-  const idAt = header.indexOf(RECEIPT_ID);
+  const idAt = header.indexOf('>RCPT-1<');
   assert.ok(labelAt >= 0 && idAt > labelAt, 'label must sit immediately before the id');
   assert.ok(
-    header.includes(`>Receipt No.</span> <span class="qc-receipt-id qc-txnid-code">${RECEIPT_ID}</span>`),
+    header.includes(`>Receipt No.</span> <span class="qc-receipt-id qc-txnid-code" title="${RECEIPT_ID}" data-full-receipt-number="${RECEIPT_ID}">RCPT-1</span>`),
     'label and id must be adjacent spans, label first, id in the chip class',
   );
 });
@@ -117,7 +122,7 @@ test('the label and id live inside one .qc-receipt-ref wrapper', () => {
   // Match the label SPAN, not the bare words — the header comment above
   // the badge also mentions "Receipt No.".
   const labelAt = header.indexOf('>Receipt No.</span>');
-  const idAt = header.indexOf(RECEIPT_ID);
+  const idAt = header.indexOf('>RCPT-1<');
   assert.ok(wrapAt < labelAt && wrapAt < idAt, 'wrapper must open before the label and the id');
 });
 
@@ -164,7 +169,13 @@ test('the split card header is untouched — it shows a title, not a number', ()
   assert.ok(!split.includes('qc-receipt-ref'), 'split header must not gain the ordinary-card wrapper');
   assert.ok(!split.includes('Receipt No.'), 'split header must not gain the label');
   assert.ok(split.includes('qc-receipt-id'), 'split header must keep its id');
-  assert.ok(split.includes('RCPT-12-202611-01'), 'split leg rows must keep their numbers inline');
+  // QC Success Card Polish (2026-11-13): the leg rows show the SHORT
+  // form, same as the single card — the full stored numbers stay in
+  // the stored leg data, the draft and the print sheet.
+  assert.ok(split.includes('RCPT-1'), 'split leg 1 must show the short form');
+  assert.ok(split.includes('RCPT-2'), 'split leg 2 must show the short form');
+  assert.ok(!split.includes('RCPT-12-202611-01'), 'split legs must not show the full stored number');
+  assert.ok(!split.includes('RCPT-12-202611-02'), 'split legs must not show the full stored number');
 });
 
 test('the distinct-hex count in styles.css does not grow — zero new hex', () => {

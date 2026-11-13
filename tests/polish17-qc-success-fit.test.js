@@ -132,15 +132,20 @@ test('structure: the terms sit inside the receipt card (last block of the card)'
   assert.ok(termsStart > html.indexOf('qc-receipt-grid'), 'terms must sit after the receipt grid');
 });
 
-test('structure: the merged Still-owed row is always shown (never hidden, never PKR 0)', () => {
+test('structure: the merged Still-owed row is HIDDEN when fully paid, shown when anything is owed', () => {
+  // QC Success Card Polish (2026-11-13) reverses the QC receipt-modal
+  // overhaul's "always shown" rule: a fully-paid card carries NO
+  // Still-owed row at all — the settled state is stated by the
+  // still-owes pill, so no "Fully paid" row and no "PKR 0" text ever
+  // appear. The partial card keeps the row with its figure.
   const paid = {
     id: 'receipt-12', receiptNumber: 'RCPT-12-202611-01', amount: 1000,
     customerName: 'Test Customer', customerNumber: 12, date: '2026-11-08',
     method: 'Easypaisa', area: 'Sodaa', payableRemaining: 0, newTotalDues: 0,
   };
   const paidHtml = renderQuickCollectReceiptCardHtml(paid);
-  assert.ok(paidHtml.includes('Still owed'), 'fully-paid card must carry the Still-owed row');
-  assert.ok(paidHtml.includes('Fully paid'), 'fully-paid card must read Fully paid');
+  assert.ok(!paidHtml.includes('Still owed'), 'fully-paid card must not carry a Still-owed row');
+  assert.ok(!paidHtml.includes('Fully paid'), 'fully-paid card must not carry a Fully paid row');
   assert.ok(!paidHtml.includes('Remaining Balance'), 'no Remaining Balance row may remain');
   const partial = { ...paid, payableRemaining: 400, newTotalDues: 400 };
   const partialHtml = renderQuickCollectReceiptCardHtml(partial);
@@ -220,8 +225,11 @@ test('fit budget: the compact header, banner, callout, card and action values th
   // C4 — amount 1.5rem → 1.3rem, row padding 4 → 2.
   const amount = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount {');
   assert.ok(amount.includes('font-size: 1.3rem'), 'C4: amount must be 1.3rem on success');
-  const amountRow = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount-row {');
-  assert.ok(amountRow.includes('padding: 2px 0'), 'C4: amount row padding must be 2px 0 on success');
+  // QC Success Card Polish (2026-11-13): the row is a pill now, so
+  // C4 reads the pill rule — padding 2px 14px (vertical stays 2px,
+  // horizontal is the pill shape).
+  const amountRow = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount-row.qc-amount-pill {');
+  assert.ok(amountRow.includes('padding: 2px 14px'), 'C4: amount pill padding must be 2px 14px on success');
 
   // C5 — grid gap 8 → 6; the Area select is a 30px pill (was a 44px
   // select, then a dead 34px rule — the pill is the live value).
@@ -281,11 +289,13 @@ test('fit budget: the compact header, banner, callout, card and action values th
   assert.ok(empty.includes('min-height: 24px'), 'empty-amount button must be a 24px text button');
 });
 
-test('fit budget: grid math — the fully-paid taxed card has 7 half-width items in 4 rows', () => {
-  // The merged Still-owed + Next-due row adds two half-width items to
-  // the fully-paid taxed shape (Customer, Mobile, Date & Method, Month,
-  // Area, Still owed, Next due date = 7; the tax row is full-width).
-  // The Month row adds the fourth row (6 → 7 items, 3 → 4 rows).
+test('fit budget: grid math — the fully-paid taxed card has 6 half-width items in 3 rows', () => {
+  // QC Success Card Polish (2026-11-13): the fully-paid card hides
+  // the Still-owed row, so the shape is Customer, Mobile, Date &
+  // Method, Month, Area, Next due date = 6 half-width items in 3
+  // rows (was 7 / 4); the tax row is full-width. The Month row no
+  // longer adds a fourth row — it fills the row the hidden Still-owed
+  // row vacated.
   const html = renderQuickCollectReceiptCardHtml({
     id: 'receipt-12', receiptNumber: 'RCPT-12-202611-01', amount: 1195,
     customerName: 'Test Customer', customerNumber: 12, date: '2026-11-08',
@@ -297,30 +307,37 @@ test('fit budget: grid math — the fully-paid taxed card has 7 half-width items
     const full = (h.match(/<div class="qc-receipt-item full-width/g) || []).length;
     return all - full;
   };
-  assert.equal(halfWidth(html), 7, 'seven half-width items with the Month row (merged row always shown)');
-  assert.equal(Math.ceil(halfWidth(html) / 2), 4, '4 half-width rows with the Month row');
+  assert.equal(halfWidth(html), 6, 'six half-width items with the Month row (Still-owed row hidden when fully paid)');
+  assert.equal(Math.ceil(halfWidth(html) / 2), 3, '3 half-width rows with the Month row');
   const noMonth = { id: 'receipt-12', receiptNumber: 'RCPT-12-202611-01', amount: 1195,
     customerName: 'Test Customer', customerNumber: 12, date: '2026-11-08',
     method: 'Cash', area: 'Sodaa', payableRemaining: 0, newTotalDues: 0, salesTaxCents: 19500 };
-  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row');
+  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row — 5 items still fill 3 rows');
 });
 
-test('fit budget: measured totals are recorded — 1,116px at 360px (66px over the 1,050px budget), 1,144px at 320px', () => {
+test('fit budget: measured totals are recorded — 1,075px at 360px (25px over the 1,050px budget), 1,103px at 320px', () => {
   // The harness is the authority (~/workspace/shahdara-qc-receipt-modal-harness/,
   // measure-qc-360.json / measure-qc-320.json, 0 pageerrors). These
   // pins record the measured totals so a regression is caught here;
   // they do NOT bless the overage — the user-locked budget is ≤1,050px
-  // at 360px and ≤1,075px at 320px, and both are missed by ~66–69px.
-  // The breakdown at 360px (variant A): header 44 + banner 104 +
-  // callout 104 + card 515.6 + accordion 66 + actions 242.4 + step
-  // gaps/dialog padding ~40 = 1,116px. Variant B (loaded) measures
-  // 1,114px — within its ≤1,160px budget.
-  const MEASURED_360_PX = 1116;
-  const MEASURED_320_PX = 1144;
+  // at 360px and ≤1,075px at 320px, and both are still missed.
+  // QC Success Card Polish (2026-11-13): the totals below are
+  // ARITHMETIC from the recorded harness totals, NOT a fresh harness
+  // run — the harness cannot run in this sandbox, so the next harness
+  // run must re-measure to confirm. Derivation: one 43px grid row
+  // (the hidden Still-owed row: 17.28 label + 19.68 value + 6 gap)
+  // leaves, and the amount pill's 1px border adds 2px: 1,116 − 43 + 2
+  // = 1,075 at 360px; 1,144 − 43 + 2 = 1,103 at 320px. The breakdown
+  // at 360px (variant A): header 44 + banner 104 + callout 104 +
+  // card 474.6 + accordion 66 + actions 242.4 + step gaps/dialog
+  // padding ~40 = 1,075px. Variant B (loaded) measures 1,114px —
+  // within its ≤1,160px budget.
+  const MEASURED_360_PX = 1075;
+  const MEASURED_320_PX = 1103;
   const BUDGET_360_PX = 1050;
   const BUDGET_320_PX = 1075;
-  assert.equal(MEASURED_360_PX, 1116, 'measured 360px total must be 1,116px (harness measure-qc-360.json cardScrollH)');
-  assert.equal(MEASURED_320_PX, 1144, 'measured 320px total must be 1,144px (harness measure-qc-320.json cardScrollH)');
+  assert.equal(MEASURED_360_PX, 1075, 'measured 360px total must be 1,075px (harness measure-qc-360.json cardScrollH, minus the hidden 43px Still-owed row plus the 2px pill border)');
+  assert.equal(MEASURED_320_PX, 1103, 'measured 320px total must be 1,103px (harness measure-qc-320.json cardScrollH, minus the hidden 43px Still-owed row plus the 2px pill border)');
   assert.ok(MEASURED_360_PX > BUDGET_360_PX, `360px total ${MEASURED_360_PX}px is ${MEASURED_360_PX - BUDGET_360_PX}px OVER the ${BUDGET_360_PX}px budget — recorded here, not waived`);
   assert.ok(MEASURED_320_PX > BUDGET_320_PX, `320px total ${MEASURED_320_PX}px is ${MEASURED_320_PX - BUDGET_320_PX}px OVER the ${BUDGET_320_PX}px budget — recorded here, not waived`);
   // The overflow fix itself holds: the draft <pre> was the ONE source

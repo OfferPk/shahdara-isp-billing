@@ -3671,8 +3671,10 @@ button:not([hidden]).help-info-btn {
    6. The profile action group used an auto column at phone
       widths, so the widest button label could crowd the payment
       button's column. At ≤480px it is two equal columns, with
-      the payment shortcut, backdated link and technical tools
-      each on a full row. */
+      the backdated link and technical tools each on a full row;
+      the payment shortcut no longer spans — it shares its row
+      with Archive (Profile Archive Button Visibility, user
+      report 2026-11-13). */
 @media (max-width: 480px) {
   .quick-collect-filter-chip { min-height: 44px; display: inline-flex; align-items: center; }
   .quick-amount-chip { min-height: 44px; display: inline-flex; align-items: center; }
@@ -3691,7 +3693,6 @@ button:not([hidden]).help-info-btn {
   .field-mode-view { padding: 12px 12px calc(20px + env(safe-area-inset-bottom, 0px)); }
   .field-mode-head .help-info-btn { width: 44px; height: 44px; }
   .profile-action-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .profile-action-group > .current-payment-shortcut,
   .profile-action-group > .backdated-payment-link,
   .profile-action-group > .customer-technical-tools { grid-column: 1 / -1; }
 }

@@ -880,10 +880,24 @@ export function searchCustomers(state, query = '') {
   return state.customers.filter(customer => customerMatchesQuery(customer, query, allocations));
 }
 
+// Sharafat 18: a bill is "priced at zero" only when the operator
+// explicitly flagged it AND its due is exactly Rs 0. The flag alone
+// (non-zero amount) is an ordinary priced bill; a zero amount
+// without the flag is still unpriced. Every site that treats a bill
+// as unpriced exempts exactly this predicate — never a global <= 0
+// change.
+export function isZeroPricedBill(bill) {
+  const amount = bill?.dueAmount;
+  return bill?.isZeroPriced === true && amount !== null && amount !== undefined && amount !== '' && Number.isFinite(Number(amount)) && Number(amount) === 0;
+}
+
 export function derivedBillStatus(customer, bill, allocations = null) {
   if (!bill) return 'not-set';
   const amount = bill.dueAmount;
-  if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) return 'not-set';
+  // Sharafat 18: a bill explicitly priced at Rs 0 is a priced bill —
+  // it reads its allocation summary below (balanceDueCents 0 → 'paid')
+  // instead of short-circuiting to 'not-set' like a bill with no price.
+  if (!isZeroPricedBill(bill) && (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0)) return 'not-set';
   const result = allocations ?? calculatePaymentAllocations({ customers:[customer] });
   const summary = result.forMonth?.(customer.id, bill.month) ?? result.byCustomerMonth?.get(monthAllocationKey(customer.id, bill.month));
   if (!summary || summary.balanceDueCents === null || summary.balanceDueCents === undefined) return 'not-set';
@@ -1437,7 +1451,7 @@ export function countCustomerIncidentsLast30Days(state, customerId, referenceDat
   }).length;
 }
 
-export function saveBillMonth(state, customerId, { month, dueAmount = null, status, dueDate = undefined, packageId = '', clearPackageSnapshot = false, salesTaxCents = undefined }, referenceDate = new Date()) {
+export function saveBillMonth(state, customerId, { month, dueAmount = null, status, dueDate = undefined, packageId = '', clearPackageSnapshot = false, salesTaxCents = undefined, isZeroPriced = false }, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
   if (status !== 'pending') throw new Error('Paid status is derived from actual receipts or valid carry-forward credit. Record an actual payment instead of manually marking a bill paid.');
   const selectedPackage = packageId ? createBillPackageSnapshot(packageId) : null;
@@ -1469,12 +1483,20 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   // caller did not pass the tax param — a packageless bill cannot
   // carry tax.
   if (clearPackageSnapshot && !selectedPackage) nextSalesTaxCents = null;
+  // Sharafat 18: a bill deliberately priced at Rs 0 (free month) is a
+  // priced bill, not an unpriced one — but only with the explicit
+  // flag AND an exact 0 due AND no package selected (a package drives
+  // the price, so the two never combine). Without the flag, 0 still
+  // throws below, exactly as before; a flagged null/'' due is still
+  // "no amount entered", not a free bill. A Rs 0 bill carries no tax.
+  const zeroPriced = isZeroPriced === true && !selectedPackage && dueAmount !== null && dueAmount !== undefined && dueAmount !== '' && Number.isFinite(Number(dueAmount)) && Number(dueAmount) === 0;
+  if (zeroPriced) nextSalesTaxCents = null;
   // The due is the package price plus its tax when a package is newly
   // selected (the caller-owned dueAmount is ignored there, exactly as
   // before); otherwise the dueAmount the caller passes already carries
   // the tax — the bill form sets it to price + tax live when the box
   // is ticked — so nothing is added twice.
-  const baseDue = checkPositiveAmount(selectedPackage?.nominalPrice ?? dueAmount, true);
+  const baseDue = zeroPriced ? 0 : checkPositiveAmount(selectedPackage?.nominalPrice ?? dueAmount, true);
   const due = selectedPackage && nextSalesTaxCents !== null && baseDue !== null
     ? (moneyCents(baseDue) + nextSalesTaxCents) / 100
     : baseDue;
@@ -1490,6 +1512,11 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   const bill = existing
     ? { ...existing, dueAmount:due, dueDate:savedDueDate, status, amountHistory, ...(selectedPackage ? { packageSnapshot:selectedPackage } : {}) }
     : { id:makeId(), month, dueAmount:due, dueDate:savedDueDate, status, payments:[], generated:false, priceSnapshot:null, createdAt:localDateTimeValue(referenceDate), amountHistory:[], ...(selectedPackage ? { packageSnapshot:selectedPackage } : {}) };
+  // Sharafat 18: the flag rides the bill only while it is a flagged
+  // zero bill — re-saving with a positive amount (or unticking the
+  // box) clears it, so a stale flag can never mark a priced bill.
+  if (zeroPriced) bill.isZeroPriced = true;
+  else delete bill.isZeroPriced;
   if (clearPackageSnapshot && !selectedPackage) delete bill.packageSnapshot;
   // Polish #11: the recorded tax rides the bill, rate alongside so
   // history never recomputes; null clears both fields (clearing the
@@ -1556,6 +1583,11 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
 export const AUTO_PACKAGE_STAFF_NAME = 'Auto-set from payment';
 
 function isPricedBill(bill) {
+  // Sharafat 18: a flagged zero bill IS priced (at zero) — the
+  // auto-reprice guard and the void-restore both treat it as a bill
+  // that already carried a price, so a payment on a free month can
+  // never reprice it to the taken fee.
+  if (isZeroPricedBill(bill)) return true;
   const amount = bill?.dueAmount;
   return amount !== null && amount !== undefined && amount !== '' && Number.isFinite(Number(amount)) && Number(amount) > 0;
 }
@@ -3636,7 +3668,11 @@ export function calculatePaymentAllocations(state) {
       const payments = [...(bill.payments ?? [])].filter((p) => p?.voided !== true).sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
       summary.actualReceiptsCents = payments.reduce((sum,payment) => sum + safeCents(payment.amount), 0);
       const amount = bill.dueAmount;
-      if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
+      // Sharafat 18: a flagged zero bill takes the priced path below
+      // (billAmountCents 0, balanceDueCents 0) — its payments still
+      // become excess credit, since the bill has no capacity, but the
+      // bill itself reads Paid instead of unpriced.
+      if (!isZeroPricedBill(bill) && (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0)) {
         // Unpriced bill: nothing can be applied to this month yet, so the whole
         // receipt is unused credit. Hold it in pendingCredits exactly like a
         // priced bill's overpayment — otherwise an advance collected before
@@ -4007,7 +4043,10 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
 
 function monthlyClosingMetrics(state, month, allocations = calculatePaymentAllocations(state)) {
   const bills = state.customers.flatMap(customer => (customer.bills ?? []).filter(bill => bill.month === month).map(bill => ({ customer, bill })));
-  const pricedBills = bills.filter(({ bill }) => bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== '' && Number.isFinite(Number(bill.dueAmount)) && Number(bill.dueAmount) > 0);
+  // Sharafat 18: flagged zero bills count as priced (billedAmount is
+  // unaffected — they add Rs 0 — and their balanceDueCents is 0, so
+  // they never count as pending).
+  const pricedBills = bills.filter(({ bill }) => isPricedBill(bill));
   const pendingCents = pricedBills.reduce((sum, { customer, bill }) => sum + (allocations.byCustomerMonth.get(monthAllocationKey(customer.id, month))?.balanceDueCents ?? moneyCents(bill.dueAmount)), 0);
   const pendingBillCount = pricedBills.filter(({ customer }) => (allocations.byCustomerMonth.get(monthAllocationKey(customer.id, month))?.balanceDueCents ?? 0) > 0).length;
   const payments = state.customers.flatMap(customer => (customer.bills ?? []).flatMap(bill => (bill.payments ?? []).filter(payment => !isVoidedPayment(payment) && typeof payment.date === 'string' && payment.date.slice(0, 7) === month)));

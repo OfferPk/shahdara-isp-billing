@@ -30,7 +30,7 @@ const LABELS = {
   searchAliasesInput: 'Nicknames',
 };
 
-const TEXTS = { heading: 'Missing fields', allFilled: 'All fields filled' };
+const TEXTS = { title: 'Profile Details (66/68 filled)', showMissing: 'Show 2 optional fields', hideMissing: 'Hide optional fields', allFilled: 'All fields filled', total: 68, filled: 66, percent: 97 };
 
 test('missing: names exactly the empty fields, in form order', () => {
   const record = { phone: '03012345678', cnic: '', mohalla: '  ', paused: false, connectionFee: 0, searchAliases: [] };
@@ -120,27 +120,29 @@ test('html: lists each missing field by name as a jump button, in order', () => 
     { controlId: 'phoneInput', fieldKey: 'phone' },
   ];
   const html = missingFieldsChecklistHtml(missing, LABELS, TEXTS);
-  // Plan 512: the heading moved into the collapsed <details> summary
-  // (with the count) so a sparse profile shows one line instead of
-  // dozens of rows — the heading text and the jump buttons are
+  // Profile View Polish: the counter and the checklist merged into
+  // ONE collapsible details bar — the summary carries the live title,
+  // the show-missing label and the neutral bar; the jump buttons are
   // unchanged, and the list stays collapsed until the operator opens it.
-  // Profile Polish B (12): the count is a pill holding the plain
-  // number (no parens); the bar is absent here because this call
-  // passes no total.
-  assert.ok(html.includes('<details class="mfc-details">'));
-  assert.ok(html.includes('<summary class="mfc-summary">Missing fields <span class="mfc-count-pill">2</span></summary>'));
+  assert.ok(html.includes('<details class="profile-completion-details mfc-checklist"'));
+  assert.ok(html.includes('<summary class="profile-details-summary">'));
+  assert.ok(html.includes('Profile Details (66/68 filled)'));
+  assert.ok(html.includes('Show 2 optional fields ▾'));
   assert.ok(!html.includes('<details open'));
   assert.ok(html.includes('data-missing-field="cnicInput">CNIC</button>'));
   assert.ok(html.includes('data-missing-field="phoneInput">Phone</button>'));
   assert.ok(html.indexOf('cnicInput') < html.indexOf('phoneInput'));
   assert.ok(!html.includes('All fields filled'));
+  assert.ok(!html.includes('mfc-count-pill'), 'no count pill any more');
 });
 
 test('html: a complete profile shows the all-filled line and no jump buttons', () => {
   const html = missingFieldsChecklistHtml([], LABELS, TEXTS);
+  assert.ok(html.includes('<details class="profile-completion-details mfc-checklist"'), 'a complete profile still renders the merged bar');
   assert.ok(html.includes('<p class="mfc-all-filled">All fields filled</p>'));
   assert.ok(!html.includes('data-missing-field'));
   assert.ok(!html.includes('<button'));
+  assert.ok(!html.includes('Show 2 optional fields'), 'no show label when nothing is missing');
 });
 
 test('html: labels fall back to the field key, never to a blank', () => {
@@ -150,7 +152,7 @@ test('html: labels fall back to the field key, never to a blank', () => {
 
 test('html: labels and headings are escaped so a field name can never break the markup', () => {
   const labels = { phoneInput: '<script>alert(1)</script>' };
-  const html = missingFieldsChecklistHtml([{ controlId: 'phoneInput', fieldKey: 'phone' }], labels, { heading: 'A & B', allFilled: 'Done' });
+  const html = missingFieldsChecklistHtml([{ controlId: 'phoneInput', fieldKey: 'phone' }], labels, { title: 'A & B', showMissing: 'Show 1 optional fields', hideMissing: 'Hide optional fields', allFilled: 'Done', percent: 99 });
   assert.ok(!html.includes('<script>'));
   assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
   assert.ok(html.includes('A &amp; B'));
@@ -190,11 +192,15 @@ test('score: the module exports no score, no percentage and no filled count', ()
   assert.ok(!moduleSrc.includes('countProfileCompletion'), 'module must not count filled fields');
 });
 
-test('wiring: app.js imports the module and shows the checklist after the counter', () => {
+test('wiring: app.js imports the module and renders the merged bar under the heading', () => {
+  // Profile View Polish: the counter and the checklist are ONE
+  // insertion now — no separate counter <p>, no second insertion
+  // after it. The merged <details> is inserted after the heading.
   assert.ok(appSrc.includes("from './missing-fields-checklist.js'"));
   assert.ok(appSrc.includes('missingProfileFields(customer,'));
   assert.ok(appSrc.includes('missingFieldsChecklistHtml('));
-  assert.ok(appSrc.includes("querySelector('.profile-completion-counter')"));
+  assert.ok(appSrc.includes("querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', missingFieldsChecklistHtml("));
+  assert.ok(!appSrc.includes("querySelector('.profile-completion-counter')"), 'no separate counter insertion any more');
 });
 
 test('wiring: tapping a checklist item opens edit mode and reuses the error-jump scroll and focus', () => {
@@ -220,7 +226,7 @@ test('wiring: the profile order assertion still holds — banner, strip, then gr
   assert.ok(stripAt > 0, 'strip is in the profile assembly');
   assert.ok(customerAt > stripAt, 'sections sit after the strip');
   assert.ok(historyAt > customerAt, 'sections render in order');
-  assert.ok(appSrc.includes("querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', `<p class=\"profile-completion-counter\">"), 'counter still sits directly under the heading');
+  assert.ok(appSrc.includes("querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', missingFieldsChecklistHtml("), 'the merged bar still sits directly under the heading');
 });
 
 test('styles: the checklist rules exist and reuse existing colours only', () => {

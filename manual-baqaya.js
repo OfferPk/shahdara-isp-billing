@@ -87,16 +87,29 @@ function entryStatus(entry) {
     return { key: 'paid', label: t('baqaya_status_paid') };
   }
   if (entry.settledCents > 0) return { key: 'partial', label: t('baqaya_status_partial') };
+  // Sharafat 17: an entry partially *adjusted* (not paid) used to read as
+  // 'pending', hiding that an adjustment was made. It gets its own status,
+  // the partial twin of the closed 'adjusted' status above. Settled wins
+  // when an entry is both paid and adjusted (the branch above runs first).
+  if ((entry.adjustedCents ?? 0) > 0) return { key: 'adjusted_partial', label: t('baqaya_status_adjusted_partial') };
   return { key: 'pending', label: t('baqaya_status_pending') };
 }
 
 /**
  * The profile's Manual Baqaya section: every entry with the amount it
- * still carries, oldest first. Edit/Remove buttons render only for
- * fully unsettled entries (the core audit rule) and only when the
- * profile is editable (not archived); a settled entry shows why it is
- * locked instead. The Add button renders under the same editability
- * rule and never for a FREE connection (free connections never owe).
+ * still carries, oldest first. Sharafat 17 — the actions rule is now
+ * three-way (the old "edit/remove only while fully unsettled" rule
+ * locked partially-settled entries completely, so a typo'd note or date
+ * could only be fixed by voiding the payment):
+ *  - fully unsettled (settledCents === 0): Edit + Remove, as before;
+ *  - partially settled (settled > 0, still remaining): Edit ONLY, no
+ *    Remove, plus a note that the amount is locked (core refuses an
+ *    amount change on these — see updateManualBaqayaEntry);
+ *  - fully settled/closed (remaining <= 0): the locked note, as before.
+ * Only when the profile is editable (not archived); a settled entry
+ * shows why it is locked instead. The Add button renders under the
+ * same editability rule and never for a FREE connection (free
+ * connections never owe).
  */
 export function manualBaqayaSectionMarkup(customer, { archived = false } = {}) {
   const entries = manualBaqayaEntriesWithRemaining(customer);
@@ -110,9 +123,14 @@ export function manualBaqayaSectionMarkup(customer, { archived = false } = {}) {
     const adjustedLine = (entry.adjustedCents ?? 0) > 0
       ? `<small class="manual-baqaya-settled">${escapeHtml(t('baqaya_entry_adjusted_part', null, { amount: formatPKR(entry.adjustedCents / 100) }))}</small>`
       : '';
-    const actions = entry.settledCents > 0
-      ? `<span class="manual-baqaya-locked">${escapeHtml(t('baqaya_locked_note'))}</span>`
-      : (canEdit ? `<span class="manual-baqaya-actions"><button type="button" class="text-button" data-edit-baqaya="${escapeHtml(entry.id)}">${escapeHtml(t('baqaya_edit'))}</button><button type="button" class="text-button danger" data-remove-baqaya="${escapeHtml(entry.id)}">${escapeHtml(t('baqaya_remove'))}</button></span>` : '');
+    const isPartiallySettled = entry.settledCents > 0 && entry.remainingCents > 0;
+    const actions = isPartiallySettled
+      ? (canEdit
+        ? `<span class="manual-baqaya-actions"><button type="button" class="text-button" data-edit-baqaya="${escapeHtml(entry.id)}">${escapeHtml(t('baqaya_edit'))}</button></span><span class="manual-baqaya-locked">${escapeHtml(t('baqaya_amount_locked_note'))}</span>`
+        : `<span class="manual-baqaya-locked">${escapeHtml(t('baqaya_locked_note'))}</span>`)
+      : entry.settledCents > 0
+        ? `<span class="manual-baqaya-locked">${escapeHtml(t('baqaya_locked_note'))}</span>`
+        : (canEdit ? `<span class="manual-baqaya-actions"><button type="button" class="text-button" data-edit-baqaya="${escapeHtml(entry.id)}">${escapeHtml(t('baqaya_edit'))}</button><button type="button" class="text-button danger" data-remove-baqaya="${escapeHtml(entry.id)}">${escapeHtml(t('baqaya_remove'))}</button></span>` : '');
     return `<li class="manual-baqaya-row">
       <span class="manual-baqaya-main"><strong>${escapeHtml(formatPKR(entry.amount))}</strong><small>${escapeHtml(t('baqaya_entry_for', null, { date: formatEntryDate(entry.date) }))}</small>${entry.note ? `<small class="manual-baqaya-note" dir="auto">${escapeHtml(entry.note)}</small>` : ''}</span>
       <span class="manual-baqaya-side"><span class="manual-baqaya-status manual-baqaya-status-${status.key}">${escapeHtml(status.label)}</span><strong>${escapeHtml(t('baqaya_entry_remaining', null, { amount: formatPKR(entry.remainingCents / 100) }))}</strong>${settledLine}${adjustedLine}${actions}</span>

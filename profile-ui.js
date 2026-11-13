@@ -569,8 +569,12 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, ch => ({ '&
 // generateReceiptPNG + shareOrDownloadPng); this helper owns the markup so
 // the profile history rows and any other profile surface render the exact
 // same button (class, data attributes, i18n label) — never a dead button.
-export function pngReceiptButtonMarkup(customerId, month, paymentId, customerNumber) {
-  return `<button class="print-receipt-button png-receipt-button" type="button" data-png-receipt data-customer-id="${escapeHtml(customerId)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(paymentId)}" aria-label="${t('prof_hist_png_receipt_aria', null, { number: customerNumber })}">${t('prof_hist_png_receipt')}</button>`;
+// The optional 5th label param lets the Transactions finder show the
+// concise '🖼️ PNG' label; every other caller passes nothing and keeps
+// the shared 'PNG receipt' text (prof_hist_png_receipt, shared with
+// the profile history buttons — never renamed).
+export function pngReceiptButtonMarkup(customerId, month, paymentId, customerNumber, label = null) {
+  return `<button class="print-receipt-button png-receipt-button" type="button" data-png-receipt data-customer-id="${escapeHtml(customerId)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(paymentId)}" aria-label="${t('prof_hist_png_receipt_aria', null, { number: customerNumber })}">${label ? escapeHtml(label) : t('prof_hist_png_receipt')}</button>`;
 }
 
 // SISP-65: the [🔊 Speak Due] button for the profile heading actions.

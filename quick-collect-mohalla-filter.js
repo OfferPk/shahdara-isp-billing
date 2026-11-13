@@ -161,20 +161,28 @@ function escapeHtml(value) {
 
 /**
  * QC-4 — Pending counts per mohalla, from the same pool the picker
- * lists: one row per canonical mohalla, in list order (a row with
- * nothing pending reads 0, never disappears), then an 'Unassigned'
- * row when any entry has no recorded mohalla or area (entries
- * recorded under the literal 'Unassigned' area fold into it), then
- * any non-canonical mohalla found in the pool, in name order. The
- * selected mohalla is always listed, at 0 when the pool narrowed
- * past it, so the option never vanishes under the operator. A row
- * is { mohalla, key, count, pendingPkr }; pendingPkr is the sum of
- * the row's entries' totalDues (rupees, bills plus baqaya — the
- * picker's own shared total). Archived entries and entries without
- * an id or name are skipped, exactly like the filter, so the rows
- * always add up to the pool: every entry counted exactly once, and
- * no count ever disagrees with the list its mohalla produces. The
- * input list is never mutated and every row is a fresh object.
+ * lists: one row per canonical mohalla (a row with nothing pending
+ * reads 0, never disappears), plus an 'Unassigned' row when any entry
+ * has no recorded mohalla or area (entries recorded under the literal
+ * 'Unassigned' area fold into it), plus any non-canonical mohalla found
+ * in the pool. The selected mohalla is always listed, at 0 when the
+ * pool narrowed past it, so the option never vanishes under the
+ * operator. Rows are ordered by dues first, not by the list (Quick
+ * Collect CSS tightening, user instruction 2026-11-13; parent decision
+ * D1): rows with pending dues first, highest PKR first, ties broken by
+ * the fixed mohalla-number order; rows with no dues sit at the bottom,
+ * in numbered order, with Unassigned last. A mohalla the pool has never
+ * seen (an "extra") has no numbered rank: it sorts by PKR inside the
+ * active group and by name inside the (0) group. The selected-if-missing
+ * row is built with count 0, so it always lands in the (0) group under
+ * the same rules. A row is { mohalla, key, count, pendingPkr };
+ * pendingPkr is the sum of the row's entries' totalDues (rupees, bills
+ * plus baqaya — the picker's own shared total). Archived entries and
+ * entries without an id or name are skipped, exactly like the filter,
+ * so the rows always add up to the pool: every entry counted exactly
+ * once, and no count ever disagrees with the list its mohalla
+ * produces. The input list is never mutated and every row is a fresh
+ * object.
  *
  * @param {Array<Object>} entries - picker-pool entries
  * @param {Array<string>} mohallaList - the canonical mohalla list
@@ -232,7 +240,6 @@ export function quickCollectMohallaPendingCounts(entries, mohallaList, selected 
     row.count += 1;
     row.pendingPkr += pkr;
   }
-  extras.sort((a, b) => a.mohalla.localeCompare(b.mohalla, 'en'));
   const allRows = [...rows];
   if (unassigned) allRows.push(unassigned);
   allRows.push(...extras);
@@ -241,6 +248,36 @@ export function quickCollectMohallaPendingCounts(entries, mohallaList, selected 
     const place = String(selected ?? '').normalize('NFKC').replace(/\s+/gu, ' ').trim();
     allRows.push({ mohalla: place, key: selectedKey, count: 0, pendingPkr: 0 });
   }
+  // Dues first (parent decision D1): active rows by pending PKR
+  // descending, ties by the fixed mohalla-number order — the rows
+  // array is built in that order, so its index IS the rank. Rows
+  // with no dues sit at the bottom, in numbered order, Unassigned
+  // last; extras (no rank) sort by PKR when active, by name when
+  // at zero. The input order is never mutated: only this local
+  // copy is sorted.
+  const rankByKey = new Map();
+  rows.forEach((row, index) => rankByKey.set(row.key, index));
+  const rankOf = (row) => (rankByKey.has(row.key) ? rankByKey.get(row.key) : Number.POSITIVE_INFINITY);
+  const byName = (a, b) => a.mohalla.localeCompare(b.mohalla, 'en');
+  const byRankThenName = (a, b) => {
+    const rankA = rankOf(a);
+    const rankB = rankOf(b);
+    if (rankA !== rankB) return rankA - rankB;
+    return byName(a, b);
+  };
+  allRows.sort((a, b) => {
+    const aActive = a.pendingPkr > 0;
+    const bActive = b.pendingPkr > 0;
+    if (aActive !== bActive) return aActive ? -1 : 1;
+    if (aActive) {
+      if (a.pendingPkr !== b.pendingPkr) return b.pendingPkr - a.pendingPkr;
+      return byRankThenName(a, b);
+    }
+    const aUnassigned = a.key === 'unassigned';
+    const bUnassigned = b.key === 'unassigned';
+    if (aUnassigned !== bUnassigned) return aUnassigned ? 1 : -1;
+    return byRankThenName(a, b);
+  });
   return { rows: allRows, totalCount, totalPendingPkr };
 }
 
@@ -253,12 +290,14 @@ function quickCollectMohallaCountLabel(count, pendingPkr) {
 }
 
 /**
- * QC-4 — The mohalla filter options with their pending counts: "All
- * mohallas" first, carrying the whole pool's count and PKR, then one
- * option per counted row in row order. The selected value is matched
- * by key, so a variant spelling still selects its canonical entry.
- * Every value and label is escaped before it reaches the page. A
- * missing counts object renders only the All option, never a crash.
+ * QC-4 — The mohalla filter options with their pending counts: "All"
+ * first (shortest label, so it fits the native picker on one line —
+ * Quick Collect CSS tightening, parent decision D2), carrying the whole
+ * pool's count and PKR, then one option per counted row in row order.
+ * The selected value is matched by key, so a variant spelling still
+ * selects its canonical entry. Every value and label is escaped before
+ * it reaches the page. A missing counts object renders only the All
+ * option, never a crash.
  */
 export function quickCollectMohallaFilterCountOptionsHtml(counts, selected) {
   const safe = counts && typeof counts === 'object' ? counts : {};
@@ -266,7 +305,7 @@ export function quickCollectMohallaFilterCountOptionsHtml(counts, selected) {
   const totalCount = Number(safe.totalCount) || 0;
   const totalPendingPkr = Number(safe.totalPendingPkr) || 0;
   const selectedKey = quickCollectMohallaFilterKey(selected);
-  const options = [`<option value="">All mohallas (${quickCollectMohallaCountLabel(totalCount, totalPendingPkr)})</option>`];
+  const options = [`<option value="">All (${quickCollectMohallaCountLabel(totalCount, totalPendingPkr)})</option>`];
   for (const row of rows) {
     if (!row || typeof row !== 'object') continue;
     const value = String(row.mohalla ?? '').trim();

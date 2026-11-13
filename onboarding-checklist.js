@@ -246,12 +246,15 @@ export function onboardingSummaryText(checklists) {
 export function onboardingChecklistHtml(checklist, customerName) {
   if (!checklist) return '<p class="empty-state">No onboarding checklist</p>';
   const name = text(customerName) || checklist.customerId;
+  // Profile Polish F: the li carries a done/pending class so the CSS can
+  // pill completed steps green and pending steps neutral — a styling hook
+  // only; the mark, label, date and by-line are unchanged.
   const rows = checklist.steps.map((step) => {
     const mark = step.completed ? '✓' : '○';
     const detail = step.completed
       ? [step.date, step.by].filter(Boolean).join(' · ')
       : '';
-    return `<li>${mark} ${escapeHtml(step.label)}${detail ? ` — ${escapeHtml(detail)}` : ''}</li>`;
+    return `<li class="${step.completed ? 'onb-done' : 'onb-pending'}">${mark} ${escapeHtml(step.label)}${detail ? ` — ${escapeHtml(detail)}` : ''}</li>`;
   }).join('');
   const state = checklist.complete
     ? 'Complete — all steps done'

@@ -75,7 +75,7 @@
 
 import { canonicalize, crc32Hex } from './backup-health.js';
 import { billKistTotal, sanitizeInstallmentPlan } from './installment-plan.js';
-import { paymentAddonChargeCents, paymentManualBaqayaCents, paymentTicketChargeCents, prepayTermsOf } from './core.js';
+import { isZeroPricedBill, paymentAddonChargeCents, paymentManualBaqayaCents, paymentTicketChargeCents, prepayTermsOf } from './core.js';
 
 
 export const KHATA_DOCTOR_VERSION = 1;
@@ -91,6 +91,10 @@ function isCorruptMoney(value) {
 }
 
 function isPricedBill(bill) {
+  // Sharafat 18: mirror the engine — a flagged zero bill is priced,
+  // so the Doctor's ledger balance agrees with the allocation engine
+  // (its payments settle the bill instead of floating as credit).
+  if (isZeroPricedBill(bill)) return true;
   const amount = bill?.dueAmount;
   return !(amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0);
 }

@@ -1,4 +1,4 @@
-import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, monthsForHistory, listTransactions, summarizeCustomerTenure } from './core.js';
+import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, isZeroPricedBill, monthsForHistory, listTransactions, summarizeCustomerTenure } from './core.js';
 import { calculateDuesByArea, calculateAreaDetailedBreakdown, calculateAreaCollectionHeatmap } from './dashboard-charts.js';
 import { calculateDuesAgingBreakdown } from './dashboard-dues-aging.js';
 import { runKhataDoctor, repairKhataDoctor } from './qa-khata-doctor.js';
@@ -46,7 +46,9 @@ export function calculateDashboardKpis(state, referenceDate = new Date()) {
     for (const bill of bills) {
       if (bill.month === currentMonth) {
         totalCurrentMonthBills++;
-        if (bill.dueAmount === null || bill.dueAmount === undefined || bill.dueAmount === '' || Number(bill.dueAmount) <= 0) {
+        // Sharafat 18: a flagged zero bill is priced — it flows to
+        // derivedBillStatus below (Paid) instead of the unpriced count.
+        if (!isZeroPricedBill(bill) && (bill.dueAmount === null || bill.dueAmount === undefined || bill.dueAmount === '' || Number(bill.dueAmount) <= 0)) {
           unpricedBillsCount++;
           continue;
         }

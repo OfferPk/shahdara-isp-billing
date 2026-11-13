@@ -27,6 +27,7 @@ const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const lang = readFileSync(new URL('../nav-language.js', import.meta.url), 'utf8');
 const uiFeedbackCss = readFileSync(new URL('../ui-feedback.css', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 const REF = new Date('2026-11-09T12:00:00');
 
@@ -90,42 +91,53 @@ function storesFor(stores, customerId, otherId) {
 // report 2026-11-13) reverses that last seat: Archive joins Row 1
 // beside Record payment (six buttons) because the user could not
 // find it two taps deep. The order pins below follow the new Row 1.
-test('Polish #24: header row order is Edit → Clear dues → Delete → Wada → Record payment → Archive, all visible above the tabs with no disclosure open (profile redesign D6, Profile Polish B (10), Archive Button Visibility)', () => {
+test('Polish #24: header row order is Edit → Clear dues → Wada → Record payment → Archive, all visible above the tabs with no disclosure open; Delete lives in the Info-tab danger zone (profile redesign D6, Profile Polish B (10), Archive Button Visibility, Profile View Polish)', () => {
   const groupAt = index.indexOf('class="profile-action-group"');
   assert.ok(groupAt >= 0, 'action group exists');
   const editAt = index.indexOf('id="editProfileButton"', groupAt);
   const clearAt = index.indexOf('id="clearDuesButton"', groupAt);
-  const deleteAt = index.indexOf('id="deleteCustomerButton"', groupAt);
   const wadaAt = index.indexOf('id="topWadaButton"', groupAt);
   const recordAt = index.indexOf('id="currentBillPaymentShortcut"', groupAt);
   const archiveAt = index.indexOf('id="archiveCustomerButton"', groupAt);
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
-  assert.ok(editAt > groupAt && clearAt > editAt && deleteAt > clearAt, 'Edit first, Clear dues second, Delete third');
-  assert.ok(wadaAt > deleteAt, 'Wada sits next to Delete');
+  // Profile View Polish (user report 2026-11-13): Delete leaves the
+  // header row for the danger zone at the bottom of the Info tab —
+  // it sat right beneath Edit. The five remaining buttons keep their
+  // order; Delete is rendered by app.js into the zone.
+  assert.ok(editAt > groupAt && clearAt > editAt, 'Edit first, Clear dues second');
+  assert.ok(wadaAt > clearAt, 'Wada sits next to Clear dues');
   assert.ok(recordAt > wadaAt, 'Record payment follows Wada');
   assert.ok(archiveAt > recordAt && archiveAt < detailsAt, 'Archive is back in Row 1 beside Record payment — the Polish B (10) seat hid it two taps deep (user report 2026-11-13)');
   assert.ok(!index.includes('id="profileNewCustomerButton"'), 'no + New customer button in the header (D6)');
-  assert.ok(detailsAt > archiveAt, 'the More actions disclosure still follows the six primary actions');
-  // None of the six sits inside a <details>: they are direct children
+  assert.ok(detailsAt > archiveAt, 'the More actions disclosure still follows the five primary actions');
+  assert.ok(!index.includes('id="deleteCustomerButton"'), 'no Delete button in the header row any more');
+  assert.ok(app.includes('class="profile-danger-zone"'), 'Delete is rendered into the danger zone instead');
+  // None of the five sits inside a <details>: they are direct children
   // of the action group, visible on every tab without opening anything.
   // The slice ends at the <details tag itself, which opens before its
   // id attribute appears in the markup.
   const detailsTagAt = index.lastIndexOf('<details', detailsAt);
   const groupSlice = index.slice(groupAt, detailsTagAt);
-  assert.ok(!groupSlice.includes('<details'), 'no disclosure wraps the six primary actions');
+  assert.ok(!groupSlice.includes('<details'), 'no disclosure wraps the five primary actions');
 });
 
-test('Polish #24: exactly one Delete button, in the header — the danger zone is gone', () => {
-  const matches = index.match(/id="deleteCustomerButton"/g) || [];
+test('Polish #24: exactly one Delete button, in the Info-tab danger zone — the header row no longer holds it', () => {
+  // Profile View Polish (user report 2026-11-13): Delete leaves the
+  // header action group for the danger zone at the bottom of the Info
+  // tab. The "exactly one" intent survives; the seat flips from
+  // static markup to the zone rendered by app.js.
+  const matches = (app.match(/id="deleteCustomerButton"/g) || []);
   assert.strictEqual(matches.length, 1, 'one Delete control, not two');
-  assert.ok(!index.includes('profile-danger-zone'), 'the danger-zone block is gone from index.html');
+  assert.ok(!index.includes('id="deleteCustomerButton"'), 'no Delete button in the static header markup');
+  assert.ok(app.includes('class="profile-danger-zone"'), 'the danger-zone block is rendered by app.js');
+  assert.ok(app.includes("t('prof_danger_zone_title')"), 'the zone heading is the Danger zone key');
   assert.ok(!index.includes('profileDangerZoneTitle'), 'the danger-zone title is gone');
   assert.ok(!index.includes('prof_danger_title'), 'the dead prof_danger_title key is gone from the page');
   assert.ok(!index.includes('prof_danger_help'), 'the dead prof_danger_help key is gone from the page');
   assert.ok(!lang.includes('prof_danger_title'), 'prof_danger_title removed from both dictionaries');
   assert.ok(!lang.includes('prof_danger_help'), 'prof_danger_help removed from both dictionaries');
   assert.ok(!app.includes("'.profile-danger-zone'"), 'the Info mount group no longer claims the danger zone');
-  assert.ok(!uiFeedbackCss.includes('.profile-danger-zone'), 'the dead danger-zone CSS rules are gone too');
+  assert.ok(styles.includes('.profile-danger-zone'), 'the danger-zone CSS rules live in styles.css');
 });
 
 // Profile Polish B (10) (user request 2026-11-12) swaps the two
@@ -197,7 +209,10 @@ test('Polish #24: Edit in the header opens the full edit form, and editCustomerP
 });
 
 test('Polish #24: the delete popup asks the exact question with Delete/Cancel and warns of permanent full-history deletion', () => {
-  const start = app.indexOf("$('#deleteCustomerButton').addEventListener");
+  // Profile View Polish: the handler is delegated on
+  // #customerProfileView now (the zone node is re-rendered), so the
+  // anchor is the delegation branch, not the module-level binding.
+  const start = app.indexOf("event.target.closest('#deleteCustomerButton')");
   assert.ok(start > 0, 'delete button handler exists');
   const body = app.slice(start, app.indexOf('\n});', start));
   assert.doesNotMatch(body, /window\.confirm\(/, 'delete must not use window.confirm');
@@ -221,7 +236,10 @@ test('Polish #24: the polish #10 clean-account gate is REMOVED — no refusal be
   // customer deletes the profile AND its entire history, no matter
   // what payments they made. The gate module stays on disk (the API
   // helper cannot delete files) but nothing calls it any more.
-  const start = app.indexOf("$('#deleteCustomerButton').addEventListener");
+  // Profile View Polish: the handler is delegated on
+  // #customerProfileView now (the zone node is re-rendered), so the
+  // anchor is the delegation branch, not the module-level binding.
+  const start = app.indexOf("event.target.closest('#deleteCustomerButton')");
   const body = app.slice(start, app.indexOf('\n});', start));
   assert.ok(!body.includes('customerDeleteCleanCheck('), 'the handler no longer runs the clean check');
   assert.ok(!body.includes('customerDeleteRefusalText('), 'the handler no longer shows the refusal toast');
@@ -338,7 +356,10 @@ test('Polish #24: the storage wrapper purges and restores through localStorage-s
 });
 
 test('Polish #24: the undo restores the customer WITH full history (record at its old position plus the purged store rows)', () => {
-  const start = app.indexOf("$('#deleteCustomerButton').addEventListener");
+  // Profile View Polish: the handler is delegated on
+  // #customerProfileView now (the zone node is re-rendered), so the
+  // anchor is the delegation branch, not the module-level binding.
+  const start = app.indexOf("event.target.closest('#deleteCustomerButton')");
   const body = app.slice(start, app.indexOf('\n});', start));
   assert.ok(body.includes('purgeCustomerHistoryFromStorage('), 'the handler purges the separate stores before deleting');
   assert.ok(body.includes('restoreCustomerHistoryToStorage('), 'the Undo restores the purged store rows');

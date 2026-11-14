@@ -286,7 +286,14 @@ export function jobsFiltered(list, filters = {}) {
   const entries = normalizeJobList(list);
   const status = text(filters.status);
   const mohalla = text(filters.mohalla);
-  const wantedKey = mohalla === '__unassigned__' ? '__unassigned__' : jobMohallaKey(mohalla);
+  // The mohalla filter placeholder invites the word "Unassigned":
+  // accept it (any case, underscores optional, a leading "Mohalla"
+  // stripped) as the sentinel for jobs with no mohalla, keeping the
+  // literal '__unassigned__' working for back-compat. Without this,
+  // typing Unassigned would match nothing — jobMohallaKey folds it
+  // to 'UNASSIGNED', while unassigned jobs carry mohallaKey null.
+  const stripped = text(mohalla).replace(/^mohalla\s+/i, '').trim();
+  const wantedKey = stripped.toLowerCase().replace(/[\s_]+/g, '') === 'unassigned' ? '__unassigned__' : jobMohallaKey(mohalla);
   return entries
     .filter((entry) => (status ? entry.status === status : true))
     .filter((entry) => {

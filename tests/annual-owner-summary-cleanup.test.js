@@ -194,10 +194,17 @@ test('cleanup: captions are one line; the full rules live in the tooltips', () =
   assert.ok(html.includes('One record per device held against a refundable deposit.'), 'deposit subtitle');
   assert.ok(html.includes('One record per loan unit left while a faulty device is away for repair.'), 'loan subtitle');
   assert.ok(html.includes('Read-only year view from the twelve monthly figures'), 'annual subtitle');
-  // One dashboard help-tip already existed; the three registries
-  // add three more — the annual rules live in the year-view
-  // details instead, so the annual section has no second tooltip.
-  assert.equal(html.split('class="help-tip"').length - 1, 4, 'dashboard + three registry tooltips');
+  // One dashboard help-tip already existed; the three Annual
+  // registries add three more and the six Operational registries
+  // (job cost, RMA, recovery, vacation, resume, suspension) add
+  // six more — the annual rules live in the year-view details
+  // instead, so the annual section has no second tooltip.
+  // Rebase note (#1395): the count moved 4 → 10 when the
+  // Operational registries adopted the same subtitle + tooltip
+  // pattern in §5; the pin still guards the annual section
+  // having no second tooltip and every registry keeping its
+  // full rules in a tooltip.
+  assert.equal(html.split('class="help-tip"').length - 1, 10, 'dashboard + three Annual + six Operational tooltips');
   assert.ok(html.includes('with the pending list ordered by age as the queue the operator works through'), 'enquiry rules kept in its tooltip');
   assert.ok(html.includes('it adds the per-device record those money paths never kept'), 'deposit rules kept in its tooltip');
   assert.ok(html.includes("returning a loan leaves the original device"), 'loan rules kept in its tooltip');

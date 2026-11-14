@@ -378,6 +378,46 @@ textarea { line-height: 1.5; }
   color: #465f55;
   font-size: 12px;
 }
+
+/* Annual Owner Summary cleanup (2026-11-13): the .table-scroll
+   wrapper is SHARED by every register table (annual summary,
+   roll-forward, enquiry, deposit, loan) — one shared rule keeps
+   headers and figures on one line and pins the first column,
+   instead of one competing rule per table. Rebase note (Nov 2026):
+   the Area Analytics item landed its rule scoped to
+   .roll-forward-table, NOT as a shared .table-scroll rule, so this
+   block is NOT a duplicate and is kept — the four register tables
+   render inside .table-scroll wrappers and depend on it (pinned by
+   tests/annual-owner-summary-cleanup.test.js:214-218). The nowrap
+   rule sits after the :127 white-space:normal rule so it wins at
+   equal specificity; overflow-wrap:anywhere is inert under nowrap
+   but is switched off explicitly so a long value can never split
+   mid-word again. The sticky first column reuses the header's
+   #f6faf8 for the corner cell so the header row stays one colour;
+   body cells get opaque var(--white) so scrolled content never
+   shows through. Zero new hex — both colours already exist. */
+.table-scroll th, .table-scroll td { white-space: nowrap; overflow-wrap: normal; }
+.table-scroll th:first-child, .table-scroll td:first-child { position: sticky; left: 0; z-index: 3; background: var(--white); }
+.table-scroll thead th:first-child { z-index: 4; background: #f6faf8; }
+
+/* Annual Owner Summary cleanup (2026-11-13): the global input
+   floor (min-height 44px) stretches the two registry filter
+   checkboxes into tall boxes beside their labels; this scoped
+   flex label keeps the box at 18px on the same line as its text,
+   following the csv-import / splice / kist checkbox patterns.
+   The label takes its own row (flex: 1 1 100%) so the text can
+   wrap at 320px without the box leaving the line; the global
+   rule is untouched. */
+.registry-filter-check { display: flex; flex: 1 1 100%; align-items: flex-start; gap: 8px; cursor: pointer; }
+.registry-filter-check input[type="checkbox"] { width: 18px; height: 18px; min-height: 18px; flex: none; }
+
+/* Annual Owner Summary cleanup (2026-11-13): creation forms
+   collapse behind a + Add button (the same <details> pattern as
+   the Top Defaulters actions drawer); the summary renders as a
+   primary button, not a disclosure triangle. */
+.registry-create-details { margin: 8px 0; }
+.registry-create-details > summary { display: inline-block; list-style: none; cursor: pointer; }
+.registry-create-details > summary::-webkit-details-marker { display: none; }
 .sortable-th {
   cursor: pointer;
   user-select: none;

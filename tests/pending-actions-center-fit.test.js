@@ -264,12 +264,23 @@ test('ratchet: styles.css still 614 distinct hex; nav.css 162 -> 164 is ONLY the
   assert.equal(hexCount(compSrc), 0, 'components.css stays hex-free');
 });
 
-test('ratchet: no new icons — ds-icons.js is untouched (Send/FilterX/Smartphone are NOT added)', () => {
+test('ratchet: no new icons from THIS item — Send/FilterX are NOT added (Smartphone belongs to #1397 Area Analytics §5)', () => {
   assert.ok(!pendingSrc.includes("dsIcon('Send'"), 'Send icon is not used (it does not exist)');
   assert.ok(!pendingSrc.includes("dsIcon('FilterX'"), 'FilterX icon is not used (it does not exist)');
   assert.ok(!pageSrc.includes('data-ds-icon="Send"'), 'no Send hook in the markup');
   assert.ok(!pageSrc.includes('data-ds-icon="FilterX"'), 'no FilterX hook in the markup');
-  assert.ok(!pageSrc.includes('data-ds-icon="Smartphone"'), 'no Smartphone hook in the markup');
+  // Why the Smartphone line changed (rebase onto main f9ad16c2, Nov 2026):
+  // this ratchet used to forbid ANY Smartphone hook, because at #1400
+  // time the icon did not exist. PR #1397 (Area Analytics, Month-End
+  // Close & Sidebar Drawer Polish) legitimately adds Smartphone +
+  // Keyboard via the Lucide map for the sidebar drawer footer (§5) —
+  // the ds0 exact-set pin is 93 (91 + 2). This ratchet's intent is
+  // that #1400 itself added no icons, so Send/FilterX stay forbidden
+  // and Smartphone is pinned to its one #1397 home instead of banned.
+  const phoneHooks = pageSrc.match(/data-ds-icon="Smartphone"/g) || [];
+  assert.equal(phoneHooks.length, 1, 'Smartphone hook appears exactly once (drawer footer, #1397 §5)');
+  const footer = pageSrc.slice(pageSrc.indexOf('nav-drawer-footer'), pageSrc.indexOf('nav-drawer-footer') + 4000);
+  assert.ok(footer.includes('data-ds-icon="Smartphone"'), 'the one Smartphone hook lives in the nav drawer footer');
 });
 
 test('no real customer names or phone numbers in this test', () => {

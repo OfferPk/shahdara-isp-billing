@@ -755,6 +755,31 @@ body:has(.mobile-speed-dial.is-open) #scrollTopButton {
   width: 100%;
 }
 
+/* Sidebar drawer polish: Mode + Backup live in their own row under the
+   icon tools (footer is already column flex), so the wide text buttons
+   never squeeze the 36px icon row. */
+.nav-drawer-footer-mode-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.nav-drawer-footer-mode-row > * {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 36px;
+}
+/* The Mode toggle carries flex: none + 18px text from its toggle rule
+   (components.css, loaded after nav.css, same specificity), so the row
+   rule above loses the tie for it: this higher-specificity override
+   puts it back on an equal share, at the row's 11px text size. The
+   Install button is a third equal share whenever the PWA prompt logic
+   unhides it (nav-pwa.js unhides it on any non-installed visit). */
+.nav-drawer-footer-mode-row > .field-mode-toggle-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 11px;
+}
+
 .nav-drawer-shortcuts-btn {
   width: 36px;
   height: 36px;

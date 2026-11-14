@@ -7157,7 +7157,7 @@ function renderBillingRegister() {
   list.innerHTML = register.rows.map(row => `<li class="register-row">
       <div class="register-customer"><span class="register-reference">${escapeHtml(row.reference)}</span><span class="report-customer-name">${escapeHtml(row.customerName)}</span>${row.mobile ? `<span class="register-customer-sub">${escapeHtml(row.mobile)}</span>` : ''}</div>
       <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_package')}</span><span class="report-cell-value">${escapeHtml(row.packageSpeed || '—')}</span></div>
-      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_month')}</span><span class="report-cell-value">${escapeHtml(row.month)}</span></div>
+      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_month')}</span><span class="report-cell-value">${escapeHtml(displayMonthName(row.month))}</span></div>
       <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_bill')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.billAmount))}</span></div>
       <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_paid')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.paidAmount))}</span></div>
       <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_ticket')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.ticketChargesPaid))}</span></div>
@@ -7168,7 +7168,12 @@ function renderBillingRegister() {
     // SISP-176: the base totals string is unchanged; the ticket-charge
     // split is appended only when the visible rows actually carry any,
     // so a charge-free period reads exactly as before.
-    let totalsText = t('bill_reg_totals', null, { count: register.totals.count, billed: formatAmount(register.totals.totalBilled), paid: formatAmount(register.totals.totalPaid) });
+    // Sharafat 44: the totals sum only the filtered rows, so name the active
+    // status + period (same prefix composition as the CSV note + the print
+    // filter line) — otherwise the line reads as the period's totals. The
+    // print sheet keeps the bare totals: its header already names the filter.
+    const totalsLabel = `${t(`bill_reg_status_${register.status}`)} bills · ${t(`bill_reg_period_${register.period}`)}: `;
+    let totalsText = totalsLabel + t('bill_reg_totals', null, { count: register.totals.count, billed: formatAmount(register.totals.totalBilled), paid: formatAmount(register.totals.totalPaid) });
     if (register.ticketTotals && register.ticketTotals.totalTicketChargesPaid > 0) {
       totalsText += ` · ${t('bill_reg_totals_ticket', null, { ticket: formatAmount(register.ticketTotals.totalTicketChargesPaid), collected: formatAmount(register.ticketTotals.totalCollected) })}`;
     }

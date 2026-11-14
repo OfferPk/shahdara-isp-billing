@@ -317,6 +317,33 @@ test.describe('Billing Tables: Customer Roster, Sorting, Filtering & Pagination 
     await expect(rows.first()).toBeVisible();
   });
 
+  test('customer cards empty state shows a reset filters button that restores the roster (Sharafat 35)', async ({ page }) => {
+    await page.goto('/');
+    await navigateToView(page, 'customers');
+
+    // Cards view is the default; make sure we are on it
+    await page.locator('#customerViewCardsBtn').click();
+    await expect(page.locator('#customerList')).toBeVisible();
+
+    // Type a search query that yields zero results
+    const searchInput = page.locator('#customerListSearch');
+    await searchInput.fill('xyznonexistentcustomer123');
+
+    const emptyText = page.locator('#noSearchResults');
+    await expect(emptyText).toBeVisible();
+
+    // The cards-mode reset is a sibling of the empty text, not the table's
+    const resetBtn = page.locator('#resetCustomerCardsFiltersBtn');
+    await expect(resetBtn).toBeVisible();
+    await resetBtn.dispatchEvent('click');
+
+    // Should clear search input and restore cards
+    await expect(searchInput).toHaveValue('');
+    await expect(emptyText).toBeHidden();
+    const cards = page.locator('#customerList [data-customer-id]');
+    await expect(cards.first()).toBeVisible();
+  });
+
   test('customer roster CSV export button downloads CSV file and displays toast', async ({ page }) => {
     await page.goto('/');
     await navigateToView(page, 'customers');

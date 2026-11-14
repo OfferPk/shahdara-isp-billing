@@ -4085,6 +4085,31 @@ function renderRosterPillBar(summary) {
     renderCustomers();
   }));
 }
+
+// Sharafat 35: the roster reset, extracted VERBATIM from the table empty
+// row's inline handler (it was the 12-line body below) so the table reset
+// and the new cards-mode reset share ONE handler. It clears exactly eight
+// things — list box, global box, field → 'any', pill, area, service,
+// billing, page = 1 — and calls renderCustomers() ONLY. Month and sort are
+// untouched, exactly as the table reset left them.
+// FOUND, NOT FIXED (the same staleness the table reset always had): the
+// global box is cleared here but renderGlobalSearch() / renderTransactions()
+// / renderMonthlyReport() are NOT re-run, so those surfaces stay on the
+// cleared global query until something else re-renders them. Widening the
+// refresh is a separate follow-up, not part of this extraction.
+function resetCustomerRosterFilters() {
+  if ($('#customerListSearch')) $('#customerListSearch').value = '';
+  if ($('#globalCustomerSearch')) $('#globalCustomerSearch').value = '';
+  customerSearchField = UNIFIED_IDENTIFIER_FIELD_ID;
+  if ($('#customerSearchField')) $('#customerSearchField').value = UNIFIED_IDENTIFIER_FIELD_ID;
+  customerRosterPill = 'all';
+  customerAreaFilter = 'all';
+  if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
+  selectedServiceFilter = 'all';
+  selectedBillingFilter = 'all';
+  customerCurrentPage = 1;
+  renderCustomers();
+}
 function renderCustomers() {
   const customerQuery = customerListQuery();
   const healthAllocations = calculatePaymentAllocations(state);
@@ -4241,19 +4266,10 @@ function renderCustomers() {
         // Plan 456: the unified box's plain empty text rides into
         // the table empty row when the search itself found nobody.
         tableBody.innerHTML = renderCustomerTableEmptyMarkup(customerQuery, customerAreaFilter, unifiedEmptyText);
-        $('#resetCustomerTableFiltersBtn')?.addEventListener('click', () => {
-          if ($('#customerListSearch')) $('#customerListSearch').value = '';
-          if ($('#globalCustomerSearch')) $('#globalCustomerSearch').value = '';
-          customerSearchField = UNIFIED_IDENTIFIER_FIELD_ID;
-          if ($('#customerSearchField')) $('#customerSearchField').value = UNIFIED_IDENTIFIER_FIELD_ID;
-          customerRosterPill = 'all';
-          customerAreaFilter = 'all';
-          if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
-          selectedServiceFilter = 'all';
-          selectedBillingFilter = 'all';
-          customerCurrentPage = 1;
-          renderCustomers();
-        });
+        // Sharafat 35: the table reset now calls the shared handler (the
+        // 12-line inline body moved verbatim to resetCustomerRosterFilters
+        // above); its behaviour is unchanged.
+        $('#resetCustomerTableFiltersBtn')?.addEventListener('click', resetCustomerRosterFilters);
       } else {
         tableBody.innerHTML = paged.items.map(customer => renderCustomerTableRowMarkup(customer, { selectedCustomerId, selectedBillingMonth, allocations: healthAllocations })).join('');
         tableBody.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
@@ -4370,6 +4386,14 @@ function renderCustomers() {
   if (emptySearch) {
     emptySearch.textContent = unifiedEmptyText || (customerQuery.trim() || customerAreaFilter !== 'all' ? t('cust_no_matching') : t('cust_no_match_filters'));
     emptySearch.hidden = active.length > 0 || archived.length > 0;
+    // Sharafat 35: the cards-mode reset lives in a SIBLING wrapper, never
+    // inside #noSearchResults — the <p> above is textContent-driven, so a
+    // button nested inside it would be destroyed on the next render. It
+    // shows only with the empty state AND only in cards mode: in table mode
+    // the table empty row already carries a reset, so a second one would be
+    // a duplicate on screen.
+    const cardsEmptyActions = $('#customerCardsEmptyActions');
+    if (cardsEmptyActions) cardsEmptyActions.hidden = emptySearch.hidden || customerViewMode !== 'cards';
   }
   // Sharafat 31: the global query is the roster-effective filter whenever the
   // list box is blank — show it as a removable chip so the operator can see
@@ -13037,6 +13061,12 @@ $('#clearCustomerListSearch').addEventListener('click', () => {
 // #clearGlobalSearch — the full four-call mirror, not just the box —
 // and returns focus to the list box.
 $('#clearGlobalSearchChip')?.addEventListener('click', () => { $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#customerListSearch').focus(); });
+// Sharafat 35: the cards-mode reset button is static markup (a sibling of
+// #noSearchResults — never inside it, see the toggle in renderCustomers),
+// so it is wired ONCE here at module setup, never inside renderCustomers()
+// (which would double-bind a listener on every render, unlike the table
+// button, which innerHTML rebuilds fresh each time).
+$('#resetCustomerCardsFiltersBtn')?.addEventListener('click', resetCustomerRosterFilters);
 $('#globalCustomerSearch').addEventListener('input', () => { renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });
 $('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });

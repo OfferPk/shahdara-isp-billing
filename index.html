@@ -6361,21 +6361,27 @@
         </div>
       </dialog>
         <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
-        <article class="summary-card summary-pending-works ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_pending">📌 Pending Works</p>
-          <strong id="dashboardPendingWorksValue" class="summary-value">Nothing pending</strong>
+        <article class="summary-card summary-pending-works ds-stat ds-stat--pending ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Pin" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_pending">Pending Works</span>
+            <strong id="dashboardPendingWorksValue" class="summary-value ds-card-metric">Nothing pending</strong>
+          </div>
           <p id="dashboardPendingWorksPeriod" class="summary-period">Owner notes &amp; reminders</p>
           <div id="pendingWorksSummary" class="pending-works-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_pending">📌 Pending Works</button>
+            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Pin" aria-hidden="true"></span><span data-i18n="dash_card_pending">Pending Works</span></button>
           </div>
         </article>
-        <article class="summary-card summary-system-health ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_health">🩺 System Health</p>
-          <strong id="dashboardSystemHealthValue" class="summary-value">No records yet</strong>
+        <article class="summary-card summary-system-health ds-stat ds-stat--info ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Stethoscope" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_health">System Health</span>
+            <strong id="dashboardSystemHealthValue" class="summary-value ds-card-metric">No records yet</strong>
+          </div>
           <p id="dashboardSystemHealthPeriod" class="summary-period">All ledgers · counts · storage size</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSystemHealthModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_health">🩺 Health Center</button>
+            <button id="openSystemHealthModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Stethoscope" aria-hidden="true"></span><span data-i18n="dash_btn_health">Health Center</span></button>
           </div>
         </article>
       <!-- Data-safety banner lives at the END of Home: it used to sit above every screen
@@ -7806,69 +7812,92 @@
           </div>
         </section>
         <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
-      <article class="summary-card summary-billing-cycle ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_cycle">📅 Monthly Billing Cycle</p>
-          <strong id="dashboardBillingCycleValue" class="summary-value">No cycle run yet</strong>
+      <h3 class="ops-section-header" data-i18n="ops_section_billing">Billing Cycle &amp; Complaints</h3>
+      <article class="summary-card summary-billing-cycle ds-stat ds-stat--info ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Calendar" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_cycle">Monthly Billing Cycle</span>
+            <strong id="dashboardBillingCycleValue" class="summary-value ds-card-metric">No cycle run yet</strong>
+          </div>
           <p id="dashboardBillingCyclePeriod" class="summary-period">Run a monthly cycle with arrears &amp; advance</p>
           <div id="billingCycleSummary" class="billing-cycle-summary"></div>
           <div id="billingCycleForecast" class="billing-cycle-summary billing-cycle-forecast"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_billing_cycle">📅 Billing Cycle</button>
-            <button id="openMonthEndWizardBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_month_end">🧾 Month-End Check</button>
+            <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Calendar" aria-hidden="true"></span><span data-i18n="dash_btn_billing_cycle">Billing Cycle</span></button>
+            <button id="openMonthEndWizardBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Receipt" aria-hidden="true"></span><span data-i18n="dash_btn_month_end">Month-End Check</span></button>
           </div>
         </article>
-        <article class="summary-card summary-complaint-register ds-stat ds-stat--overdue">
-          <p class="summary-label" data-i18n="dash_card_complaint">🛠️ Complaint Register</p>
-          <strong id="dashboardComplaintValue" class="summary-value">No complaints</strong>
+        <article class="summary-card summary-complaint-register ds-stat ds-stat--overdue ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Hammer" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_complaint">Complaint Register</span>
+            <strong id="dashboardComplaintValue" class="summary-value ds-card-metric">No complaints</strong>
+          </div>
           <p id="dashboardComplaintPeriod" class="summary-period">Open faults and resolution downtime</p>
           <div id="complaintRegisterSummary" class="complaint-register-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_complaint">🛠️ Complaint Register</button>
-            <button id="openPostRepairCheckinModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="prc_open_btn">🤝 Post-Repair Check-Ins</button>
+            <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Hammer" aria-hidden="true"></span><span data-i18n="dash_card_complaint">Complaint Register</span></button>
+            <button id="openPostRepairCheckinModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Handshake" aria-hidden="true"></span><span data-i18n="prc_open_btn">Post-Repair Check-Ins</span></button>
           </div>
         </article>
-        <article class="summary-card summary-field-tickets ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_tickets">🔧 Field Tickets</p>
-          <strong id="dashboardFieldTicketsValue" class="summary-value">No field tickets</strong>
+        <article class="summary-card summary-field-tickets ds-stat ds-stat--pending ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Wrench" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_tickets">Field Tickets</span>
+            <strong id="dashboardFieldTicketsValue" class="summary-value ds-card-metric">No field tickets</strong>
+          </div>
           <p id="dashboardFieldTicketsPeriod" class="summary-period">Lineman worklist and material use</p>
           <div id="fieldTicketsSummary" class="field-tickets-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_tickets">🔧 Field Tickets</button>
+            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Wrench" aria-hidden="true"></span><span data-i18n="dash_card_tickets">Field Tickets</span></button>
           </div>
         </article>
-        <article class="summary-card summary-monthly-complaint-report ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_monthly_report">📋 Monthly Complaint Report</p>
-          <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
+        <article class="summary-card summary-monthly-complaint-report ds-stat ds-stat--info ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="ClipboardList" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_monthly_report">Monthly Complaint Report</span>
+            <strong id="dashboardMonthlyReportValue" class="summary-value ds-card-metric">No complaints</strong>
+          </div>
           <p id="dashboardMonthlyReportPeriod" class="summary-period">4-part monthly report: summary, customers, causes, full log</p>
           <div id="monthlyComplaintReportSummary" class="monthly-complaint-report-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_monthly_report">📋 Monthly Report</button>
+            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="ClipboardList" aria-hidden="true"></span><span data-i18n="dash_btn_monthly_report">Monthly Report</span></button>
           </div>
         </article>
-        <article class="summary-card summary-saad-visits ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_saad">🔧 Saad Visit Log</p>
-          <strong id="dashboardSaadVisitsValue" class="summary-value">No visits yet</strong>
-          <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
-          <div id="saadVisitsSummary" class="saad-visits-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_saad_visits">🔧 Saad Visits</button>
+        <article class="summary-card summary-group-billing ds-stat ds-stat--brand ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Users" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_group">Group Billing</span>
+            <strong id="dashboardGroupBillingValue" class="summary-value ds-card-metric">No groups yet</strong>
           </div>
-        </article>
-        <article class="summary-card summary-group-billing ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</p>
-          <strong id="dashboardGroupBillingValue" class="summary-value">No groups yet</strong>
           <p id="dashboardGroupBillingPeriod" class="summary-period">Family / landlord groups</p>
           <div id="groupBillingSummary" class="group-billing-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</button>
+            <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Users" aria-hidden="true"></span><span data-i18n="dash_card_group">Group Billing</span></button>
           </div>
         </article>
-        <article class="summary-card summary-lineman-scorecard ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_lineman">🧑‍🔧 Lineman Scorecard</p>
-          <strong id="dashboardLinemanScorecardValue" class="summary-value">No field activity</strong>
+      <h3 class="ops-section-header" data-i18n="ops_section_workers">Workers &amp; Field Staff</h3>
+        <article class="summary-card summary-saad-visits ds-stat ds-stat--pending ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="ClipboardCheck" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_saad">Saad Visit Log</span>
+            <strong id="dashboardSaadVisitsValue" class="summary-value ds-card-metric">No visits yet</strong>
+          </div>
+          <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
+          <div id="saadVisitsSummary" class="saad-visits-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="ClipboardCheck" aria-hidden="true"></span><span data-i18n="dash_btn_saad_visits">Saad Visits</span></button>
+          </div>
+        </article>
+        <article class="summary-card summary-lineman-scorecard ds-stat ds-stat--info ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="HardHat" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_lineman">Lineman Scorecard</span>
+            <strong id="dashboardLinemanScorecardValue" class="summary-value ds-card-metric">No field activity</strong>
+          </div>
           <p id="dashboardLinemanScorecardPeriod" class="summary-period">Resolved complaints · petty cash · collections this month</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openLinemanScorecardModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_lineman">🧑‍🔧 Scorecard</button>
+            <button id="openLinemanScorecardModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="HardHat" aria-hidden="true"></span><span data-i18n="dash_btn_lineman">Scorecard</span></button>
           </div>
         </article>
       </div>
@@ -14466,92 +14495,123 @@
         <section class="table-card"><div class="table-heading"><div><p class="eyebrow">ACTUAL INCIDENTS ONLY</p><h3>Network issues</h3></div><p class="chart-caption">Based only on manually recorded complaints/outages; no monitoring or inferred incidents.</p></div><ul id="networkIssuesList" class="network-issues-list"></ul></section>
         <p id="analyticsEmptyNotice" class="phase3-note" role="status"></p>
         <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
-        <article class="summary-card summary-downtime-analytics ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_downtime">📉 Downtime Analytics</p>
-          <strong id="dashboardDowntimeValue" class="summary-value">No downtime</strong>
+      <h3 class="ops-section-header" data-i18n="ops_section_network">Network &amp; PON</h3>
+        <article class="summary-card summary-downtime-analytics ds-stat ds-stat--info ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="TrendingDown" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_downtime">Downtime Analytics</span>
+            <strong id="dashboardDowntimeValue" class="summary-value ds-card-metric">No downtime</strong>
+          </div>
           <p id="dashboardDowntimePeriod" class="summary-period">Per-customer and network outage hours</p>
           <div id="downtimeAnalyticsSummary" class="downtime-analytics-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_downtime">📉 Downtime Analytics</button>
+            <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="TrendingDown" aria-hidden="true"></span><span data-i18n="dash_card_downtime">Downtime Analytics</span></button>
           </div>
         </article>
-        <article class="summary-card summary-upstream-sla ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</p>
-          <strong id="dashboardUpslaValue" class="summary-value">No upstream outages</strong>
+        <article class="summary-card summary-upstream-sla ds-stat ds-stat--info ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="RadioTower" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_upsla">Upstream SLA &amp; Rebate</span>
+            <strong id="dashboardUpslaValue" class="summary-value ds-card-metric">No upstream outages</strong>
+          </div>
           <p id="dashboardUpslaPeriod" class="summary-period">Uplink downtime, availability and rebate claim for this month</p>
           <div id="upstreamSlaSummary" class="upstream-sla-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openUpstreamSlaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</button>
+            <button id="openUpstreamSlaModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="RadioTower" aria-hidden="true"></span><span data-i18n="dash_card_upsla">Upstream SLA &amp; Rebate</span></button>
           </div>
         </article>
-        <article class="summary-card summary-fleet-uptime ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="upt_fleet_title">📶 Fleet Uptime</p>
-          <strong id="dashboardFleetUptimeValue" class="summary-value">—</strong>
+        <article class="summary-card summary-fleet-uptime ds-stat ds-stat--info ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Signal" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="upt_fleet_title">Fleet Uptime</span>
+            <strong id="dashboardFleetUptimeValue" class="summary-value ds-card-metric">—</strong>
+          </div>
           <p id="dashboardFleetUptimePeriod" class="summary-period">Recorded uptime across subscribers this month</p>
           <div id="fleetUptimeSummary" class="fleet-uptime-summary"></div>
         </article>
-        <article class="summary-card summary-splitter-map ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_splitter">🔌 Splitter Port Map</p>
-          <strong id="dashboardSplitterValue" class="summary-value">No splitter boxes</strong>
+        <article class="summary-card summary-splitter-map ds-stat ds-stat--brand ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Plug" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_splitter">Splitter Port Map</span>
+            <strong id="dashboardSplitterValue" class="summary-value ds-card-metric">No splitter boxes</strong>
+          </div>
           <p id="dashboardSplitterPeriod" class="summary-period">Splitter box port map and RX signal health</p>
           <div id="splitterMapSummary" class="splitter-map-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_splitter">🔌 Splitter Port Map</button>
-            <button id="openDarkFiberModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_dark_fiber">🧵 Dark Fiber Finder</button>
-            <button id="openSpliceClosureModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="jcmap_open_btn">🧵 JC Splice Map</button>
-            <button id="openOpticalBudgetCalcBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="obcalc_button">📐 Link Budget</button>
+            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Plug" aria-hidden="true"></span><span data-i18n="dash_card_splitter">Splitter Port Map</span></button>
+            <button id="openDarkFiberModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Cable" aria-hidden="true"></span><span data-i18n="dash_btn_dark_fiber">Dark Fiber Finder</span></button>
+            <button id="openSpliceClosureModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Scissors" aria-hidden="true"></span><span data-i18n="jcmap_open_btn">JC Splice Map</span></button>
+            <button id="openOpticalBudgetCalcBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Ruler" aria-hidden="true"></span><span data-i18n="obcalc_button">Link Budget</span></button>
           </div>
         </article>
-        <article class="summary-card summary-pon-capacity ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_poncap">📡 PON Port Capacity</p>
-          <strong id="dashboardPonCapacityValue" class="summary-value">No PON ports recorded</strong>
+        <article class="summary-card summary-pon-capacity ds-stat ds-stat--pending ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Satellite" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_poncap">PON Port Capacity</span>
+            <strong id="dashboardPonCapacityValue" class="summary-value ds-card-metric">No PON ports recorded</strong>
+          </div>
           <p id="dashboardPonCapacityPeriod" class="summary-period">OLT PON port load, sold Mbps and saturation alerts</p>
           <div id="ponCapacitySummary" class="pon-capacity-summary"></div>
         </article>
-        <article class="summary-card summary-outage-impact ds-stat ds-stat--overdue">
-          <p class="summary-label" data-i18n="dash_card_outage">⚡ Feeder Outage Impact</p>
-          <strong id="dashboardOutageValue" class="summary-value">No feeder links</strong>
+        <article class="summary-card summary-outage-impact ds-stat ds-stat--overdue ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Zap" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_outage">Feeder Outage Impact</span>
+            <strong id="dashboardOutageValue" class="summary-value ds-card-metric">No feeder links</strong>
+          </div>
           <p id="dashboardOutagePeriod" class="summary-period">Link customers to feeders to trace outages</p>
           <div id="outageImpactSummary" class="outage-impact-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_trace_outage">⚡ Trace Outage Impact</button>
-            <button id="openEmergencyRunbookBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="runbook_open_btn">🚨 Emergency Runbook</button>
-            <button id="openStormInspectionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="storm_btn_open">🌦️ Post-Storm Checklist</button>
+            <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Zap" aria-hidden="true"></span><span data-i18n="dash_btn_trace_outage">Trace Outage Impact</span></button>
+            <button id="openEmergencyRunbookBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Siren" aria-hidden="true"></span><span data-i18n="runbook_open_btn">Emergency Runbook</span></button>
+            <button id="openStormInspectionModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="CloudSun" aria-hidden="true"></span><span data-i18n="storm_btn_open">Post-Storm Checklist</span></button>
           </div>
         </article>
-        <article class="summary-card summary-daisy-chain ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</p>
-          <strong id="dashboardDaisyChainValue" class="summary-value">No feeder chains</strong>
+        <article class="summary-card summary-daisy-chain ds-stat ds-stat--pending ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="TreeDeciduous" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_daisychain">Daisy-Chain Tree</span>
+            <strong id="dashboardDaisyChainValue" class="summary-value ds-card-metric">No feeder chains</strong>
+          </div>
           <p id="dashboardDaisyChainPeriod" class="summary-period">Chain depth per zone, Hop 3+ warnings</p>
           <div id="daisyChainSummary" class="daisy-chain-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openDaisyChainTreeModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</button>
+            <button id="openDaisyChainTreeModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="TreeDeciduous" aria-hidden="true"></span><span data-i18n="dash_card_daisychain">Daisy-Chain Tree</span></button>
           </div>
         </article>
-        <article class="summary-card summary-pole-landmark ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_pole">📍 Pole &amp; Landmark Directory</p>
-          <strong id="dashboardPoleLandmarkValue" class="summary-value">No poles mapped</strong>
+        <article class="summary-card summary-pole-landmark ds-stat ds-stat--info ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="MapPin" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_pole">Pole &amp; Landmark Directory</span>
+            <strong id="dashboardPoleLandmarkValue" class="summary-value ds-card-metric">No poles mapped</strong>
+          </div>
           <p id="dashboardPoleLandmarkPeriod" class="summary-period">Street pole, landmark &amp; drop-wire directory</p>
           <div id="poleLandmarkSummary" class="pole-landmark-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cheatsheet">📍 Zone Lineman Cheat-Sheet</button>
+            <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="MapPin" aria-hidden="true"></span><span data-i18n="dash_btn_cheatsheet">Zone Lineman Cheat-Sheet</span></button>
           </div>
         </article>
-        <article class="summary-card summary-pole-registry ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_polereg">🌲 Pole Registry</p>
-          <strong id="dashboardPoleRegistryValue" class="summary-value">No poles registered</strong>
+        <article class="summary-card summary-pole-registry ds-stat ds-stat--info ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="TreePine" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_polereg">Pole Registry</span>
+            <strong id="dashboardPoleRegistryValue" class="summary-value ds-card-metric">No poles registered</strong>
+          </div>
           <p id="dashboardPoleRegistryPeriod" class="summary-period">Street pole assets &amp; attached drops</p>
           <div id="poleRegistrySummary" class="pole-registry-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPoleRegistryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_polereg">🌲 Pole Registry</button>
+            <button id="openPoleRegistryModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="TreePine" aria-hidden="true"></span><span data-i18n="dash_card_polereg">Pole Registry</span></button>
           </div>
         </article>
-        <article class="summary-card summary-power-backup ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="pwr_card_label">🔋 Power Backup</p>
-          <strong id="dashboardPowerValue" class="summary-value">No UPS nodes yet</strong>
+        <article class="summary-card summary-power-backup ds-stat ds-stat--pending ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="BatteryCharging" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="pwr_card_label">Power Backup</span>
+            <strong id="dashboardPowerValue" class="summary-value ds-card-metric">No UPS nodes yet</strong>
+          </div>
           <p id="dashboardPowerPeriod" class="summary-period">UPS runtime &amp; WAPDA outage timer</p>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPowerBackupModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="pwr_btn_open">🔋 Power Nodes</button>
+            <button id="openPowerBackupModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="BatteryCharging" aria-hidden="true"></span><span data-i18n="pwr_btn_open">Power Nodes</span></button>
           </div>
         </article>
       </div>
@@ -14601,34 +14661,44 @@
           <div class="table-scroll"><table><thead><tr><th scope="col">Date</th><th scope="col">Item</th><th scope="col">Movement</th><th scope="col">Quantity</th><th scope="col">Status change</th><th scope="col">Customer</th><th scope="col">Notes</th><th scope="col">Action</th></tr></thead><tbody id="inventoryMovementTable"></tbody></table></div><p id="inventoryMovementsEmpty" class="empty-state">No stock movements have been entered.</p>
         </section>
         <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
-        <article class="summary-card summary-inventory-book ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_stock">📦 Stock Book</p>
-          <strong id="dashboardInventoryValue" class="summary-value">No stock recorded</strong>
+      <h3 class="ops-section-header" data-i18n="ops_section_inventory">Inventory &amp; Hardware</h3>
+        <article class="summary-card summary-inventory-book ds-stat ds-stat--pending ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Package" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_stock">Stock Book</span>
+            <strong id="dashboardInventoryValue" class="summary-value ds-card-metric">No stock recorded</strong>
+          </div>
           <p id="dashboardInventoryPeriod" class="summary-period">Fiber, routers, converters &amp; field stock</p>
           <div id="inventoryBookSummary" class="inventory-book-summary"></div>
           <div id="fieldBagSummary" class="inventory-book-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_stock">📦 Stock Book</button>
-            <button id="openFieldBagModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_field_bag">🎒 Field Bag</button>
-            <button id="openSupplierKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="supkhata_btn_open">🏭 Supplier Khata</button>
+            <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Package" aria-hidden="true"></span><span data-i18n="dash_card_stock">Stock Book</span></button>
+            <button id="openFieldBagModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Backpack" aria-hidden="true"></span><span data-i18n="dash_card_field_bag">Field Bag</span></button>
+            <button id="openSupplierKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Factory" aria-hidden="true"></span><span data-i18n="supkhata_btn_open">Supplier Khata</span></button>
           </div>
         </article>
-        <article class="summary-card summary-fiber-drums ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_drum_card">🧵 Fiber Drums</p>
-          <strong id="dashboardFiberDrumValue" class="summary-value">No drums tracked</strong>
+        <article class="summary-card summary-fiber-drums ds-stat ds-stat--pending ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Cylinder" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_drum_card">Fiber Drums</span>
+            <strong id="dashboardFiberDrumValue" class="summary-value ds-card-metric">No drums tracked</strong>
+          </div>
           <p id="dashboardFiberDrumPeriod" class="summary-period">Fiber drums &amp; jacket-mark cuts</p>
           <div id="fiberDrumSummary" class="fiber-drum-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openFiberDrumModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_drum_btn">🧵 Drum Tracker</button>
+            <button id="openFiberDrumModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Cylinder" aria-hidden="true"></span><span data-i18n="dash_drum_btn">Drum Tracker</span></button>
           </div>
         </article>
-        <article class="summary-card summary-hardware-recovery ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</p>
-          <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
+        <article class="summary-card summary-hardware-recovery ds-stat ds-stat--pending ops-card">
+          <div class="ds-card-head">
+            <span class="ds-icon-tile" data-ds-icon="Package" aria-hidden="true"></span>
+            <span class="summary-label" data-i18n="dash_card_recovery">Pending Hardware Recovery</span>
+            <strong id="dashboardHardwareRecoveryValue" class="summary-value ds-card-metric">Nothing pending</strong>
+          </div>
           <p id="dashboardHardwareRecoveryPeriod" class="summary-period">ISP-owned hardware at disconnected houses</p>
           <div id="hardwareRecoverySummary" class="hardware-recovery-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</button>
+            <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Package" aria-hidden="true"></span><span data-i18n="dash_card_recovery">Pending Hardware Recovery</span></button>
           </div>
         </article>
       </div>

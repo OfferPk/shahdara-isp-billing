@@ -161,6 +161,13 @@ test('filters by status and mohalla, with __unassigned__ for no mohalla', () => 
   assert.equal(jobsFiltered(list, { status: 'complete' }).length, 1);
   assert.equal(jobsFiltered(list, { mohalla: 'bani' }).length, 1);
   assert.equal(jobsFiltered(list, { mohalla: '__unassigned__' }).length, 1);
+  // More Tab Operational Registries polish (§1): the filter
+  // placeholder invites the word "Unassigned", so the folded word
+  // (any case, with or without the "Mohalla" prefix) matches the
+  // same no-mohalla rows as the literal sentinel.
+  assert.equal(jobsFiltered(list, { mohalla: 'Unassigned' }).length, 1);
+  assert.equal(jobsFiltered(list, { mohalla: 'unassigned' }).length, 1);
+  assert.equal(jobsFiltered(list, { mohalla: 'Mohalla Unassigned' }).length, 1);
   assert.deepEqual(jobsFiltered(list, {}).map((job) => job.id), ['JOB-001', 'JOB-002', 'JOB-003']);
 });
 

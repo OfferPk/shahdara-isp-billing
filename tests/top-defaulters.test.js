@@ -254,6 +254,28 @@ test('renderTopDefaultersSvg - generates clean vector SVG with concentration bad
   assert.ok(svg.includes('PKR 6,500'));
   assert.ok(svg.includes('Top Debt:'));
 
+  // Top Defaulters polish (2026-11-13): the chart is a narrower 380-wide
+  // viewBox so labels render legibly on a phone, with a 1-line risk
+  // legend between the last bar and the telemetry divider. The risk
+  // colours come from tokens.css (--td-risk-*) via inline style — var()
+  // is invalid in SVG presentation attributes, so style="" is required
+  // and raw hex must NOT appear in the amount/gradient/legend fills.
+  assert.ok(svg.includes('viewBox="0 0 380 '), 'chart viewBox must be 380 wide');
+  assert.ok(svg.includes('Critical (3m+ / 60d+)'), 'legend must name the Critical tier');
+  assert.ok(svg.includes('High (2m / 30d+)'), 'legend must name the High tier');
+  assert.ok(svg.includes('Moderate (1m)'), 'legend must name the Moderate tier');
+  assert.ok(svg.includes('var(--td-risk-critical)'), 'critical risk colour must come from the token');
+  assert.ok(svg.includes('var(--td-risk-high)'), 'high risk colour must come from the token');
+  assert.ok(svg.includes('var(--td-risk-moderate)'), 'moderate risk colour must come from the token');
+  assert.ok(!svg.includes('#10b981'), 'moderate bars must not stay green');
+  assert.ok(!svg.includes('#059669'), 'moderate gradient must not stay green');
+  // The Crit/High gradient stops stay raw hex by design (they sit
+  // outside both hex tests) — the token rule pins the amount text, the
+  // legend swatches and the telemetry tspan, which used fill="#…".
+  assert.ok(!svg.includes('fill="#ef4444"'), 'amount/telemetry fills must use the critical token, not raw hex');
+  assert.ok(!svg.includes('fill="#f97316"'), 'amount fills must use the high token, not raw hex');
+  assert.ok(!svg.includes('fill="#10b981"'), 'amount fills must use the moderate token, not raw hex');
+
   // Handles empty data cleanly
   const emptySvg = renderTopDefaultersSvg({ accounts: [], metrics: {} });
   assert.ok(emptySvg.includes('No delinquent accounts on record'));
@@ -674,15 +696,46 @@ test('HTML - card list is the primary content: filters first, actions grouped an
   for (const hex of tdBlock.match(/#[0-9a-fA-F]{3,8}\b/g) || []) {
     assert.ok(restHex.has(hex), `Top Defaulters CSS must reuse existing hex only, found new ${hex}`);
   }
+
+  // Top Defaulters polish (2026-11-13) — the structural pins for the
+  // one-screen compact modal. The scroll trap is gone: the list scroll
+  // box has no inline max-height/overflow cap (the dialog itself owns
+  // the scroll); the summary bar is the slim 44px collapsed bar; an
+  // open Actions drawer can never eat more than ~45% of the dialog.
+  assert.ok(!/class="defaulter-list-scroll"[^>]*max-height/.test(modalHtml), 'list scroll box must not cap its own height');
+  assert.ok(!/class="defaulter-list-scroll"[^>]*overflow-y/.test(modalHtml), 'list scroll box must not own its own scroll');
+  assert.ok(css.includes('min-height: 44px'), 'Actions summary bar must be the slim 44px bar');
+  assert.ok(css.includes('max-height: 45dvh'), 'open Actions drawer must be capped at 45dvh');
+  // Compact header: 16px title beats the ≤640px clamp, and the Urdu
+  // subtitle is a block box so nowrap + ellipsis actually applies.
+  assert.ok(css.includes('.top-defaulters-modal .billing-modal-header h2'), 'compact header h2 rule must exist');
+  assert.ok(css.includes('font-size: 16px !important'), 'compact header h2 must be 16px');
+  assert.ok(css.includes('.top-defaulters-modal .urdu-subtitle'), 'subtitle one-line rule must exist');
+  // KPI grid is a compact 2×2 on phones; the area select spans both
+  // filter columns so "All Areas / Mohallas" is never truncated.
+  assert.ok(css.includes('grid-template-columns: 1fr 1fr'), 'KPI grid must be 2×2 on phones');
+  assert.ok(css.includes('.defaulter-filter-grid .defaulter-select-box:first-child'), 'area select must span both columns');
+  // Short KPI labels (D-A: 'Critical (3m+)' follows the code/tier rule,
+  // not the spec's '(2M+)').
+  assert.ok(modalHtml.includes('>Filtered Top<'), 'KPI label must be Filtered Top');
+  assert.ok(modalHtml.includes('>Concentration<'), 'KPI label must be Concentration');
+  assert.ok(modalHtml.includes('>Total Portfolio<'), 'KPI label must be Total Portfolio');
+  assert.ok(modalHtml.includes('>Critical (3m+)<'), 'KPI label must be Critical (3m+)');
+  assert.ok(modalHtml.includes('>All Areas / Mohallas<'), 'filter label must be All Areas / Mohallas');
+  assert.ok(!modalHtml.includes('All Areas / Sectors'), 'old Sectors label must be gone from this modal');
+  // Secondary row is one 3-column grid; the Lock Due count stays inline.
+  assert.ok(css.includes('.defaulter-card-actions-secondary {\n  display: grid;'), 'secondary row must be a 3-column grid');
+  assert.ok(css.includes('grid-template-columns: 1fr 1fr 1fr'), 'secondary row must be 1fr 1fr 1fr');
+  assert.ok(css.includes('.lock-due-toggle {\n  white-space: nowrap;'), 'Lock Due label must not wrap');
 });
 
 // Top Defaulters Modal Fix item 1 (2026-11-13): one full-width stacked
 // card per defaulter replaces the wide 8-column table. The card's top
 // row is '#rank · #ID NAME (Mohalla)' left with the bold red due +
-// overdue days right; the Waada status pill is the middle row (only
-// when a promise exists); the bottom row is Polite Reminder / Final
-// Notice / Collect, and the retained Waada / Mark-contacted / Profile
-// actions ride in a secondary row.
+// overdue days right; the Waada status pill and the escalation stage ride
+// inline in the meta row (only when a promise exists / a stage applies);
+// the bottom row is Polite / Final Notice / Collect, and the retained
+// Waada / Contacted / Profile actions ride in a secondary row.
 test('Card markup - stacked card renders rank, name, mohalla, red due, Waada pill and the 3-button bottom row', () => {
   const state = createSampleBillingState();
   // Far-future promise → 'promised' tier; long-past promise → 'broken'
@@ -761,22 +814,34 @@ test('Card markup - stacked card renders rank, name, mohalla, red due, Waada pil
     assert.ok(!html.includes('(Shahdara)'), 'empty mohalla must not print (Shahdara)');
     assert.ok(!html.includes('Shahdara Town'), 'area column must be gone');
 
-    // Middle row: Waada pill only when a promise exists.
+    // Meta row: Waada pill only when a promise exists (it rides inline
+    // in the meta row with the escalation stage, not on its own row).
     assert.ok(html.includes('Waada: 2099-01-05'), 'promised Waada pill renders');
     assert.ok(html.includes('Waada Expired: 2020-01-05'), 'broken Waada pill renders');
 
-    // Bottom row: Polite Reminder / Final Notice / Collect.
+    // Bottom row: Polite / Final Notice / Collect.
     assert.ok(html.includes('defaulter-reminder-polite'), 'Polite Reminder button renders');
     assert.ok(html.includes('defaulter-reminder-final'), 'Final Notice button renders');
     assert.ok(html.includes('defaulter-collect-btn'), 'Collect button renders');
-    assert.ok(html.includes('🟢 Polite Reminder'), 'Polite Reminder label renders');
+    // Top Defaulters polish (2026-11-13): the Polite label is shortened
+    // to '🟢 Polite' — the long label ellipsized by design at 360px (three
+    // flex:1 buttons share ~308px; 'Polite Reminder' alone needs ~130px).
+    // The Polite action is pinned by class + the click test, not by the
+    // long label; the risk-segment chip was the only other source of the
+    // long string and is no longer rendered on the card.
+    assert.ok(html.includes('🟢 Polite'), 'Polite label renders');
     assert.ok(html.includes('🟠 Final Notice'), 'Final Notice label renders');
     assert.ok(html.includes('💵 Collect'), 'Collect label renders');
 
-    // Secondary row: the retained Waada / Mark-contacted / Profile.
+    // Secondary row: the retained Waada / Contacted / Profile.
     assert.ok(html.includes('defaulter-waada-btn'), 'Waada button survives');
-    assert.ok(html.includes('defaulter-contact-btn'), 'Mark-contacted button survives');
+    assert.ok(html.includes('defaulter-contact-btn'), 'Contacted button survives');
     assert.ok(html.includes('defaulter-view-btn'), 'Profile button survives');
+    // Top Defaulters polish (2026-11-13): 'Mark contacted' is now the
+    // shorter 'Contacted' (new cct_contacted key — cct_mark_contacted is
+    // shared with Field Mode and is untouched), and Profile carries 👤.
+    assert.ok(html.includes('✓ Contacted'), 'Contacted label renders');
+    assert.ok(html.includes('👤 Profile'), 'Profile label carries the icon');
   } finally {
     globalThis.document = originalDocument;
   }

@@ -74,10 +74,10 @@ export const ENQUIRY_REPLY_DRAFTS = [
 ];
 
 export const ENQUIRY_REPLY_DRAFT_LABELS = {
-  balance_reply: 'Balance reply (Plan 72)',
-  payment_slip: 'Payment history slip (Plan 73)',
-  info_card: 'Package info card (Plan 74)',
-  status_reply: 'Fault/request status reply (Plan 75)',
+  balance_reply: 'Balance Reply',
+  payment_slip: 'Payment history slip',
+  info_card: 'Package info card',
+  status_reply: 'Fault/request status reply',
   none: 'No draft used',
 };
 
@@ -299,7 +299,14 @@ export function pendingEnquiries(list, filters = {}) {
   const mohallaKey = enquiryMohallaKey(filters.mohalla);
   const filtered = rows.filter((row) => {
     if (type && row.type !== type) return false;
-    if (filters.mohalla === '__unassigned__') return row.mohallaKey === null;
+    // Annual Owner Summary cleanup (2026-11-13): the filter
+    // placeholder now reads "Filter by mohalla (or Unassigned)", so
+    // the folded word must match the same no-mohalla rows as the
+    // literal '__unassigned__' sentinel (kept for back-compat).
+    // enquiryMohallaKey('Unassigned') folds to 'UNASSIGNED'; a row
+    // whose mohalla literally reads 'Unassigned' keeps that key and
+    // is still excluded here, as before.
+    if (filters.mohalla === '__unassigned__' || enquiryMohallaKey(filters.mohalla) === 'UNASSIGNED') return row.mohallaKey === null;
     if (mohallaKey && row.mohallaKey !== mohallaKey) return false;
     return true;
   });
@@ -334,7 +341,11 @@ export function buildEnquirySummary(list) {
 }
 
 export function enquirySummaryText(summary) {
-  if (!summary || summary.total === 0) return 'No enquiries recorded yet.';
+  if (!summary) return 'No enquiries recorded yet.';
+  // Annual Owner Summary cleanup (2026-11-13): at 0 the count line
+  // is the summary — the old 'No enquiries recorded yet.' sentence
+  // duplicated the body's empty state, so the same words appeared
+  // twice. Same shape as the deposit/loan summaries.
   return `${summary.total} enquir${summary.total === 1 ? 'y' : 'ies'} recorded · ${summary.pending} pending · ${summary.answered} answered · ${summary.referred} referred to a ticket, case, or request queue.`;
 }
 

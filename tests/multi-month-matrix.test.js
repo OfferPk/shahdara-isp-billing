@@ -267,8 +267,9 @@ test('i18n mechanical audit: every mmx_* key used by the module and markup exist
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   // Home Dashboard overhaul: the matrix section moved to Reports,
   // AFTER the mohalla dashboard (which moved to Collect) — the old
-  // slice end (mohallaDashboardSection) now precedes the start and
-  // yields an empty slice. The target chart follows the matrix.
+  // slice end (the mohalla dashboard section, now the Area & Mohalla
+  // Analytics module) now precedes the start and yields an empty
+  // slice. The target chart follows the matrix.
   const section = index.slice(index.indexOf('multiMonthMatrixSection'), index.indexOf('id="dashboardTargetChart"'));
   for (const m of section.matchAll(/data-i18n="(mmx_[a-z0-9_]+)"/g)) used.add(m[1]);
   assert.ok(used.size >= 18, `module + markup should reference the matrix keys, got ${used.size}`);

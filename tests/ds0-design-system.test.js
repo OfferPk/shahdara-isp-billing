@@ -177,11 +177,18 @@ const EXPECTED_ICON_NAMES = [
   // (Nov 2026) adds 2: Smartphone (drawer PWA status square) and
   // Keyboard (drawer shortcuts square) replace the 3D emoji.
   'Smartphone', 'Keyboard',
+  // Area & Mohalla Analytics compact module (Nov 2026) adds 2:
+  // Calculator (Expansion Planner tab), Flame (Pending Dues chip).
+  // CheckCircle (100% Cleared chip) was already in main (Home
+  // Dashboard block) — not duplicated here.
+  // Rebase note (Nov 2026): rebased onto main 2f7a08ca — Calculator /
+  // Flame appended after the Area Analytics block; total 95 (93 + 2).
+  'Calculator', 'Flame',
   // Rebase note (Nov 2026): rebased onto main f9ad16c2 — Smartphone /
   // Keyboard appended after the More Tab block; total 93 (91 + 2).
 ];
 
-test('DS-0 icons: the full §3.2 path set is exported (93 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish + 6 QC cash modal overhaul + 3 home dashboard polish + 10 collect tab polish + 19 More Tab & Wallet Inbox polish + 2 area analytics month-end close polish, Landmark shared — counted once)', () => {  assert.deepEqual([...DS_ICON_NAMES].sort(), [...EXPECTED_ICON_NAMES].sort(), 'ds-icons.js must export exactly the §3.2 icon set');
+test('DS-0 icons: the full §3.2 path set is exported (95 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish + 6 QC cash modal overhaul + 3 home dashboard polish + 10 collect tab polish + 19 More Tab & Wallet Inbox polish + 2 area analytics month-end close polish + 2 area & mohalla analytics compact module, Landmark shared — counted once)', () => {  assert.deepEqual([...DS_ICON_NAMES].sort(), [...EXPECTED_ICON_NAMES].sort(), 'ds-icons.js must export exactly the §3.2 icon set');
   for (const name of EXPECTED_ICON_NAMES) {
     assert.ok(isDsIconName(name), `${name} must be a known icon name`);
   }

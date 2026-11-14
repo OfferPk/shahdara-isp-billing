@@ -199,5 +199,8 @@ test('HTML escaping, CSV quoting, and filename', () => {
   assert.ok(csv.startsWith('id,serial,device,supplier,reference,date_sent,status,'));
   assert.ok(csv.includes('"Bad ""unit"", <test>"'));
   assert.equal(rmaFilename(), 'warranty-returns.csv');
-  assert.equal(rmaHtml([]), '<p>No warranty returns recorded yet.</p>');
+  // More Tab Operational Registries polish (§2 dedup): the summary
+  // line is now the single empty state, so the body renders nothing
+  // at 0 instead of repeating the same sentence a second time.
+  assert.equal(rmaHtml([]), '');
 });

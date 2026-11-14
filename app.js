@@ -22379,6 +22379,43 @@ function jobRupeesToCents(value) {
 // expense, raises no bill, and moves no stock; stock totals move
 // only through the normal stock-issue movement, and a job with no
 // cost entries shows as uncosted, never as zero-cost.
+// More Tab Operational Registries polish: a registry row is a flex
+// div with an inline display style, so the hidden attribute alone
+// cannot hide it (inline display beats the UA [hidden] rule) —
+// toggle its inline display instead.
+function setRegistryRowVisible(el, visible) {
+  if (el) el.style.display = visible ? 'flex' : 'none';
+}
+// Conditional-field visibility for the registry forms: the label
+// wraps its input, so hiding the label hides the field. A hidden
+// field's stale value is dropped, so it can never be submitted from
+// a state where the form says it does not apply (the normalisers
+// ignore those values either way).
+function setRegistryFieldVisible(labelEl, visible, inputEl) {
+  if (!labelEl) return;
+  labelEl.hidden = !visible;
+  if (!visible && inputEl) inputEl.value = '';
+}
+// More Tab Operational Registries polish: the vacation-hold and
+// resume-queue sections share one card with two segmented tabs.
+// The selected tab survives re-renders through this variable;
+// both render functions re-apply it (same shape as
+// activateProfileTab's aria-selected + panel hidden toggle).
+let holdsResumeTab = 'holds';
+function applyHoldsResumeTab() {
+  const holdsBtn = $('#holdsTabBtn');
+  const resumeBtn = $('#resumeTabBtn');
+  if (holdsBtn) holdsBtn.setAttribute('aria-selected', holdsResumeTab === 'holds' ? 'true' : 'false');
+  if (resumeBtn) resumeBtn.setAttribute('aria-selected', holdsResumeTab === 'resume' ? 'true' : 'false');
+  const holdsPanel = $('#holdsTabPanel');
+  const resumePanel = $('#resumeTabPanel');
+  if (holdsPanel) holdsPanel.hidden = holdsResumeTab !== 'holds';
+  if (resumePanel) resumePanel.hidden = holdsResumeTab !== 'resume';
+}
+function setHoldsResumeTab(tab) {
+  holdsResumeTab = tab === 'resume' ? 'resume' : 'holds';
+  applyHoldsResumeTab();
+}
 function renderJobCost() {
   const bodyEl = $('#jobCostBody');
   if (!bodyEl) return;
@@ -22413,6 +22450,10 @@ function renderJobCost() {
       el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
     }
   }
+  // 'Other material name' shows only when Material is 'Other'
+  // (hidden when 'ONU' is selected); the normaliser already ignores
+  // the label for any other material.
+  setRegistryFieldVisible($('#jobCostMaterialOtherLabel'), $('#jobCostMaterial')?.value === 'other', $('#jobCostMaterialOther'));
   const mohallaEl = $('#jobCostMohalla');
   if (mohallaEl && document.activeElement !== mohallaEl) {
     const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
@@ -22428,6 +22469,9 @@ function renderJobCost() {
     });
     $('#jobCostFilterStatus')?.addEventListener('change', () => renderJobCost());
     $('#jobCostFilterMohalla')?.addEventListener('input', () => renderJobCost());
+    $('#jobCostMaterial')?.addEventListener('change', () => {
+      setRegistryFieldVisible($('#jobCostMaterialOtherLabel'), $('#jobCostMaterial')?.value === 'other', $('#jobCostMaterialOther'));
+    });
     $('#jobCostRecordBtn')?.addEventListener('click', () => {
       const customerId = $('#jobCostCustomer')?.value ?? '';
       if (!customerId) { toast('Pick a customer first.'); return; }
@@ -22579,12 +22623,30 @@ function renderRmaLog() {
       el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
     }
   }
+  // At 0 records the filters, Export CSV, awaiting section, and
+  // mutation row hide; the summary line is the single empty state
+  // and the creation form stays reachable behind + Record Warranty
+  // Return. Replacement / rejection fields show only for the action
+  // that needs them (validation already follows the same condition).
+  const rmaEmpty = entries.length === 0;
+  const rmaExportBtn = $('#rmaExportBtn');
+  if (rmaExportBtn) rmaExportBtn.hidden = rmaEmpty;
+  setRegistryRowVisible($('#rmaFilterRow'), !rmaEmpty);
+  // The awaiting body has no inline display style, so the hidden
+  // attribute hides it (unlike the flex rows above).
+  if (awaitingEl) awaitingEl.hidden = rmaEmpty;
+  setRegistryRowVisible($('#rmaActionRow'), !rmaEmpty);
+  const rmaAction = $('#rmaAction')?.value ?? '';
+  setRegistryFieldVisible($('#rmaReplacementSerialLabel'), rmaAction === 'replaced', $('#rmaReplacementSerial'));
+  setRegistryFieldVisible($('#rmaReplacementConnectionIdLabel'), rmaAction === 'replaced', $('#rmaReplacementConnectionId'));
+  setRegistryFieldVisible($('#rmaReasonLabel'), rmaAction === 'rejected', $('#rmaReason'));
   if (!rmaLogBound) {
     rmaLogBound = true;
     $('#rmaFilterStatus')?.addEventListener('change', () => renderRmaLog());
     $('#rmaFilterSupplier')?.addEventListener('input', () => renderRmaLog());
     $('#rmaFilterDevice')?.addEventListener('change', () => renderRmaLog());
     $('#rmaShowAwaiting')?.addEventListener('change', () => renderRmaLog());
+    $('#rmaAction')?.addEventListener('change', () => renderRmaLog());
     $('#rmaRecordBtn')?.addEventListener('click', () => {
       const record = normalizeRma({
         id: $('#rmaId')?.value ?? '',
@@ -22603,6 +22665,8 @@ function renderRmaLog() {
       }
       saveRmaLog(upsertRma(loadRmaLog(), record));
       toast('Warranty return recorded as sent. This log creates no purchase, bill, or stock record.');
+      const rmaCreateDetails = $('#rmaCreateDetails');
+      if (rmaCreateDetails) rmaCreateDetails.open = false;
       renderRmaLog();
     });
     $('#rmaApplyBtn')?.addEventListener('click', () => {
@@ -22695,6 +22759,16 @@ function renderRecoveryQueue() {
   bodyEl.innerHTML = recoveryHtml(shown);
   const summaryEl = $('#recoveryQueueSummary');
   if (summaryEl) summaryEl.textContent = recoverySummaryText(buildRecoverySummary(queue, loadRecoveryQueue()));
+  // At 0 queued devices the filters, Export CSV, and mutation row
+  // hide — the count is the derived queue, not the stored total, so
+  // a queue of 0 with collected records still hides them. The
+  // summary line is the single empty state; there is no creation
+  // form here (records arrive from the end-of-service flow).
+  const recoveryEmpty = queue.length === 0;
+  const recoveryExportBtn = $('#recoveryExportBtn');
+  if (recoveryExportBtn) recoveryExportBtn.hidden = recoveryEmpty;
+  setRegistryRowVisible($('#recoveryFilterRow'), !recoveryEmpty);
+  setRegistryRowVisible($('#recoveryActionRow'), !recoveryEmpty);
   const selectEl = $('#recoverySelect');
   if (selectEl && document.activeElement !== selectEl) {
     selectEl.innerHTML = queue.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.customerName || entry.customerId)} — ${escapeHtml(entry.serial)} — ${escapeHtml(RECOVERY_STATUS_LABELS[entry.status])}</option>`).join('')
@@ -22820,6 +22894,18 @@ function renderVacationHolds() {
       el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
     }
   }
+  // At 0 holds the filters, Export CSV, check-month row, and
+  // mutation row hide; the creation form stays reachable behind
+  // + Add Customer Hold and the summary line stays a count line.
+  // 'Retention charge (Rs.)' shows only for a retention hold
+  // (validation already follows the same condition).
+  const holdsEmpty = entries.length === 0;
+  const vacationExportBtn = $('#vacationExportBtn');
+  if (vacationExportBtn) vacationExportBtn.hidden = holdsEmpty;
+  setRegistryRowVisible($('#vacationFilterRow'), !holdsEmpty);
+  setRegistryRowVisible($('#vacationActionRow'), !holdsEmpty);
+  setRegistryRowVisible($('#vacationCheckRow'), !holdsEmpty);
+  setRegistryFieldVisible($('#vacationRetentionLabel'), $('#vacationTreatment')?.value === 'retention', $('#vacationRetention'));
   const mohallaEl = $('#vacationMohalla');
   if (mohallaEl && document.activeElement !== mohallaEl) {
     const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
@@ -22831,6 +22917,9 @@ function renderVacationHolds() {
     $('#vacationFilterReason')?.addEventListener('change', () => renderVacationHolds());
     $('#vacationFilterTreatment')?.addEventListener('change', () => renderVacationHolds());
     $('#vacationFilterMohalla')?.addEventListener('input', () => renderVacationHolds());
+    $('#vacationTreatment')?.addEventListener('change', () => renderVacationHolds());
+    $('#holdsTabBtn')?.addEventListener('click', () => setHoldsResumeTab('holds'));
+    $('#resumeTabBtn')?.addEventListener('click', () => setHoldsResumeTab('resume'));
     $('#vacationCustomer')?.addEventListener('change', () => {
       const selected = customers.find((c) => String(c.id) === String($('#vacationCustomer')?.value ?? ''));
       const mohallaInput = $('#vacationMohalla');
@@ -22859,6 +22948,8 @@ function renderVacationHolds() {
       }
       saveVacationHolds(next);
       toast('Hold recorded. It creates no bill by itself.');
+      const vacationCreateDetails = $('#vacationCreateDetails');
+      if (vacationCreateDetails) vacationCreateDetails.open = false;
       renderVacationHolds();
     });
     $('#vacationEndBtn')?.addEventListener('click', () => {
@@ -22904,6 +22995,7 @@ function renderVacationHolds() {
       downloadCsvFile(holdFilename(), holdCsv(fresh));
     });
   }
+  applyHoldsResumeTab();
 }
 const SUSPENSION_RECORDS_KEY = 'shahdara_suspension_records_v1';
 function loadSuspensions() {
@@ -22940,6 +23032,15 @@ function renderSuspensions() {
   bodyEl.innerHTML = suspensionHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
   const summaryEl = $('#suspensionRecordsSummary');
   if (summaryEl) summaryEl.textContent = suspensionSummaryText(buildSuspensionSummary(entries));
+  // At 0 suspensions the filters, Export CSV, checklist row, and
+  // action row hide; the creation form stays reachable behind
+  // + Record Suspension and the summary line stays a count line.
+  const suspensionsEmpty = entries.length === 0;
+  const suspensionExportBtn = $('#suspensionExportBtn');
+  if (suspensionExportBtn) suspensionExportBtn.hidden = suspensionsEmpty;
+  setRegistryRowVisible($('#suspensionFilterRow'), !suspensionsEmpty);
+  setRegistryRowVisible($('#suspensionChecklistRow'), !suspensionsEmpty);
+  setRegistryRowVisible($('#suspensionActionRow'), !suspensionsEmpty);
   const customerEl = $('#suspensionCustomer');
   if (customerEl && document.activeElement !== customerEl) {
     customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
@@ -23010,6 +23111,8 @@ function renderSuspensions() {
       }
       saveSuspensions(next);
       toast('Suspension recorded. It disconnects nothing by itself and creates no charge.');
+      const suspensionCreateDetails = $('#suspensionCreateDetails');
+      if (suspensionCreateDetails) suspensionCreateDetails.open = false;
       renderSuspensions();
     });
     for (const item of CHECKLIST_ITEMS) {
@@ -23094,7 +23197,17 @@ function renderResumeQueue() {
   });
   bodyEl.innerHTML = resumeHtml(shown);
   const summaryEl = $('#resumeQueueSummary');
-  if (summaryEl) summaryEl.textContent = resumeSummaryText(buildResumeSummary(queue)) + ' Relocations from Plan 85 moves are included.';
+  if (summaryEl) summaryEl.textContent = resumeSummaryText(buildResumeSummary(queue));
+  // At 0 resumes (unfiltered queue — a filter yielding 0 with
+  // records present keeps the filters visible) the Export CSV,
+  // filter row, and mutation row hide. The Window (days) input is
+  // a view control, not a filter: widening the window can find
+  // resumes, so it stays visible.
+  const resumeEmpty = queue.length === 0;
+  const resumeExportBtn = $('#resumeExportBtn');
+  if (resumeExportBtn) resumeExportBtn.hidden = resumeEmpty;
+  setRegistryRowVisible($('#resumeFilterRow'), !resumeEmpty);
+  setRegistryRowVisible($('#resumeActionRow'), !resumeEmpty);
   const selectEl = $('#resumeSelect');
   if (selectEl && document.activeElement !== selectEl) {
     selectEl.innerHTML = shown.map((row) => `<option value="${escapeHtml(row.kind === 'relocation' ? `relocation:${row.id}` : row.id)}">${escapeHtml(row.id)} — ${escapeHtml(row.customerName || row.customerId)} — ${escapeHtml(RESUME_KIND_LABELS[row.kind] ?? row.kind)} — return ${escapeHtml(row.returnDate)}</option>`).join('')
@@ -23152,6 +23265,7 @@ function renderResumeQueue() {
       downloadCsvFile(resumeFilename(), resumeCsv(fresh));
     });
   }
+  applyHoldsResumeTab();
 }
 const MOVE_TRANSFERS_KEY = 'shahdara_move_transfers_v1';
 function loadMoveTransfers() {

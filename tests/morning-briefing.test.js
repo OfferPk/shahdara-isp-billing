@@ -264,6 +264,21 @@ test('SISP-145 wiring: strip markup, pill routes and host extras are in place', 
   assert.ok(app.includes('getBriefingExtras'), 'app.js passes briefing extras');
   assert.ok(app.includes('readBackupHealthRecord()'), 'app.js feeds the SISP-10 health record');
   assert.ok(app.includes('onBriefingNavigate'), 'app.js routes pill taps');
+  // Sharafat 24: the 'backup' branch must open the footer Backup & Restore
+  // controls (toggle + scroll), never the top-bar badge's download action.
+  // Source-scan only — onBriefingNavigate is an inline closure in app.js,
+  // which no unit test imports; this pins the route text, not runtime.
+  const backupBranchStart = app.indexOf("} else if (target === 'backup') {", app.indexOf('onBriefingNavigate'));
+  assert.ok(backupBranchStart > -1, 'app.js has a backup branch in onBriefingNavigate');
+  const backupBranch = app.slice(backupBranchStart, app.indexOf('\n    },', backupBranchStart));
+  assert.ok(backupBranch.includes('backupControlsToggle'), 'backup branch opens #backupControlsToggle');
+  assert.ok(backupBranch.includes('scrollIntoView'), 'backup branch scrolls to the controls');
+  assert.ok(!backupBranch.includes('backupHealthBadge'), 'backup branch does not fire the badge download');
+  // The badge's own 1-click download stays pinned — the fix must not
+  // "fix" the pill by deleting the badge listener.
+  const badgeListenerStart = app.indexOf("$('#backupHealthBadge')?.addEventListener('click'");
+  assert.ok(badgeListenerStart > -1, 'badge listener present');
+  assert.ok(app.slice(badgeListenerStart, badgeListenerStart + 200).includes('#downloadJsonBackupButton'), 'badge tap still downloads JSON');
   const css = readFileSync(new URL('../components.css', import.meta.url), 'utf8');
   const block = css.slice(css.indexOf('SISP-145 Morning Briefing'), css.indexOf('@media (max-width: 700px)', css.indexOf('SISP-145 Morning Briefing')) + 200);
   assert.ok(block.includes('.morning-pill'), 'pill styles present');

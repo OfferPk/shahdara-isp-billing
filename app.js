@@ -3520,7 +3520,17 @@ function renderDashboard() {
       } else if (target === 'shops') {
         $('#openShopSettlementModalBtn')?.click();
       } else if (target === 'backup') {
-        $('#backupHealthBadge')?.click();
+        // Sharafat 24: the Backup pill opens the footer Backup & Restore
+        // controls instead of firing the top-bar badge's 1-click JSON
+        // download. A pill tap used to stamp the SISP-10 export record,
+        // which arms the destructive Clear All dialog's backup gate —
+        // the gate itself is untouched; only this arming path is removed.
+        // Toggle, not force-open (same as the quick-actions onBackup and
+        // the keyboard shortcut): a second tap closes the panel.
+        const toggle = $('#backupControlsToggle');
+        if (toggle) toggle.click();
+        const panel = $('#backupControls');
+        if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth' });
       }
     },
     onToast: toast,

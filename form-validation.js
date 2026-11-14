@@ -934,6 +934,59 @@ export function downloadCsvFile(filename, csvContent, doc = (typeof document !==
 }
 
 /**
+ * Monthly-report CSV: map buildMonthlyReport rows onto the export's header
+ * keys. Sharafat 39 — the rows carry customerName / area and no phone, while
+ * the headers ask for name / mohalla / phone; without this mapping those
+ * three columns exported empty (a fixture row came out as
+ * `1,,,,3000,2000,1000,partial`). Phone comes from the customer record
+ * (primary phone, then the legacy customerPhone alias); a missing customer
+ * yields '' instead of a crash. Money figures are the row's own (already
+ * voided-excluded by buildMonthlyReport) — never re-derived here.
+ * @param {Array<object>} rows
+ * @param {Array<object>} [customers]
+ * @returns {Array<object>}
+ */
+export function monthlyReportCsvRows(rows, customers = []) {
+  const byId = new Map((Array.isArray(customers) ? customers : []).map(customer => [customer?.id, customer]));
+  return (Array.isArray(rows) ? rows : []).map(row => {
+    const customer = byId.get(row?.customerId);
+    return {
+      customerNumber: row?.customerNumber ?? '',
+      name: row?.customerName ?? '',
+      mohalla: row?.area ?? '',
+      phone: customer?.phone || customer?.customerPhone || '',
+      billAmount: row?.billAmount ?? '',
+      amountReceived: row?.amountReceived ?? '',
+      balanceDue: row?.balanceDue ?? '',
+      status: row?.status ?? ''
+    };
+  });
+}
+
+/**
+ * Monthly-report CSV filtered-view note, mirroring billingRegisterCsvNote:
+ * "showing N of M rows" where M is the count before the area drill-down.
+ * English-only, like the register's note — no i18n key.
+ * @param {object} [opts]
+ * @returns {string}
+ */
+export function monthlyReportCsvNote({ rowCount = 0, totalRows = 0, monthLabel = '', statusLabel = '', areaLabel = '' } = {}) {
+  return `Note: Filtered view: showing ${rowCount} of ${totalRows} rows · month ${monthLabel} · status ${statusLabel} · area ${areaLabel}; the CSV rows cover only the visible report entries.`;
+}
+
+/**
+ * Monthly-report CSV filename. The `_filtered` suffix appears ONLY when an
+ * area filter is active (Sharafat 39, Decision 2(i)); the unfiltered file
+ * keeps the plain `monthly-report-<month>.csv` name.
+ * @param {string} month
+ * @param {boolean} [filtered]
+ * @returns {string}
+ */
+export function monthlyReportCsvFilename(month, filtered = false) {
+  return filtered ? `monthly-report-${month}_filtered.csv` : `monthly-report-${month}.csv`;
+}
+
+/**
  * Generates semantic printable batch receipt HTML for a given month.
  * @param {Array<any>} customers
  * @param {string} month - Format: YYYY-MM

@@ -5,7 +5,7 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot, isCashPaymentMethod,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation, applyConcessionToBill, removeConcessionFromBill, removeFirstMonthWaiverFromBill,
-  calculateMethodCollectionTotals, calculateMethodTotalsForRows, findDuplicatePaymentReference, findIdentityConflicts, findPhoneConflicts, paymentSenderLabel,
+  calculateMethodTotalsForRows, findDuplicatePaymentReference, findIdentityConflicts, findPhoneConflicts, paymentSenderLabel,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
   autoPackageFromPayment,
   autoPackageRollbackOf, // Plan 562: recover the follow fee from the rollback stamp for draft inputs.
@@ -130,6 +130,9 @@ import {
   wireFormDraftAutosave,
   generateCsvContent,
   downloadCsvFile,
+  monthlyReportCsvRows,
+  monthlyReportCsvNote,
+  monthlyReportCsvFilename,
   generateBatchReceiptHtml,
   maskPakistanPhone,
   wirePhoneInputMask,
@@ -6986,15 +6989,33 @@ function renderMohallaAnalytics(month) {
   }).join('');
 }
 
-function renderMonthlyReport() {
+// Sharafat 39: one source for the rows on screen — the report list and the
+// monthly CSV export both use these exact rows (status × search × area,
+// sorted by the current sort), so screen and file can never drift apart
+// again. The export never paginates; it takes all of the sorted rows.
+// `totalRows` is the count before the area drill-down, for the export's
+// "showing N of M" note. Sharafat 45 inherits this: whatever the report
+// shows, the file carries.
+function getMonthlyReportScreenRows() {
   const month = selectedBillingMonth;
   const query = reportSearchQuery.trim() || searchQuery();
-  let rows = buildMonthlyReport(state, { month, statusFilter:selectedReportFilter, customerQuery:query });
+  const rows = buildMonthlyReport(state, { month, statusFilter: selectedReportFilter, customerQuery: query });
+  const totalRows = rows.length;
   // Part 4A drill-down: an Area card filters this list to that area's
   // customers (status stays 'outstanding' from the card, or whatever
-  // pill the operator picks afterwards). Totals below follow the
-  // filtered rows, so they describe exactly the list on screen.
-  if (reportAreaFilter) rows = rows.filter(row => (canonicalMohalla(row.area)?.key ?? 'unassigned') === reportAreaFilter.key);
+  // pill the operator picks afterwards).
+  const filteredRows = reportAreaFilter ? rows.filter(row => (canonicalMohalla(row.area)?.key ?? 'unassigned') === reportAreaFilter.key) : rows;
+  return { rows: sortMonthlyReportRows(filteredRows, reportSortBy), totalRows };
+}
+
+function renderMonthlyReport() {
+  const month = selectedBillingMonth;
+  // Sharafat 39: the rows on screen come from the shared helper — the
+  // monthly CSV export uses the same rows. Totals below follow the
+  // filtered rows, so they describe exactly the list on screen. Totals and
+  // method chips are order-insensitive, so the sort inside the helper
+  // changes nothing there.
+  const { rows } = getMonthlyReportScreenRows();
   const chip = $('#reportAreaFilterChip');
   if (chip) {
     if (!reportAreaFilter) { chip.hidden = true; chip.innerHTML = ''; }
@@ -7046,8 +7067,7 @@ function renderMonthlyReport() {
   const sortSelect = $('#reportSortSelect');
   if (sortSelect) sortSelect.value = reportSortBy;
 
-  const sortedRows = sortMonthlyReportRows(rows, reportSortBy);
-  const paged = paginateRows(sortedRows, reportCurrentPage, reportPageSize);
+  const paged = paginateRows(rows, reportCurrentPage, reportPageSize);
   reportCurrentPage = paged.page;
 
   const pagNav = $('#monthlyReportPagination');
@@ -43184,8 +43204,10 @@ $('#exportInventoryCsvBtn')?.addEventListener('click', () => {
 
 $('#exportMonthlyReportCsvBtn')?.addEventListener('click', () => {
   const month = selectedBillingMonth;
-  const query = reportSearchQuery.trim() || searchQuery();
-  const rows = buildMonthlyReport(state, { month, statusFilter: selectedReportFilter, customerQuery: query });
+  // Sharafat 39: the file carries exactly the rows on screen — the shared
+  // helper applies the status / search / area filters and the current sort,
+  // and the export takes all of the sorted rows (never just the page).
+  const { rows, totalRows } = getMonthlyReportScreenRows();
   const headers = [
     { key: 'customerNumber', label: 'Customer #' },
     { key: 'name', label: 'Customer Name' },
@@ -43196,9 +43218,22 @@ $('#exportMonthlyReportCsvBtn')?.addEventListener('click', () => {
     { key: 'balanceDue', label: 'Balance (PKR)' },
     { key: 'status', label: 'Status' }
   ];
-  const csv = generateCsvContent(headers, rows);
-  const filename = `monthly-report-${month}.csv`;
-  downloadCsvFile(filename, csv);
+  // Sharafat 39: map rows to the header keys — buildMonthlyReport rows carry
+  // customerName / area and no phone, so the name / mohalla / phone columns
+  // exported empty before this change.
+  const exportRows = monthlyReportCsvRows(rows, state.customers ?? []);
+  // Sharafat 39: the `_filtered` suffix + note row appear only when an area
+  // filter is active (mirroring billingRegisterCsvNote); the unfiltered file
+  // keeps its plain name. The note counts the filtered rows against the
+  // pre-drill-down total for the same month / status / search.
+  let csvRows = exportRows;
+  if (reportAreaFilter) {
+    const statusKey = { all: 'bill_filter_all', paid: 'bill_filter_paid', pending: 'bill_filter_pending', partial: 'bill_filter_partial', 'not-set': 'bill_filter_notset', outstanding: 'bill_filter_outstanding' }[selectedReportFilter] ?? 'bill_filter_all';
+    const note = monthlyReportCsvNote({ rowCount: rows.length, totalRows, monthLabel: displayMonthName(month), statusLabel: t(statusKey), areaLabel: reportAreaFilter.label });
+    csvRows = [{ customerNumber: note, name: '', mohalla: '', phone: '', billAmount: '', amountReceived: '', balanceDue: '', status: '' }, ...exportRows];
+  }
+  const csv = generateCsvContent(headers, csvRows);
+  downloadCsvFile(monthlyReportCsvFilename(month, Boolean(reportAreaFilter)), csv);
   toast(`Exported ${rows.length} report rows for ${month} to CSV.`);
 });
 

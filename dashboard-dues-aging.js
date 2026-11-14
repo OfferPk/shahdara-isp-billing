@@ -19,6 +19,7 @@ import {
   formatPKR,
   monthsForHistory
 } from './core.js';
+import { DEFAULT_BILL_DUE_DAY } from './billing-cycle-choice.js';
 
 export const DUES_AGING_BUCKETS = [
   {
@@ -103,7 +104,8 @@ export function formatDateYmd(date) {
 /**
  * Resolves bill due date.
  * If bill has explicit dueDate string, uses that.
- * If bill only has month (YYYY-MM), defaults to 10th of that month (standard ISP due date).
+ * If bill only has month (YYYY-MM), defaults to the 5th of that month
+ * (the shared house rule: DEFAULT_BILL_DUE_DAY in billing-cycle-choice.js).
  * @param {object} bill
  * @returns {Date|null}
  */
@@ -124,7 +126,10 @@ export function parseBillDueDate(bill) {
   }
   if (bill.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(bill.month)) {
     const [y, m] = bill.month.split('-');
-    return new Date(Date.UTC(Number(y), Number(m) - 1, 10, 7, 0, 0));
+    // Sharafat 37: house rule is the 5th (DEFAULT_BILL_DUE_DAY), not the 10th.
+    // The 07:00 UTC construction stays: it is 12:00 PKT on the due day, so
+    // formatDateYmd (Asia/Karachi) returns the due day itself.
+    return new Date(Date.UTC(Number(y), Number(m) - 1, DEFAULT_BILL_DUE_DAY, 7, 0, 0));
   }
   return null;
 }
@@ -240,7 +245,9 @@ export function calculateDuesAgingBreakdown(state, referenceDate = new Date()) {
           month: bill.month,
           dueAmount: Number(bill.dueAmount || bill.amount || 0),
           balanceDue: Math.round(balanceDueCents / 100),
-          dueDate: bill.dueDate || (bill.month ? `${bill.month}-10` : ''),
+          // Sharafat 37: derive the row's due date from parseBillDueDate so it
+          // can never drift from the helper again (was a hardcoded `${month}-10`).
+          dueDate: bill.dueDate || (bill.month ? formatDateYmd(parseBillDueDate(bill)) : ''),
           daysOverdue,
           bucketKey
         });

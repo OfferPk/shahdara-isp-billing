@@ -20,6 +20,7 @@ import {
   monthsForHistory
 } from './core.js';
 import { DEFAULT_BILL_DUE_DAY } from './billing-cycle-choice.js';
+import { canonicalMohalla } from './phase3.js';
 
 export const DUES_AGING_BUCKETS = [
   {
@@ -277,7 +278,14 @@ export function calculateDuesAgingBreakdown(state, referenceDate = new Date()) {
       id: c.id,
       customerNumber: c.customerNumber || '',
       name: c.name || 'Unnamed',
-      area: c.area || c.mohalla || 'Unassigned',
+      // Sharafat 41: group ageing areas through canonicalMohalla (label-only,
+      // area-first) so spelling variants of one mohalla fold to one row —
+      // 'Charyaa' / 'Mohalla Charyaa' / 'CHARYAA' all become 'Charyaa'. Every
+      // consumer (CSV ledger, briefing, drill-down filter, table, area select)
+      // reads customerSummary.area, so this one line fixes them all. THALI /
+      // THALII and HAWELI / END POINT still split (no alias; documented by
+      // test, follow-up candidate) — see the Sharafat 41 PR body.
+      area: canonicalMohalla(c.area || c.mohalla || '')?.label || 'Unassigned',
       mohalla: c.mohalla || '',
       phone: c.phone || '',
       package: c.packageSpeed || 'Unassigned',

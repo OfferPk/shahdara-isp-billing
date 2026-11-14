@@ -378,6 +378,46 @@ textarea { line-height: 1.5; }
   color: #465f55;
   font-size: 12px;
 }
+
+/* Annual Owner Summary cleanup (2026-11-13): the .table-scroll
+   wrapper is SHARED by every register table (annual summary,
+   roll-forward, enquiry, deposit, loan) — one shared rule keeps
+   headers and figures on one line and pins the first column,
+   instead of one competing rule per table. Rebase note (Nov 2026):
+   the Area Analytics item landed its rule scoped to
+   .roll-forward-table, NOT as a shared .table-scroll rule, so this
+   block is NOT a duplicate and is kept — the four register tables
+   render inside .table-scroll wrappers and depend on it (pinned by
+   tests/annual-owner-summary-cleanup.test.js:214-218). The nowrap
+   rule sits after the :127 white-space:normal rule so it wins at
+   equal specificity; overflow-wrap:anywhere is inert under nowrap
+   but is switched off explicitly so a long value can never split
+   mid-word again. The sticky first column reuses the header's
+   #f6faf8 for the corner cell so the header row stays one colour;
+   body cells get opaque var(--white) so scrolled content never
+   shows through. Zero new hex — both colours already exist. */
+.table-scroll th, .table-scroll td { white-space: nowrap; overflow-wrap: normal; }
+.table-scroll th:first-child, .table-scroll td:first-child { position: sticky; left: 0; z-index: 3; background: var(--white); }
+.table-scroll thead th:first-child { z-index: 4; background: #f6faf8; }
+
+/* Annual Owner Summary cleanup (2026-11-13): the global input
+   floor (min-height 44px) stretches the two registry filter
+   checkboxes into tall boxes beside their labels; this scoped
+   flex label keeps the box at 18px on the same line as its text,
+   following the csv-import / splice / kist checkbox patterns.
+   The label takes its own row (flex: 1 1 100%) so the text can
+   wrap at 320px without the box leaving the line; the global
+   rule is untouched. */
+.registry-filter-check { display: flex; flex: 1 1 100%; align-items: flex-start; gap: 8px; cursor: pointer; }
+.registry-filter-check input[type="checkbox"] { width: 18px; height: 18px; min-height: 18px; flex: none; }
+
+/* Annual Owner Summary cleanup (2026-11-13): creation forms
+   collapse behind a + Add button (the same <details> pattern as
+   the Top Defaulters actions drawer); the summary renders as a
+   primary button, not a disclosure triangle. */
+.registry-create-details { margin: 8px 0; }
+.registry-create-details > summary { display: inline-block; list-style: none; cursor: pointer; }
+.registry-create-details > summary::-webkit-details-marker { display: none; }
 .sortable-th {
   cursor: pointer;
   user-select: none;
@@ -630,6 +670,75 @@ main, .app-shell, .customer-pane, .detail-pane, .customer-meta, .profile-grid,
 .table-scroll th {
   overflow-wrap: anywhere;
 }
+
+/* Area Analytics polish: the roll-forward table's headers and money
+ * cells must never split mid-word — the global .table-scroll rules
+ * set white-space: normal and overflow-wrap: anywhere. Scoped to
+ * this table only, so the 360px containment that protects every
+ * other analytics table stays intact. */
+.roll-forward-table th, .roll-forward-table td {
+  white-space: nowrap; word-break: normal; overflow-wrap: normal;
+}
+.roll-forward-table thead th:first-child,
+.roll-forward-table tbody td:first-child {
+  position: sticky; left: 0; z-index: 1;
+}
+.roll-forward-table thead th:first-child { z-index: 3; background: #f6faf8; }
+.roll-forward-table tbody td:first-child { background: #fff; }
+
+/* Area Analytics polish: the roll-forward equation renders as a 2x3
+ * stat-box grid (totals view only) instead of one long wrapping
+ * sentence — 3 columns above 620px, 2 columns on phones, the same
+ * shape as .current-bill-grid. */
+.roll-forward-equation { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media(max-width:620px){
+  .roll-forward-equation { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Area Analytics polish: the pre-close sweep's raw <ul><li> bullets
+ * become structured white cards. The screen badge is a static label
+ * — the sweep resolves nothing here; the header buttons own
+ * navigation. The right padding keeps the amount clear of the
+ * floating ^/+ buttons. */
+.sweep-item-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; display: flex; gap: 10px; justify-content: space-between; font-size: 12px; }
+#precloseSweepBody { padding-bottom: 80px; } /* Area Analytics polish: the last sweep card must scroll clear of the floating ^/+ buttons (same 80px clearance as the Home bottom padding). */
+.sweep-item-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sweep-item-main > span { color: #5c6e66; }
+.sweep-item-side { flex: 0 0 auto; padding-right: 8px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; text-align: right; }
+.sweep-item-screen { font-size: 11px; font-weight: 700; color: var(--green); white-space: nowrap; }
+
+/* Area Analytics polish: button rows inside .analytics-panel escape
+ * the deliberate ≤620px rule (components.css:3788) that forces every
+ * inline-flex row into a single column (Reports Tab Part 4B(1)). The
+ * rule only fires on [style*="display: flex"], so a row laid out by
+ * class — with no inline display:flex — is invisible to it. The label
+ * rows keep their inline flex and keep stacking; only these button
+ * rows move to classes. */
+.analytics-btn-row { display: flex; gap: 8px; margin: 8px 0; }
+.analytics-btn-row--3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.analytics-btn-row .secondary-button { min-height: 42px; height: 42px; }
+.analytics-btn-row--2x2 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.analytics-btn-row--2x2 .secondary-button { min-height: 40px; height: 40px; font-size: 12.5px; }
+@media(max-width:620px){
+  .analytics-btn-row--2x2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Area Analytics polish: the audit explainer <details> under each
+ * month-end section keeps the full rule text one tap away while the
+ * visible subtitle stays one line. */
+.audit-explainer { margin: 4px 0 0; }
+.audit-explainer summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--green); }
+.audit-explainer summary::-webkit-details-marker { display: none; }
+.audit-explainer .chart-caption { margin-top: 6px; }
+
+/* Area Analytics polish: the month-close Tick button is the primary
+ * action (emerald); Remove month record is a subtle danger outline.
+ * Both colours are tokens — never raw hex. The hover rules keep the
+ * paint from flashing back to the plain secondary-button hover. */
+.month-close-tick-btn { background: var(--ds-brand); border-color: var(--ds-brand); color: var(--white); }
+.month-close-tick-btn:hover { background: var(--ds-brand); border-color: var(--ds-brand); color: var(--white); }
+.month-close-remove-btn { border: 1px solid var(--ds-danger-border); color: var(--ds-danger); background: transparent; }
+.month-close-remove-btn:hover { border-color: var(--ds-danger-border); color: var(--ds-danger); background: transparent; }
 .profile-field textarea { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* Render numeric columns with stable digit widths and align currency to the end. */
@@ -1100,6 +1209,10 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 /* Unpaid Cards: the Recent receipts finder on the Transactions
    screen — a compact panel above the ledger. Tokens and borders
    only; no new hex. */
+/* Transactions & Recent Receipts Polish §2: the count line and its ℹ️
+   button share one flex row, so the button never takes its own row
+   when .transactions-heading stacks its children at ≤620px. */
+.transactions-count-row { display: flex; align-items: center; gap: 6px; }
 .receipt-finder {
   margin: 12px 0;
   padding: 12px;
@@ -1109,17 +1222,6 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 }
 .receipt-finder-head h3 { margin: 0; font-size: 13px; }
 .receipt-finder-note { margin: 2px 0 8px; color: var(--muted); font-size: 11px; }
-#receiptFinderSearch {
-  width: 100%;
-  height: 40px;
-  border: 1px solid #dce6e1;
-  border-radius: 9px;
-  background: #fff;
-  padding: 0 11px;
-  color: var(--ink);
-  font: 500 13px 'DM Sans', sans-serif;
-}
-#receiptFinderSearch:focus { outline: 3px solid #cce9dd; border-color: #60a68d; }
 .receipt-finder-count { margin: 8px 0 0; color: var(--muted); font-size: 11px; font-weight: 600; }
 .receipt-finder-results { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
 .receipt-finder-row {
@@ -1137,8 +1239,19 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .receipt-finder-name { font-weight: 700; overflow-wrap: anywhere; }
 .receipt-finder-meta { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 .receipt-finder-amount { font-weight: 800; font-variant-numeric: tabular-nums; }
-.receipt-finder-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.receipt-finder-actions .secondary-button { min-height: 32px; padding: 0 10px; font-size: 11px; }
+/* Transactions & Recent Receipts Polish §4: the receipt ID never
+   breaks mid-token (nowrap monospace badge); the three actions sit
+   on ONE 3-column grid row that always spans the full row width. */
+.receipt-finder-receipt-id { white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.receipt-finder-actions { flex: 1 1 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.receipt-finder-actions .secondary-button { min-height: 32px; padding: 0 10px; font-size: 11px; background: var(--color-slate-50); color: var(--color-slate-700); }
+.receipt-finder-action-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.receipt-finder-actions .receipt-whatsapp-action-wrap { align-items: stretch; }
+.receipt-finder-actions .receipt-network-note { display: none; }
+.receipt-finder-actions .receipt-whatsapp-action, .receipt-finder-actions .receipt-phone-help { min-height: 32px; font-size: 11px; }
+.receipt-finder-actions .receipt-whatsapp-action { background: var(--qc-mint-bg); color: var(--qc-emerald-text); font-weight: 700; border-color: var(--qc-mint-border); }
+.receipt-finder-actions .print-receipt-button { min-height: 32px; font-size: 11px; background: var(--qc-blue-bg); color: var(--qc-blue-text); }
+.receipt-finder-show-more { margin-top: 8px; width: 100%; }
 .customer-card-controls {
   display: grid;
   gap: 8px;
@@ -1794,6 +1907,25 @@ voice-armed controls and the answer-waiting dot. Token colours only. */
   .more-menu-header{display:flex;align-items:center;justify-content:space-between;padding:4px 8px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
   .more-menu-title{font:700 12px Manrope,sans-serif;color:var(--ink);letter-spacing:-.2px}
   .more-menu-section-label{font:700 9px Manrope,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);padding:8px 8px 3px}
+  /* More Tab & Wallet Inbox Polish (Nov 2026): single-row headers for
+     the 22 registry & operations cards (icon tile + title + status
+     metric on one row), a compact muted pill for zero states, scoped
+     card padding (the global .summary-card padding is shared with the
+     Home KPI + Collect cards, owned by other items), and static
+     section headers at the cards' Reports / Analytics / Inventory
+     homes. The ~50% scrolling claim in the spec is an estimate: header
+     + padding alone save ~20%; the rest needs the Home-D3 follow-up's
+     collapsed accordions. */
+  .summary-card.ops-card{padding:10px 11px;min-height:0}
+  .ds-card-head{display:flex;align-items:center;gap:8px;min-width:0}
+  .ds-card-head .ds-icon-tile{width:28px;height:28px;flex:0 0 auto}
+  .ds-card-head .ds-icon-tile svg{width:16px;height:16px}
+  .ds-card-head .summary-label{flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ds-card-metric{margin:0;flex:0 0 auto;font-size:15px;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ds-card-metric--empty{font:600 11px 'DM Sans',sans-serif;letter-spacing:0;color:var(--muted);background:#f1f4f2;border-radius:999px;padding:4px 8px;max-width:62%}
+  .ds-icon-tile.ds-icon-tile--sm{width:24px;height:24px;flex:0 0 auto}
+  .ds-icon-tile.ds-icon-tile--sm svg{width:14px;height:14px}
+  .ops-section-header{font:700 13px Manrope,sans-serif;letter-spacing:-.2px;color:var(--ink);margin:18px 2px 8px}
   .mobile-more-menu button{min-height:44px;display:flex;align-items:center;gap:9px;text-align:left;border:0;border-radius:8px;background:transparent;padding:0 10px;color:var(--ink);font:600 13px 'DM Sans',sans-serif;cursor:pointer;width:100%}
   .mobile-more-menu button:hover{background:#f1f7f4}
   .mobile-more-menu button[aria-current=page],.mobile-more-menu button.is-active{background:#e6f3ee;color:var(--green);font-weight:700}
@@ -2644,6 +2776,19 @@ html, body {
 .pagination-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Collect Tab polish: the Collected Feed pagination arrows are clean
+   36x36px squares with Chevron SVGs. Scoped to this nav only —
+   .pagination-btn is shared by four paginations and the archived /
+   report ones carry text labels that must NOT become squares. */
+#transactionPagination .pagination-btn {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
 }
 
 .pagination-page-info {
@@ -12961,6 +13106,12 @@ dialog.help-guide-modal::backdrop {
 .defaulters-actions-summary {
   list-style: none;
   cursor: pointer;
+  /* Top Defaulters polish (2026-11-13): the collapsed bar is the slim
+     44px bottom bar the spec pins — a <summary> is not a <button>, so
+     the global 44px button rule does not apply; set it explicitly. */
+  min-height: 44px;
+  display: flex;
+  align-items: center;
 }
 
 .defaulters-actions-summary::-webkit-details-marker {
@@ -12997,6 +13148,48 @@ dialog.help-guide-modal::backdrop {
   padding-top: 2px !important;
   padding-bottom: 6px !important;
   margin-bottom: 8px !important;
+}
+
+/* Top Defaulters polish (2026-11-13): compact the header so the Urdu
+   subtitle fits on one line. The h2 needs !important + the double-class
+   scope to beat the !important clamp in the ≤640px block; the subtitle
+   is a <span>, so display:block is what makes nowrap + ellipsis work. */
+.top-defaulters-modal .billing-modal-header h2 {
+  font-size: 16px !important;
+}
+
+.top-defaulters-modal .urdu-subtitle {
+  display: block;
+  max-width: 100%;
+  font-size: 13px;
+  direction: rtl;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Top Defaulters polish (2026-11-13): the 4 KPI cards form a compact
+   2×2 grid on phones (the base auto-fit rule yields 1 column at 360px). */
+@media (max-width: 640px) {
+  .defaulters-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+}
+
+/* Top Defaulters polish (2026-11-13): the area select spans both filter
+   columns — "All Areas / Mohallas" (20 chars) re-truncates in a 162px
+   half column, so the text-only change cannot fit on its own. */
+.defaulter-filter-grid .defaulter-select-box:first-child {
+  grid-column: 1 / -1;
+}
+
+/* Top Defaulters polish (2026-11-13): an open Actions drawer can never
+   eat more than ~45% of the dialog height — the sticky footer used to
+   let it grow to ~400px and cover the list. */
+.defaulters-actions-details[open] .footer-actions-left {
+  max-height: 45dvh;
+  overflow-y: auto;
 }
 
 .defaulter-filter-grid {
@@ -13118,10 +13311,35 @@ dialog.help-guide-modal::backdrop {
   color: #ffffff;
 }
 
+/* Top Defaulters polish (2026-11-13): the secondary row is one 3-column
+   grid so Waada / Contacted / Profile never wrap Profile onto a second
+   line; the three buttons share the Row 1 nowrap/ellipsis pattern. The
+   contact channel picker spans the full row when it opens. */
 .defaulter-card-actions-secondary {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 6px;
+}
+
+.defaulter-card-actions-secondary .defaulter-waada-btn,
+.defaulter-card-actions-secondary .defaulter-contact-btn,
+.defaulter-card-actions-secondary .defaulter-view-btn {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.8rem;
+  padding: 6px 4px;
+}
+
+.defaulter-card-actions-secondary .defaulter-contact-picker {
+  grid-column: 1 / -1;
+}
+
+/* Top Defaulters polish (2026-11-13): the Lock Due count must stay on
+   the same line as the label ("Lock Due (15th+) • 0" wrapped mid-label
+   in the 1fr Follow-up column). */
+.lock-due-toggle {
+  white-space: nowrap;
 }
 
 .defaulters-action-groups {
@@ -17243,7 +17461,7 @@ the same row; the dd becomes a flex row so the button never stretches. */
 .tx-search-row input[type="search"] { flex: 1 1 auto; min-width: 0; height: 44px; border: 1px solid #dce6e1; border-radius: 9px; background: #fff; padding: 0 11px; color: var(--ink); font: 500 16px 'DM Sans', sans-serif; }
 .tx-search-row input[type="search"]:focus { outline: 3px solid #cce9dd; border-color: #60a68d; }
 .tx-filters-toggle { flex: 0 0 auto; white-space: nowrap; }
-.tx-quick-pills { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.tx-quick-pills { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; padding-right: 16px; scrollbar-width: none; }
 .tx-quick-pills::-webkit-scrollbar { display: none; }
 .tx-pill { flex: 0 0 auto; min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line, #dfe8e3); background: #fff; color: var(--ink); font: 600 12px 'DM Sans', system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
 .tx-pill[aria-pressed="true"] { background: var(--ds-brand, #0e5b4d); border-color: var(--ds-brand, #0e5b4d); color: #fff; }
@@ -17335,4 +17553,52 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
   .customer-filter-panel .service-filter-toolbar .customer-filter-label { flex: 0 0 100%; }
   body[data-screen="customers"] main { padding-bottom: 0; }
   body[data-screen="customers"] .app-footer { border-top: 0; background: #f7faf8; }
+}
+
+/* More Tab Operational Registries polish: registry checkbox labels
+ * stack on phones because the global input rule (min-height 44px)
+ * makes each bare <label> a tall row. A flex row with an 18px box
+ * (the kist-form precedent) keeps label and box on one line. A
+ * distinct class (not the sibling item's) keeps the two parallel
+ * PRs from colliding on one selector. */
+.registry-check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.registry-check-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex-shrink: 0;
+}
+/* Registry creation forms collapse behind a <details> summary
+ * styled as a secondary button (the .defaulters-actions-details
+ * precedent): the summary text stays readable and the marker is
+ * hidden. */
+.registry-create-summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.registry-create-summary::-webkit-details-marker {
+  display: none;
+}
+/* Job-cost sheet buttons: five equal buttons in a 2-column grid
+ * (the .transaction-filter-actions <=620px precedent), so the
+ * sheet bar stays compact instead of a 5-button vertical stack. */
+.job-cost-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+.job-cost-actions .secondary-button {
+  min-height: 44px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }

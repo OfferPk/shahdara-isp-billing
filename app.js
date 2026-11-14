@@ -2346,6 +2346,11 @@ function renderDashboard() {
   // (paused:false with the stored dates passed back, which finalizes
   // pauseSkippedMonths in core) and copies ONE combined MikroTik enable
   // script built by the generator for exactly those customers.
+  // Sharafat 25: the boxes default UNCHECKED — a tap must never
+  // bulk-resume holds the operator never reviewed. Selections are NOT
+  // preserved across re-renders (the list is rebuilt by innerHTML on
+  // every renderDashboard call); that loss is accepted and documented
+  // in the PR body, not papered over with a module-level Set.
   const expiredHoldsSection = $('#expiredHoldsSection');
   if (expiredHoldsSection) {
     const expiredQueue = buildExpiredVacationHoldQueue(state.customers, localDate());
@@ -2356,7 +2361,7 @@ function renderDashboard() {
       const listEl = $('#expiredHoldsList');
       if (listEl) {
         listEl.setAttribute('aria-label', t('exphold_list_aria'));
-        listEl.innerHTML = expiredQueue.map((row) => `<li class="expired-hold-item"><label class="expired-hold-row"><input type="checkbox" class="expired-hold-check" data-expired-hold-id="${escapeHtml(String(row.id))}" checked aria-label="${escapeHtml(t('exphold_row_aria', null, { name: row.name }))}"><span class="expired-hold-main"><strong class="expired-hold-name" dir="auto">#${escapeHtml(String(row.customerNumber ?? ''))} ${escapeHtml(row.name)}</strong><span class="expired-hold-meta">${escapeHtml(t('exphold_row_meta', null, { start: row.pauseStartDate || '', resume: row.autoResumeDate || '' }))}</span></span></label></li>`).join('');
+        listEl.innerHTML = expiredQueue.map((row) => `<li class="expired-hold-item"><label class="expired-hold-row"><input type="checkbox" class="expired-hold-check" data-expired-hold-id="${escapeHtml(String(row.id))}" aria-label="${escapeHtml(t('exphold_row_aria', null, { name: row.name }))}"><span class="expired-hold-main"><strong class="expired-hold-name" dir="auto">#${escapeHtml(String(row.customerNumber ?? ''))} ${escapeHtml(row.name)}</strong><span class="expired-hold-meta">${escapeHtml(t('exphold_row_meta', null, { start: row.pauseStartDate || '', resume: row.autoResumeDate || '' }))}</span></span></label></li>`).join('');
       }
       const resumeBtn = $('#expiredHoldsResumeBtn');
       if (resumeBtn && !resumeBtn.dataset.wired) {

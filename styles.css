@@ -14629,11 +14629,18 @@ dialog.help-guide-modal::backdrop {
   margin: 0;
 }
 
-.customer-table-empty .reset-filter-btn {
+.customer-table-empty .reset-filter-btn,
+.customer-cards-empty-actions .reset-filter-btn {
   margin-top: 6px;
   padding: 8px 16px;
   min-height: 38px;
   cursor: pointer;
+}
+
+/* Sharafat 35: the cards-mode reset wrapper centres its button under the
+   centred empty-state text. Token-only rule — no colour, no hex. */
+.customer-cards-empty-actions {
+  text-align: center;
 }
 
 /* Daily Cash Closing & Till Reconciliation Modal Suite */

@@ -36,31 +36,38 @@ test('archive button visibility: Archive is a direct child of the action group, 
   assert.ok(!index.slice(paymentsAt, paymentsEnd).includes('id="archiveCustomerButton"'), 'Archive is not in the Payments category');
 });
 
-test('archive button visibility: Record + Archive share one grid row at phone widths — neither spans the full row', () => {
-  // The shortcut used to span the full row at every phone breakpoint;
-  // after this item no rule anywhere gives it grid-column:1/-1.
+test('archive button visibility: Record keeps its row at phone widths; Archive spans row 3 alone at ≤620px — neither Record nor the pair shares a row any more', () => {
+  // Profile View Polish (user report 2026-11-13): Delete leaves Row 1
+  // for the danger zone, so the five remaining buttons land 2+2 with
+  // Archive alone on row 3 — Archive now SPANS that row (the #1393
+  // "neither spans" pin was about Record, not Archive). The shortcut
+  // still never spans the full row at any phone breakpoint.
   assert.ok(!styles.includes('.current-payment-shortcut{grid-column:1/-1'), 'no rule spans Record payment full-width any more');
   assert.ok(!components.includes('.profile-action-group > .current-payment-shortcut'), '≤480px: Record payment is not in the spanning selector list');
-  // ≤800px rule keeps the 2-col grid + the stretched Delete button,
-  // minus the shortcut span.
-  assert.ok(styles.includes('@media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}.profile-action-group .text-button.danger{justify-self:stretch}}'), '≤800px rule drops the shortcut span');
+  // ≤800px rule keeps the 2-col grid; the stretched-Delete clause is
+  // dead once Delete leaves the group, so it is removed.
+  assert.ok(styles.includes('@media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}}'), '≤800px rule keeps the 2-col grid without the dead danger clause');
   // ≤620px rule (the block opening with .detail-head): the shortcut
-  // keeps its 48px height but loses the span.
+  // keeps its 48px height but loses the span; Archive takes the span.
   const block620At = styles.indexOf('@media(max-width:620px){.detail-head{margin-bottom:0}');
   assert.ok(block620At >= 0, '≤620px profile block exists');
   const block620 = styles.slice(block620At, styles.indexOf('\n', block620At));
   assert.ok(block620.includes('.profile-action-group .current-payment-shortcut{min-height:48px}'), '≤620px: Record payment keeps its 48px height');
   assert.ok(!block620.includes('.profile-action-group .current-payment-shortcut{grid-column:1/-1'), '≤620px: Record payment does not span the row');
+  assert.ok(block620.includes('.profile-action-group #archiveCustomerButton{grid-column:1/-1}'), '≤620px: Archive spans row 3 alone');
   assert.ok(components.includes('.profile-action-group > .backdated-payment-link'), '≤480px: the backdated link still spans');
   assert.ok(components.includes('.profile-action-group > .customer-technical-tools'), '≤480px: the technical tools still span');
   // The 2-column grid itself survives at every phone breakpoint, so
-  // the two buttons land side by side instead of stacking.
+  // the buttons land side by side instead of stacking.
   assert.ok(block620.includes('.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr))'), '≤620px grid stays 2-column');
   assert.ok(components.includes('.profile-action-group { grid-template-columns: repeat(2, minmax(0, 1fr)); }'), '≤480px grid stays 2-column');
 });
 
-test('archive button visibility: desktop grid is six columns — one per Row 1 button', () => {
-  assert.ok(styles.includes('.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto;'), 'desktop grid has six columns for Edit / Clear dues / Delete / Wada / Record payment / Archive');
+test('archive button visibility: desktop grid is five columns — one per Row 1 button', () => {
+  // Profile View Polish: Delete leaves Row 1, so the six-column grid
+  // from the Archive item drops back to five (Edit / Clear dues /
+  // Wada / Record payment / Archive). Archive's seat is unchanged.
+  assert.ok(styles.includes('.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto;'), 'desktop grid has five columns for Edit / Clear dues / Wada / Record payment / Archive');
 });
 
 test('archive button visibility: Record payment carries the inline-flex gap rule (icon-text gap fix)', () => {

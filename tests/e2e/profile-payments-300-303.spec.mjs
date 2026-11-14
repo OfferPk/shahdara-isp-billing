@@ -91,16 +91,18 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
     expect(errors).toEqual([]);
   });
 
-  test('#302: profile actions never clip at 1024 / 1280 / 1440; Record payment shares its row with Archive, half-width at 360px', async ({ page }) => {
+  test('#302: profile actions never clip at 1024 / 1280 / 1440; Record payment half-width, Archive on its own row 3 at 360px', async ({ page }) => {
     const { errors } = track(page);
     for (const width of [1024, 1280, 1440]) {
       await page.setViewportSize({ width, height: 800 });
       await openCustomer(page, 1);
-      // Profile Archive Button Visibility (user report 2026-11-13):
-      // Archive left More Actions > Payments for Row 1 beside Record
-      // payment, and Record payment no longer spans the full row —
-      // so the grid-measure below now also checks the two buttons
-      // share one row, with Record well under the full row width.
+      // Profile View Polish (user report 2026-11-13): Delete leaves
+      // Row 1 for the danger zone, so the five remaining buttons land
+      // 2+2 with Archive alone on row 3 at phone widths — Archive no
+      // longer shares Record's row. At desktop widths the row depends
+      // on the auto-fill grid, so this loop pins only no-clip,
+      // no-overlap and Record well under the full row width; the
+      // 360px pin below carries the row assertion.
       await page.locator('#profileMoreActionsDetails').evaluate(el => { el.open = true; });
       const r = await page.evaluate(() => {
         const g = document.querySelector('.profile-more-actions-grid');
@@ -119,8 +121,6 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
         return {
           clipped, overlaps,
           ratio: primary.width / group.width,
-          archiveSameRow: Math.abs(archive.top - primary.top) < 1,
-          archiveBeside: archive.left >= primary.right - 1,
           archiveOverlap: archive.left < primary.right - 1 && primary.left < archive.right - 1 && archive.top < primary.bottom - 1 && primary.top < archive.bottom - 1,
           nameLines: Math.round(name.height / parseFloat(getComputedStyle(document.getElementById('detailName')).lineHeight)),
         };
@@ -128,13 +128,12 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
       expect(r.clipped, `${width}`).toEqual([]);
       expect(r.overlaps, `${width}`).toBe(0);
       expect(r.ratio, `${width} Record no longer spans the row`).toBeLessThan(0.6);
-      expect(r.archiveSameRow, `${width} Archive shares Record's row`).toBe(true);
-      expect(r.archiveBeside, `${width} Archive sits beside Record`).toBe(true);
       expect(r.archiveOverlap, `${width} Archive does not overlap Record`).toBe(false);
       expect(r.nameLines, `${width} name`).toBeLessThanOrEqual(2);
     }
     // Half-width pin: at 360px the action group is two equal columns,
-    // so Record payment takes about half the row next to Archive.
+    // so Record payment takes about half the row next to Wada, and
+    // Archive sits alone on row 3, spanning the full row width.
     await page.setViewportSize({ width: 360, height: 800 });
     await openCustomer(page, 1);
     const phone = await page.evaluate(() => {
@@ -143,14 +142,14 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
       const archive = document.getElementById('archiveCustomerButton').getBoundingClientRect();
       return {
         ratio: primary.width / group.width,
-        archiveSameRow: Math.abs(archive.top - primary.top) < 1,
-        archiveBeside: archive.left >= primary.right - 1,
+        archiveBelowRecord: archive.top >= primary.bottom - 1,
+        archiveRatio: archive.width / group.width,
       };
     });
     expect(phone.ratio, '360px Record is about half the row').toBeGreaterThan(0.4);
     expect(phone.ratio, '360px Record is about half the row').toBeLessThan(0.6);
-    expect(phone.archiveSameRow, '360px Archive shares Record's row').toBe(true);
-    expect(phone.archiveBeside, '360px Archive sits beside Record').toBe(true);
+    expect(phone.archiveBelowRecord, '360px Archive sits on row 3 below Record').toBe(true);
+    expect(phone.archiveRatio, '360px Archive spans the full row').toBeGreaterThan(0.9);
     expect(errors).toEqual([]);
   });
 

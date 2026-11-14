@@ -7980,7 +7980,12 @@ function renderCustomerProfileView(customer) {
   // never wraps unpredictably above the Edit/QR/Print row. Same badge
   // set and labels as before; the row is omitted entirely when no badge
   // applies.
-  const headingBadgesHtml = `${profileServiceStatusPillHtml(serviceState)}${suspensionShieldBadgeHtml(customer, localDate())}${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${taggedFirstMonths(customer).map(tagged => `<span class="free-connection-badge">🔖 ${t('prof_first_month_free')} — ${escapeHtml(formatReceiptMonth(tagged.month) ?? tagged.month)}</span>`).join('')}${prepaidUntilBadgeHtml(state, customer)}${commercialVipBadgeHtml(customer)}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}`;
+  // Profile View Polish — the derived service-status pill lives in
+  // the header only now (the '● Active' badge in two places): the
+  // heading-badges row no longer repeats it. The Service section
+  // summary keeps its word-only pill (Polish C (15), deliberate) —
+  // that is the section's summary line, not a badge.
+  const headingBadgesHtml = `${suspensionShieldBadgeHtml(customer, localDate())}${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${taggedFirstMonths(customer).map(tagged => `<span class="free-connection-badge">🔖 ${t('prof_first_month_free')} — ${escapeHtml(formatReceiptMonth(tagged.month) ?? tagged.month)}</span>`).join('')}${prepaidUntilBadgeHtml(state, customer)}${commercialVipBadgeHtml(customer)}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}`;
   // Polish #28 Phase A — the profile view renders as 7 <details>
   // sections (Req 1: Customer Information, Service & Package, Financial
   // Details, Connection & Installation, Network Configuration, Hardware
@@ -8029,15 +8034,19 @@ function renderCustomerProfileView(customer) {
   // Financial section (field map item 63), not at the end of the whole
   // view, which would now put it after the closed History section.
   $('#customerProfileView').querySelector('[data-profile-section="financial"] .profile-section-body')?.insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
-  // Plan 512 — completion counter directly under the view heading it
-  // describes, not above it: the heading comes first, the counter
+  // Plan 512 — completion details directly under the view heading
+  // they describe, not above it: the heading comes first, the bar
   // second, over the PR #813 per-field-save controls.
-  // Profile Polish B (12) — the counter is a pill with a small
-  // colourful progress bar; the bar tone follows the same bands as
-  // the health colours (70%+ green, 40–69% yellow, below 40% red).
+  // Profile View Polish — the two progress rows merge into ONE
+  // collapsible bar: the fields-filled counter and the missing-fields
+  // checklist are a single <details> now (the old counter <p> and the
+  // checklist's own <section> are both gone). The bar is neutral
+  // slate/emerald at every percent — the red/yellow tone bands made a
+  // valid profile look broken. Core filled info (Package, Mohalla,
+  // Phone, Connection details) stays visible in the Info sections
+  // below; the bar collapses ONLY the missing-fields list.
   const completion = countProfileCompletion(customer);
   const completionBar = profileCompletionBar(completion.filled, completion.total);
-  $('#customerProfileView').querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', `<p class="profile-completion-counter"><span class="profile-completion-pill">${escapeHtml(completion.text)}</span><span class="profile-completion-bar" role="progressbar" aria-valuenow="${completionBar.percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeHtml(completion.text)}"><span class="profile-completion-fill profile-completion-fill-${completionBar.tone}" style="width:${completionBar.percent}%"></span></span></p>`);
   // Plan 363 — Missing-fields checklist: the counter says how many
   // fields are filled; this lists WHICH ones are still empty, by the
   // name the form itself shows, with a tap-to-jump action to each
@@ -8053,11 +8062,26 @@ function renderCustomerProfileView(customer) {
     const labelEl = document.getElementById(controlId)?.closest('.profile-field');
     missingFieldLabels[controlId] = labelEl ? profileFieldMainLabel(labelEl) : fieldKey;
   }
-  $('#customerProfileView').querySelector('.profile-completion-counter')?.insertAdjacentHTML('afterend', missingFieldsChecklistHtml(missingFields, missingFieldLabels, {
-    heading: t('prof_missing_fields_heading'),
+  const completionDetailsTitle = t('prof_completion_details_title', null, { filled: completion.filled, total: completion.total });
+  const completionShowMissing = missingFields.length ? t('prof_completion_show_missing', null, { count: missingFields.length }) : '';
+  const completionHideMissing = t('prof_completion_hide_missing');
+  $('#customerProfileView').querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', missingFieldsChecklistHtml(missingFields, missingFieldLabels, {
+    title: completionDetailsTitle,
+    showMissing: completionShowMissing,
+    hideMissing: completionHideMissing,
     allFilled: t('prof_missing_fields_all_filled'),
     total: completion.total,
+    filled: completion.filled,
+    percent: completionBar.percent,
   }));
+  // The summary's toggle label follows the open state (Show … ▾ when
+  // collapsed, Hide … ▴ when open); the jump handler below is
+  // unchanged — the merged <details> keeps the .mfc-checklist class.
+  const completionDetailsEl = $('#customerProfileView').querySelector('.profile-completion-details');
+  completionDetailsEl?.addEventListener('toggle', () => {
+    const toggleText = completionDetailsEl.querySelector('.profile-details-toggle-text');
+    if (toggleText) toggleText.textContent = completionDetailsEl.open ? `${completionHideMissing} ▴` : `${completionShowMissing} ▾`;
+  });
   $('#customerProfileView').querySelector('.mfc-checklist')?.addEventListener('click', (event) => {
     const button = event.target.closest('[data-missing-field]');
     if (!button) return;
@@ -9605,6 +9629,22 @@ function renderCustomerProfileView(customer) {
     const panel = $(`#${profileTabMap[tabName][1]}`);
     if (section && panel) panel.append(section);
   }
+  // Profile View Polish — the danger zone RETURNS at the bottom of
+  // the Info tab (deliberate reversal of Polish #24, same class as
+  // #1393's Archive move): Delete leaves the header action group so
+  // it no longer sits right beneath Edit. Appended AFTER the
+  // section-move loop, so it lands after History, the last Info
+  // section. The button keeps its id, classes, icon and label, so
+  // the e2e #293 shape (zone + 'Danger zone' heading + Delete inside)
+  // is satisfied; the binding is delegated on #customerProfileView
+  // (the module-level binding cannot survive the re-rendered node).
+  // Rendered with t() calls, not data-i18n — the static i18n pass
+  // never re-runs on innerHTML.
+  $('#customerProfileView').insertAdjacentHTML('beforeend', `<section class="profile-danger-zone" aria-label="${escapeHtml(t('prof_danger_zone_title'))}"><h4>${escapeHtml(t('prof_danger_zone_title'))}</h4><p>${escapeHtml(t('prof_danger_zone_help'))}</p><button id="deleteCustomerButton" class="text-button danger profile-action-btn profile-delete-btn" type="button"><span class="ds-action-icon" data-ds-icon="Trash2" aria-hidden="true"></span> <span>${escapeHtml(t('prof_action_delete'))}</span></button></section>`);
+  // The zone's Trash2 icon is rendered by this function's innerHTML,
+  // after the boot-time wireDsIcons() call, so it needs a re-wire
+  // here (idempotent: hooks already filled are skipped).
+  wireDsIcons();
 }
 function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];
@@ -9844,10 +9884,41 @@ function renderDetail() {
   // Profile redesign — the identity line under the name is phone-only
   // (Pucho + Profile Header Polish, D3); hidden when the phone is missing.
   const detailIdentityLineEl = document.querySelector('.detail-identity-line');
+  const identityLine = profileIdentityLine(customer);
   if (detailIdentityLineEl) {
-    const identityLine = profileIdentityLine(customer);
     detailIdentityLineEl.textContent = identityLine;
     detailIdentityLineEl.hidden = !identityLine;
+  }
+  // Profile View Polish — 1-tap Call / WhatsApp beside the phone
+  // line: the same contact targets the Contact group uses
+  // (contactActionTargets / whatsappPhoneFor — tel: keeps the saved
+  // number verbatim, wa.me only for a parseable Pakistani mobile, so
+  // an unparseable number renders a disabled WhatsApp button instead
+  // of a dead link). The buttons are siblings of the phone-only
+  // identity line, never inside its text (redesign:62 pins it
+  // phone-only); the wrapper hides with the line when no phone is
+  // recorded. Hrefs are set here, next to the identity-line write,
+  // which runs before renderCustomerProfileView.
+  const identityActionsEl = document.querySelector('.detail-identity-actions');
+  if (identityActionsEl) {
+    identityActionsEl.hidden = !identityLine;
+    const headerPhone = String(customer.phone ?? '').trim();
+    const headerWaPhone = whatsappPhoneFor(customer);
+    const headerPrimaryTargets = contactActionTargets(headerPhone);
+    const headerWaTargets = headerWaPhone === headerPhone ? headerPrimaryTargets : contactActionTargets(headerWaPhone);
+    const headerTel = headerPrimaryTargets?.tel ?? null;
+    const headerWhatsapp = headerWaTargets?.whatsapp ?? headerPrimaryTargets?.whatsapp ?? null;
+    const callButton = $('#profileCallButton');
+    if (callButton) {
+      if (headerTel) { callButton.href = headerTel; callButton.hidden = false; }
+      else callButton.hidden = true;
+    }
+    const waButton = $('#profileWhatsAppButton');
+    const waDisabledButton = $('#profileWhatsAppButtonDisabled');
+    if (waButton && waDisabledButton) {
+      if (headerWhatsapp) { waButton.href = headerWhatsapp; waButton.hidden = false; waDisabledButton.hidden = true; }
+      else { waButton.hidden = true; waDisabledButton.hidden = false; }
+    }
   }
   renderCurrentBillSummary(customer);
   renderCustomerProfileView(customer);
@@ -9889,6 +9960,45 @@ function renderDetail() {
   // receive payments (getCustomerPaymentDefaults throws), so the
   // button hides with the Archive button instead of failing on tap.
   $('#clearDuesButton').hidden = customer.archived;
+  // Profile View Polish — smart Clear dues state (parent decision
+  // (a)): when the FULL payable total is 0 the button reads
+  // '✓ All Dues Cleared' and is disabled, instead of opening a
+  // dialog that only toasts 'No dues to clear'. The trigger is
+  // payableTotal (bills + ticket + add-on + manual baqaya — the same
+  // figure the confirm dialog uses), NOT the displayed current-month
+  // net due: a customer can show Net due PKR 0 while ticket / add-on
+  // / baqaya charges still pend, and disabling on net-due-0 alone
+  // would strand those charges. The label swap moves the data-i18n
+  // key too, so a language toggle re-reads the right string; the
+  // else branch restores both on every render (the button node is
+  // static and persists across profile switches). A throw (other
+  // than archived, guarded above) leaves the button as-is.
+  if (clearDuesBtn && !customer.archived) {
+    let clearDuesPayable = null;
+    try {
+      clearDuesPayable = Number(getCustomerPaymentDefaults(state, customer.id, new Date(), loadTickets()).payableTotal) || 0;
+    } catch {
+      clearDuesPayable = null;
+    }
+    const clearDuesLabel = clearDuesBtn.querySelector('[data-i18n="prof_action_clear_dues"]') ?? clearDuesBtn.querySelector('[data-i18n="prof_action_dues_cleared"]');
+    if (clearDuesPayable === 0) {
+      clearDuesBtn.disabled = true;
+      clearDuesBtn.setAttribute('aria-disabled', 'true');
+      clearDuesBtn.classList.add('clear-dues-cleared');
+      if (clearDuesLabel) {
+        clearDuesLabel.setAttribute('data-i18n', 'prof_action_dues_cleared');
+        clearDuesLabel.textContent = t('prof_action_dues_cleared');
+      }
+    } else if (clearDuesPayable !== null) {
+      clearDuesBtn.disabled = false;
+      clearDuesBtn.removeAttribute('aria-disabled');
+      clearDuesBtn.classList.remove('clear-dues-cleared');
+      if (clearDuesLabel) {
+        clearDuesLabel.setAttribute('data-i18n', 'prof_action_clear_dues');
+        clearDuesLabel.textContent = t('prof_action_clear_dues');
+      }
+    }
+  }
   // SISP-8: vacation hold — edit fields + header badge (shown only while
   // a hold is active; skipped months stay visible in the profile view).
   const pauseSummary = pauseBillingSummary(customer);
@@ -14390,7 +14500,16 @@ $('#editCustomerNameBtn')?.addEventListener('click', () => {
   $('#customerProfileForm').hidden = false;
   jumpToProfileErrorTarget({ kind: 'field', id: 'profileNameInput' });
 });
-$('#deleteCustomerButton').addEventListener('click', async () => {
+// Profile View Polish — Delete lives in the danger zone at the
+// Info-tab bottom now (rendered by renderCustomerProfileView on
+// every render), so the binding is DELEGATED on #customerProfileView:
+// a load-time query would bind to a dead node (or null) and the tap
+// would do nothing. The handler body is verbatim (confirm text,
+// snapshot, purge, 5-second Undo); selectedCustomer() is read at
+// click time, so delegation is safe. One listener, no double-bind
+// risk across re-renders.
+$('#customerProfileView')?.addEventListener('click', async (event) => {
+  if (!event.target.closest('#deleteCustomerButton')) return;
   const customer = selectedCustomer();
   if (!customer) return;
   // Plan 33: deleting is owner-only.

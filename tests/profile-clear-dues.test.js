@@ -78,7 +78,7 @@ test('clear-dues defaults fold unpaid manual baqaya into the payable total', () 
   assert.equal(confirm.confirmLabel, 'Pay PKR 1,500');
 });
 
-test('clear-dues wiring is present: green button after Edit, i18n both languages, 6-column action group', () => {
+test('clear-dues wiring is present: green button after Edit, i18n both languages, 5-column action group', () => {
   const html = read('../index.html');
   assert.ok(html.indexOf('id="editProfileButton"') !== -1, 'Edit button exists');
   assert.ok(html.indexOf('id="clearDuesButton"') > html.indexOf('id="editProfileButton"'), 'Clear dues sits after Edit in Row 1');
@@ -89,12 +89,13 @@ test('clear-dues wiring is present: green button after Edit, i18n both languages
   assert.ok(language.includes("prof_action_clear_dues: 'Clear dues'"), 'EN label present');
   assert.ok(language.includes("prof_action_clear_dues: 'بقایا صاف کریں'"), 'UR label present');
   const styles = read('../styles.css');
-  // Profile Archive Button Visibility (user report 2026-11-13):
-  // Row 1 grows from five buttons to six (Edit / Clear dues / Delete
-  // / Wada / Record payment / Archive), so the grid grows from five
-  // columns to six — one column per Row 1 button. Without the sixth
-  // column Archive wraps alone onto row 2 at desktop widths.
-  assert.ok(styles.includes('.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto;'), 'action group has six columns for the six Row 1 buttons');
+  // Profile View Polish (user report 2026-11-13): Delete leaves the
+  // header action group for the danger zone at the bottom of the Info
+  // tab, so the grid drops from six columns back to five — one column
+  // per remaining Row 1 button (Edit / Clear dues / Wada / Record
+  // payment / Archive). (Archive #1393 had grown it from five to six;
+  // this item reverses that count, not Archive's seat.)
+  assert.ok(styles.includes('.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto;'), 'action group has five columns for the five Row 1 buttons');
 });
 
 test('profile tickets section does not shadow the i18n t with the ticket variable', () => {

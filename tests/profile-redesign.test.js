@@ -39,9 +39,15 @@ test('profile redesign: billing and actions sit inside the profile card; tabs an
   const cardEnd = index.indexOf('</section>', cardStart);
   assert.ok(cardEnd > cardStart, 'profile card section closes');
   const card = index.slice(cardStart, cardEnd);
-  for (const id of ['detailName', 'profileServiceStatusBadge', 'customerCurrentBillSummary', 'editProfileButton', 'deleteCustomerButton', 'archiveCustomerButton', 'profileMoreActionsDetails', 'customerTechnicalToolsDetails']) {
+  for (const id of ['detailName', 'profileServiceStatusBadge', 'customerCurrentBillSummary', 'editProfileButton', 'archiveCustomerButton', 'profileMoreActionsDetails', 'customerTechnicalToolsDetails']) {
     assert.ok(card.includes(`id="${id}"`), `${id} is inside the profile card`);
   }
+  // Profile View Polish (user report 2026-11-13): Delete leaves the
+  // card for the danger zone at the bottom of the Info tab — it is
+  // rendered by app.js into #customerProfileView, not static markup.
+  assert.ok(!card.includes('id="deleteCustomerButton"'), 'Delete is no longer inside the profile card');
+  assert.ok(app.includes('class="profile-danger-zone"'), 'the danger zone is rendered by app.js');
+  assert.ok(app.includes('id="deleteCustomerButton"'), 'Delete is rendered once inside the danger zone');
   const paneStart = index.indexOf('<section id="detailPane"');
   // The pane close is the </section> at the pane's own indent: the
   // first </section> after the pane open is the nested CARD close.
@@ -188,22 +194,24 @@ test('profile redesign: QA holds 29 tools under 6 chips with search, Recent and 
 // the user could not find it two taps deep. The D6 pins below (no +
 // New customer, Edit primary, Delete wired with confirm + 5s undo)
 // are unchanged.
-test('profile redesign: Row 1 is Edit, Clear dues, Delete, Wada, Record payment, Archive — no + New customer (D6, Profile Polish B (10), Archive Button Visibility)', () => {
+test('profile redesign: Row 1 is Edit, Clear dues, Wada, Record payment, Archive — no + New customer, Delete in the Info-tab danger zone (D6, Profile Polish B (10), Archive Button Visibility, Profile View Polish)', () => {
   assert.ok(!index.includes('profileNewCustomerButton'), 'no + New customer button in the profile markup');
   assert.ok(!app.includes('profileNewCustomerButton'), 'no + New customer wiring in app.js');
   const groupAt = index.indexOf('class="profile-action-group"');
   const editAt = index.indexOf('id="editProfileButton"', groupAt);
   const clearAt = index.indexOf('id="clearDuesButton"', groupAt);
-  const deleteAt = index.indexOf('id="deleteCustomerButton"', groupAt);
   const wadaAt = index.indexOf('id="topWadaButton"', groupAt);
   const recordAt = index.indexOf('id="currentBillPaymentShortcut"', groupAt);
   const archiveAt = index.indexOf('id="archiveCustomerButton"', groupAt);
-  assert.ok(editAt > groupAt && clearAt > editAt && deleteAt > clearAt && wadaAt > deleteAt && recordAt > wadaAt && archiveAt > recordAt, 'Row 1 order is Edit, Clear dues, Delete, Wada, Record payment, Archive');
+  assert.ok(editAt > groupAt && clearAt > editAt && wadaAt > clearAt && recordAt > wadaAt && archiveAt > recordAt, 'Row 1 order is Edit, Clear dues, Wada, Record payment, Archive');
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
   assert.ok(detailsAt > recordAt, 'the More actions disclosure still follows Row 1');
   assert.ok(archiveAt < detailsAt, 'Archive is up in Row 1 beside Record payment, ahead of the More actions disclosure');
   assert.ok(index.includes('id="editProfileButton" class="primary-button profile-action-btn profile-edit-button"'), 'Edit is the primary action');
-  assert.ok(app.includes("$('#deleteCustomerButton').addEventListener"), 'Delete is still wired with its confirm + 5s undo');
+  // Profile View Polish: Delete is delegated on #customerProfileView
+  // now (the zone node is re-rendered); the confirm + 5s undo body
+  // is unchanged.
+  assert.ok(app.includes("event.target.closest('#deleteCustomerButton')"), 'Delete is still wired with its confirm + 5s undo');
   assert.ok(profileCss.includes('.profile-delete-btn'), 'Delete keeps its destructive treatment');
 });
 
@@ -287,6 +295,11 @@ test('profile redesign: new i18n keys exist in English and Urdu; the dead New-cu
     'qa_chip_splicing', 'qa_chip_safety', 'qa_chip_service',
     'qa_recent_heading', 'qa_favorites_heading', 'qa_no_results',
     'prof_service_badge_derived_aria',
+    // Profile View Polish: the danger-zone + merged-details + smart
+    // Clear dues keys, in both dicts with Urdu script.
+    'prof_danger_zone_title', 'prof_danger_zone_help',
+    'prof_completion_details_title', 'prof_completion_show_missing',
+    'prof_completion_hide_missing', 'prof_action_dues_cleared',
   ];
   for (const key of keys) {
     assert.ok(lang.includes(`${key}:`), `${key} exists`);

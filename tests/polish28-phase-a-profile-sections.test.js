@@ -190,12 +190,12 @@ test('phase A membership: heading, quick actions and header strip stay above the
   }
 });
 
-test('phase A membership: the counter and checklist still sit directly under the heading', () => {
-  // Plan 512 anchors are untouched: counter after the heading, checklist
-  // after the counter — so the Req 1 order (heading → counter →
-  // checklist → quick actions → strip → sections) holds in the DOM.
-  assert.ok(appSrc.includes("querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', `<p class=\"profile-completion-counter\">"));
-  assert.ok(appSrc.includes("querySelector('.profile-completion-counter')?.insertAdjacentHTML('afterend', missingFieldsChecklistHtml("));
+test('phase A membership: the merged completion bar still sits directly under the heading', () => {
+  // Profile View Polish: the counter and checklist merged into ONE
+  // <details> — a single insertion under the heading, so the Req 1
+  // order (heading → completion bar → quick actions → strip →
+  // sections) holds in the DOM.
+  assert.ok(appSrc.includes("querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', missingFieldsChecklistHtml("));
 });
 
 // ------------------------------------------------------------ the appended items

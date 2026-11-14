@@ -143,7 +143,10 @@ test('money figures format min-0 decimals in PKR, and non-numbers are never zero
 // module stays on disk, unused) — only the wiring changed.
 test('the wiring no longer gates on the clean check — it confirms Delete/Cancel and warns of permanent full-history deletion', () => {
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-  const start = app.indexOf("$('#deleteCustomerButton').addEventListener");
+  // Profile View Polish: the handler is delegated on
+  // #customerProfileView now (the zone node is re-rendered), so the
+  // anchor is the delegation branch, not the module-level binding.
+  const start = app.indexOf("event.target.closest('#deleteCustomerButton')");
   assert.ok(start > 0, 'delete button handler exists');
   const body = app.slice(start, app.indexOf('\n});', start));
   assert.doesNotMatch(body, /window\.confirm\(/, 'delete must not use window.confirm');
@@ -168,7 +171,10 @@ test('the danger-zone help is gone — the popup warns of permanent full-history
   assert.ok(!lang.includes('Deletes this profile only when nothing is owed'), 'no danger-zone help remains in English');
   assert.ok(!lang.includes('صرف تب حذف ہوتی ہے جب کچھ واجب الادا نہ ہو'), 'no danger-zone help remains in Urdu');
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-  const start = app.indexOf("$('#deleteCustomerButton').addEventListener");
+  // Profile View Polish: the handler is delegated on
+  // #customerProfileView now (the zone node is re-rendered), so the
+  // anchor is the delegation branch, not the module-level binding.
+  const start = app.indexOf("event.target.closest('#deleteCustomerButton')");
   const body = app.slice(start, app.indexOf('\n});', start));
   assert.ok(body.includes('permanently deletes the profile and all of its history'), 'popup message warns the delete is permanent and takes the whole history');
   assert.ok(body.includes('Nothing is kept'), 'popup message says nothing is kept');

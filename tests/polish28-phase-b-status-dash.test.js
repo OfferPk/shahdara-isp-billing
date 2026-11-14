@@ -426,12 +426,18 @@ test('phase B summaries: S4, S5 and S6 dash their empty values', () => {
 
 // ------------------------------------------------------------ Req 4: the pill wiring
 
-test('phase B pill: the derived status pill is the FIRST badge in the heading badges row', () => {
+test('phase B pill: the derived status pill NO LONGER leads the heading badges row (Profile View Polish §1b)', () => {
+  // Profile View Polish (user report 2026-11-13): the badges-row
+  // service pill duplicated the header badge ("Active badge 2 jaggah")
+  // — the row drops it and the header badge is the one place. The
+  // derived state still renders there (badge class follows
+  // derivedServiceState.modifier) and as the word-only Service
+  // summary; profileServiceStatusPillHtml itself stays for that use.
   const badges = headingBadgesLine();
-  assert.ok(badges.startsWith('const headingBadgesHtml = `${profileServiceStatusPillHtml(serviceState)}'), 'the pill must lead the badges row');
-  assert.ok(badges.includes('${suspensionShieldBadgeHtml(customer, localDate())}'), 'the suspension shield still follows the pill');
+  assert.ok(!badges.includes('profileServiceStatusPillHtml'), 'no service pill in the badges row any more');
+  assert.ok(badges.startsWith('const headingBadgesHtml = `${suspensionShieldBadgeHtml(customer, localDate())}'), 'the suspension shield leads the row now');
   assert.ok(badges.includes('${prepaidUntilBadgeHtml(state, customer)}'), 'the other badges still follow the pill');
-  assert.ok(badges.indexOf('profileServiceStatusPillHtml') < badges.indexOf('suspensionShieldBadgeHtml'), 'the pill comes before every other badge');
+  assert.ok(badges.indexOf('suspensionShieldBadgeHtml') < badges.indexOf('prepaidUntilBadgeHtml'), 'the shield comes before the prepaid badge');
 });
 
 test('phase B pill: the badges row still omits itself when nothing applies (Plan 510)', () => {

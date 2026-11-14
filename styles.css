@@ -1436,7 +1436,7 @@ is only ~300px wide. */
    customer name, wrapping as pills — never beside the Edit/QR/Print row. */
 .profile-heading-badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-basis:100%}
 .profile-view-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;flex:1 1 100%}
-.profile-view-actions>button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:52px;padding:8px 4px;font-size:11px;line-height:1.2;text-align:center}
+.profile-view-actions>button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:52px;padding:10px 6px;font-size:0.75rem;line-height:1.2;text-align:center}
 .profile-readonly-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin:0}
 .profile-readonly-field{min-width:0;padding:9px 10px;border:1px solid #e3ebe7;border-radius:9px;background:var(--surface)}
 .profile-readonly-field dt{margin:0 0 4px;color:#5b7067;font-size:10px;font-weight:700}
@@ -1464,7 +1464,7 @@ is only ~300px wide. */
 }
 @media(max-width:620px){
   .current-bill-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .current-bill-stat:last-child{grid-column:1/-1}
+  .current-bill-stat:last-child:nth-child(odd){grid-column:1/-1}
   .current-bill-heading+.current-bill-grid .current-bill-stat:nth-child(n+5){grid-column:1/-1}
   .current-bill-stat{min-height:68px;padding:9px}
   .current-bill-stat>strong{font-size:13px}
@@ -1558,6 +1558,16 @@ is only ~300px wide. */
 .profile-identity-copy .eyebrow{margin:0 0 4px;color:#789087;font-size:9px}
 .detail-title-row h2{margin:0;color:#163d30;font:800 clamp(25px,3vw,34px)/1.08 'Manrope',system-ui,sans-serif;letter-spacing:-.8px;overflow-wrap:anywhere}
 .profile-status-stack{display:flex;flex-direction:column;align-items:flex-end;gap:7px;max-width:190px;min-width:0}
+/* Profile View Polish — 1-tap Call / WhatsApp beside the phone line:
+32px icon-only buttons in the identity copy, neutral secondary
+treatment from existing colours only (no new hex). The wrapper hides
+with the phone line when no phone is recorded; the WhatsApp anchor
+swaps for a disabled button when the number cannot do WhatsApp. */
+.detail-identity-actions{display:inline-flex;gap:6px;margin-top:6px}
+.detail-identity-actions[hidden]{display:none}
+.detail-identity-action{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid #d8e6de;border-radius:8px;background:#fff;color:#185641;text-decoration:none;cursor:pointer}
+.detail-identity-action:disabled{opacity:.45;cursor:not-allowed}
+.detail-identity-action .ds-action-icon svg{width:18px;height:18px}
 .profile-service-status,.archive-state-badge{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:30px;max-width:100%;padding:6px 10px;border:1px solid #d8e6de;border-radius:999px;background:#fff;color:#466357;font-size:10px;font-weight:800;line-height:1.25;text-align:center;overflow-wrap:anywhere}
 .profile-service-status::before{content:"";width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#81928a;box-shadow:0 0 0 3px #81928a20}
 .profile-service-status-active{border-color:#b7dfc4;background:#e9f7ed;color:#145b38}
@@ -1583,15 +1593,14 @@ used elsewhere in this sheet, so the §8.9 ratchet count does not move. */
 subtle muted dash, never as a loud missing-value warning. */
 .profile-empty-value{color:var(--muted)}
 .archive-state-badge{background:#f1f5f2;color:#536a60}
-/* Profile Archive Button Visibility (user report 2026-11-13):
-Archive leaves More Actions > Payments and joins Row 1 beside
-Record payment (Edit / Clear dues / Delete / Wada / Record payment /
-Archive) — the user could not find it two taps deep, so Polish B (10)
-is deliberately reversed here (see PR body). The base grid grows
-from five columns to six. The ≤800px and ≤620px rules already wrap
-the group into two columns: the six buttons land 3+3 there, Record
-payment and Archive sharing the last row, neither spanning. */
-.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto auto;align-items:center;gap:8px;margin-top:19px;padding-top:16px;border-top:1px solid #dce9e2}
+/* Profile View Polish (user report 2026-11-13): Delete leaves the
+header action group for the danger zone at the bottom of the Info
+tab, so the base grid drops from six columns to five — one per
+remaining Row 1 button (Edit / Clear dues / Wada / Record payment /
+Archive). The ≤800px and ≤620px rules already wrap the group into
+two columns: the five buttons land 2+2 with Archive alone on row 3,
+spanning it (see the ≤620px rule below). */
+.profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto auto;align-items:center;gap:8px;margin-top:19px;padding-top:16px;border-top:1px solid #dce9e2}
 .profile-action-group>button{min-height:44px;touch-action:manipulation;white-space:nowrap;min-width:0}
 /* LIVE FIX 1: every Row 1 button stays one line at the same 44px tap
 target — the Delete button used to wrap to two lines ("Delete /
@@ -1607,6 +1616,19 @@ shortcut only; the Wada tile button keeps its existing look. */
 .profile-action-group .secondary-button{min-height:44px}
 .profile-action-group .text-button.danger{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 10px;border:1px solid #edd8d2;border-radius:9px;background:#fffafa;font-size:11px;line-height:1.2;text-align:center;text-decoration:none;white-space:nowrap}
 .profile-action-group .text-button.danger:hover{border-color:#dca69a;background:#fff4f1;text-decoration:none}
+/* Profile View Polish — the danger zone returns at the bottom of the
+Info tab (deliberate reversal of Polish #24, same class as #1393's
+Archive move): Delete leaves the header action group so it no longer
+sits right beneath Edit. The zone button keeps Delete's id, classes,
+icon and label, and its 48px floor (e2e #293 / :28-33). */
+.profile-danger-zone{margin:18px 0 0;padding:14px;border:1px solid #edd8d2;border-radius:12px;background:#fffafa}
+.profile-danger-zone h4{margin:0 0 4px;color:#b91c1c;font-size:13px;font-weight:800}
+.profile-danger-zone p{margin:0 0 10px;color:#5b7067;font-size:12px;line-height:1.4}
+.profile-danger-zone .profile-delete-btn{min-height:48px}
+/* Profile View Polish — smart Clear dues state: when the full payable
+total is 0 the button reads '✓ All Dues Cleared' and is disabled, in
+a quiet treatment from existing colours only (no new hex). */
+.profile-action-group .clear-dues-cleared{background:#eef3f0;color:#536a61;border-color:#d8e6de}
 .customer-current-bill-summary{margin:17px 0 0;padding:16px 0 0;border:0;border-top:1px solid #dce9e2;border-radius:0;background:transparent}
 .current-bill-heading{margin-bottom:10px}
 .current-bill-heading h3{font-size:13px;letter-spacing:.1px}
@@ -1638,6 +1660,19 @@ majority is filled. */
 .profile-completion-fill-green{background:#5fa876}
 .profile-completion-fill-yellow{background:#e7c77e}
 .profile-completion-fill-red{background:#dc9478}
+/* Profile View Polish — the two progress rows merge into ONE
+collapsible bar: the fields-filled counter and the missing-fields
+list become a single <details> whose summary carries the count and a
+neutral slate/emerald bar (no red/yellow tone bands on this surface —
+a valid profile must not look broken). The bar uses NEW classes so
+the FORM bar (profile-ui.css, 6px, brand fill, redesign:250) is
+untouched; the old tone-fill rules above stay as dead CSS. */
+.profile-completion-details{margin:10px 0 0}
+.profile-details-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;cursor:pointer;font:700 13px Manrope,sans-serif;list-style:none}
+.profile-details-summary::-webkit-details-marker{display:none}
+.profile-details-summary .ds-action-icon svg{width:18px;height:18px}
+.profile-details-bar{display:inline-block;width:120px;height:8px;border-radius:999px;background:#eef3f0;overflow:hidden;vertical-align:middle}
+.profile-details-fill{display:block;height:100%;border-radius:999px;background:#5fa876}
 .mfc-count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:24px;padding:2px 8px;border:1px solid #dc9478;border-radius:999px;background:#fee2e2;color:#b91c1c;font-weight:700}
 .mfc-bar{display:inline-block;width:120px;height:8px;border-radius:999px;background:#eef3f0;overflow:hidden;vertical-align:middle;margin-left:8px}
 .mfc-bar-fill{display:block;height:100%;border-radius:999px}
@@ -1654,8 +1689,9 @@ palette. */
 Package, Last payment, Next due) render as pills, one colour each from
 the pill palette. The strip container keeps its inline style; only the
 stat cells become pills. */
-.phs-pill{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid;border-radius:999px}
+.phs-pill{display:flex;flex-direction:column;gap:2px;min-width:0;padding:8px 12px;border:1px solid;border-radius:12px}
 .phs-pill-dues{background:#fee2e2;color:#b91c1c;border-color:#dc9478}
+.phs-pill-dues-zero{background:var(--phs-dues-zero-bg);color:var(--color-emerald-dark);border-color:var(--phs-dues-zero-border)}
 .phs-pill-package{background:#e5efff;color:#174b87;border-color:#adc9f1}
 .phs-pill-last-payment{background:#dcfce7;color:#145b38;border-color:#5fa876}
 .phs-pill-next-due{background:#fef3c7;color:#704600;border-color:#e7c77e}
@@ -1666,8 +1702,8 @@ stat cells become pills. */
 .profile-tabs{margin:18px 0 12px;padding:4px;border-color:var(--ds-line);background:var(--ds-tabs-bg)}
 .profile-tab-button{min-height:44px}
 .profile-tab-button:focus-visible,.profile-action-group button:focus-visible,.back-button:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
-@media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}.profile-action-group .text-button.danger{justify-self:stretch}}
-@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr) auto;gap:13px;align-items:flex-start}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:9px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:190px;flex-flow:column;align-items:flex-end;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{min-height:48px}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:6px}.current-bill-stat{min-height:56px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.profile-tab-button{min-height:44px;padding:7px 6px}}
+@media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}}
+@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr) auto;gap:13px;align-items:flex-start}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:9px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:190px;flex-flow:column;align-items:flex-end;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{min-height:48px}.profile-action-group #archiveCustomerButton{grid-column:1/-1}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:6px}.current-bill-stat{min-height:56px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.profile-tab-button{min-height:44px;padding:7px 6px}}
 
 .receipt-whatsapp-action-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}.receipt-network-note{max-width:180px;color:var(--muted);font-size:9px;line-height:1.3;white-space:normal}
 

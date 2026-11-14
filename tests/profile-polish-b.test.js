@@ -43,15 +43,16 @@ const ui = read('profile-ui.js');
 
 // ------------------------------------------------------------ (10)
 
-test('Polish B (10): top action group holds Edit, Clear dues, Delete, Wada, Record payment, Archive — in that order, ahead of More actions', () => {
+test('Polish B (10): top action group holds Edit, Clear dues, Wada, Record payment, Archive — in that order, ahead of More actions; Delete lives in the Info-tab danger zone', () => {
   const groupAt = index.indexOf('class="profile-action-group"');
   assert.ok(groupAt >= 0, 'action group exists');
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
-  // Profile Archive Button Visibility (user report 2026-11-13):
-  // Archive joins Row 1 beside Record payment — the Polish B (10)
-  // seat (Archive down in More Actions > Payments) hid it two taps
-  // deep, so this order test now pins the sixth Row 1 button.
-  const order = ['editProfileButton', 'clearDuesButton', 'deleteCustomerButton', 'topWadaButton', 'currentBillPaymentShortcut', 'archiveCustomerButton'];
+  // Profile View Polish (user report 2026-11-13): Delete leaves the
+  // header action group for the danger zone at the bottom of the Info
+  // tab — it sat right beneath Edit, one accidental tap from wiping
+  // the profile and its whole history. The five remaining buttons
+  // keep their order; Delete is rendered by app.js, not index.html.
+  const order = ['editProfileButton', 'clearDuesButton', 'topWadaButton', 'currentBillPaymentShortcut', 'archiveCustomerButton'];
   let previousAt = groupAt;
   for (const id of order) {
     const at = index.indexOf(`id="${id}"`, groupAt);
@@ -62,6 +63,9 @@ test('Polish B (10): top action group holds Edit, Clear dues, Delete, Wada, Reco
   for (const id of order) {
     assert.strictEqual((index.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1, `exactly one ${id}`);
   }
+  assert.ok(!index.includes('id="deleteCustomerButton"'), 'Delete is not in the static action group any more');
+  assert.ok(app.includes('class="profile-danger-zone"'), 'app.js renders the danger zone');
+  assert.ok(app.includes('id="deleteCustomerButton"'), 'Delete is rendered once inside the danger zone');
 });
 
 test('Polish B (10): Archive is up in the header action group beside Record payment, NOT in the Payments section', () => {
@@ -125,57 +129,79 @@ test('Polish B (11): the four info-card colours are all different', () => {
 
 // ------------------------------------------------------------ (12)
 
-test('Polish B (12): completion bar tone follows the health bands — 70%+ green, 40–69% yellow, below 40% red', () => {
-  assert.deepEqual(profileCompletionBar(48, 68), { percent: 71, tone: 'green' });
-  assert.deepEqual(profileCompletionBar(7, 10), { percent: 70, tone: 'green' });
-  assert.deepEqual(profileCompletionBar(28, 68), { percent: 41, tone: 'yellow' });
-  assert.deepEqual(profileCompletionBar(4, 10), { percent: 40, tone: 'yellow' });
-  assert.deepEqual(profileCompletionBar(7, 68), { percent: 10, tone: 'red' });
-  assert.deepEqual(profileCompletionBar(0, 68), { percent: 0, tone: 'red' });
-  assert.deepEqual(profileCompletionBar(68, 68), { percent: 100, tone: 'green' });
-  assert.deepEqual(profileCompletionBar(70, 68), { percent: 100, tone: 'green' }, 'an over-filled count clamps to 100%');
-  assert.deepEqual(profileCompletionBar(NaN, 68), { percent: 0, tone: 'red' });
-  assert.deepEqual(profileCompletionBar(7, 0), { percent: 0, tone: 'red' });
-  assert.deepEqual(profileCompletionBar(undefined, undefined), { percent: 0, tone: 'red' });
+test('Polish B (12): completion bar percent math — neutral emerald fill, no tone bands any more', () => {
+  // Profile View Polish (user report 2026-11-13): the merged details
+  // bar is neutral slate/emerald at every percent — the old
+  // green/yellow/red tone bands made a valid sparse profile look
+  // broken, so profileCompletionBar drops the tone return. The
+  // percent/clamp math is unchanged.
+  assert.deepEqual(profileCompletionBar(48, 68), { percent: 71 });
+  assert.deepEqual(profileCompletionBar(7, 10), { percent: 70 });
+  assert.deepEqual(profileCompletionBar(28, 68), { percent: 41 });
+  assert.deepEqual(profileCompletionBar(4, 10), { percent: 40 });
+  assert.deepEqual(profileCompletionBar(7, 68), { percent: 10 });
+  assert.deepEqual(profileCompletionBar(0, 68), { percent: 0 });
+  assert.deepEqual(profileCompletionBar(68, 68), { percent: 100 });
+  assert.deepEqual(profileCompletionBar(70, 68), { percent: 100 }, 'an over-filled count clamps to 100%');
+  assert.deepEqual(profileCompletionBar(NaN, 68), { percent: 0 });
+  assert.deepEqual(profileCompletionBar(7, 0), { percent: 0 });
+  assert.deepEqual(profileCompletionBar(undefined, undefined), { percent: 0 });
 });
 
-test('Polish B (12): the counter renders as a pill with a progress bar, wired to the live counts', () => {
-  assert.ok(app.includes("const completion = countProfileCompletion(customer);"), 'the counter is computed once from the live record');
+test('Polish B (12): the counter and missing list merge into one collapsible details bar, wired to the live counts', () => {
+  // Profile View Polish: the old counter <p> and the checklist's own
+  // <section> are both gone — one <details class=
+  // "profile-completion-details mfc-checklist"> carries the title,
+  // the show-missing label and the neutral bar, with the jump list
+  // inside. The counts still come from the same live record.
+  assert.ok(app.includes('const completion = countProfileCompletion(customer);'), 'the counter is computed once from the live record');
   assert.ok(app.includes('profileCompletionBar(completion.filled, completion.total)'), 'the bar reads the same live counts');
-  assert.ok(app.includes('class="profile-completion-pill"'), 'the counter text sits in a pill');
-  assert.ok(app.includes('class="profile-completion-bar" role="progressbar"'), 'the bar is a progressbar');
-  assert.ok(app.includes('profile-completion-fill-${completionBar.tone}'), 'the fill takes the band tone');
-  assert.ok(app.includes('style="width:${completionBar.percent}%"'), 'the fill width is the live percent');
-  for (const cls of ['.profile-completion-pill', '.profile-completion-bar', '.profile-completion-fill-green', '.profile-completion-fill-yellow', '.profile-completion-fill-red']) {
+  assert.ok(app.includes("querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', missingFieldsChecklistHtml("), 'one merged bar is inserted under the heading');
+  assert.ok(app.includes('prof_completion_details_title'), 'the summary title is the new i18n key');
+  assert.ok(app.includes('prof_completion_show_missing'), 'the summary carries the show-missing label');
+  assert.ok(!app.includes('<p class="profile-completion-counter">'), 'the old counter <p> is gone from the view render');
+  assert.ok(!app.includes('profile-completion-fill-${completionBar.tone}'), 'no tone-banded fill any more');
+  for (const cls of ['.profile-completion-details', '.profile-details-summary', '.profile-details-bar', '.profile-details-fill']) {
     assert.ok(styles.includes(cls), `styles must define ${cls}`);
   }
 });
 
-test('Polish B (12): the missing-fields pill shows the plain count and a red/yellow bar of the missing share', () => {
+test('Polish B (12): the merged details bar shows the live title, the show-missing label and a neutral bar — no count pill, no red/yellow bar', () => {
+  // Profile View Polish: the checklist's own summary / count pill /
+  // red-yellow missing-share bar merge into the single bar. The pure
+  // helpers (missingProfileFields, isProfileFieldMissing) keep their
+  // behaviour; only the rendered shape changes.
   const labels = { a: 'Field A', b: 'Field B' };
-  const texts = { heading: 'Missing fields', allFilled: 'All fields filled', total: 68 };
+  const texts = {
+    title: 'Profile Details (7/68 filled)',
+    showMissing: 'Show 61 optional fields',
+    hideMissing: 'Hide optional fields',
+    allFilled: 'All fields filled',
+    total: 68, filled: 7, percent: 10,
+  };
   const mostlyMissing = missingFieldsChecklistHtml(
     Array.from({ length: 61 }, (_, i) => ({ controlId: `c${i}`, fieldKey: `f${i}` })),
     {}, texts,
   );
-  assert.ok(mostlyMissing.includes('<span class="mfc-count-pill">61</span>'), 'the pill shows the plain count 61');
+  assert.ok(mostlyMissing.includes('<details class="profile-completion-details mfc-checklist"'), 'the merged bar is one details');
+  assert.ok(mostlyMissing.includes('Profile Details (7/68 filled)'), 'the summary carries the live title');
+  assert.ok(mostlyMissing.includes('Show 61 optional fields ▾'), 'the summary carries the show-missing label');
+  assert.ok(mostlyMissing.includes('class="profile-details-bar"'), 'the bar is the neutral details bar');
+  assert.ok(mostlyMissing.includes('width:10%'), 'the bar width is the filled share');
+  assert.ok(!mostlyMissing.includes('mfc-count-pill'), 'no count pill any more');
+  assert.ok(!mostlyMissing.includes('mfc-bar-fill-red'), 'no red missing-share bar any more');
   assert.ok(!mostlyMissing.includes('Missing fields (61)'), 'no parens around the count any more');
-  assert.ok(mostlyMissing.includes('mfc-bar-fill-red'), '61 of 68 missing is a red bar');
-  assert.ok(mostlyMissing.includes('width:90%'), 'the bar width is the missing share');
   const mostlyFilled = missingFieldsChecklistHtml(
     [{ controlId: 'a', fieldKey: 'fa' }],
-    labels, texts,
+    labels, { ...texts, title: 'Profile Details (67/68 filled)', showMissing: 'Show 1 optional fields', percent: 99 },
   );
-  assert.ok(mostlyFilled.includes('<span class="mfc-count-pill">1</span>'), 'the pill shows the plain count 1');
-  assert.ok(mostlyFilled.includes('mfc-bar-fill-yellow'), '1 of 68 missing is a yellow bar');
-  assert.ok(mostlyFilled.includes('width:1%'), 'the bar width is the missing share');
-  const noTotal = missingFieldsChecklistHtml([{ controlId: 'a', fieldKey: 'fa' }], labels, { heading: 'Missing fields', allFilled: 'All fields filled' });
-  assert.ok(noTotal.includes('<span class="mfc-count-pill">1</span>'), 'the pill still shows without a total');
-  assert.ok(!noTotal.includes('mfc-bar'), 'no bar without a total');
+  assert.ok(mostlyFilled.includes('Show 1 optional fields ▾'), 'one missing field still shows its label');
+  assert.ok(mostlyFilled.includes('width:99%'), 'the bar width follows the filled share');
   const allFilled = missingFieldsChecklistHtml([], {}, texts);
   assert.ok(allFilled.includes('All fields filled'), 'a complete profile shows the all-filled line');
-  assert.ok(!allFilled.includes('mfc-count-pill'), 'no count pill when nothing is missing');
-  for (const cls of ['.mfc-count-pill', '.mfc-bar', '.mfc-bar-fill-red', '.mfc-bar-fill-yellow']) {
+  assert.ok(!allFilled.includes('Show 61 optional fields'), 'no show label when nothing is missing');
+  assert.ok(!allFilled.includes('data-missing-field'), 'no jump buttons when nothing is missing');
+  for (const cls of ['.mfc-list', '.mfc-jump', '.mfc-all-filled']) {
     assert.ok(styles.includes(cls), `styles must define ${cls}`);
   }
 });

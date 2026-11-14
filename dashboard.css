@@ -4692,6 +4692,16 @@
   opacity: 0.75;
   font-weight: 700;
 }
+/* Sharafat 21: "Showing 3 of N" note under the pills — a separate element
+   (the pills row never wraps), token-only, one short muted line. */
+.recent-payments-showing {
+  margin: 2px 0 0;
+  font: 600 11px 'DM Sans', system-ui, sans-serif;
+  color: var(--muted);
+}
+.recent-payments-showing[hidden] {
+  display: none;
+}
 /* Home Dashboard polish (§3): the row is a horizontal flex row —
    the profile button (name + Method • date) takes the remaining
    width, the right column stacks the amount above the compact

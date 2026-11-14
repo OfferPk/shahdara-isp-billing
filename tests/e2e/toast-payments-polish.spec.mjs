@@ -101,9 +101,9 @@ test.describe('Toast placement, toast types, payments list and customer polish',
       await expect(page.locator('#quickCollectModal')).toBeHidden();
     }
     await page.goto('/#/transactions');
-    const rows = page.locator('#transactionsList > .transaction-card');
+    const rows = page.locator('#transactionsList .transaction-card');
     await expect(rows).toHaveCount(9);
-    await expect(page.locator('#transactionsList > .tx-day-header').first()).toHaveText(/^Today · 9 payments · PKR 9,100 \(Cash 7,600, JazzCash 1,500\)$/);
+    await expect(page.locator('#transactionsList .tx-day-header').first()).toHaveText(/^Today · 9 payments · PKR 9,100 \(Cash 7,600, JazzCash 1,500\)$/);
     const vp = page.viewportSize();
     const heights = await rows.evaluateAll(els => els.map(e => e.getBoundingClientRect().height));
     for (const h of heights) expect(h).toBeLessThanOrEqual(72);

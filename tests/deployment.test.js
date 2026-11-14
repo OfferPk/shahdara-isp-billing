@@ -290,7 +290,13 @@ test('customer cards and profile summaries expose cumulative actual receipts and
   assert.match(app, /t\('prof_receipts_by_month'\)/); // phase 3: receipts-by-month heading renders via t()
   assert.match(index, /id="customerReceiptSummary"/);
   assert.match(styles, /@media\s*\(max-width:\s*620px\)\s*\{\s*\.detail-title-row\s*\{\s*display:\s*grid/);
-  assert.match(styles, /\.customer-card-stats/);
+  // Customers Cards Compact replaced the stat boxes with condensed
+  // pills in one row — Lifetime + tenure — so the stats rule is gone
+  // and the pill rules carry the same figures.
+  assert.ok(!styles.includes('.customer-card-stats'), 'stat-boxes rule is gone with the boxes');
+  assert.match(styles, /\.customer-card-pill-row/);
+  assert.match(styles, /\.customer-card-lifetime-pill/);
+  assert.match(styles, /\.customer-card-tenure-pill/);
   assert.match(styles, /\.receipt-month-list/);
 });
 

@@ -227,7 +227,11 @@ test('QC-6: render fills the rate, the definition line, the average and the day-
   assert.equal(doc.els['.qc6-rate-detail'].textContent, 'Collected PKR 3,301 of PKR 8,500 billed');
   assert.equal(doc.els['.qc6-avg'].textContent, 'PKR 866.83');
   assert.equal(doc.els['.qc6-avg-sub'].textContent, '3 customers visited today');
-  assert.equal(doc.els['.qc6-dod'].textContent, 'PKR 1,900.50 (+272%)');
+  // Collect Tab polish: the percent leaves the nowrap value (it
+  // clipped to "(+18...") and becomes a compact green badge under
+  // it — the value is PKR only, the badge carries the percent.
+  assert.equal(doc.els['.qc6-dod'].textContent, 'PKR 1,900.50');
+  assert.equal(doc.els['.qc6-dod-badge'].textContent, '+272%');
   assert.equal(doc.els['.qc6-dod-sub'].textContent, 'Today PKR 2,600.50 · Yesterday PKR 700');
 });
 
@@ -240,6 +244,9 @@ test('QC-6: render says plainly when there is no rate, no visits and no yesterda
   assert.equal(doc.els['.qc6-avg'].textContent, '—');
   assert.match(doc.els['.qc6-avg-sub'].textContent, /No visits yet/);
   assert.equal(doc.els['.qc6-dod'].textContent, '—');
+  // Collect Tab polish: with no yesterday the badge clears (its
+  // :empty rule hides it) instead of keeping a stale percent.
+  assert.equal(doc.els['.qc6-dod-badge'].textContent, '');
   assert.match(doc.els['.qc6-dod-sub'].textContent, /No collections yesterday/);
 });
 

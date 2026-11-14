@@ -89,6 +89,35 @@ test('polish: condensed pills replace the metrics boxes (same figures, pill geom
   );
 });
 
+test('polish: paid-up cards get their own ＋ Additional row; free/archived cards get no row at all', () => {
+  // Sharafat 28: the comment above additionalButton always promised the
+  // button "rides on its own compact row when paid up", but the template
+  // interpolated it ONLY inside the Outstanding row — a paid-up customer
+  // could only get an additional amount added from the profile. The row
+  // below restores the promised row. It is a plain customer-card-row
+  // (no new class — the compact pin forbids 'customer-card-additional-row'),
+  // it reuses additionalButton as-is, and it is gated on canAddPending
+  // so FREE/archived cards render NO row at all (not an empty 8px row).
+  const paidUpAt = card.indexOf('canAddPending && outstanding.totalCents === 0');
+  assert.ok(paidUpAt > -1, 'paid-up branch exists in the card template');
+  const paidUpBranch = card.slice(paidUpAt, card.indexOf('customer-card-actions'));
+  assert.ok(paidUpBranch.includes('${additionalButton}'), 'the paid-up row interpolates the Additional button');
+  assert.ok(paidUpBranch.includes('canAddPending'), 'the paid-up row is gated on canAddPending');
+  assert.ok(paidUpBranch.includes('<span class="customer-card-row">'), 'the paid-up row reuses the plain row class, no new class');
+  assert.ok(!paidUpBranch.includes('customer-card-additional-row'), 'no new row class name');
+  // In the paid-up branch totalCents === 0 implies manualBaqayaCents is 0
+  // (billDuesCents only sums balanceDueCents > 0), so additionalButton
+  // always renders the ＋ Additional label here, never the ✎ edit glyph.
+  assert.ok(card.includes("outstanding.manualBaqayaCents > 0 ? '✎' : escapeHtml(t('addpend_add'))"), 'the button shows ＋ Additional when no baqaya is owed, ✎ only next to a breakdown');
+  // The Outstanding row keeps the button too (baqaya-owed cards are
+  // unchanged): the button still lives inside the totalCents > 0 branch.
+  const outstandingBranch = card.slice(card.indexOf('${outstanding.totalCents > 0 ?'), paidUpAt);
+  assert.ok(outstandingBranch.includes('${additionalButton}'), 'baqaya-owed cards keep the button on the Outstanding row');
+  // FREE/archived: additionalButton is '' via canAddPending, and the row
+  // itself is gated on canAddPending — no empty row is rendered for them.
+  assert.ok(card.includes('const canAddPending = !archived && customer.isFreeConnection !== true;'), 'canAddPending hides the control for FREE/archived cards');
+});
+
 test('polish: the action row is the only new control — no service toggle', () => {
   // REVERSAL (Customers Cards Compact §3): the old "no new control"
   // rule is retired on purpose — the card now ends in an action row
@@ -98,7 +127,9 @@ test('polish: the action row is the only new control — no service toggle', () 
   // seat (now a span with role=button in the header, not a button),
   // and the three action-row controls. No service toggle ever.
   // Pre-existing buttons only: the whole card is one open button (PR
-  // #1334 design), the outstanding row keeps its ＋ Add amount button,
+  // #1334 design), the outstanding row keeps its ＋ Add amount button
+  // (Sharafat 28: the button ALSO rides on its own compact row when the
+  // customer is paid up — same additional-pending-btn, same allowlist),
   // archived cards keep their unarchive button. Unpaid Cards adds the
   // green Clear dues seat in the header pill's seat (D-B1).
   const buttonClasses = [...card.matchAll(/<button[^>]*class="([^"]*)"/g)].map(m => m[1]);

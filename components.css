@@ -3298,6 +3298,41 @@ button.expense-roznamcha-badge {
   cursor: pointer;
 }
 .roster-pill:hover { background: var(--surface-soft); }
+/* Sharafat 31: the removable global-query chip — the roster-effective
+   global filter made visible. Token-only, same vocabulary as .roster-pill. */
+.global-search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.global-search-chip[hidden] { display: none; }
+.global-search-chip-query {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.global-search-chip-remove {
+  flex: 0 0 auto;
+  min-width: 28px;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.global-search-chip-remove:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 .roster-pill[aria-pressed="true"] {
   background: var(--green);
   border-color: var(--green-dark);

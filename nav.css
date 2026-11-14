@@ -590,8 +590,12 @@ body.drawer-open {
   min-height: 40px !important;
 }
 
+/* Transactions & Recent Receipts Polish §5: the visible button is
+   semi-transparent (0.85, was 1) so it never fully covers amounts
+   and pills underneath it; geometry stays Pucho §4's (above the
+   speed-dial trigger). */
 .scroll-top-button.is-visible {
-  opacity: 1;
+  opacity: 0.85;
   pointer-events: auto;
 }
 
@@ -749,6 +753,31 @@ body:has(.mobile-speed-dial.is-open) #scrollTopButton {
   gap: 6px;
   flex-wrap: wrap;
   width: 100%;
+}
+
+/* Sidebar drawer polish: Mode + Backup live in their own row under the
+   icon tools (footer is already column flex), so the wide text buttons
+   never squeeze the 36px icon row. */
+.nav-drawer-footer-mode-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.nav-drawer-footer-mode-row > * {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 36px;
+}
+/* The Mode toggle carries flex: none + 18px text from its toggle rule
+   (components.css, loaded after nav.css, same specificity), so the row
+   rule above loses the tie for it: this higher-specificity override
+   puts it back on an equal share, at the row's 11px text size. The
+   Install button is a third equal share whenever the PWA prompt logic
+   unhides it (nav-pwa.js unhides it on any non-installed visit). */
+.nav-drawer-footer-mode-row > .field-mode-toggle-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 11px;
 }
 
 .nav-drawer-shortcuts-btn {
@@ -7056,11 +7085,43 @@ body {
 
 .pending-actions-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 16px 20px 12px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border-color, #e2e8f0);
   background: var(--bg-muted, #f8fafc);
+  /* Compression: the header is a flex-column child of the modal card — it
+     must never give up height to the scrolling list (same pattern as the
+     toolbar below). */
+  flex-shrink: 0;
+}
+
+/* Pending Actions Center compression: deliberate modal-local deviation
+   from the universal 48px red close rule (components.css:1720,
+   styles.css:14872) — the universal rule is NOT changed. Mirrors the
+   Quick Collect Cash precedent (styles.css:9475). Recorded in the PR
+   body: QC's effective close is 36px (a later rule, styles.css:10134),
+   this one is 32px. */
+#pendingActionsModal #closePendingActionsModalBtn {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  border-radius: 50% !important;
+  background: var(--color-neutral-100, #f0f4f2) !important;
+  color: var(--ink) !important;
+  font-size: 16px !important;
+  flex-shrink: 0 !important;
+}
+
+/* Compression: the app-wide `dialog header` rule (styles.css,
+   <=640px) forces 4px/8px padding + flex-start with !important on
+   every <header> inside a <dialog> — the single 48px row needs this
+   modal-scoped !important override to win it. The universal rule is
+   NOT changed. */
+#pendingActionsModal .pending-actions-header {
+  padding: 8px 12px !important;
+  align-items: center !important;
 }
 
 .pending-actions-header-info {
@@ -7081,14 +7142,17 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  /* Compression: the title + badge stay on one row — the header is a
+     single 48px row, so nothing here may wrap. */
+  flex-wrap: nowrap;
 }
 
 .pending-actions-title-row h2 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-color, #0f172a);
+  white-space: nowrap;
 }
 
 .pending-total-badge {
@@ -7098,10 +7162,37 @@ body {
   border-radius: 12px;
   background: #ef4444;
   color: #ffffff;
+  /* Compression: the badge is a bare count ([29]) on the single 48px
+     header row — it must never wrap to a second line (a wrapped badge
+     grows the title row to 40px and the header to 57px). */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pending-total-badge.badge-success {
   background: #10b981;
+}
+
+/* Compression: the Copy icon is a [data-ds-icon] hook wired by wireDsIcons
+   at a fixed 20px — the 48px header needs it at 16px. */
+#pendingActionsModal .pending-header-icon-btn [data-ds-icon] svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Compression: below ~373px viewport the header components (title
+   120px + badge 32px + Copy ~102px + close 32px + gaps + padding)
+   total ~326px, but the modal content is only 314px wide at 360px
+   (the app-wide dialog padding leaves 290px after header padding) —
+   the "Copy List" label physically cannot fit, and the Copy button
+   overlaps the count badge by ~12px. So on small phones the button
+   degrades to its icon alone (its aria-label "Copy action list" stays,
+   and the i18n text span is only hidden, never removed). Above 380px
+   the full label shows — at 381px it fits with ~8px to spare. */
+@media (max-width: 380px) {
+  #pendingActionsModal .pending-header-icon-btn [data-i18n] {
+    display: none;
+  }
 }
 
 .pending-actions-toolbar {
@@ -7124,6 +7215,11 @@ body {
   -webkit-overflow-scrolling: touch;
   /* Pills fix: the row keeps its height in the flex-column card. */
   flex-shrink: 0;
+  /* Compression (D2): the row wraps at ALL widths now, not just <=480px.
+     A scrollable strip would clip the pills at the right edge again and
+     would fail the e2e pills pin (rowScrollWidth - rowClientWidth <= 1);
+     full labels stay readable instead. */
+  flex-wrap: wrap;
 }
 
 .pending-actions-tabs::-webkit-scrollbar {
@@ -7150,6 +7246,13 @@ body {
      ("All Pend" / "WhatsAp" / "Promi" / "Offlin"). A pill never shrinks
      now — if labels ever overflow the row again, it scrolls instead. */
   flex-shrink: 0;
+}
+
+/* Compression: the receipts-tab icon is a [data-ds-icon] hook wired at a
+   fixed 20px — the pills need it at 14px. */
+.pending-actions-tab [data-ds-icon] svg {
+  width: 14px;
+  height: 14px;
 }
 
 .pending-actions-tab:hover {
@@ -7181,8 +7284,10 @@ body {
    "💾 Offline Queue") must all be readable at once — no mid-word
    truncation and no hidden horizontal scroll. The row wraps instead of
    scrolling, with slightly tighter pills and toolbar padding so the
-   widest pill still fits a 320px phone. Desktop/tablet are untouched:
-   above 480px the row keeps its single-line scroll behaviour. */
+   widest pill still fits a 320px phone. Compression (D2): the wrap now
+   applies at ALL widths (see the base .pending-actions-tabs rule) — the
+   <=480px block below only keeps the tighter pills and toolbar padding;
+   desktop/tablet pills wrap too instead of scrolling. */
 @media (max-width: 480px) {
   .pending-actions-toolbar {
     padding: 12px;
@@ -7200,7 +7305,7 @@ body {
 
 .pending-actions-quick-tools {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -7208,15 +7313,37 @@ body {
   background: var(--bg-muted, #f1f5f9);
   border: 1px solid var(--border-color, #cbd5e1);
   color: var(--text-color, #334155);
-  padding: 6px 12px;
+  padding: 0 10px;
   border-radius: 8px;
-  font-size: 0.82rem;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  min-height: 36px;
+  /* Compression: compact 34px chips on one wrapping row (three buttons
+     total ~438px at 360px, so they land on TWO rows — ~50px saved, not
+     the ~100px a forced single row would need; labels are not cut to
+     stubs to force one row). */
+  min-height: 34px;
+  height: 34px;
+  white-space: nowrap;
+}
+
+/* Compression: the app-wide `button:not([hidden])` rule (styles.css)
+   floors EVERY button at 44px with !important — the 34px bulk chips
+   need this modal-scoped !important override. The class is used only
+   by these three buttons, in this modal. */
+#pendingActionsModal .btn-tool-secondary {
+  min-height: 34px !important;
+  height: 34px !important;
+}
+
+/* Compression: the Clear icon is a [data-ds-icon] hook wired at a fixed
+   20px — the 34px bulk chips need it at 14px. */
+.pending-actions-quick-tools [data-ds-icon] svg {
+  width: 14px;
+  height: 14px;
 }
 
 .btn-tool-secondary:hover {
@@ -7307,6 +7434,15 @@ body {
   padding: 2px 8px;
   border-radius: 8px;
   text-transform: uppercase;
+}
+
+/* Compression: the Receipt icon inside the badge is an inline dsIcon
+   (12px attributes) — belt-and-braces sizing so it never renders at
+   the 20px wireDsIcons default. */
+.pending-card-badge svg {
+  width: 12px;
+  height: 12px;
+  vertical-align: -2px;
 }
 
 .pending-card-badge.badge-receipt {
@@ -7408,6 +7544,45 @@ body {
   justify-content: center;
   gap: 4px;
   text-decoration: none;
+}
+
+/* Compression: the phone icon + number never split across lines — the
+   whole span moves to line 2 intact (beats the parent meta line's
+   overflow-wrap: anywhere). */
+.pending-actions-modal .pending-phone-nowrap {
+  white-space: nowrap;
+}
+
+/* Compression (§3): receipt-card actions on ONE row — [Mark Shared]
+   left, [Send WhatsApp] right. Scoped to receipt cards ONLY: promise
+   cards keep wrap (up to 4 buttons). The 38px min-height below restates
+   the spec's row height — components.css pins these buttons at 36px
+   and loads after nav.css, so the base 38px above would not win. */
+.pending-card-receipt .pending-card-actions {
+  flex-wrap: nowrap;
+  margin-top: 8px;
+}
+
+.pending-card-receipt .pending-mark-shared-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.pending-card-receipt .pending-wa-btn {
+  flex: 1.4 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  /* Scoped to .pending-wa-btn only — the promise card's Collect Cash
+     button also uses .btn-primary and keeps its teal. */
+  background: var(--ds-brand, #0F5338);
+}
+
+.pending-card-receipt .pending-card-actions button {
+  /* The app-wide `button:not([hidden])` rule (styles.css) floors every
+     button at 44px with !important — the spec's 38px row needs the
+     !important here, or the row measures 44px. */
+  min-height: 38px !important;
 }
 
 .btn-primary {

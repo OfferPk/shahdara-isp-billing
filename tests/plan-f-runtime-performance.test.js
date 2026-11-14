@@ -246,7 +246,18 @@ test('renderTransactions performs no roster scan per visible row', () => {
 
 test('renderTransactions builds its rows from paged.items only', () => {
   const fn = extractFunction(app, 'renderTransactions');
-  assert.match(fn, /paged\.items\.map\(transaction\s*=>/);
+  // Collect Tab polish: the row callback is the named renderFeedRow
+  // now (the feed wraps it in day-group <details> accordions), so
+  // the pin matches the named calls instead of the inline arrow.
+  // The invariant is unchanged: rows are built from paged.items
+  // only — the day groups come from groupByDay(paged.items) and the
+  // flat path maps paged.items itself, never the full list. (The
+  // full-list groupByDay(transactions) above is the day HEADER
+  // totals, which must scan the full list — unchanged.)
+  assert.match(fn, /groupByDay\(paged\.items\)/);
+  assert.match(fn, /dayTxs\.map\(renderFeedRow\)/);
+  assert.match(fn, /paged\.items\.map\(renderFeedRow\)/);
+  assert.doesNotMatch(fn, /transactions\.map\(renderFeedRow\)/);
 });
 
 test('renderCustomers builds active cards from paged.items only', () => {

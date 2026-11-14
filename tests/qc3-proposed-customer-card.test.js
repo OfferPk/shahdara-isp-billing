@@ -176,7 +176,7 @@ test('pool entries carry monthlyPackage, callHref and mapsUrl from the customer 
 
 // --- Pins: the QC picker cards -------------------------------------------
 
-test('picker cards show Outstanding once, from the customer figures', () => {
+test('picker cards show the dues figure once, without the Outstanding label', () => {
   const cards = cardSegments(renderQuickCollectPickerHtml(cardState(), '', 'all-dues').html);
   const byName = {};
   for (const c of cards) byName[c.name] = c;
@@ -184,18 +184,19 @@ test('picker cards show Outstanding once, from the customer figures', () => {
   // QC Modal Overhaul 2: the Monthly package column is GONE from the
   // modal card — the dues badge is the one place the figure appears,
   // and the column cost a full KPI row per card. The dues figure
-  // stays, fully labelled; no second figure, no guessed amount for
+  // stays, now without its label; no second figure, no guessed amount for
   // an unpriced customer. Field Mode keeps its monthly figure.
   assert.ok(!byName['Priced Pinned'].html.includes('Monthly package'), 'the monthly figure must be gone from the modal card');
   assert.ok(!byName['Priced Pinned'].html.includes('qc3-package-val'), 'the monthly figure cell must be gone from the modal card');
   assert.ok(byName['Priced Pinned'].html.includes('PKR 3,000'), 'the dues figure must stay, in the badge');
   assert.ok(byName['Priced No Pin'].html.includes('PKR 1,500'), 'the dues figure must stay for the no-pin card');
-  assert.ok(byName['Catalogue Priced'].html.includes('PKR 2,000'), 'the dues figure must stay for the catalogue card');
-  assert.ok(byName['Unpriced'].html.includes('Outstanding'), 'the outstanding column must be labelled on every card');
-  assert.ok(byName['Priced Pinned'].html.includes('Outstanding'), 'the outstanding column must be labelled too');
+  // QC True 1-Row Tightening (item A): the "Outstanding" label node
+  // is deleted — the dues figure appears exactly once, unlabelled.
+  assert.ok(!byName['Unpriced'].html.includes('Outstanding'), 'the Outstanding label must be gone from every card');
+  assert.ok(!byName['Priced Pinned'].html.includes('Outstanding'), 'the Outstanding label must be gone from the pinned card too');
 });
 
-test('picker cards carry Call / Location / Collect — real links when the data exists', () => {
+test('picker cards carry Call / Map / Collect — real links when the data exists', () => {
   const cards = cardSegments(renderQuickCollectPickerHtml(cardState(), '', 'all-dues').html);
   const byName = {};
   for (const c of cards) byName[c.name] = c;

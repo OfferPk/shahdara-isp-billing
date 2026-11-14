@@ -4328,6 +4328,19 @@ function renderCustomers() {
     emptySearch.textContent = unifiedEmptyText || (customerQuery.trim() || customerAreaFilter !== 'all' ? t('cust_no_matching') : t('cust_no_match_filters'));
     emptySearch.hidden = active.length > 0 || archived.length > 0;
   }
+  // Sharafat 31: the global query is the roster-effective filter whenever the
+  // list box is blank — show it as a removable chip so the operator can see
+  // (and clear) the otherwise invisible filter. The list box wins over the
+  // global query, so the chip shows only when the list box is blank and the
+  // global query is non-empty. The query text goes through textContent, never
+  // innerHTML, so user-typed text can never inject markup.
+  const globalSearchChip = $('#globalSearchChip');
+  if (globalSearchChip) {
+    const listQueryBlank = $('#customerListSearch').value.trim() === '';
+    const globalQuery = searchQuery().trim();
+    globalSearchChip.hidden = !(listQueryBlank && globalQuery !== '');
+    if (!globalSearchChip.hidden) $('#globalSearchChipQuery').textContent = globalQuery;
+  }
   document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.customerServiceFilter === selectedServiceFilter ? 'true' : 'false'));
   document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.customerBillingFilter === selectedBillingFilter ? 'true' : 'false'));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
@@ -12960,7 +12973,27 @@ $('#customerSearchField')?.addEventListener('change', (event) => {
   customerSearchField = picked === UNIFIED_IDENTIFIER_FIELD_ID ? UNIFIED_IDENTIFIER_FIELD_ID : normalizeCustomerSearchField(picked);
   customerCurrentPage = 1; renderCustomers();
 });
-$('#clearCustomerListSearch').addEventListener('click', () => { $('#customerListSearch').value = ''; renderCustomers(); $('#customerListSearch').focus(); });
+$('#clearCustomerListSearch').addEventListener('click', () => {
+  // Sharafat 31: Clear must also clear the global query when (and only when)
+  // it is the active roster filter — the list box is blank and the global box
+  // is typed. Otherwise customerListQuery() falls back to the still-typed
+  // global value and the roster stays filtered with no indication why. The
+  // gate matters: with a global query typed for Transactions / the monthly
+  // report, clearing only the list box must leave that filter alone.
+  const globalIsActiveFilter = $('#customerListSearch').value.trim() === '' && searchQuery().trim() !== '';
+  $('#customerListSearch').value = '';
+  if (globalIsActiveFilter) {
+    $('#globalCustomerSearch').value = '';
+    renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport();
+  } else {
+    renderCustomers();
+  }
+  $('#customerListSearch').focus();
+});
+// Sharafat 31: the chip's × clears the global query exactly like
+// #clearGlobalSearch — the full four-call mirror, not just the box —
+// and returns focus to the list box.
+$('#clearGlobalSearchChip')?.addEventListener('click', () => { $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#customerListSearch').focus(); });
 $('#globalCustomerSearch').addEventListener('input', () => { renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });
 $('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });

@@ -375,6 +375,20 @@ export function sortCustomerRoster(customers, { sortBy = 'number-asc', billingMo
       }
       case 'package-asc':
         return String(a.packageSpeed || '').localeCompare(String(b.packageSpeed || ''));
+      // Sharafat 29: the header toggle produces package-desc on a second
+      // Plan click, but until now no case handled it — it fell through to
+      // the default number-asc sort while the header showed ▼.
+      case 'package-desc':
+        return String(b.packageSpeed || '').localeCompare(String(a.packageSpeed || ''));
+      // Sharafat 29: received-asc is select-only (no Received column, so
+      // no header produces it). It calls the same getCustomerTotalCollections
+      // the received-desc case uses, so it inherits Sharafat 27's
+      // voided-excluding shared reduce automatically.
+      case 'received-asc': {
+        const recA = getCustomerTotalCollections(a);
+        const recB = getCustomerTotalCollections(b);
+        return recA - recB;
+      }
       default:
         return (Number(a.customerNumber) || 0) - (Number(b.customerNumber) || 0);
     }

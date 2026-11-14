@@ -243,11 +243,21 @@ test('i18n audit: every t() call in the module and every xest data-i18n hook in 
   }
 });
 
-test('wiring: dashboard section, dialog, app.js setup, token-only CSS, build-graph seam', async () => {
+test('wiring: inline estimator in the module, app.js setup, token-only CSS, build-graph seam', async () => {
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  // Area & Mohalla Analytics compact module (Nov 2026): the
+  // estimator left its dialog — the section, open button, modal
+  // and close button are gone, and the same 14-field form +
+  // results live inline in the module's third tab (Expansion
+  // Planner). The field and result ids are unchanged.
+  assert.ok(index.includes('id="areaAnalyticsModule"'), 'module exists');
+  assert.ok(index.includes('id="areaAnalyticsTabPlanner"'), 'estimator lives in the module planner tab');
+  assert.ok(!index.includes('id="expansionEstimatorSection"'), 'old estimator section is gone');
+  assert.ok(!index.includes('id="expansionEstimatorModal"'), 'old estimator dialog is gone');
+  assert.ok(!index.includes('id="expansionEstimatorOpenBtn"'), 'old estimator open button is gone');
+  assert.ok(!index.includes('id="expansionEstimatorCloseBtn"'), 'old estimator close button is gone');
   for (const id of [
-    'expansionEstimatorSection', 'expansionEstimatorOpenBtn', 'expansionEstimatorModal',
-    'expansionEstimatorCloseBtn', 'xestSubscribersInput', 'xestDropMetersInput',
+    'xestSubscribersInput', 'xestDropMetersInput',
     'xestFeederMetersInput', 'xestBoxesInput', 'xestPolesInput', 'xestSplicingJobsInput',
     'xestDropPriceInput', 'xestFeederPriceInput', 'xestBoxPriceInput', 'xestPolePriceInput',
     'xestSplicingPriceInput', 'xestMonthlyFeeInput', 'xestConnectionFeeInput', 'xestMonthlyOpexInput',
@@ -257,17 +267,21 @@ test('wiring: dashboard section, dialog, app.js setup, token-only CSS, build-gra
   ]) {
     assert.ok(index.includes(`id="${id}"`), `index.html carries #${id}`);
   }
-  assert.ok(index.includes('class="icon-button modal-close-btn"'), 'shared close-button design');
-  assert.ok(index.includes('aria-controls="expansionEstimatorModal"'), 'open button controls the dialog');
 
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.ok(app.includes("from './expansion-estimator.js'"), 'app.js imports the estimator');
-  assert.ok(app.includes('setupExpansionEstimatorModal(() => state)'), 'app.js sets the dialog up');
+  assert.ok(app.includes('setupExpansionEstimatorInline(() => areaModuleState)'), 'app.js sets the inline estimator up from the first dashboard render');
+  assert.ok(!app.includes('setupExpansionEstimatorModal'), 'no modal setup remains');
 
   const css = readFileSync(new URL('../components.css', import.meta.url), 'utf8');
   const block = css.slice(css.indexOf('SISP-135'));
   assert.ok(block.includes('.xest-grid'), 'estimator styles shipped');
-  assert.ok(block.includes('var(--modal-surface)'), 'dialog card uses the modal surface token');
+  // Area & Mohalla Analytics compact module (Nov 2026): the
+  // dialog is gone, so the modal-surface pin is replaced by the
+  // module's own token-only compact rules (primary button on the
+  // brand token, white label).
+  assert.ok(block.includes('#areaAnalyticsModule .mohalla-card-collect--primary'), 'compact card primary button shipped');
+  assert.ok(block.includes('var(--ds-brand)'), 'primary button uses the brand token');
   assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(block), 'SISP-135 styles use theme tokens only, no hex');
 
   assert.ok(!ENTRY_FILES.includes('expansion-estimator.js'), 'not an entry file — the 25-file budget seam');

@@ -340,7 +340,7 @@ import { INFO_CARD_VARIANTS, normalizeInfoCardVariant, buildInfoCard, infoCardSe
 import { STATUS_REPLY_VARIANTS, normalizeStatusReplyVariant, buildStatusReply, statusReplySentText, logStatusReplySent, findStatusReplySends, statusReplyHtml } from './status-reply.js';
 import { buildMorningQueue, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
 import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
-import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
+import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardEquationHtml, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
 import { buildPrecloseSweep, precloseSweepSummaryText, precloseSweepHtml, precloseSweepCsv, precloseSweepFilename, validSweepMonth } from './preclose-sweep.js';
 import { validSnapshotMonth, normalizeSnapshotList, findSnapshot, takeSnapshot, removeSnapshot, snapshotSummaryText, snapshotHtml, snapshotCsv, snapshotFilename, compareSnapshots, compareSnapshotsSummaryText, compareSnapshotsHtml, compareSnapshotsCsv } from './month-snapshots.js';
 import { validAnnualYear, monthsOfYear, buildAnnualSummary, annualSummaryText, annualSummaryHtml, annualSummaryCsv, annualSummaryFilename } from './annual-summary.js';
@@ -21550,7 +21550,7 @@ function renderRollForward() {
       // are untouched — only the display is normalised.
       const displayRows = rows.map((row) => ({ ...row, mohalla: canonicalMohalla(row.mohalla)?.label ?? row.mohalla }));
       bodyEl.innerHTML = rollForwardTableHtml(displayRows);
-      if (summaryEl) summaryEl.textContent = rollForwardSummaryText({ ...totals, month });
+      if (summaryEl) summaryEl.innerHTML = rollForwardEquationHtml({ ...totals, month });
     }
   }
   if (!rollForwardBound) {

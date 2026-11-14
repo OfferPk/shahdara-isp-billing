@@ -290,3 +290,54 @@ test('pills: 2×2 grid of two-line cards, 32px count pills, half the height', ()
   assert.ok(media.includes('.roster-pill-row {'), 'row must go full-width at phone widths');
   assert.ok(media.includes('flex: 1 1 100%'), 'groups must take the full bar width');
 });
+
+// --- Sharafat 33: archived panel follows the view mode ----------------------
+
+test('archived panel: table mode renders archived rows, cards mode renders cards (Sharafat 33)', () => {
+  // The new container lives inside the archived panel, next to the <ul>,
+  // with ids distinct from the active table's (integrity pin).
+  assert.ok(html.includes('id="archivedCustomerTableWrap"'), 'archived table wrap must exist');
+  assert.ok(html.includes('id="archivedCustomerTable"'), 'archived table must exist');
+  assert.ok(html.includes('id="archivedCustomerTableBody"'), 'archived tbody must exist');
+  assert.ok(html.includes('<div id="archivedCustomerTableWrap" class="customer-table-wrap" hidden>'), 'archived wrap must start hidden (cards is the default mode)');
+  const panelAt = html.indexOf('id="archivedCustomersPanel"');
+  assert.ok(panelAt >= 0, 'archived panel must exist');
+  assert.ok(html.indexOf('id="archivedCustomerTableWrap"') > panelAt, 'archived table must live inside the archived panel');
+  assert.ok(html.indexOf('id="archivedCustomerTableWrap"') < html.indexOf('id="archivedPagination"', panelAt), 'archived table must sit between the <ul> and the pagination');
+
+  // Static headers: no data-sort-cust, no sort icons — the header-click
+  // handler wires every [data-sort-cust] in the document, and the
+  // archived rows follow the global sort set by the main table /
+  // dropdown, so a sortable-looking archived header would be a dead
+  // control. The whole-index sync pin (billing-tables.test.js) still
+  // sees exactly the 5 active-table fields.
+  const wrapAt = html.indexOf('id="archivedCustomerTableWrap"');
+  const tableEnd = html.indexOf('</table>', wrapAt);
+  const archivedTable = html.slice(wrapAt, tableEnd);
+  assert.ok(!archivedTable.includes('data-sort-cust'), 'archived headers must carry no data-sort-cust');
+  assert.ok(!archivedTable.includes('sort-icon'), 'archived headers must carry no sort icons');
+  assert.ok(archivedTable.includes('class="customer-roster-table"'), 'archived table must reuse the roster table styling');
+  assert.ok(archivedTable.includes('<span data-i18n="cust_th_customer">Customer</span>'), 'archived thead must keep the Customer header');
+  assert.ok(archivedTable.includes('<span data-i18n="cust_th_action">Action</span>'), 'archived thead must keep the Action header');
+
+  // renderCustomers branches the archived block on the view mode.
+  // Slice the archived block only (up to the retention-view comment):
+  // the active-table branch above it also mentions the view mode.
+  const blockAt = appSrc.indexOf('const archivedPaged = archivedRosterPage(');
+  assert.ok(blockAt >= 0, 'archived block must exist in renderCustomers');
+  const blockEnd = appSrc.indexOf('// Plan Y: retention view', blockAt);
+  assert.ok(blockEnd > blockAt, 'retention view comment must follow the archived block');
+  const archivedBlock = appSrc.slice(blockAt, blockEnd);
+  assert.ok(archivedBlock.includes("customerViewMode === 'table'"), 'archived block must branch on the view mode');
+  assert.ok(archivedBlock.includes('renderCustomerTableRowMarkup(customer, { selectedCustomerId, selectedBillingMonth, allocations: healthAllocations, archived: true })'), 'table mode must render archived rows with archived: true');
+  assert.ok(archivedBlock.includes('archivedTableBody.innerHTML = archivedPaged.items.map'), 'table mode must render into the archived tbody');
+  assert.ok(archivedBlock.includes('customerCardMarkup(customer, true, healthAllocations)'), 'cards mode must keep rendering archived cards');
+  assert.ok(archivedBlock.includes('archivedList.hidden = true'), 'table mode must hide the archived <ul>');
+  assert.ok(archivedBlock.includes('archivedTableWrap.hidden = archivedPaged.items.length === 0'), 'an empty archived pool must hide the table wrap instead of rendering the empty markup (its reset button id would duplicate the active table\'s)');
+  // The unarchive ACTION is pinned, not a panel re-render:
+  // restoreCustomer does not call renderCustomers(), so the panel
+  // refreshes only on the next render — the test pins the click wiring.
+  assert.ok(archivedBlock.includes("archivedTableBody.querySelectorAll('[data-unarchive-customer]')"), 'table rows must wire the unarchive control');
+  assert.ok(archivedBlock.includes('restoreCustomer(button.dataset.unarchiveCustomer)'), 'the unarchive control must call restoreCustomer with the row id');
+  assert.ok(!archivedBlock.includes("archivedTableBody.querySelectorAll('[data-card-collect]')"), 'archived table rows must not wire Collect (disabled on archived cards by D-B4)');
+});

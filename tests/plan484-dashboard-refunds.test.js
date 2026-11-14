@@ -156,7 +156,7 @@ test('refunds this month wiring: the strip sits on the billing dashboard after t
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="refundsSection"'), 'refunds section exists');
   assert.ok(page.indexOf('id="refundsSection"') > page.indexOf('id="creditBalancesSection"'), 'strip follows the credit-balances total');
-  assert.ok(page.indexOf('id="refundsSection"') < page.indexOf('id="collectionForecastSection"'), 'strip sits before the forecast section');
+  assert.ok(page.indexOf('id="refundsSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'strip sits before the matrix section');
   assert.ok(page.includes('id="rfdRefundTotal"'), 'refund total element exists');
   assert.ok(page.includes('id="rfdRefundLine"'), 'count line element exists');
   assert.ok(page.includes('id="rfdRefundEmpty"'), 'empty state element exists');

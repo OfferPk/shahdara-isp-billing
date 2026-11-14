@@ -210,6 +210,14 @@
   --qc-indigo-text: #4338ca;
   --qc-purple-bg: #f5f3ff;
   --qc-purple-text: #6d28d9;
+  /* Top Defaulters chart risk colours (2026-11-13 polish): --td-risk-*
+     names keep the TD chart independent of QC internals. The moderate
+     pair replaces the green gradient the spec flags as misleading for
+     overdue debt; critical red and high orange already match the spec. */
+  --td-risk-critical: #EF4444;
+  --td-risk-high: #F97316;
+  --td-risk-moderate: #F59E0B;
+  --td-risk-moderate-deep: #D97706;
 }
 
 [data-theme="dark"] {

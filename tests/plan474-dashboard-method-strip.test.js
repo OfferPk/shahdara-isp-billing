@@ -201,7 +201,7 @@ test('method strip wiring: the strip sits on the billing dashboard after the ove
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="methodStripSection"'), 'method strip section exists');
   assert.ok(page.indexOf('id="methodStripSection"') > page.indexOf('id="overdueListSection"'), 'strip follows the overdue list');
-  assert.ok(page.indexOf('id="methodStripSection"') < page.indexOf('id="collectionForecastSection"'), 'strip sits before the forecast section');
+  assert.ok(page.indexOf('id="methodStripSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'strip sits before the matrix section');
   assert.ok(page.includes('id="dmsMethodTotal"'), 'day total element exists');
   assert.ok(page.includes('id="dmsMethodLine"'), 'count line exists');
   assert.ok(page.includes('id="dmsMethodRows"'), 'rows element exists');

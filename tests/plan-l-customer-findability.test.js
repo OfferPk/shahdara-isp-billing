@@ -16,6 +16,7 @@ import {
   groupAreasWithCounts,
 } from '../form-validation.js';
 import { identitySearchMatches } from '../core.js';
+import { canonicalMohalla } from '../phase3.js';
 
 // Plan L — Customer findability (folds in CP-05, CP-09).
 //
@@ -172,9 +173,10 @@ test('no-area filter: all and named areas still behave exactly as before', () =>
 test('no-area filter: the helper does not exclude archived customers (callers filter active, as before)', () => {
   const archivedBlank = { id: 'a-arch', mohalla: '', archived: true };
   assert.deepEqual(filterCustomersByArea([archivedBlank], NO_AREA_FILTER_VALUE).map((c) => c.id), ['a-arch']);
-  // The roster count is active-only because renderCustomers builds
-  // its options from active customers — the same input the named
-  // areas are counted from.
+  // Sharafat 34: the helper stays pool-agnostic — it returns the archived
+  // blank customer here. The "No area set" option count in renderCustomers
+  // is still the ACTIVE count only; only the named-area options are now
+  // counted from the full roster.
   assert.deepEqual(
     filterCustomersByArea([archivedBlank].filter((c) => !c.archived), NO_AREA_FILTER_VALUE),
     [],
@@ -195,6 +197,75 @@ test('groupAreasWithCounts still skips blank areas (dashboard cards unchanged by
     { value: 'BARRIAN', count: 2, label: 'BARRIAN (2)' },
     { value: 'BANII', count: 1, label: 'BANII (1)' },
   ]);
+});
+
+// Sharafat 34 — the area dropdown is built from the FULL roster (active +
+// archived), so an area that exists only among archived customers still
+// appears. The "No area set" count stays active-only. The options builder
+// below mirrors renderCustomers' call-site accessors exactly (canonical
+// key + canonical label, so the option values read 'Barrian' / 'Thali').
+const sharafat34Roster = [
+  { id: 's34-barrian-1', mohalla: 'BARRIAN' },
+  { id: 's34-barrian-2', mohalla: 'BARRIAN' },
+  { id: 's34-barrian-arch', mohalla: 'BARRIAN', archived: true },
+  { id: 's34-thali-arch', mohalla: 'THALI', archived: true },
+  { id: 's34-blank', mohalla: '' },
+  { id: 's34-blank-arch', mohalla: '', archived: true },
+];
+const sharafat34AreaOptions = (customers) => groupAreasWithCounts(
+  customers,
+  (c) => (c.mohalla || c.area || '').trim(),
+  (raw) => canonicalMohalla(raw)?.key ?? raw.toLowerCase(),
+  (raw) => canonicalMohalla(raw)?.label ?? raw,
+);
+
+test('Sharafat 34: an area present only on archived customers appears in the full-roster options', () => {
+  const options = sharafat34AreaOptions(sharafat34Roster);
+  assert.deepEqual(options, [
+    { value: 'Barrian', count: 3, label: 'Barrian (3)' },
+    { value: 'Thali', count: 1, label: 'Thali (1)' },
+  ]);
+  // The pre-34 input (active customers only) had no Thali option at all
+  // and counted Barrian as 2 — that is the gap this task closes.
+  const activeOnly = sharafat34AreaOptions(sharafat34Roster.filter((c) => !c.archived));
+  assert.deepEqual(activeOnly, [{ value: 'Barrian', count: 2, label: 'Barrian (2)' }]);
+});
+
+test('Sharafat 34: renderCustomers builds its area options from the full roster, not active only', () => {
+  const app = readRepoFile('app.js');
+  assert.ok(app.includes('groupAreasWithCounts(state.customers,'), 'options are built from state.customers');
+  assert.ok(!app.includes('groupAreasWithCounts(activeCustomers,'), 'no active-only options build remains');
+});
+
+test('Sharafat 34: an archived-only area filters the archived panel and nothing else', () => {
+  const filtered = filterCustomersByArea(sharafat34Roster, 'THALI');
+  assert.deepEqual(filtered.map((c) => c.id), ['s34-thali-arch']);
+  // The same split renderCustomers runs after the filter: the active panel
+  // is empty for this area, the archived panel holds the one customer.
+  assert.deepEqual(filtered.filter((c) => !c.archived), []);
+  assert.deepEqual(filtered.filter((c) => c.archived).map((c) => c.id), ['s34-thali-arch']);
+});
+
+test('Sharafat 34: active results for a mixed area are unchanged and the no-area count stays active-only', () => {
+  const filtered = filterCustomersByArea(sharafat34Roster, 'BARRIAN');
+  assert.deepEqual(
+    filtered.filter((c) => !c.archived).map((c) => c.id),
+    ['s34-barrian-1', 's34-barrian-2'],
+  );
+  // The "No area set" option is still counted from the active pool only:
+  // the archived blank-area customer never inflates it.
+  const noAreaCount = sharafat34Roster
+    .filter((c) => !c.archived)
+    .filter((c) => !(c.mohalla || c.area || '').trim()).length;
+  assert.equal(noAreaCount, 1);
+});
+
+test('Sharafat 34: selecting an archived-only area does not trip the reset guard', () => {
+  const allAreaOptions = sharafat34AreaOptions(sharafat34Roster);
+  // The guard resets customerAreaFilter to 'all' only when the current
+  // value is not among the options — Thali is a valid option now.
+  assert.ok(allAreaOptions.some((option) => option.value === 'Thali'));
+  assert.ok(!allAreaOptions.some((option) => option.value === 'nowhere'));
 });
 
 test('buildMohallaUserCounts still counts no-mohalla customers nowhere (dashboard unchanged)', () => {

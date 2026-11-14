@@ -4091,15 +4091,25 @@ export const TRANSLATIONS = {
     qc2_priority_medium: 'Medium priority',
     qc2_priority_low: 'Low priority',
     qc2_tier_multi_month: '2+ months arrears',
+    // QC True 1-Row Tightening (item A): the modal-only SHORT
+    // multi-month chip label — the shared qc2_tier_multi_month value
+    // above stays for Field Mode, which renders the same map.
+    qc2_tier_multi_month_short: '2+ mos arrears',
     qc2_tier_long_overdue: '90+ days overdue',
     // QC Modal Fix: the tag on a card whose dues reach the High
     // filter threshold — it says why a Medium-scored card sits in
     // the High ≥ 2k filter, without changing the scorer's badge.
-    qc2_high_balance: 'High balance ≥2k',
+    // QC True 1-Row Tightening (item A): shortened to the bare
+    // threshold so the chips row fits one line.
+    qc2_high_balance: '≥2k',
     // QC-3: proposed customer card — Outstanding vs Monthly package
     // figures, and the Call / Location / Collect action row.
     qc3_call: 'Call',
     qc3_location: 'Location',
+    // QC True 1-Row Tightening (item A): the modal-only SHORT
+    // Location label ('Map') — the shared qc3_location value above
+    // stays for Field Mode, which renders the same key.
+    qc3_location_short: 'Map',
     qc3_collect: 'Collect',
     qc3_monthly_package: 'Monthly package',
     qc3_outstanding: 'Outstanding',
@@ -8761,13 +8771,21 @@ export const TRANSLATIONS = {
     qc2_priority_medium: 'درمیانی ترجیح',
     qc2_priority_low: 'کم ترجیح',
     qc2_tier_multi_month: 'دو ماہ یا زیادہ کا بقایا',
+    // QC True 1-Row Tightening (item A): modal-only SHORT label —
+    // the shared value above stays for Field Mode (see the EN block).
+    qc2_tier_multi_month_short: '2+ ماہ بقایا',
     qc2_tier_long_overdue: 'نوے دن سے زیادہ تاخیر',
-    qc2_high_balance: 'زیادہ بقایا ≥2k',
+    // QC True 1-Row Tightening (item A): shortened to the bare
+    // threshold so the chips row fits one line.
+    qc2_high_balance: '≥2k',
     // QC-3: proposed customer card — Outstanding vs Monthly package
     // figures, and the Call / Location / Collect action row
     // (see the EN block above).
     qc3_call: 'کال',
     qc3_location: 'لوکیشن',
+    // QC True 1-Row Tightening (item A): modal-only SHORT label —
+    // the shared value above stays for Field Mode (see the EN block).
+    qc3_location_short: 'نقشہ',
     qc3_collect: 'وصول کریں',
     qc3_monthly_package: 'ماہانہ پیکیج',
     qc3_outstanding: 'بقایا',
@@ -9577,8 +9595,10 @@ export const VISIBLE_TEXT_UR = {
   'Filters & sort': 'منتخب و ترتیب',
   '⚙ Filters & sort ↓': '⚙ منتخب و ترتیب ↓',
   'Bulk Collect Cash': 'یکمشت نقد وصولی',
-  'many payments in one batch': 'کئی ادائیگیاں ایک بیچ میں',
-  'Bulk Collect Cash many payments in one batch': 'یکمشت نقد وصولی — کئی ادائیگیاں ایک بیچ میں',
+  // QC True 1-Row Tightening (item A): the 'many payments in one
+  // batch' subtitle is deleted from the Bulk Collect open button
+  // (icon + title only), so its two map keys go with it — the
+  // button text is now just 'Bulk Collect Cash' (key above).
   'High ≥ 2k': 'زیادہ ≥ 2k',
   'Set packages & monthly fee': 'پیکیج اور ماہانہ فیس مقرر کریں',
   "Generate this month's bills": 'اس مہینے کے بل بنائیں',

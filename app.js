@@ -4597,7 +4597,7 @@ function editCustomerPhoneFromReceipt(customerId) {
   const phoneInput = $('#phoneInput');
   phoneInput.focus();
   phoneInput.scrollIntoView({ behavior:'smooth', block:'center' });
-  toast('Edit this customer’s international WhatsApp number, then select Save profile.');
+  toast('Edit this customer’s international WhatsApp number, then tap Save beside the number.');
 }
 function bindReceiptPhoneActions(container) {
   container.querySelectorAll('[data-edit-receipt-phone]').forEach(button => button.addEventListener('click', () => editCustomerPhoneFromReceipt(button.dataset.editReceiptPhone)));
@@ -13982,6 +13982,41 @@ async function saveProfileField(control, button, labelText) {
       const detailNameEl = $('#detailName');
       if (detailNameEl) detailNameEl.textContent = displayCustomerName(saved, currentAppLanguage());
     }
+    // Profile Number Field at Top (item C) — the per-field save
+    // deliberately does not re-render (Plan 516), so a phone save must
+    // refresh the header identity line AND the Call/WhatsApp actions
+    // here, mirroring renderDetail's block: without it the line keeps
+    // the old number and the buttons keep dialling the old number. The
+    // rest of the header must not re-render on a per-field save (Plan 516).
+    if (saved && entry.key === 'phone') {
+      const detailIdentityLineEl = document.querySelector('.detail-identity-line');
+      const identityLine = profileIdentityLine(saved);
+      if (detailIdentityLineEl) {
+        detailIdentityLineEl.textContent = identityLine;
+        detailIdentityLineEl.hidden = !identityLine;
+      }
+      const identityActionsEl = document.querySelector('.detail-identity-actions');
+      if (identityActionsEl) {
+        identityActionsEl.hidden = !identityLine;
+        const headerPhone = String(saved.phone ?? '').trim();
+        const headerWaPhone = whatsappPhoneFor(saved);
+        const headerPrimaryTargets = contactActionTargets(headerPhone);
+        const headerWaTargets = headerWaPhone === headerPhone ? headerPrimaryTargets : contactActionTargets(headerWaPhone);
+        const headerTel = headerPrimaryTargets?.tel ?? null;
+        const headerWhatsapp = headerWaTargets?.whatsapp ?? headerPrimaryTargets?.whatsapp ?? null;
+        const callButton = $('#profileCallButton');
+        if (callButton) {
+          if (headerTel) { callButton.href = headerTel; callButton.hidden = false; }
+          else callButton.hidden = true;
+        }
+        const waButton = $('#profileWhatsAppButton');
+        const waDisabledButton = $('#profileWhatsAppButtonDisabled');
+        if (waButton && waDisabledButton) {
+          if (headerWhatsapp) { waButton.href = headerWhatsapp; waButton.hidden = false; waDisabledButton.hidden = true; }
+          else { waButton.hidden = true; waDisabledButton.hidden = false; }
+        }
+      }
+    }
     toast(`${fieldLabel} saved.`);
     button.textContent = 'Saved ✓';
     // Plan 500 — the button stays visible through the 1.5s feedback,
@@ -14005,10 +14040,24 @@ async function saveProfileField(control, button, labelText) {
     syncProfileCancelButton();
   }
 }
+// Profile Number Field at Top (item C, D-C1/D-C2) — the phone field moved
+// out of #customerProfileForm into #profileTopPhoneRow, directly under
+// the title row. Every form-scoped function below gathers its controls
+// through these three helpers, so the moved field keeps its Save button,
+// dirty tracking, Cancel baseline, and completion counting. The helpers
+// are the single re-scope point: a field that moves to the top row is
+// seen by all six functions at once.
+function profileFieldLabels() {
+  return [...document.querySelectorAll('#customerProfileForm .profile-field, #profileTopPhoneRow .profile-field')];
+}
+function profileFieldControls() {
+  return [...document.querySelectorAll('#customerProfileForm input, #customerProfileForm select, #customerProfileForm textarea, #profileTopPhoneRow input, #profileTopPhoneRow select, #profileTopPhoneRow textarea')];
+}
+function profileFieldSaveButtons() {
+  return [...document.querySelectorAll('#customerProfileForm .profile-field-save, #profileTopPhoneRow .profile-field-save')];
+}
 function bindProfileFieldSaveButtons() {
-  const form = $('#customerProfileForm');
-  if (!form) return;
-  form.querySelectorAll('.profile-field').forEach((label) => {
+  profileFieldLabels().forEach((label) => {
     const control = label.querySelector('input, select, textarea');
     if (!control || !PROFILE_FIELD_SAVE_MAP[control.id]) return;
     if (label.querySelector('.profile-field-save')) return;
@@ -14050,9 +14099,9 @@ function syncProfileFieldSaveButtons() {
   const form = $('#customerProfileForm');
   if (!form) return;
   const customer = selectedCustomer();
-  const controls = [...form.querySelectorAll('input, select, textarea')];
+  const controls = profileFieldControls();
   const dirty = new Set(customer ? dirtyProfileFieldKeys(customer, controls, profileCancelOpenValues) : []);
-  form.querySelectorAll('.profile-field-save').forEach((button) => {
+  profileFieldSaveButtons().forEach((button) => {
     if (button.textContent === 'Saved ✓') return;
     const control = button.closest('.profile-field-row')?.querySelector('input, select, textarea');
     const key = control ? PROFILE_FIELD_SAVE_MAP[control.id] : undefined;
@@ -14077,7 +14126,7 @@ function snapshotProfileCancelBaseline() {
   const form = $('#customerProfileForm');
   if (!form) { profileCancelOpenValues = null; return; }
   const values = {};
-  form.querySelectorAll('input, select, textarea').forEach((control) => {
+  profileFieldControls().forEach((control) => {
     if (!PROFILE_FIELD_SAVE_MAP[control.id]) return;
     values[control.id] = { type: control.type, value: control.value, checked: control.checked };
   });
@@ -14087,7 +14136,7 @@ function profileCancelHasUnsavedEdits() {
   const customer = selectedCustomer();
   const form = $('#customerProfileForm');
   if (!customer || !form) return false;
-  return hasUnsavedProfileEdits(customer, [...form.querySelectorAll('input, select, textarea')], profileCancelOpenValues);
+  return hasUnsavedProfileEdits(customer, profileFieldControls(), profileCancelOpenValues);
 }
 function syncProfileCancelButton() {
   const button = $('#cancelProfileEditButton');
@@ -14166,7 +14215,7 @@ function updateProfileCompletionCounter() {
   const form = $('#customerProfileForm');
   const el = $('#profileCompletionCounter');
   if (!form || !el) return;
-  const completion = countProfileCompletionFromControls([...form.querySelectorAll('input, select, textarea')]);
+  const completion = countProfileCompletionFromControls(profileFieldControls());
   el.textContent = completion.text;
   // Profile redesign — the visual bar directly above the counter mirrors
   // the same count (same filled/total, same callers).
@@ -14246,6 +14295,27 @@ profileFormEl?.addEventListener('input', (event) => {
   syncProfileFieldSaveButtons();
 });
 profileFormEl?.addEventListener('change', () => { updateProfileCompletionCounter(); syncProfileStickySaveBar(); syncProfileCancelButton(); syncProfileSaveHint(); syncProfileFieldSaveButtons(); });
+// Profile Number Field at Top (item C) — the phone field lives outside
+// the form now, so the form's input/change listeners never see its
+// edits. Mirror them on the top row: without this, typing a new number
+// would not reveal its Save button, mark the form dirty, or move the
+// completion counter until the field lost focus (change only). The
+// banner-clear check mirrors the form's, with inContributors false —
+// the top row is never inside the contributors editor.
+const profileTopPhoneRowEl = $('#profileTopPhoneRow');
+profileTopPhoneRowEl?.addEventListener('input', (event) => {
+  const banner = $('#profileFormError');
+  if (banner && !banner.hidden && profileErrorBannerClearsOnInput(banner.dataset.errorField || '', {
+    id: event.target?.id ?? '',
+    inContributors: false,
+  })) banner.hidden = true;
+  updateProfileCompletionCounter();
+  syncProfileStickySaveBar();
+  syncProfileCancelButton();
+  syncProfileSaveHint();
+  syncProfileFieldSaveButtons();
+});
+profileTopPhoneRowEl?.addEventListener('change', () => { updateProfileCompletionCounter(); syncProfileStickySaveBar(); syncProfileCancelButton(); syncProfileSaveHint(); syncProfileFieldSaveButtons(); });
 syncProfileStickySaveBar();
 updateProfileCompletionCounter();
 

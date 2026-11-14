@@ -81,7 +81,11 @@ test('plan 495: every field sits under its own section heading', () => {
   const expected = {
     customer: [
       'profileNameInput', 'mohallaInput', 'zoneInput', 'nameUrduInput',
-      'phoneInput', 'cnicInput', 'fatherOrReferenceNameInput', 'searchAliasesInput',
+      // Profile Number Field at Top (item C) — the phone field MOVED out
+      // of the form to #profileTopPhoneRow, directly under the title row
+      // (D-C1/D-C2). It is deliberately NOT in this list any more; the
+      // top-row placement is pinned by tests/profile-number-field-top.test.js.
+      'cnicInput', 'fatherOrReferenceNameInput', 'searchAliasesInput',
       'whatsappPhoneInput', 'alternatePhoneInput', 'prefersSmsCheckbox',
       'preferredReceiptLangSelect', 'preferredReceiptChannelSelect',
       'addressInput', 'customerNotesInput',
@@ -128,9 +132,9 @@ test('plan 495: every field sits under its own section heading', () => {
 test('plan 495: no field sits outside a section heading any more', () => {
   const sections = parseSections(formHtml());
   const grouped = new Set(sections.flatMap((s) => s.fields));
-  assert.equal(grouped.size, 70, 'all 70 fields grouped, none twice (Phase D added otherInstallCost)');
+  assert.equal(grouped.size, 69, 'all 69 fields grouped, none twice (item C moved phone out of the form to the top row)');
   const all = fieldOrder(formHtml());
-  assert.equal(all.length, 70, 'the form still holds exactly 70 fields');
+  assert.equal(all.length, 69, 'the form still holds exactly 69 fields (item C moved phone to the top row)');
   for (const f of all) {
     assert.ok(grouped.has(f), `${f} must sit under a section heading`);
   }
@@ -138,7 +142,8 @@ test('plan 495: no field sits outside a section heading any more', () => {
 
 // Plan 496 reordered the fields into the view's section order: the
 // view-pinned fields sit in the view's relative order inside each
-// section (phone before CNIC before father before aliases; seasonal
+// section (CNIC before father before aliases — the phone field moved
+// out of the form to the top row under the title row, item C; seasonal
 // before package; expiry/cancellation at the end of S2), the identity
 // block stays first (polish #12), and the last field overall is now
 // the serial number in S6 — the old "staff name stays the last field"
@@ -148,7 +153,7 @@ test('plan 495: no field sits outside a section heading any more', () => {
 test('plan 496: field order matches the view order', () => {
   assert.deepEqual(fieldOrder(formHtml()), [
     'profileNameInput', 'mohallaInput', 'zoneInput', 'nameUrduInput',
-    'phoneInput', 'cnicInput', 'fatherOrReferenceNameInput', 'searchAliasesInput',
+    'cnicInput', 'fatherOrReferenceNameInput', 'searchAliasesInput',
     'whatsappPhoneInput', 'alternatePhoneInput', 'prefersSmsCheckbox',
     'preferredReceiptLangSelect', 'preferredReceiptChannelSelect',
     'addressInput', 'customerNotesInput',

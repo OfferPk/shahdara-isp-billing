@@ -57,7 +57,9 @@ test.describe('Billing Tables: Customer Roster, Sorting, Filtering & Pagination 
     await expect(tableRows.first()).toBeVisible();
 
     // Selecting a customer via table row action displays customer detail
-    const firstRowSelectBtn = customerTable.locator('tbody tr .customer-row-btn').first();
+    // (Sharafat 36, shape (b): the name is plain text now — the Action
+    // column's Open button is the row's single opener.)
+    const firstRowSelectBtn = customerTable.locator('tbody tr .table-select-btn').first();
     await expect(firstRowSelectBtn).toBeVisible();
     await firstRowSelectBtn.dispatchEvent('click');
 
@@ -256,8 +258,9 @@ test.describe('Billing Tables: Customer Roster, Sorting, Filtering & Pagination 
       await expect(expandBtn).toHaveAttribute('aria-pressed', 'true');
       await expect(page.locator('.app-shell')).toHaveClass(/roster-table-expanded/);
 
-      // Select a row to verify auto-collapse
-      const firstRowSelectBtn = page.locator('#customerRosterTable tbody tr .customer-row-btn').first();
+      // Select a row to verify auto-collapse (Sharafat 36, shape (b):
+      // the Open button is the row's single opener now).
+      const firstRowSelectBtn = page.locator('#customerRosterTable tbody tr .table-select-btn').first();
       await firstRowSelectBtn.dispatchEvent('click');
       await expect(page.locator('.app-shell')).not.toHaveClass(/roster-table-expanded/);
       await expect(expandBtn).toHaveAttribute('aria-pressed', 'false');

@@ -46,9 +46,11 @@ function fBlock() {
 
 // ------------------------------------------------------------ ratchets
 
-test('Polish F: styles.css stays at exactly 614 distinct hex colours — no new hex anywhere', () => {
+test('Polish F: styles.css stays at exactly 613 distinct hex colours — no new hex anywhere', () => {
   const distinct = new Set(styles.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
-  assert.equal(distinct.size, 614, `styles.css has ${distinct.size} distinct hex colours, expected exactly 614`);
+  // 614 → 613 with Customers Cards Compact (item B): deleting the
+  // card's health-reasons rule removed its unique hex #62766d.
+  assert.equal(distinct.size, 613, `styles.css has ${distinct.size} distinct hex colours, expected exactly 613`);
 });
 
 test('Polish F: the F block uses only hex already in the file (ID-pill slots, wada greens/reds, neutrals)', () => {

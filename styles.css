@@ -8197,6 +8197,13 @@ html, body {
   /* QC receipt-modal overhaul (§4.1.5): belt-and-braces against the +558px
      class of failure — the <pre> fix (§4.4) is the root-cause fix. */
   overflow-x: hidden;
+  /* QC True 1-Row Tightening (item A, parent decision D-A11): the
+     card's scrollbar VISUALS are hidden only — the card still
+     scrolls (its 92vh cap and the scroll metric stay). This is the
+     same D3 treatment the inner .qc-customer-list already has: the
+     visible outer scrollbar was the CARD's, not the list's, so the
+     double-scrollbar look is gone without touching overflow. */
+  scrollbar-width: none;
   display: flex;
   flex-direction: column;
 }
@@ -8280,10 +8287,34 @@ html, body {
   border-color: #60a68d !important;
 }
 
+/* QC True 1-Row Tightening (item A): the WebKit half of the
+   hidden card scrollbar — visuals only, the card still scrolls. */
+#quickCollectModal .quick-collect-card::-webkit-scrollbar {
+  display: none;
+}
+
 .qc-step {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* QC True 1-Row Tightening (item A): the picker step's rows sit
+   8px apart instead of 12px — the Search-to-Recent gap is three
+   step gaps plus the toggle's own margin, so this is a third of
+   the bridge to the 8px target (the empty name/last-four lists
+   below are hidden when empty, so they stop costing a gap each). */
+#quickCollectModal #quickCollectStepPick.qc-step {
+  gap: 8px;
+}
+
+/* QC True 1-Row Tightening (item A): the name-prefix and
+   last-four suggestion lists are EMPTY divs until the operator
+   types — while empty they each cost the picker a flex gap, so
+   they are hidden until they have rows to show. */
+#quickCollectModal #nplNamePrefixList:empty,
+#quickCollectModal #lfdLastFourList:empty {
+  display: none;
 }
 
 .qc-search-box {
@@ -8385,7 +8416,10 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px;
+  /* QC True 1-Row Tightening (item A): 10px vertical padding —
+     the plain card measures 110px and the badged card 143.5px, so
+     three cards fit the 460px list (3 x 143.5 + 2 x 8 = 446.5). */
+  padding: 10px 12px;
   min-height: 54px;
   border-radius: 8px;
   border: 1px solid var(--border-color, #e2e8f0);
@@ -8556,6 +8590,14 @@ html, body {
   gap: 8px;
   flex-shrink: 0;
 }
+/* QC True 1-Row Tightening (item A): the modal's card rows sit
+   6px apart instead of 8px — the shared rule above stays for
+   Field Mode (this is a modal-only tightening, not a Field Mode
+   change). Together with the 10px card padding this is the −8px
+   per card the 3-cards gate needs. */
+#quickCollectModal .qc-customer-card.qc3-card {
+  gap: 6px;
+}
 .qc3-card-main {
   display: flex;
   align-items: center;
@@ -8582,12 +8624,6 @@ html, body {
   align-items: flex-end;
   gap: 0;
   min-width: 0;
-}
-.qc3-figure-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--text-muted, #64748b);
-  white-space: nowrap;
 }
 .qc3-figure-value {
   display: flex;
@@ -8820,22 +8856,14 @@ html, body {
   margin: 0 0 4px;
 }
 
-/* Plan 446 — mohalla filter row on the Quick Collect picker
-   screen: one select that narrows the customer list to a single
-   mohalla, with a plain-words count line under it. Layout only,
-   no colour of its own, so no new hex colour is introduced. */
-.mhf-mohalla-filter-row {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
-  margin: 8px 0 0;
-}
-
-.mhf-mohalla-filter-row label {
-  font-size: 12px;
-  font-weight: 700;
-}
+/* Plan 446 — mohalla filter on the Quick Collect picker screen:
+   one select that narrows the customer list to a single mohalla,
+   with a plain-words count line under it. QC True 1-Row Tightening
+   (item A): the select's own row is DELETED — the select moved
+   into the 2-column filter row above the search (same id + class,
+   so its wiring and the #1399 dues-first option order are
+   untouched). The .mhf-mohalla-filter sizing rule below stays:
+   it is not row-scoped, and the moved select still uses it. */
 
 .mhf-mohalla-filter {
   flex: 1;
@@ -8859,12 +8887,10 @@ html, body {
   margin: 0 0 8px;
 }
 
-.qsf-status-filter-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
+/* QC True 1-Row Tightening (item A): the .qsf-status-filter-label
+   rules are deleted with the two label spans they styled — Sort by
+   and Mohalla now sit bare in the 2-column row (each select keeps
+   its aria-label). */
 .qsf-status-filter {
   flex: 1;
   min-width: 0;
@@ -9783,8 +9809,10 @@ html, body {
 }
 
 /* QC Cash Modal Overhaul — the two filter selects share one
-   2-column row, labels above their selects (12px bold), so the
-   picker shows both controls without a stacked filter tower. */
+   2-column row, so the picker shows both controls without a
+   stacked filter tower. QC True 1-Row Tightening (item A): the
+   labels above the selects are GONE (each select keeps its
+   aria-label) — the row is just the two selects side by side. */
 .qc-filter-row-2col {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -9797,25 +9825,31 @@ html, body {
   gap: 2px;
   margin: 0;
 }
-.qc-filter-row-2col .qsf-status-filter-label {
-  font-size: 12px;
-  font-weight: 700;
-}
 
 /* QC Cash Modal Overhaul — Bulk Collect + Tag New Customers share
-   one 2-column compact card row (52px). The row only grids the two
-   buttons; their own files own the border and height. The 0.85rem
-   label keeps "Bulk Collect Cash" on one line beside its icon at
-   360px. */
+   one 2-column compact button row. QC True 1-Row Tightening (item
+   A, parent decision D-A12): 44px tall, not 40px — the full titles
+   ("Bulk Collect Cash" needs ~176px) do not fit the 153px columns
+   on one line at 0.85rem, and phone fonts run wider than the
+   harness, so 44px lets the titles wrap to two lines comfortably
+   while matching the global 44px floor; still 59px shorter than
+   the 103px cards they replace. The subtitles are deleted from
+   the two modules, so only icon + title render. */
 .qc-top-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
   margin: 0 0 8px;
 }
-.qc-top-actions .bc-open-btn,
-.qc-top-actions .nct-open-btn {
-  min-height: 52px;
+#quickCollectModal .qc-top-actions .bc-open-btn,
+#quickCollectModal .qc-top-actions .nct-open-btn {
+  min-height: 44px !important;
+  height: 44px;
+  /* 4px vertical padding, not the user's 8px: the titles wrap to
+     two lines in the 153px columns, and two 0.85rem lines need
+     34px of content height — 8px padding would push the text
+     outside the 44px box. The titles still read clearly. */
+  padding: 4px 10px;
   font-size: 0.85rem;
 }
 
@@ -9867,16 +9901,21 @@ html, body {
    its [hidden] behaviour: the flex display must not beat it. */
 /* Quick Collect CSS tightening (user instruction 2026-11-13): the
    Recent toggle's top was clipped by the sticky header (top:-16px)
-   and its summary wrapped to two lines — margin-top 8px clears the
-   clip, a fixed 38px height plus a one-line ellipsised label keeps
-   it a single row. */
+   and its summary wrapped to two lines — a fixed 38px height plus
+   a one-line ellipsised label keeps it a single row. QC True 1-Row
+   Tightening (item A): margin-top 8px -> 0 — the 8px was the clip
+   clearance, but the harness scrolled-bottom check proves the clip
+   does NOT return at 0 (title y stays 30, header y 17 h 48, toggle
+   top y 279 vs the header bottom at 81). With the picker step gap
+   at 8px and the empty suggestion lists hidden, the Search-to-
+   Recent gap is now the spec's 8px. */
 .rqp-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   width: 100%;
-  margin-top: 8px;
+  margin-top: 0;
   height: 38px;
   padding: 6px 10px;
   border: 1px solid var(--ds-border);
@@ -9937,9 +9976,10 @@ html, body {
    itself is nowrap with min-content width, and the main button
    wraps (flex-wrap above + the <=360px QC-7 block), so a long name
    truncates with "…" and the figures drop to their own row when
-   they do not fit — the figure is never squeezed. The "Outstanding"
-   label stays (the dues figure appears exactly once). Scoped to
-   #quickCollectModal: Field Mode shares .qc3-card-main with
+   they do not fit — the figure is never squeezed. QC True 1-Row
+   Tightening (item A): the "Outstanding" label node is DELETED
+   (the dues figure appears exactly once, now without its label).
+   Scoped to #quickCollectModal: Field Mode shares .qc3-card-main with
    different children and is untouched. The <=360px QC-7 media block
    stays (it still serves Field Mode). */
 #quickCollectModal .qc3-card-main {
@@ -9960,10 +10000,11 @@ html, body {
   flex: 1 1 100%;
 }
 #quickCollectModal .qc-card-chips .ds-chip,
-#quickCollectModal .qc-card-chips .qc2-high-balance-tag {
+#quickCollectModal .qc-card-chips .qc2-high-balance-tag,
+#quickCollectModal .qc-card-chips .qc2-tier-label {
   height: 24px;
-  padding: 2px 8px;
-  font-size: 11px;
+  padding: 2px 7px;
+  font-size: 0.72rem;
 }
 #quickCollectModal .qc-card-chips .qc2-high-balance-tag {
   display: inline-flex;
@@ -9982,7 +10023,11 @@ html, body {
    stub. */
 #quickCollectModal .qc3-card-main > .qc-card-left {
   flex: 1 1 0;
-  min-width: 140px;
+  /* QC True 1-Row Tightening (item A, parent decision D-A2): the
+     floor drops 140px -> 100px — the chips row took the badges,
+     so a short name needs less room, and the figures fit on Row 1
+     beside it for more names. */
+  min-width: 100px;
 }
 #quickCollectModal .qc3-figures {
   flex: 0 0 auto;
@@ -10336,14 +10381,21 @@ html, body {
    measures it, figures are never truncated. The banner KEEPS
    flex-wrap: wrap (nowrap would overflow the 100%-basis track);
    the track takes order 4 so it always sits BELOW the row, never
-   above it as it did before (it had the default order 0). */
+   above it as it did before (it had the default order 0). QC True
+   1-Row Tightening (item A, parent decision D-A8): padding 2px,
+   not the spec's 6px — 6px makes a 46px box, 2px makes the true
+   38px row (the 32px Day Summary button + 2px padding + 1px
+   border each side) — and the three cells run at 0.8rem (spec
+   §0.4), so they fit one 292px row; at 0.85rem they total 293.8px
+   and the button wraps to a second row. Wrap is kept (nowrap
+   breaks the long case with ~109px overflow). */
 .qc-round-banner {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 0;
   margin: 8px 0 0;
-  padding: 6px 10px;
+  padding: 2px 10px;
   border-radius: 10px;
   background: var(--color-slate-50);
   border: 1px solid var(--ds-border);
@@ -10357,7 +10409,7 @@ html, body {
 .qc-round-banner .rtt-round-totals {
   margin: 0;
   order: 2;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 .qc-round-banner .rtt-round-totals::before {
@@ -10382,7 +10434,7 @@ html, body {
 .qc-round-banner .dtp-line {
   margin: 0;
   order: 1;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 .qc-round-banner .route-progress-track {
@@ -10410,6 +10462,11 @@ html, body {
   gap: 6px;
   padding: 0 10px;
   white-space: nowrap;
+  /* QC True 1-Row Tightening (item A, spec §0.4): 0.8rem — with the
+     two text hosts at 0.8rem the three cells fit one 292px row, so
+     the banner is a true 38px row (at 0.85rem they total 293.8px
+     and the button wraps to a second row). */
+  font-size: 0.8rem;
 }
 /* Quick Collect CSS tightening (user instruction 2026-11-13): the
    Day Summary icon is a BarChart3 SVG now (parent decision D4 —
@@ -10560,11 +10617,14 @@ html, body {
   color: var(--qc-emerald-text);
 }
 
-/* (4)+(6) ONE compact action row: compact Call / Location icon
-   buttons left, the primary Collect button right, naming the amount
-   it will collect. The row wraps only when it must (a 360px card
-   cannot fit all three labels on one line — QC-7's wrap, never
-   truncate — so there Collect drops to its own full-width row). */
+/* (4)+(6) ONE compact action row: LABELLED Call / Map buttons
+   left, the primary Collect button right, naming the amount it
+   will collect. QC True 1-Row Tightening (item A): the row is a
+   grid (auto auto 1fr) — Call and Map size to their labels,
+   Collect takes the rest — so all three sit on one 38px row at
+   360px. The old flex wrap valve is gone: at 320px the row stays
+   one row via a 6px gap (see the media block below), never by
+   dropping Collect or going icon-only. */
 .qc3-action-btn--icon {
   flex: 0 0 auto;
   min-height: 36px !important;
@@ -10588,37 +10648,43 @@ html, body {
   min-height: 40px !important;
 }
 
-/* Quick Collect CSS tightening (user instruction 2026-11-13): the
-   modal's action row is sized for ONE row — Call / Location share
-   it with Collect (flex 1 / 1 / 1.5) at 40px, reversing the QC
-   Modal Fix item 6 sizing (36px icon buttons, Collect flex
-   1 1 auto). The wrap valve itself STAYS (see below): the row is
-   one row whenever it fits and drops the third button instead of
-   clipping when it does not. Field Mode keeps the wrapping base
-   rules above; only the modal is one row. Collect is flat dark
-   emerald in the modal; the bright-green gradient stays on the
-   base rule for Field Mode, the one-screen save button and the
-   help Got-it button, which keep it. */
+/* QC True 1-Row Tightening (item A, parent decisions D-A1/D-A10):
+   the modal's action row is a GRID — Call / Map size to their
+   labels, Collect takes the rest (auto auto 1fr, 8px gap) — at
+   38px, reversing the QC Tightening flex sizing (flex 1 / 1 / 1.5
+   at 40px) and the QC Modal Fix item 6 sizing (36px icon buttons).
+   The flex wrap valve is GONE: the row is one row whenever it
+   fits, and at 320px the gap drops to 6px (media block below) so
+   it still fits — never icon-only, never a dropped Collect.
+   Field Mode keeps the wrapping base rules above; only the modal
+   is one row. Collect is flat dark emerald in the modal; the
+   bright-green gradient stays on the base rule for Field Mode, the
+   one-screen save button and the help Got-it button, which keep it. */
 #quickCollectModal .qc3-card-actions {
-  /* One row whenever it fits (360px: measured one row, 40px) —
-     and the wrap valve STAYS: below 360px the third button drops
-     to a second row instead of clipping. nowrap was measured and
-     rejected: at 320px the three buttons need 266px for 236px
-     available, a 30px row overflow (11px at the list level). The
-     valve is the no-crush principle — the row is one row at 360px
-     and above, never a clip below it. */
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 8px;
 }
 #quickCollectModal .qc3-action-btn--call,
 #quickCollectModal .qc3-action-btn--location {
-  flex: 1 1 0;
-  min-height: 40px !important;
+  min-height: 38px !important;
+  height: 38px;
+  padding: 8px 10px;
 }
 #quickCollectModal .qc3-collect {
-  flex: 1.5 1 0;
-  min-height: 40px !important;
+  min-height: 38px !important;
+  height: 38px;
   background: var(--ds-brand);
   box-shadow: none;
+}
+/* QC True 1-Row Tightening (item A, parent decision D-A10): at
+   320px the labelled row needs 239.4px for 236px available with
+   an 8px gap (the Collect min-content trap) — the gap drops to
+   6px so the row stays one row instead of clipping. */
+@media (max-width: 320px) {
+  #quickCollectModal .qc3-card-actions {
+    gap: 6px;
+  }
 }
 .qc3-collect:active {
   transform: scale(0.98);

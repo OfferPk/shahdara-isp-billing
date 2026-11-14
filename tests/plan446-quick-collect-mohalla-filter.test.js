@@ -332,7 +332,7 @@ test('wiring: the name and last-four lookups compose with the mohalla filter', (
   assert.ok(wiringSrc.includes('filterQuickCollectByMohalla(findCustomersByLastFourDigits(state?.customers ?? [], query), activeMohallaFilter)'), 'last-four lookup must compose with the mohalla filter');
 });
 
-test('wiring: the picker step carries the filter select and count line, after the pills and before the list', () => {
+test('wiring: the picker step carries the filter select and count line, select in the 2-column row above the search', () => {
   assert.ok(pageSrc.includes('<select id="mhfMohallaFilter"'), 'missing mohalla filter select');
   // Quick Collect CSS tightening (user instruction 2026-11-13,
   // parent decision D2): the picker's static fallback is the short
@@ -349,7 +349,11 @@ test('wiring: the picker step carries the filter select and count line, after th
   const summary = pageSrc.indexOf('id="mhfMohallaFilterSummary"');
   const list = pageSrc.indexOf('id="quickCollectCustomerList"');
   assert.ok(pickStep !== -1 && pills !== -1 && select !== -1 && summary !== -1 && list !== -1, 'anchors missing');
-  assert.ok(pickStep < pills && pills < select && select < summary && summary < list, 'filter must sit inside the picker step, after the pills and before the customer list');
+  // QC True 1-Row Tightening (item A): the select MOVED — from its
+  // own row below the pills into the 2-column filter row above the
+  // search, beside Sort by. The count line stays below the pills.
+  // The order is now: picker step < select < pills < summary < list.
+  assert.ok(pickStep < select && select < pills && pills < summary && summary < list, 'filter select must sit in the 2-column row above the search, count line below the pills, all inside the picker step before the customer list');
 });
 
 // --- Fences ---
@@ -423,8 +427,13 @@ test('fences: the fenced modules never reference the mohalla filter', () => {
 // --- Styles ---
 
 test('styles: the filter rules are layout-only — no new hex colour', () => {
+  // QC True 1-Row Tightening (item A): the mohalla row rule and its
+  // label rule are deleted with the select's own row (the select
+  // moved into the 2-column row). Two .mhf- rules survive: the
+  // sizing rule (not row-scoped) and the count-line rule.
   const rules = stylesSrc.match(/\.mhf-[^{]+\{[^}]*\}/g) || [];
-  assert.ok(rules.length >= 3, 'missing .mhf- filter rules');
+  assert.ok(rules.length >= 2, 'missing .mhf- filter rules');
+  assert.ok(!stylesSrc.includes('.mhf-mohalla-filter-row {'), 'the mohalla row rule must be gone');
   const baseline = stylesSrc.replace(/\.mhf-[^{]+\{[^}]*\}/g, '');
   const baselineHexes = new Set((baseline.match(/#[0-9a-fA-F]{3,8}/g) || []).map((h) => h.toLowerCase()));
   for (const rule of rules) {

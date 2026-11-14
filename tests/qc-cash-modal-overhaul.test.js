@@ -5,12 +5,13 @@
 // (1) Compact sticky header 44px, single row: ⚡ Quick Collect Cash
 // left, (i) 32x32 + Close 32x32 right (both already 32x32 via
 // §4.1.3/§4.1.4, not success-only). Bulk Collect + Tag New Customers
-// side by side in a 2-column compact card row (52px, ds-icons SVGs,
+// side by side in a 2-column compact button row (44px, ds-icons SVGs,
 // 1px solid var(--ds-border), no heavy dashed borders).
-// (2) Bill status + Sort by side by side in a 2-column row (labels
-// above selects, 12px bold). Search placeholder shortened. Pending
-// royal blue -> DS-0 Emerald (--ds-brand). All 3 pills on one row
-// (12.5px, 6px 10px). Mohalla label above the select, full width.
+// (2) Sort by + Mohalla side by side in a 2-column row (bare selects,
+// no labels — each select keeps its aria-label). Search placeholder
+// shortened. Pending royal blue -> DS-0 Emerald (--ds-brand). Four
+// pills (Pending / High ≥ 2k / All / Paid) on two rows (12.5px,
+// 6px 10px). Mohalla select in the 2-column row, full width.
 // (3) Recent collapses into an accordion, collapsed by default with
 // a 1-line summary; "Collected 2026-11-10" becomes a "10 Nov" badge.
 // (4) Round total + today collected become a compact 2-column
@@ -20,9 +21,9 @@
 // (5) Unpaid cards: [#N] badge inline left of the name on Row 1,
 // priority pill top-right of Row 1, the figures as their own KPI row
 // below (the clipped Row-1 "Outstanding P..." rendering is deleted —
-// the dues figure itself stays, exactly once, fully labelled),
-// Call / Location / Collect + mode-switcher emoji become ds-icons
-// SVGs, Collect is a solid Emerald primary CTA.
+// the dues figure itself stays, exactly once, now without its
+// "Outstanding" label), Call / Map / Collect + mode-switcher emoji
+// become ds-icons SVGs, Collect is a solid Emerald primary CTA.
 //
 // Stylesheet-value approach (polish #17/#21/#25/#27, QC-2/QC-3
 // pattern): read the HTML/CSS/JS as text and assert the values; no
@@ -94,13 +95,20 @@ test('picker header is one 44px row: eyebrow hidden, 16px ellipsised title', () 
 
 // --- (1) Bulk Collect + Tag 2-column compact card row ------------------------
 
-test('bulk + tag share one 2-column 52px card row, found or created by class', () => {
+test('bulk + tag share one 2-column 44px button row, found or created by class', () => {
   const row = ruleBlock(stylesSrc, '.qc-top-actions {');
   assert.ok(row.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)'), 'the top-actions row must be two equal columns');
   assert.ok(row.includes('gap: 8px'), 'the two cards must keep an 8px gap');
-  const rowBtns = ruleBlock(stylesSrc, '.qc-top-actions .bc-open-btn,');
-  assert.ok(rowBtns.includes('min-height: 52px'), 'the row buttons must be 52px');
-  assert.ok(rowBtns.includes('font-size: 0.85rem'), 'the 0.85rem label keeps "Bulk Collect Cash" on one line beside its icon at 360px');
+  // QC True 1-Row Tightening (item A, parent decision D-A12): 44px,
+  // not 40px and not the old 52px — the full titles do not fit the
+  // 153px columns on one line at 0.85rem, and phone fonts run wider
+  // than the harness, so 44px lets the titles wrap to two lines
+  // comfortably while matching the global 44px floor; still 59px
+  // shorter than the 103px cards they replace.
+  const rowBtns = ruleBlock(stylesSrc, '#quickCollectModal .qc-top-actions .bc-open-btn,');
+  assert.ok(rowBtns.includes('min-height: 44px !important'), 'the row buttons must be 44px');
+  assert.ok(rowBtns.includes('height: 44px'), 'the row buttons must be exactly 44px tall');
+  assert.ok(rowBtns.includes('font-size: 0.85rem'), 'the 0.85rem label keeps the titles legible at two lines in the 153px columns');
   // Both modules find or create the same row by class — no new id.
   assert.ok(bulkSrc.includes("pick.querySelector('.qc-top-actions')"), 'bulk must find the shared row by class');
   assert.ok(bulkSrc.includes("row.insertBefore(btn, row.firstElementChild)"), 'bulk must prepend, so it lands first');
@@ -136,20 +144,26 @@ test('bulk + tag buttons lose the heavy dashed border for 1px solid var(--ds-bor
 
 // --- (2) Filters, search, pills, mohalla -------------------------------------
 
-test('bill status + sort share one 2-column row, labels above the selects', () => {
+test('sort + mohalla share one 2-column row as bare selects, no labels', () => {
+  // QC True 1-Row Tightening (item A): the labels above the
+  // selects are GONE (each select keeps its aria-label) — the row
+  // is just the two selects side by side, Sort first, Mohalla
+  // second (the Mohalla select moved here from its own row below
+  // the pills). The Bill-status dropdown is deleted entirely (the
+  // 4th pill 'Paid' replaces it — see the QC-12 test).
   const rowAt = html.indexOf('class="qc-filter-row-2col"');
-  assert.ok(rowAt >= 0, 'the two filter labels must share one row wrapper');
-  const firstLabel = html.indexOf('class="qsf-status-filter-row"', rowAt);
-  const secondLabel = html.indexOf('class="qsf-status-filter-row"', firstLabel + 1);
-  const rowEnd = html.indexOf('</div>', secondLabel);
-  assert.ok(firstLabel > rowAt && secondLabel > firstLabel && secondLabel < rowEnd, 'both filter labels must sit inside the row wrapper');
+  assert.ok(rowAt >= 0, 'the two filter selects must share one row wrapper');
+  const sortAt = html.indexOf('data-qc-sort-order', rowAt);
+  const mohallaAt = html.indexOf('id="mhfMohallaFilter"', rowAt);
+  const rowEnd = html.indexOf('</div>', mohallaAt);
+  assert.ok(sortAt > rowAt && mohallaAt > sortAt && mohallaAt < rowEnd, 'Sort and Mohalla must sit inside the row wrapper, Sort first');
+  assert.ok(!html.includes('data-qc-status-filter'), 'no Bill-status dropdown may remain in the row');
+  assert.ok(!html.includes('qsf-status-filter-label'), 'no filter label span may remain in the row');
+  assert.ok(!html.includes('mhf-mohalla-filter-row'), 'no mohalla row wrapper may remain');
   const row = ruleBlock(stylesSrc, '.qc-filter-row-2col {');
   assert.ok(row.includes('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)'), 'the filter row must be two equal columns');
-  const cell = ruleBlock(stylesSrc, '.qc-filter-row-2col .qsf-status-filter-row {');
-  assert.ok(cell.includes('flex-direction: column'), 'each filter must stack its label above its select');
-  const label = ruleBlock(stylesSrc, '.qc-filter-row-2col .qsf-status-filter-label {');
-  assert.ok(label.includes('font-size: 12px'), 'filter labels must be 12px');
-  assert.ok(label.includes('font-weight: 700'), 'filter labels must be bold');
+  assert.ok(!stylesSrc.includes('.qsf-status-filter-label {'), 'no filter-label rule may remain');
+  assert.ok(!stylesSrc.includes('.mhf-mohalla-filter-row {'), 'no mohalla row rule may remain');
   assert.ok(!html.includes('id="qc-filter-row-2col"'), 'the row wrapper must not be a new element id');
 });
 
@@ -164,10 +178,15 @@ test('search placeholder is shortened, in the markup and in the i18n key', () =>
   assert.equal(en.qc_search_placeholder, '🔍 Search #ID, name, or phone', 'the EN key must match the shortened placeholder');
 });
 
-test('filter pills: one row at 12.5px, Emerald active, short High label', () => {
+test('filter pills: four pills at 12.5px, Emerald active, short High label', () => {
+  // QC True 1-Row Tightening (item A): the 4th pill 'Paid' joins
+  // the chips (the deleted Bill-status dropdown's paid pool), so
+  // the pills no longer fit one row at 360px — they wrap to two
+  // rows (+50px, disclosed in the PR body). The chip rule itself
+  // is unchanged: 12.5px, 6px 10px, 44px tap target, nowrap.
   const chip = ruleBlock(stylesSrc, '.quick-collect-filter-chip {');
-  assert.ok(chip.includes('font-size: 12.5px'), 'pills must be 12.5px so all three fit one row at 360px');
-  assert.ok(chip.includes('padding: 6px 10px'), 'pills must be 6px 10px so all three fit one row at 360px');
+  assert.ok(chip.includes('font-size: 12.5px'), 'pills must be 12.5px');
+  assert.ok(chip.includes('padding: 6px 10px'), 'pills must be 6px 10px');
   assert.ok(chip.includes('min-height: 44px'), 'pills must keep their 44px tap target');
   assert.ok(chip.includes('white-space: nowrap'), 'pill labels must not wrap mid-label');
   const active = ruleBlock(stylesSrc, '.quick-collect-filter-chip.is-active {');
@@ -181,6 +200,10 @@ test('filter pills: one row at 12.5px, Emerald active, short High label', () => 
   assert.ok(html.includes('High ≥ 2k <span class="qc-count-badge" id="quickCollectHighDuesCount">0</span>'), 'the pill must read "High ≥ 2k" with a counter badge, not parens');
   assert.equal(VISIBLE_TEXT_UR['High ≥ 2k'], 'زیادہ ≥ 2k', 'the UR map key must follow the shortened pill');
   assert.ok(!('High Dues ≥ 2k' in VISIBLE_TEXT_UR), 'the old long pill key must be gone from the map');
+  // The 4th pill: Paid, with its count badge (see the QC-12 test
+  // for the pool + count wiring).
+  assert.ok(html.includes('data-filter="paid"'), 'the Paid pill must exist');
+  assert.ok(html.includes('Paid <span class="qc-count-badge" id="quickCollectPaidCount">0</span>'), 'the Paid pill must carry a counter badge like its siblings');
   // The focus ring goes Emerald with the pill — scoped to the QC
   // chips only; the global :focus-visible baseline is NOT changed.
   const focus = ruleBlock(stylesSrc, '#quickCollectModal .quick-collect-filter-chip:focus-visible {');
@@ -188,15 +211,23 @@ test('filter pills: one row at 12.5px, Emerald active, short High label', () => 
   assert.ok(stylesSrc.includes(':focus-visible {\n  outline: 3px solid #2563eb !important;'), 'the global focus ring baseline must be untouched');
 });
 
-test('mohalla label sits above the select, full width', () => {
-  const row = ruleBlock(stylesSrc, '.mhf-mohalla-filter-row {');
-  assert.ok(row.includes('flex-direction: column'), 'the mohalla row must stack its label above the select');
-  assert.ok(row.includes('align-items: stretch'), 'the stacked row must stretch the select full width');
-  const label = ruleBlock(stylesSrc, '.mhf-mohalla-filter-row label {');
-  assert.ok(label.includes('font-size: 12px'), 'the mohalla label must be 12px');
-  assert.ok(label.includes('font-weight: 700'), 'the mohalla label must be bold');
+test('mohalla select sits in the 2-column row, full width, no own label', () => {
+  // QC True 1-Row Tightening (item A): the Mohalla select moved
+  // from its own labelled row below the pills into the 2-column
+  // filter row above the search (same id + class, so its wiring
+  // and the #1399 dues-first option order are untouched). The row
+  // + label rules are deleted; the sizing rule stays (it is not
+  // row-scoped, and the moved select still uses it).
+  assert.ok(!stylesSrc.includes('.mhf-mohalla-filter-row {'), 'the mohalla row rule must be gone');
+  assert.ok(!stylesSrc.includes('.mhf-mohalla-filter-row label {'), 'the mohalla row label rule must be gone');
   const select = ruleBlock(stylesSrc, '.mhf-mohalla-filter {');
   assert.ok(select.includes('width: 100%'), 'the mohalla select must be full width so the full amount shows');
+  assert.ok(html.includes('id="mhfMohallaFilter"'), 'the mohalla select must still exist, in the 2-column row');
+  // The label check is scoped to the picker step — other surfaces
+  // (fast customer search, bulk setup) keep their own Mohalla labels.
+  const stepTop = html.indexOf('id="quickCollectStepPick"');
+  const searchAt = html.indexOf('id="quickCollectSearchInput"', stepTop);
+  assert.ok(!html.slice(stepTop, searchAt).includes('>Mohalla</label>'), 'no mohalla label may remain in the picker step');
 });
 
 // --- (3) Recent accordion + short date badge ----------------------------------
@@ -262,7 +293,7 @@ test('round total + today collected + Day Summary share one compact 3-cell flex 
   assert.ok(!html.includes('class="qc-picker-actions-row"'), 'the separate actions row must be gone');
   const banner = ruleBlock(stylesSrc, '.qc-round-banner {');
   assert.ok(banner.includes('display: flex'), 'the banner must be a flex row');
-  assert.ok(banner.includes('padding: 6px 10px'), 'the banner must be compact');
+  assert.ok(banner.includes('padding: 2px 10px'), 'the banner must be a true 38px row (the spec\'s 6px makes a 46px box — see D-A8)');
   const cell = ruleBlock(stylesSrc, '.qc-round-banner .ds-stat-box {');
   assert.ok(cell.includes('min-height: 0'), 'the banner cells must be compact, not the 56px stat-box height');
   // QC Modal Overhaul 2: the old "padding: 8px 10px" assertion read
@@ -323,8 +354,13 @@ test('end-of-day summary is a Day Summary button inside the banner; New customer
   // The visible-text map keys follow the emoji (no-emoji keys now).
   assert.equal(VISIBLE_TEXT_UR['Switch to Full Ledger & Transactions Table'], 'مکمل لیجر و لین دین جدول پر جائیں');
   assert.ok(!('📋 Switch to Full Ledger & Transactions Table' in VISIBLE_TEXT_UR), 'the old 📋 ledger key must be gone');
-  assert.equal(VISIBLE_TEXT_UR['Bulk Collect Cash many payments in one batch'], 'یکمشت نقد وصولی — کئی ادائیگیاں ایک بیچ میں');
-  assert.ok(!('💵 Bulk Collect Cash many payments in one batch' in VISIBLE_TEXT_UR), 'the old 💵 bulk key must be gone');
+  // QC True 1-Row Tightening (item A): the subtitle is deleted
+  // from the Bulk Collect open button (icon + title only), so the
+  // long bulk key goes with it — the button is now just
+  // 'Bulk Collect Cash'.
+  assert.equal(VISIBLE_TEXT_UR['Bulk Collect Cash'], 'یکمشت نقد وصولی', 'the short bulk key must stay for the icon + title button');
+  assert.ok(!('Bulk Collect Cash many payments in one batch' in VISIBLE_TEXT_UR), 'the long bulk key must be gone with the deleted subtitle');
+  assert.ok(!('many payments in one batch' in VISIBLE_TEXT_UR), 'the subtitle key must be gone too');
 });
 
 test('expanded end-of-day summary is a bordered card with an inline × top-right', () => {
@@ -398,11 +434,14 @@ test('unpaid cards: badge left of the name, priority chips on their own row, fig
   // (field-mode.js), only the picker card drops it.
   assert.ok(!first.includes('2 months unpaid (+20 points).'), 'the scorer reason must be gone from the picker card');
   assert.ok(first.includes('BARRIAN'), 'the subtitle must carry the mohalla');
-  // The dues figure itself stays — exactly once, fully labelled, on
-  // Row 1 beside the identity (the clipped Row-1 rendering is what
-  // the old KPI row was protecting against; the chips row takes the
-  // badges now, so the squeeze cannot return the same way).
-  assert.ok(first.includes('Outstanding'), 'the Outstanding label must stay on Row 1');
+  // QC True 1-Row Tightening (item A): the dues figure itself
+  // stays — exactly once, now WITHOUT its "Outstanding" label
+  // (the label node is deleted; the badge already names the
+  // figure, so the label was the second copy). The chips row
+  // takes the badges now, so the squeeze cannot return the
+  // same way.
+  assert.ok(!first.includes('Outstanding'), 'the Outstanding label must be gone from the card');
+  assert.ok(first.includes('PKR 3,000'), 'the dues figure must stay on Row 1');
   assert.ok(first.includes('PKR 3,000'), 'the dues figure must stay on Row 1');
   // QC Modal Overhaul 2: the Monthly package column is GONE from
   // the modal card — the dues badge above already names the figure,
@@ -417,7 +456,7 @@ test('unpaid cards: badge left of the name, priority chips on their own row, fig
   assert.ok(!segments[1].html.includes('qc-card-right'), 'a card with no priority must render no right column');
 });
 
-test('unpaid cards: Call / Location / Collect are ds-icons SVGs, Collect is solid Emerald', () => {
+test('unpaid cards: Call / Map / Collect are ds-icons SVGs, Collect is solid Emerald', () => {
   const customers = [
     { id: 'c-13', customerNumber: 13, name: 'Fixture Thirteen', area: 'BARRIAN', phone: '03012345678', totalDues: 3000, monthlyPackage: 3000, callHref: 'tel:03012345678', mapsUrl: 'https://www.google.com/maps?q=33.7,73.1' },
   ];
@@ -444,7 +483,13 @@ test('unpaid cards: Call / Location / Collect are ds-icons SVGs, Collect is soli
   assert.ok(collect.includes('background: var(--ds-brand)'), 'modal Collect must be flat dark emerald');
   assert.ok(!collect.includes('linear-gradient'), 'the modal Collect must not carry the bright-green gradient');
   assert.ok(collect.includes('box-shadow: none'), 'the modal Collect must drop the gradient shadow');
-  assert.ok(collect.includes('flex: 1.5 1 0'), 'modal Collect must take 1.5 shares of the action row');
+  // QC True 1-Row Tightening (item A): the action row is a GRID
+  // (auto auto 1fr) at 38px — Call / Map size to their labels,
+  // Collect takes the rest. The flex 1 / 1 / 1.5 sizing is gone
+  // with the flex row (see the no-crush test for the grid pin).
+  assert.ok(collect.includes('min-height: 38px !important'), 'modal Collect must be 38px');
+  assert.ok(collect.includes('height: 38px'), 'modal Collect must be exactly 38px tall');
+  assert.ok(!collect.includes('flex:'), 'modal Collect must carry no flex sizing anymore — the grid sizes it');
   const base = ruleBlock(stylesSrc, '.qc3-collect {');
   assert.ok(base.includes('linear-gradient'), 'the base Collect gradient must stay for Field Mode');
   assert.ok(base.includes('var(--qc-collect-from)'), 'the base Collect must still start from the collect token');
@@ -469,7 +514,7 @@ test('picker card geometry: figures sit inline on Row 1 — the full-width KPI l
   // Quick Collect CSS tightening (user instruction 2026-11-13):
   // the badge's top-right seat and the tier labels' Row-1 seat go
   // with it — both now live in the .qc-card-chips row below the
-  // identity + figures, at 24px/11px.
+  // identity + figures, at 24px / 2px 7px / 0.72rem (item A).
   const main = ruleBlock(stylesSrc, '#quickCollectModal .qc3-card-main {');
   assert.ok(main.includes('flex-wrap: wrap'), 'the picker card row must wrap at every width so the figures can drop when they do not fit');
   assert.ok(!stylesSrc.includes('#quickCollectModal .qc3-card-main > .qc-card-right {'), 'the badge top-right seat rule must be gone with the column');
@@ -477,9 +522,10 @@ test('picker card geometry: figures sit inline on Row 1 — the full-width KPI l
   assert.ok(chips.includes('flex: 1 1 100%'), 'the chips row must take its own full-width row below the identity + figures');
   assert.ok(chips.includes('flex-wrap: wrap'), 'the chips row must wrap its chips, never crush them');
   assert.ok(stylesSrc.includes('#quickCollectModal .qc-card-chips .ds-chip,'), 'the chips row must size the priority badge');
-  const tag = ruleBlock(stylesSrc, '#quickCollectModal .qc-card-chips .qc2-high-balance-tag {');
+  const tag = ruleBlock(stylesSrc, '#quickCollectModal .qc-card-chips .qc2-tier-label {');
   assert.ok(tag.includes('height: 24px'), 'the chips must be 24px tall');
-  assert.ok(tag.includes('font-size: 11px'), 'the chips must be 11px');
+  assert.ok(tag.includes('padding: 2px 7px'), 'the chips must be 2px 7px');
+  assert.ok(tag.includes('font-size: 0.72rem'), 'the chips must be 0.72rem');
   assert.ok(!stylesSrc.includes('#quickCollectModal .qc3-card-main > .qc2-tier-label {'), 'the tier labels must not sit on Row 1 anymore — they live in the chips row');
   const figures = ruleBlock(stylesSrc, '#quickCollectModal .qc3-figures {');
   assert.ok(figures.includes('flex: 0 0 auto'), 'the figures must sit inline on Row 1, not on their own line');
@@ -487,7 +533,10 @@ test('picker card geometry: figures sit inline on Row 1 — the full-width KPI l
   assert.ok(figures.includes('justify-content: flex-end'), 'the figures must stay right-aligned');
   const left = ruleBlock(stylesSrc, '#quickCollectModal .qc3-card-main > .qc-card-left {');
   assert.ok(left.includes('flex: 1 1 0'), 'the identity column must take the leftover width so the figures fit');
-  assert.ok(left.includes('min-width: 140px'), 'the identity column must keep a short name visible');
+  // QC True 1-Row Tightening (item A, parent decision D-A2): the
+  // floor drops 140px -> 100px — the chips row took the badges, so
+  // a short name needs less room.
+  assert.ok(left.includes('min-width: 100px'), 'the identity column must keep a short name visible at the 100px floor');
   // The <=360px QC-7 media block stays: it still serves Field Mode,
   // which shares .qc3-card-main with different children.
   assert.ok(stylesSrc.includes('@media (max-width: 360px)'), 'the QC-7 360px media block must stay for Field Mode');
@@ -554,7 +603,15 @@ test('tightening: the modal title carries a Zap SVG and the language switcher wr
 
 test('tightening: the Recent toggle is one 38px row, never clipped or wrapped', () => {
   const toggle = ruleBlock(stylesSrc, '.rqp-toggle {');
-  assert.ok(toggle.includes('margin-top: 8px'), 'the toggle must clear the sticky header clip');
+  // QC True 1-Row Tightening (item A): margin-top 8px -> 0 — the
+  // 8px was the sticky-header clip clearance, but the harness
+  // scrolled-bottom check proves the clip does NOT return at 0
+  // (title y stays 30, header y 17 h 48, toggle top y 279 vs the
+  // header bottom at 81). The clip check now lives in the harness
+  // measurement, not in this margin. With the picker step gap at
+  // 8px and the empty suggestion lists hidden, the Search-to-Recent
+  // gap is the spec's 8px.
+  assert.ok(toggle.includes('margin-top: 0'), 'the toggle must sit 0px below the search gap — the 8px clip clearance is proven unneeded by the harness');
   assert.ok(toggle.includes('height: 38px'), 'the toggle must be a fixed 38px row');
   // The global button floor is 44px !important — the height alone
   // cannot beat it; the modal-scoped min-height must.
@@ -576,4 +633,19 @@ test('tightening: the customer list hides its inner scrollbar visuals but still 
   assert.ok(stylesSrc.includes('.qc-customer-list::-webkit-scrollbar {'), 'the list must hide its scrollbar in WebKit');
   const webkit = ruleBlock(stylesSrc, '.qc-customer-list::-webkit-scrollbar {');
   assert.ok(webkit.includes('display: none'), 'the WebKit scrollbar must be display:none');
+});
+
+test('tightening: the modal card hides its outer scrollbar visuals but still scrolls', () => {
+  // QC True 1-Row Tightening (item A, parent decision D-A11): the
+  // visible outer scrollbar in the user's screenshot was the CARD's
+  // (92vh scroller), not the list's and not the dialog's — so the
+  // D3 visuals-hide travels to the card. The card is the single
+  // scroller; the dialog does not scroll (see the 1-row test file).
+  const card = ruleBlock(stylesSrc, '#quickCollectModal .quick-collect-card {');
+  assert.ok(card.includes('scrollbar-width: none'), 'the card must hide its scrollbar in Firefox');
+  assert.ok(card.includes('overflow-y: auto'), 'the card must still scroll');
+  assert.ok(card.includes('max-height: 92vh'), 'the card cap must stay 92vh');
+  assert.ok(stylesSrc.includes('#quickCollectModal .quick-collect-card::-webkit-scrollbar {'), 'the card must hide its scrollbar in WebKit');
+  const webkit = ruleBlock(stylesSrc, '#quickCollectModal .quick-collect-card::-webkit-scrollbar {');
+  assert.ok(webkit.includes('display: none'), 'the WebKit card scrollbar must be display:none');
 });

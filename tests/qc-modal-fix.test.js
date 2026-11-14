@@ -65,6 +65,15 @@ test('(1) the banner lays the two lines out in one row, Today first', () => {
   assert.match(styles, /\.qc-round-banner \.rtt-round-totals\s*\{[^}]*order:\s*2/, 'Round line must come second');
   assert.match(styles, /\.qc-round-banner \.dtp-daily-target-progress\s*\{[^}]*display:\s*contents/, 'day-target host must not box the line');
   assert.match(styles, /\.qc-step\s*\{[^}]*margin-top:\s*12px/, 'picker step must clear the sticky heading');
+  // QC True 1-Row Tightening (item A, spec §0.4 + parent decision
+  // D-A8): the banner is a true 38px row — padding 2px (the spec's
+  // 6px makes a 46px box) and all three cells at 0.8rem, so they
+  // fit one 292px row (at 0.85rem they total 293.8px and the button
+  // wraps to a second row). The harness measures the 38px box.
+  assert.match(styles, /\.qc-round-banner\s*\{[^}]*padding:\s*2px 10px/, 'the banner must be a true 38px row at 2px padding');
+  assert.match(styles, /\.qc-round-banner \.dtp-line\s*\{[^}]*font-size:\s*0\.8rem/, 'the Today line must be 0.8rem so the row fits');
+  assert.match(styles, /\.qc-round-banner \.rtt-round-totals\s*\{[^}]*font-size:\s*0\.8rem/, 'the Round line must be 0.8rem so the row fits');
+  assert.match(styles, /\.qc-round-banner \.eds-summary-button\s*\{[^}]*font-size:\s*0\.8rem/, 'the Day Summary button must be 0.8rem so the row fits');
 });
 
 // --- (2) Day Summary, no New customer, compact footer ----------------
@@ -126,14 +135,17 @@ test('(4) the card has one compact action row with plain Collect', () => {
   assert.equal(pickerHtml.includes('Collect PKR 1,000'), false, 'Collect must not repeat the amount the dues badge names');
   assert.ok(pickerHtml.includes('Collect</button>'), 'Collect must stay a plain label');
   assert.ok(pickerHtml.includes('PKR 1,000'), 'the dues figure must stay on the card, in the badge');
-  // Quick Collect CSS tightening (user instruction 2026-11-13): the
-  // modal's action row is ONE row at 40px — Call / Location flex 1,
-  // Collect flex 1.5. This REVERSES the QC Modal Fix item 6 wrap
-  // valve (36px icon buttons, Collect flex 1 1 auto) — the harness
-  // must prove the row at 360px AND 320px. The 36px / 1 1 auto base
-  // rules stay for Field Mode.
-  assert.match(styles, /#quickCollectModal \.qc3-action-btn--call,\s*#quickCollectModal \.qc3-action-btn--location\s*\{[^}]*flex:\s*1 1 0[^}]*min-height:\s*40px !important/, 'modal icon buttons must be 40px and share the row equally');
-  assert.match(styles, /#quickCollectModal \.qc3-collect\s*\{[^}]*flex:\s*1\.5 1 0/, 'modal Collect must take 1.5 shares of the row');
+  // QC True 1-Row Tightening (item A): the modal's action row is
+  // a GRID (auto auto 1fr) at 38px — Call / Map size to their
+  // labels, Collect takes the rest. This REVERSES the QC
+  // Tightening flex sizing (Call / Location flex 1, Collect flex
+  // 1.5, 40px) and the QC Modal Fix item 6 wrap valve (36px icon
+  // buttons, Collect flex 1 1 auto) — the harness must prove the
+  // row at 360px AND 320px. The 36px / 1 1 auto base rules stay
+  // for Field Mode.
+  assert.match(styles, /#quickCollectModal \.qc3-card-actions\s*\{[^}]*display:\s*grid[^}]*grid-template-columns:\s*auto auto 1fr/, 'modal action row must be a grid — Call / Map size to their labels, Collect takes the rest');
+  assert.match(styles, /#quickCollectModal \.qc3-action-btn--call,\s*#quickCollectModal \.qc3-action-btn--location\s*\{[^}]*min-height:\s*38px !important[^}]*height:\s*38px/, 'modal Call / Map buttons must be 38px');
+  assert.match(styles, /#quickCollectModal \.qc3-collect\s*\{[^}]*min-height:\s*38px !important[^}]*height:\s*38px/, 'modal Collect must be 38px');
 });
 
 // --- (5) Priority badge matches the High filter ----------------------
@@ -147,8 +159,11 @@ test('(5) the High-dues threshold is one shared constant, and the tag reads it',
   assert.equal(qc2HasHighBalance(true), false);
   assert.ok(qcSrc.includes("totalDues < QC2_HIGH_DUES_MIN_RUPEES"), 'the filter must use the shared constant, not a literal');
   assert.ok(qcSrc.includes("qc2HasHighBalance(c.totalDues)"), 'the card tag must use the same helper');
-  assert.equal(TRANSLATIONS.en.qc2_high_balance, 'High balance ≥2k');
-  assert.equal(TRANSLATIONS.ur.qc2_high_balance, 'زیادہ بقایا ≥2k');
+  // QC True 1-Row Tightening (item A): the tag is shortened to
+  // the bare threshold ('≥2k') so the chips row fits one line —
+  // the 'High balance' words are gone from both dicts.
+  assert.equal(TRANSLATIONS.en.qc2_high_balance, '≥2k');
+  assert.equal(TRANSLATIONS.ur.qc2_high_balance, '≥2k');
 });
 
 // --- (6)+(7)+(8)+(9)+(10) Tonal styles, all token-only --------------

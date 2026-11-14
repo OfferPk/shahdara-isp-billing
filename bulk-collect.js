@@ -780,7 +780,7 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     btn.type = 'button';
     btn.id = 'openBulkCollectBtn';
     btn.className = 'bc-open-btn';
-    btn.innerHTML = `<span aria-hidden="true">${dsIcon('HandCoins', 18)}</span> Bulk Collect Cash <small>many payments in one batch</small>`;
+    btn.innerHTML = `<span aria-hidden="true">${dsIcon('HandCoins', 18)}</span> Bulk Collect Cash`;
     btn.addEventListener('click', open);
     let row = pick.querySelector('.qc-top-actions');
     if (!row) {

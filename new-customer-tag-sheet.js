@@ -342,7 +342,7 @@ export function setupNewCustomerTagSheet({ win = window, doc = document, getCont
     btn.type = 'button';
     btn.id = 'nctTagNewCustomersBtn';
     btn.className = 'nct-open-btn';
-    btn.innerHTML = `<span aria-hidden="true">${dsIcon('Tag', 18)}</span> Tag new customers <small>first month free</small>`;
+    btn.innerHTML = `<span aria-hidden="true">${dsIcon('Tag', 18)}</span> Tag new customers`;
     btn.addEventListener('click', open);
     let row = pick.querySelector('.qc-top-actions');
     if (!row) {

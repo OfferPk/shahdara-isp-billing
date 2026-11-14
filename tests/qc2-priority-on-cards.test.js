@@ -360,10 +360,10 @@ test('picker cards carry the tier badge, never the scorer reason, and the Mohall
   assert.ok(!byName['Low Three'].html.includes('ds-chip--danger') && !byName['Low Three'].html.includes('ds-chip--warning'), 'Low card must use the neutral badge');
   assert.ok(!byName['Long Four'].html.includes('Outstanding PKR 2,000 (+12 amount points).'), 'Long card must not show its scorer reason either');
   assert.ok(byName['High One'].html.includes('>Not recorded<'), 'subtitle falls back to Not recorded with no mohalla or package recorded');
-  assert.ok(byName['High One'].html.includes('High balance ≥2k'), 'High-dues High card carries the High-balance tag');
-  assert.ok(byName['Medium Two'].html.includes('High balance ≥2k'), 'Medium-scored card at PKR 10,000 carries the tag — that is why it sits in the High filter');
-  assert.ok(byName['Long Four'].html.includes('High balance ≥2k'), 'card at exactly PKR 2,000 carries the tag');
-  assert.ok(!byName['Low Three'].html.includes('High balance ≥2k'), 'PKR 1,000 card carries no High-balance tag');
+  assert.ok(byName['High One'].html.includes('≥2k'), 'High-dues High card carries the shortened ≥2k tag');
+  assert.ok(byName['Medium Two'].html.includes('≥2k'), 'Medium-scored card at PKR 10,000 carries the tag — that is why it sits in the High filter');
+  assert.ok(byName['Long Four'].html.includes('≥2k'), 'card at exactly PKR 2,000 carries the tag');
+  assert.ok(!byName['Low Three'].html.includes('≥2k'), 'PKR 1,000 card carries no High-balance tag');
 });
 
 test('picker cards carry the high-balance tier labels and the card accent', () => {
@@ -371,11 +371,11 @@ test('picker cards carry the high-balance tier labels and the card accent', () =
   const cards = cardSegments(renderQuickCollectPickerHtml(state, '', 'all-dues').html);
   const byName = {};
   for (const c of cards) byName[c.name] = c;
-  assert.ok(byName['High One'].html.includes('2+ months arrears'), '3 open months must label 2+ months arrears');
-  assert.ok(byName['Long Four'].html.includes('2+ months arrears'), '2 open months must label 2+ months arrears');
+  assert.ok(byName['High One'].html.includes('2+ mos arrears'), '3 open months must label 2+ mos arrears');
+  assert.ok(byName['Long Four'].html.includes('2+ mos arrears'), '2 open months must label 2+ mos arrears');
   assert.ok(byName['Long Four'].html.includes('90+ days overdue'), '97-day oldest due must label 90+ days overdue');
-  assert.ok(!byName['Medium Two'].html.includes('2+ months arrears') && !byName['Medium Two'].html.includes('90+ days overdue'), '1 open month, 5 days overdue must carry no tier label');
-  assert.ok(!byName['Low Three'].html.includes('2+ months arrears'), 'Low card must carry no tier label');
+  assert.ok(!byName['Medium Two'].html.includes('2+ mos arrears') && !byName['Medium Two'].html.includes('90+ days overdue'), '1 open month, 5 days overdue must carry no tier label');
+  assert.ok(!byName['Low Three'].html.includes('2+ mos arrears'), 'Low card must carry no tier label');
   assert.ok(byName['High One'].html.includes('qc2-tier-high'), 'High-balance card must carry the accent class');
   assert.ok(byName['Long Four'].html.includes('qc2-tier-high'), 'Long-overdue card must carry the accent class');
   assert.ok(!byName['Medium Two'].html.includes('qc2-tier-high'), 'No-tier card must not carry the accent class');
@@ -389,7 +389,7 @@ test('picker card with no scorer row shows no tier and no reason, never a guesse
   assert.ok(byName['Baqaya Six'], 'the baqaya-only customer must still be listed');
   assert.ok(!byName['Baqaya Six'].html.includes('qc2-priority'), 'baqaya-only card must show no priority row');
   assert.ok(!byName['Baqaya Six'].html.includes('High priority') && !byName['Baqaya Six'].html.includes('Medium priority') && !byName['Baqaya Six'].html.includes('Low priority'), 'baqaya-only card must show no tier label');
-  assert.ok(!byName['Baqaya Six'].html.includes('2+ months arrears') && !byName['Baqaya Six'].html.includes('90+ days overdue'), 'baqaya-only card must show no tier label');
+  assert.ok(!byName['Baqaya Six'].html.includes('2+ mos arrears') && !byName['Baqaya Six'].html.includes('90+ days overdue'), 'baqaya-only card must show no tier label');
   assert.ok(!byName['Baqaya Six'].html.includes('qc2-tier-high'), 'baqaya-only card must show no tier accent');
 });
 
@@ -410,8 +410,11 @@ test('sort dropdown sits in the picker step above the search, default Highest du
   for (const value of ['amount', 'oldest']) {
     assert.ok(html.includes(`value="${value}"`), `missing sort option ${value}`);
   }
-  const label = html.indexOf('qc2_sort_label');
-  assert.ok(label > step && label < search, 'sort label must sit above the search too');
+  // QC True 1-Row Tightening (item A): the Sort label span is
+  // deleted with the other filter labels — the select keeps its
+  // aria-label, and the sort options + default are unchanged.
+  assert.ok(!html.includes('qc2_sort_label'), 'no Sort label span may remain in the page');
+  assert.ok(selectTag.includes('aria-label="Sort customers by dues or oldest due date"'), 'the sort select must keep its aria-label');
 });
 
 test('sort wiring: change maps the value through qc2SortOrderFromValue and re-renders', () => {
@@ -444,8 +447,11 @@ test('qc2_ keys exist in EN and UR, with Urdu script in the Urdu values', () => 
   assert.equal(en.qc2_priority_medium, 'Medium priority');
   assert.equal(en.qc2_priority_low, 'Low priority');
   assert.equal(en.qc2_tier_multi_month, '2+ months arrears');
+  // QC True 1-Row Tightening (item A): the modal-only SHORT label —
+  // the shared qc2_tier_multi_month value above stays for Field Mode.
+  assert.equal(en.qc2_tier_multi_month_short, '2+ mos arrears');
   assert.equal(en.qc2_tier_long_overdue, '90+ days overdue');
-  for (const key of ['qc2_sort_label', 'qc2_sort_amount', 'qc2_sort_oldest', 'qc2_priority_high', 'qc2_priority_medium', 'qc2_priority_low', 'qc2_tier_multi_month', 'qc2_tier_long_overdue']) {
+  for (const key of ['qc2_sort_label', 'qc2_sort_amount', 'qc2_sort_oldest', 'qc2_priority_high', 'qc2_priority_medium', 'qc2_priority_low', 'qc2_tier_multi_month', 'qc2_tier_multi_month_short', 'qc2_tier_long_overdue']) {
     assert.ok(typeof ur[key] === 'string' && ur[key].length > 0, `missing UR value for ${key}`);
     assert.ok(URDU.test(ur[key]), `UR value for ${key} must carry Urdu script`);
   }

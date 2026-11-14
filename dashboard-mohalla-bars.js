@@ -157,7 +157,7 @@ export function mohallaBarsSectionHtml(summary) {
   return rows.map((row) => {
     const pct = Math.min(100, Math.max(0, row.collectedPercent ?? 0));
     const figures = `${t('dash_mohallabars_collected_label')} ${formatPKR((row.collectedCents ?? 0) / 100)} · ${t('dash_mohallabars_due_label')} ${formatPKR((row.dueCents ?? 0) / 100)}`;
-    return `<div class="fcst-area-row">
+    return `<div class="fcst-area-row" data-area-key="${escapeHtml(row.key)}">
       <div class="fcst-area-head"><span class="fcst-area-label">${escapeHtml(row.label)}</span><span class="fcst-area-figures">${escapeHtml(figures)}</span></div>
       <div class="fcst-area-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="${escapeHtml(row.label)}"><div class="fcst-area-fill" style="width: ${pct}%"></div></div>
     </div>`;

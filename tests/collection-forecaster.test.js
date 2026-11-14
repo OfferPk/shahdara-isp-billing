@@ -282,10 +282,22 @@ test('i18n: every fcst_* key exists in both dictionaries with the same shape', (
   }
 });
 
-test('wiring: dashboard section, render call, token-only styles, and build-graph reachability', async () => {
+test('wiring: module thermometer, render call, token-only styles, and build-graph reachability', async () => {
   const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  for (const id of ['collectionForecastSection', 'collectionForecastPct', 'collectionForecastFill', 'collectionForecastCollected', 'collectionForecastAreas']) {
+  // Area & Mohalla Analytics compact module (Nov 2026): the
+  // forecast section is gone — the thermometer (pct, fill,
+  // collected) lives at the top of the module in the Collect tab.
+  // The per-area rows are NOT rendered any more: Tab 1 renders
+  // the same figures from the bars summary instead, so the two
+  // never disagree about what an area owes.
+  for (const id of ['areaAnalyticsModule', 'collectionForecastPct', 'collectionForecastFill', 'collectionForecastCollected']) {
     assert.ok(index.includes(`id="${id}"`), `index.html carries #${id}`);
+  }
+  assert.ok(!index.includes('id="collectionForecastSection"'), 'old forecast section is gone');
+  assert.ok(!index.includes('id="collectionForecastAreas"'), 'old per-area rows container is gone');
+  const moduleStart = index.indexOf('id="areaAnalyticsModule"');
+  for (const id of ['collectionForecastPct', 'collectionForecastFill', 'collectionForecastCollected']) {
+    assert.ok(index.indexOf(`id="${id}"`) > moduleStart, `#${id} lives inside the module`);
   }
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.ok(app.includes("from './collection-forecaster.js'"), 'app.js imports the forecaster');

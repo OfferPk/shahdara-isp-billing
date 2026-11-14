@@ -23,6 +23,7 @@ import { calculateUpcomingDues, renderUpcomingDues } from './dashboard-upcoming-
 import { calculateOverdueList, renderOverdueList } from './dashboard-overdue-list.js?v=1.11.0';
 import { calculateMethodStrip, renderMethodStrip } from './dashboard-method-strip.js?v=1.11.0';
 import { calculateMohallaBars, renderMohallaBars } from './dashboard-mohalla-bars.js?v=1.11.0';
+import { AREA_MODULE_TOP_N, areaChipMatches, sortAreaRowsByDueDesc, sliceAreaRows, buildAreaJumpOptions } from './area-analytics-module.js';
 import { calculateCollectorCard, renderCollectorCard } from './dashboard-collector-card.js?v=1.11.0';
 import { calculateNewCustomers, renderNewCustomers } from './dashboard-new-customers.js?v=1.11.0';
 import { calculateNoPaymentCustomers, renderNoPayment } from './dashboard-no-payment.js?v=1.11.0';
@@ -89,7 +90,7 @@ import { customerNameOptions, collectorNameOptions, recordIdOptions, paymentIdOp
 import { setupOwnerCenter } from './owner-ui.js?v=1.11.0';
 import {
   createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY,
-  calculateBackupAge, checkStoragePersistence, requestStoragePersistence,
+  checkStoragePersistence, requestStoragePersistence,
   getStorageEstimateInfo, shareJsonBackupFile, LAST_BACKUP_TIME_KEY, STORAGE_PERSISTENCE_KEY,
   encryptBackupJson, decryptBackupJson, isEncryptedBackupPayload,
   loadKhataDoctorCache, saveKhataDoctorCache
@@ -340,7 +341,7 @@ import { INFO_CARD_VARIANTS, normalizeInfoCardVariant, buildInfoCard, infoCardSe
 import { STATUS_REPLY_VARIANTS, normalizeStatusReplyVariant, buildStatusReply, statusReplySentText, logStatusReplySent, findStatusReplySends, statusReplyHtml } from './status-reply.js';
 import { buildMorningQueue, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
 import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
-import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
+import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardEquationHtml, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
 import { buildPrecloseSweep, precloseSweepSummaryText, precloseSweepHtml, precloseSweepCsv, precloseSweepFilename, validSweepMonth } from './preclose-sweep.js';
 import { validSnapshotMonth, normalizeSnapshotList, findSnapshot, takeSnapshot, removeSnapshot, snapshotSummaryText, snapshotHtml, snapshotCsv, snapshotFilename, compareSnapshots, compareSnapshotsSummaryText, compareSnapshotsHtml, compareSnapshotsCsv } from './month-snapshots.js';
 import { validAnnualYear, monthsOfYear, buildAnnualSummary, annualSummaryText, annualSummaryHtml, annualSummaryCsv, annualSummaryFilename } from './annual-summary.js';
@@ -608,7 +609,7 @@ import { largeCashApprovalMarkup, requiresLargeCashApproval, LARGE_CASH_DEFAULT_
 import { categoryTagMarkup, filterTransactionsByCategoryTag, transactionCategoryTagCounts, transactionCategoryTagLabel, transactionCategoryTagSelectOptions } from './transaction-category-tag.js';
 import { urduNoteMarkup } from './urdu-note.js';
 import { crossPaymentNoteMarkup, crossPaymentsMadeBy, crossPaymentsMadeSectionHtml } from './cross-payment-note.js';
-import { normalizeReceiptNumber, findTransactionByReceiptNumber, receiptNumberSearchLineText, receiptNumberSearchRowMarkup } from './receipt-number-search.js';
+import { normalizeReceiptNumber, findTransactionByReceiptNumber, receiptNumberSearchLineText, receiptNumberSearchRowMarkup, receiptNumberOfRow } from './receipt-number-search.js';
 import { findReceipts } from './receipt-finder.js';
 import { customerIdPillClass, customerHealthReasonPillClass, healthScoreBandClass } from './customer-card-style.js';
 import { billMonthChoiceOf, normalizeBillMonthChoice, billMonthSelectOptions, billMonthChoiceLineText } from './bill-month-selector.js?v=1.11.0';
@@ -687,7 +688,7 @@ import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-col
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
 import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
-import { setupExpansionEstimatorModal } from './expansion-estimator.js';
+import { setupExpansionEstimatorInline } from './expansion-estimator.js';
 import { EXPENSE_BUDGETS_KEY, loadExpenseBudgets, saveExpenseBudgets } from './expense-budget-caps.js';
 import { FIELD_BAG_KEY, applyFieldBagStockBridge, computeBagStock, loadFieldBagMovements, saveFieldBagMovements, setupFieldBagModal } from './field-bag-stock.js';
 import { POLES_REGISTRY_KEY, loadPolesRegistry, poleRegistrySummary, savePolesRegistry, setupPoleRegistryModal } from './pole-asset-tracker.js';
@@ -1294,14 +1295,10 @@ async function refreshStorageSafetyInfo() {
   } catch { /* best effort */ }
 }
 
-function getLatestBackupTimestamp(status = null) {
-  let localTime = null;
-  try { localTime = localStorage.getItem(LAST_BACKUP_TIME_KEY); } catch { /* ignore */ }
-  const storeTime = status?.lastSuccessfulAt;
-  if (!localTime) return storeTime;
-  if (!storeTime) return localTime;
-  return new Date(localTime) > new Date(storeTime) ? localTime : storeTime;
-}
+// Home Dashboard polish (D2): getLatestBackupTimestamp is deleted —
+// its only caller was the storage badge, which now reads the SISP-10
+// health record. Its MAX(legacy key, local snapshot) was the leak
+// that showed a local snapshot as a backup.
 
 // SISP-10: off-device export record. Local IndexedDB snapshots deliberately
 // do NOT call this — a browser cache clear wipes them too, so only a copy
@@ -1395,14 +1392,27 @@ $('#backupHealthBadge')?.addEventListener('click', () => {
 });
 
 function updateDataSafetyUi(status = null) {
-  const latestBackupAt = getLatestBackupTimestamp(status);
-  const age = calculateBackupAge(latestBackupAt, new Date());
+  // Home Dashboard polish (D2): the storage badge reads the SAME
+  // SISP-10 health record as the briefing tile, the top-bar badge and
+  // the SISP-199 banners (deriveBackupHealth) — never
+  // getLatestBackupTimestamp, whose MAX(legacy key, local snapshot)
+  // showed the last LOCAL snapshot as if it were a backup. A local
+  // snapshot alone now leaves the badge Critical/Never, and the badge
+  // flips green -> red where the old reading said "2d ago". That is
+  // the correct reading: no off-device export has left the device.
+  // The `status` argument stays for the refresh call signature; the
+  // local-backup-store status no longer feeds this badge. This is a
+  // READ-side change only: nothing here stamps the health record, so
+  // the Clear All backup gate is untouched.
+  const { record: backupRecord, paymentsSinceExport } = deriveBackupHealth();
+  const backupHealth = assessBackupHealth({ lastExportAt: backupRecord.lastExportAt, paymentsSinceExport, now: new Date() });
+  const backupBadgeLevel = backupHealth.status === 'safe' ? 'healthy' : backupHealth.status === 'due' ? 'warning' : 'danger';
 
   const bannerBackupBadge = $('#dataSafetyBackupBadge');
   if (bannerBackupBadge) {
-    bannerBackupBadge.textContent = `Backup: ${age.shortLabel}`;
-    bannerBackupBadge.className = `safety-badge badge-${age.level}`;
-    bannerBackupBadge.title = age.statusText;
+    bannerBackupBadge.textContent = backupHealth.label;
+    bannerBackupBadge.className = `safety-badge badge-${backupBadgeLevel}`;
+    bannerBackupBadge.title = backupHealth.title;
   }
   const bannerPersistenceBadge = $('#dataSafetyPersistenceBadge');
   if (bannerPersistenceBadge) {
@@ -1923,6 +1933,9 @@ function renderPowerBackupDashboard(now = new Date()) {
       : summary.activeCount > 0
         ? t('pwr_card_outage', null, { count: summary.activeCount })
         : t('pwr_card_ok', null, { count: summary.nodeCount });
+    // More Tab polish (Nov 2026): the zero-state value ("No UPS nodes
+    // yet") renders as a compact muted pill, not a big metric.
+    valueEl.classList.toggle('ds-card-metric--empty', summary.nodeCount === 0);
   }
   const periodEl = $('#dashboardPowerPeriod');
   if (periodEl) {
@@ -1954,6 +1967,248 @@ function renderPowerBackupDashboard(now = new Date()) {
 // on the first render after the page loads — later renders leave
 // the operator where they are.
 let dashboardPlaceRestored = false;
+
+// Area & Mohalla Analytics compact module (Nov 2026): the four
+// Home pieces — the collection thermometer, the per-mohalla bars,
+// the mohalla action cards and the expansion calculator — live in
+// ONE module in the Collect tab instead of four stacked sections
+// across two tabs. The module keeps one shared view state: the
+// active tab, the dues chip and the show-all toggle. The two data
+// summaries it renders from are stored at each dashboard render
+// (bars rows for Tab 1, card stats for Tab 2), together with the
+// state + reference date the card handlers need (the Area-view
+// dialog builds from the live ledger). Nothing here writes to the
+// ledger; the estimator stays a pure calculator.
+let areaModuleTab = 'progress';
+let areaModuleChip = 'pending';
+let areaModuleExpanded = false;
+let areaModuleBarsSummary = null;
+let areaModuleCardStats = [];
+let areaModuleState = null;
+let areaModuleReferenceDate = null;
+let areaModuleEstimatorReady = false;
+
+// Tab 1 (Progress & Dues): the bars rows, filtered by the dues
+// chip, sorted highest still-due first, sliced to the Top 5 until
+// the operator shows all. The totals line above the rows still
+// comes from renderMohallaBars, fed the FULL summary so the
+// totals never follow the filter — only the rows do.
+function renderAreaModuleBars() {
+  const summary = areaModuleBarsSummary;
+  if (!summary) return;
+  const rows = Array.isArray(summary.rows) ? summary.rows : [];
+  const filtered = sortAreaRowsByDueDesc(
+    rows.filter((row) => areaChipMatches(row.dueCents, areaModuleChip)),
+    (row) => row.dueCents
+  );
+  const visible = sliceAreaRows(filtered, areaModuleExpanded);
+  renderMohallaBars(document, { ...summary, rows: visible });
+  const emptyEl = $('#areaAnalyticsBarsEmpty');
+  if (emptyEl) emptyEl.hidden = !(rows.length > 0 && visible.length === 0);
+}
+
+// Tab 2 (Action Cards): the mohalla cards, filtered by the same
+// dues chip, sorted highest unpaid first, sliced to the Top 5
+// until the operator shows all. The three card actions are the
+// same as before the move: open the Customers list for the
+// mohalla, open Field Mode scoped to it, and open its Area view.
+// The card keeps the Collect Tab shape: name on one line
+// (nowrap, ellipsis), count + users + paid % on one headline
+// line, the Unpaid figure, the Free line when there are any, and
+// the Field Collect + Area view buttons side by side on one row.
+function renderAreaModuleCards() {
+  const mohallaCardsEl = $('#mohallaDashboardCards');
+  if (!mohallaCardsEl) return;
+  const stats = areaModuleCardStats || [];
+  const filtered = sortAreaRowsByDueDesc(
+    stats.filter((row) => areaChipMatches(row.unpaidPKR * 100, areaModuleChip)),
+    (row) => row.unpaidPKR * 100
+  );
+  const visible = sliceAreaRows(filtered, areaModuleExpanded);
+  const mohallaEmptyEl = $('#mohallaDashboardEmpty');
+  if (mohallaEmptyEl) mohallaEmptyEl.hidden = stats.length > 0;
+  const cardsEmptyEl = $('#areaAnalyticsCardsEmpty');
+  if (cardsEmptyEl) cardsEmptyEl.hidden = !(stats.length > 0 && visible.length === 0);
+  mohallaCardsEl.innerHTML = visible.map((row) => {
+    const paidText = row.paidPct === null ? '—' : `${row.paidPct}%`;
+    const freeLine = row.freeCount > 0 ? `<span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_free'))}</span><strong>${row.freeCount}</strong></span>` : '';
+    return `<div class="mohalla-card" data-area-key="${escapeHtml(row.key)}"><button type="button" class="mohalla-card-main" data-mohalla-card="${escapeHtml(row.stored)}" aria-label="${escapeHtml(`${row.stored}: ${row.count} ${t('dash_mohalla_users')}, ${t('dash_mohalla_unpaid')} ${formatPKR(row.unpaidPKR)}, ${t('dash_mohalla_paid')} ${paidText}`)}"><span class="mohalla-card-name">${escapeHtml(row.stored)}</span><span class="mohalla-card-headline"><strong class="mohalla-card-count">${row.count}</strong><span class="mohalla-card-users">${escapeHtml(t('dash_mohalla_users'))}</span><span class="mohalla-card-headline-sep">·</span><span class="mohalla-card-paid"><strong>${paidText}</strong> ${escapeHtml(t('dash_mohalla_paid'))}</span></span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_unpaid'))}</span><strong>${escapeHtml(formatPKR(row.unpaidPKR))}</strong></span>${freeLine}</button><div class="mohalla-card-actions"><button type="button" class="mohalla-card-collect mohalla-card-collect--primary" data-mohalla-collect="${escapeHtml(row.stored)}">${dsIcon('Bike', 16)}<span>${escapeHtml(t('dash_mohalla_collect'))}</span></button><button type="button" class="mohalla-card-collect mohalla-card-collect--compact" data-mohalla-area-view="${escapeHtml(row.stored)}">Area view</button></div></div>`;
+  }).join('');
+  mohallaCardsEl.querySelectorAll('[data-mohalla-card]').forEach((button) => button.addEventListener('click', () => {
+    customerSearchField = 'area';
+    customerAreaFilter = 'all';
+    if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
+    if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
+    if ($('#customerListSearch')) $('#customerListSearch').value = button.dataset.mohallaCard;
+    customerCurrentPage = 1;
+    switchView('customers');
+    renderCustomers();
+  }));
+  mohallaCardsEl.querySelectorAll('[data-mohalla-collect]').forEach((button) => button.addEventListener('click', () => {
+    window.fieldModeController?.openForMohalla?.(button.dataset.mohallaCollect);
+  }));
+  // Plan T: one area view per mohalla card — dues, defaulters,
+  // promises and collections for that area in a single dialog, built
+  // from the same figures as the card, Top Defaulters and the Waada
+  // queue. Its actions reuse existing navigation (Customers list
+  // with the Area search set, Field Mode scoped to the mohalla).
+  mohallaCardsEl.querySelectorAll('[data-mohalla-area-view]').forEach((button) => button.addEventListener('click', () => {
+    if (!areaModuleState || !areaModuleReferenceDate) return;
+    const dialog = $('#areaOperationsDialog');
+    if (!dialog) return;
+    if (!dialog.dataset.areaCloseWired) {
+      dialog.dataset.areaCloseWired = '1';
+      dialog.querySelectorAll('[data-area-operations-close]').forEach((closeBtn) => closeBtn.addEventListener('click', () => {
+        if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+        else dialog.hidden = true;
+      }));
+    }
+    const stored = button.dataset.mohallaAreaView;
+    const view = buildAreaOperationsView({
+      customers: areaModuleState.customers,
+      allocations: calculatePaymentAllocations(areaModuleState),
+      currentMonth: pakistanMonthNow(areaModuleReferenceDate),
+      area: stored,
+      todayStr: pakistanToday(),
+    });
+    const bodyEl = $('#areaOperationsBody');
+    if (bodyEl) bodyEl.innerHTML = areaOperationsViewHtml(view);
+    const titleEl = $('#areaOperationsTitle');
+    if (titleEl) titleEl.textContent = view.validArea ? `Area view — ${view.area.stored}` : 'Area view';
+    const customersBtn = $('#areaOperationsCustomersBtn');
+    if (customersBtn) customersBtn.onclick = () => {
+      customerSearchField = 'area';
+      customerAreaFilter = 'all';
+      if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
+      if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
+      if ($('#customerListSearch')) $('#customerListSearch').value = stored;
+      customerCurrentPage = 1;
+      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+      switchView('customers');
+      renderCustomers();
+    };
+    const collectBtn = $('#areaOperationsCollectBtn');
+    if (collectBtn) collectBtn.onclick = () => {
+      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+      window.fieldModeController?.openForMohalla?.(stored);
+    };
+    if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
+    else dialog.hidden = false;
+  }));
+}
+
+// The jump control: all sixteen mohallas in the fixed numbered
+// order, plus Unassigned last. Picking one switches to the tab
+// that holds the matching row or card, clears the chip filter
+// when it is hiding the target, and scrolls it into view.
+function renderAreaModuleJumpOptions() {
+  const select = $('#areaAnalyticsJumpSelect');
+  if (!select) return;
+  const mohallas = sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS)
+    .map((name) => canonicalMohalla(name))
+    .filter(Boolean)
+    .map((canon) => ({ key: canon.key, label: canon.label }));
+  const options = buildAreaJumpOptions(mohallas);
+  select.innerHTML = `<option value="">${escapeHtml(t('area_mod_jump_placeholder'))}</option>` + options.map((option) => `<option value="${escapeHtml(option.key)}">${escapeHtml(option.label)}</option>`).join('');
+}
+
+function areaModuleJumpTo(key) {
+  if (!key) return;
+  const moduleEl = $('#areaAnalyticsModule');
+  if (!moduleEl) return;
+  // Tab 3 (the planner) holds no rows or cards — a jump from
+  // there lands on Tab 1, where the bars rows live.
+  if (areaModuleTab === 'planner') areaModuleTab = 'progress';
+  const panelId = areaModuleTab === 'cards' ? 'areaAnalyticsTabCards' : 'areaAnalyticsTabProgress';
+  const panel = document.getElementById(panelId);
+  const findTarget = () => panel
+    ? Array.from(panel.querySelectorAll('[data-area-key]')).find((el) => el.dataset.areaKey === key)
+    : null;
+  const target = findTarget();
+  if (target) {
+    target.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  // The chip may be hiding the target, or the Top-5 slice may
+  // have cut it off: show everything, then look again. Still
+  // nothing means the mohalla has no row or card at all (no
+  // customers) — nothing to scroll to.
+  if (areaModuleChip !== 'all' || !areaModuleExpanded) {
+    areaModuleChip = 'all';
+    areaModuleExpanded = true;
+    renderAreaModuleBars();
+    renderAreaModuleCards();
+    syncAreaModuleChrome();
+    const retry = findTarget();
+    if (retry) retry.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+// Chrome sync: which tab is visible, which tab + chip carry
+// aria-pressed, and what the two show-all toggles say. Runs at
+// the end of every dashboard render (a language change re-runs
+// the render and resets the toggle labels through data-i18n,
+// and the toggle visibility follows the filtered counts) and
+// after every tab, chip or toggle tap.
+function syncAreaModuleChrome() {
+  const moduleEl = $('#areaAnalyticsModule');
+  if (!moduleEl) return;
+  const tabs = { progress: 'areaAnalyticsTabProgress', cards: 'areaAnalyticsTabCards', planner: 'areaAnalyticsTabPlanner' };
+  for (const [tab, panelId] of Object.entries(tabs)) {
+    const panel = document.getElementById(panelId);
+    if (panel) panel.hidden = tab !== areaModuleTab;
+    const btn = document.getElementById(`${panelId}Btn`);
+    if (btn) btn.setAttribute('aria-pressed', String(tab === areaModuleTab));
+  }
+  moduleEl.querySelectorAll('[data-area-chip]').forEach((chipBtn) => chipBtn.setAttribute('aria-pressed', String(chipBtn.dataset.areaChip === areaModuleChip)));
+  const filteredCount = areaModuleTab === 'cards'
+    ? (areaModuleCardStats || []).filter((row) => areaChipMatches(row.unpaidPKR * 100, areaModuleChip)).length
+    : (areaModuleBarsSummary && Array.isArray(areaModuleBarsSummary.rows) ? areaModuleBarsSummary.rows.filter((row) => areaChipMatches(row.dueCents, areaModuleChip)).length : 0);
+  moduleEl.querySelectorAll('[data-area-toggle]').forEach((toggleBtn) => {
+    toggleBtn.hidden = filteredCount <= AREA_MODULE_TOP_N;
+    toggleBtn.classList.toggle('is-expanded', areaModuleExpanded);
+    const label = toggleBtn.querySelector('.area-analytics-toggle-label');
+    if (label) label.textContent = t(areaModuleExpanded ? 'area_mod_show_less' : 'area_mod_show_all');
+  });
+}
+
+// One-time wiring for the module chrome: tabs, chips, the two
+// show-all toggles and the jump control. Guarded against
+// double-wiring — the dashboard render re-runs often, but the
+// chrome is wired once. The estimator's inline setup is NOT
+// wired here: its prefill reads recorded data from state, so it
+// runs once from the first dashboard render instead (see the
+// end of renderDashboard).
+function setupAreaAnalyticsModule() {
+  const moduleEl = $('#areaAnalyticsModule');
+  if (!moduleEl || moduleEl.dataset.areaModuleWired) return;
+  moduleEl.dataset.areaModuleWired = '1';
+  moduleEl.querySelectorAll('.area-analytics-tab').forEach((tabBtn) => tabBtn.addEventListener('click', () => {
+    const panelId = tabBtn.getAttribute('aria-controls');
+    const tab = panelId === 'areaAnalyticsTabCards' ? 'cards' : panelId === 'areaAnalyticsTabPlanner' ? 'planner' : 'progress';
+    if (tab === areaModuleTab) return;
+    areaModuleTab = tab;
+    syncAreaModuleChrome();
+  }));
+  moduleEl.querySelectorAll('[data-area-chip]').forEach((chipBtn) => chipBtn.addEventListener('click', () => {
+    if (chipBtn.dataset.areaChip === areaModuleChip) return;
+    areaModuleChip = chipBtn.dataset.areaChip;
+    renderAreaModuleBars();
+    renderAreaModuleCards();
+    syncAreaModuleChrome();
+  }));
+  moduleEl.querySelectorAll('[data-area-toggle]').forEach((toggleBtn) => toggleBtn.addEventListener('click', () => {
+    areaModuleExpanded = !areaModuleExpanded;
+    renderAreaModuleBars();
+    renderAreaModuleCards();
+    syncAreaModuleChrome();
+  }));
+  const jumpSelect = $('#areaAnalyticsJumpSelect');
+  if (jumpSelect) jumpSelect.addEventListener('change', () => {
+    areaModuleJumpTo(jumpSelect.value);
+    jumpSelect.value = '';
+  });
+}
 function renderDashboard() {
   const referenceDate = new Date();
   // SISP-27: upstream bandwidth bill due banner.
@@ -2007,9 +2262,13 @@ function renderDashboard() {
       : shopSummaries.map((s) => {
         const aging = shopAgingByShop.get(s.shop);
         const agingBlock = aging && aging.level
-          ? ` <span class="shop-aging-badge shop-aging-badge--${aging.level}">${escapeHtml(shopAgingBadgeText(aging))}</span> <a class="shop-aging-remind-link" href="${escapeHtml(shopSettlementWhatsAppUrl(buildShopAgingReminderText(state, aging)))}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('shopage_remind_btn'))}</a>`
+          ? ` <span class="shop-aging-badge shop-aging-badge--${aging.level}">${escapeHtml(shopAgingBadgeText(aging))}</span> <a class="shop-aging-remind-link shop-aging-remind-pill" href="${escapeHtml(shopSettlementWhatsAppUrl(buildShopAgingReminderText(state, aging)))}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('shopage_remind_pill'))}</a>`
           : '';
-        return `<p><span>${escapeHtml(s.shop)}</span><strong>${escapeHtml(formatAmount(s.unsettled))}</strong><small> · ${escapeHtml(t('dash_shop_detail', null, { collected: formatAmount(s.collectedThisMonth), date: s.lastHandoverDate || t('dash_shop_never') }))}</small>${agingBlock}</p>`;
+        // Collect Tab polish: each shop renders in a .ds-stat-box
+        // sub-card and the reminder link is a compact pill button
+        // (same recipient-less wa.me draft href; the modal button in
+        // shop-settlement.js keeps the shared shopage_remind_btn key).
+        return `<div class="ds-stat-box shop-settlement-shop"><p><span>${escapeHtml(s.shop)}</span><strong>${escapeHtml(formatAmount(s.unsettled))}</strong><small> · ${escapeHtml(t('dash_shop_detail', null, { collected: formatAmount(s.collectedThisMonth), date: s.lastHandoverDate || t('dash_shop_never') }))}</small>${agingBlock}</p></div>`;
       }).join('');
   }
   // Owner feature 2026-10-29: Recent Payments card (last 3 payments
@@ -2048,7 +2307,7 @@ function renderDashboard() {
     }
     recentPaymentsListEl.innerHTML = recentRows.length === 0
       ? `<li class="recent-payments-empty">${escapeHtml(t('dash_recent_empty'))}</li>`
-      : recentRows.map((row) => `<li class="recent-payment-item"><div class="recent-payment-row"><button type="button" class="recent-payment-open" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-ref">${escapeHtml(row.receiptRef || humanDate(row.date))}</strong><span class="recent-payment-sub" dir="auto">${escapeHtml(row.customerName)}${row.method ? ` · ${escapeHtml(row.method)}` : ''}</span></span><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong></button><details class="recent-payment-actions-menu"><summary class="recent-payment-actions-toggle">${escapeHtml(t('dash_recent_actions'))} ▾</summary>${recentPaymentActionsMarkup(row)}</details></div></li>`).join('');
+      : recentRows.map((row) => `<li class="recent-payment-item"><div class="recent-payment-row"><button type="button" class="recent-payment-open" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-name" dir="auto">${escapeHtml(row.customerName)}</strong><span class="recent-payment-sub" dir="auto">${row.method ? `${escapeHtml(row.method)} · ` : ''}${humanDate(row.date)}</span></span></button><div class="recent-payment-right"><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong><details class="recent-payment-actions-menu"><summary class="recent-payment-actions-toggle">${escapeHtml(t('dash_recent_actions'))} ▾</summary>${recentPaymentActionsMarkup(row)}</details></div></div></li>`).join('');
     recentPaymentsListEl.querySelectorAll('[data-recent-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.recentCustomerId)));
     recentPaymentsListEl.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
     recentPaymentsListEl.querySelectorAll('[data-png-receipt]').forEach(button => button.addEventListener('click', () => downloadPngReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
@@ -2339,7 +2598,7 @@ function renderDashboard() {
     });
     const fdispTotalEl = $('#fieldDispatchTotal');
     if (fdispTotalEl) fdispTotalEl.textContent = board.totalOpen > 0 ? t('fdisp_total', null, { count: board.totalOpen }) : '';
-    const fdispTypeIcons = { complaint: '⚠️', ticket: '🎫', installation: '🔌', work: '📝', recovery: '📦' };
+    const fdispTypeIcons = { complaint: '⚠️', ticket: '🎫', installation: dsIcon('Plug', 16), work: '📝', recovery: '📦' };
     fdispListEl.innerHTML = board.zones.length === 0
       ? `<p class="field-dispatch-empty">${escapeHtml(t('fdisp_empty'))}</p>`
       : board.zones.map((zone) => {
@@ -2368,6 +2627,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardBillingCycleValue');
     const periodEl = $('#dashboardBillingCyclePeriod');
     if (valueEl) valueEl.textContent = latest ? t('dash_cycle_cycled', null, { month: displayMonthName(latest.month) }) : t('dash_cycle_empty');
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', !latest);
     if (periodEl) periodEl.textContent = latest ? t('dash_cycle_bills', null, { count: latest.totals.billedCount, amount: formatAmount(latest.totals.netExpectedCollection) }) : t('dash_cycle_period_empty');
     cycleSummaryEl.innerHTML = latest
       ? `<p><span>${escapeHtml(displayMonthName(latest.month))}</span><strong>${escapeHtml(t('dash_cycle_billed', null, { amount: formatAmount(latest.totals.totalBilled) }))}</strong><small> · ${escapeHtml(t('dash_cycle_arrears', null, { amount: formatAmount(latest.totals.totalArrears) }))} · ${escapeHtml(latest.ranAt || '')}</small></p>`
@@ -2399,6 +2659,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardComplaintValue');
     const periodEl = $('#dashboardComplaintPeriod');
     if (valueEl) valueEl.textContent = summary.total === 0 ? t('dash_complaint_empty') : t('dash_complaint_open', null, { open: summary.open, inProgress: summary.inProgress });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', summary.total === 0);
     if (periodEl) periodEl.textContent = summary.total === 0 ? t('dash_complaint_period_empty') : t('dash_complaint_period', null, { resolved: summary.resolved, count: summary.thisMonthCount, hours: summary.thisMonthDowntime });
     complaintSummaryEl.innerHTML = summary.total === 0
       ? ''
@@ -2411,6 +2672,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardFieldTicketsValue');
     const periodEl = $('#dashboardFieldTicketsPeriod');
     if (valueEl) valueEl.textContent = summary.total === 0 ? t('dash_ticket_empty') : t('dash_complaint_open', null, { open: summary.open, inProgress: summary.inProgress });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', summary.total === 0);
     if (periodEl) periodEl.textContent = summary.total === 0 ? t('dash_ticket_period_empty') : t('dash_ticket_period', null, { resolved: summary.resolved, charges: summary.pendingCharges });
     ticketSummaryEl.innerHTML = summary.total === 0
       ? ''
@@ -2423,6 +2685,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardDowntimeValue');
     const periodEl = $('#dashboardDowntimePeriod');
     if (valueEl) valueEl.textContent = analytics.totalComplaints === 0 ? t('dash_downtime_empty') : t('dash_downtime_value', null, { hours: analytics.totalDowntime });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', analytics.totalComplaints === 0);
     if (periodEl) periodEl.textContent = analytics.totalComplaints === 0 ? t('dash_downtime_period_empty') : t('dash_downtime_period', null, { count: analytics.totalComplaints, customers: analytics.perCustomer.length });
     downtimeSummaryEl.innerHTML = analytics.totalComplaints === 0
       ? ''
@@ -2439,6 +2702,7 @@ function renderDashboard() {
     const fleetValueEl = $('#dashboardFleetUptimeValue');
     const fleetPeriodEl = $('#dashboardFleetUptimePeriod');
     if (fleetValueEl) fleetValueEl.textContent = fleet.fleetAvgPercent === null ? '—' : `${fleet.fleetAvgPercent}%`;
+    if (fleetValueEl) fleetValueEl.classList.toggle('ds-card-metric--empty', fleet.fleetAvgPercent === null);
     if (fleetPeriodEl) fleetPeriodEl.textContent = fleet.includedCount === 0
       ? t('upt_fleet_period_none')
       : t('upt_fleet_period', null, { perfect: fleet.perfectCount, count: fleet.includedCount });
@@ -2461,6 +2725,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardUpslaValue');
     const periodEl = $('#dashboardUpslaPeriod');
     if (valueEl) valueEl.textContent = claim.incidentCount === 0 ? t('dash_upsla_empty') : t('dash_upsla_value', null, { hours: claim.totalDowntimeHours });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', claim.incidentCount === 0);
     if (periodEl) periodEl.textContent = claim.incidentCount === 0 ? t('dash_upsla_period_empty') : t('dash_upsla_period', null, { count: claim.incidentCount, pct: claim.availabilityPct });
     upslaSummaryEl.innerHTML = claim.incidentCount === 0
       ? ''
@@ -2476,7 +2741,8 @@ function renderDashboard() {
     const polishReport = buildPolishMismatchReport(state, splitterPolishMap);
     const splitterValueEl = $('#dashboardSplitterValue');
     const splitterPeriodEl = $('#dashboardSplitterPeriod');
-    if (splitterValueEl) splitterValueEl.textContent = overview.boxCount === 0 ? t('dash_splitter_empty') : `${t(overview.boxCount === 1 ? 'dash_splitter_box_sing' : 'dash_splitter_box_plur', null, { count: overview.boxCount })} · ${t('dash_splitter_ports', null, { count: overview.occupiedPorts })}`;
+    if (splitterValueEl) splitterValueEl.textContent = overview.boxCount === 0 ? t('dash_splitter_empty') : `${t(overview.boxCount === 1 ? 'dash_splitter_box_sing' : 'dash_splitter_box_plur', null, { count: overview.boxCount })} · ${t(overview.occupiedPorts === 1 ? 'dash_splitter_port_sing' : 'dash_splitter_ports', null, { count: overview.occupiedPorts })}`;
+    if (splitterValueEl) splitterValueEl.classList.toggle('ds-card-metric--empty', overview.boxCount === 0);
     if (splitterPeriodEl) splitterPeriodEl.textContent = overview.boxCount === 0 ? t('dash_splitter_period_empty') : `${t(overview.freePorts === 1 ? 'dash_splitter_spare_sing' : 'dash_splitter_spare_plur', null, { count: overview.freePorts })}${overview.weakCount ? ` · ${t(overview.weakCount === 1 ? 'dash_splitter_weak_sing' : 'dash_splitter_weak_plur', null, { count: overview.weakCount })}` : ` · ${t('dash_splitter_no_weak')}`}${polishReport.count ? t(polishReport.count === 1 ? 'polish_dash_chip_1' : 'polish_dash_chip_n', null, { count: polishReport.count }) : ''}`;
     splitterSummaryEl.innerHTML = overview.weakCustomers.length === 0
       ? ''
@@ -2492,7 +2758,10 @@ function renderDashboard() {
     const ponPeriodEl = $('#dashboardPonCapacityPeriod');
     if (ponValueEl) ponValueEl.textContent = ponReport.totals.activeOnus === 0
       ? t('poncap_empty')
-      : t('poncap_value', null, { ports: ponReport.totals.portCount, onus: ponReport.totals.activeOnus });
+      : t(ponReport.totals.portCount === 1
+        ? (ponReport.totals.activeOnus === 1 ? 'poncap_value_1port_1onu' : 'poncap_value_1port')
+        : (ponReport.totals.activeOnus === 1 ? 'poncap_value_1onu' : 'poncap_value'), null, { ports: ponReport.totals.portCount, onus: ponReport.totals.activeOnus });
+    if (ponValueEl) ponValueEl.classList.toggle('ds-card-metric--empty', ponReport.totals.activeOnus === 0);
     if (ponPeriodEl) {
       const periodParts = [];
       if (ponReport.totals.activeOnus === 0) periodParts.push(t('poncap_period_empty'));
@@ -2511,80 +2780,24 @@ function renderDashboard() {
   // SISP-175: each card also carries live figures derived at render from
   // the allocation engine (buildMohallaCardStats): total Unpaid PKR, the
   // Paid % of this month's billed customers, the FREE connection count
-  // (only when there are any), and a 🏍️ Field Collect button that opens
-  // Field Mode scoped to exactly this card's mohalla. The collect button
-  // is a sibling of the card's main button (never nested inside it), so
-  // tapping it never triggers the Customers navigation.
+  // (only when there are any), and a Field Collect button (Bike icon)
+  // that opens Field Mode scoped to exactly this card's mohalla. The
+  // collect button is a sibling of the card's main button (never
+  // nested inside it), so tapping it never triggers the Customers
+  // navigation.
+  // Area & Mohalla Analytics module, Tab 2: the mohalla cards
+  // render from the stored stats (filtered by the dues chip,
+  // Top 5 until show-all) inside renderAreaModuleCards. The
+  // state + reference date are stored here for the card handlers
+  // (the Area-view dialog builds from the live ledger) and for
+  // the inline estimator's recorded-data prefill.
+  areaModuleState = state;
+  areaModuleReferenceDate = referenceDate;
   const mohallaCardsEl = $('#mohallaDashboardCards');
   if (mohallaCardsEl) {
-    const mohallaStats = buildMohallaCardStats(state.customers, calculatePaymentAllocations(state), pakistanMonthNow(referenceDate));
-    const mohallaEmptyEl = $('#mohallaDashboardEmpty');
-    if (mohallaEmptyEl) mohallaEmptyEl.hidden = mohallaStats.length > 0;
-    mohallaCardsEl.innerHTML = mohallaStats.map((row) => {
-      const paidText = row.paidPct === null ? '—' : `${row.paidPct}%`;
-      const freeLine = row.freeCount > 0 ? `<span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_free'))}</span><strong>${row.freeCount}</strong></span>` : '';
-      return `<div class="mohalla-card"><button type="button" class="mohalla-card-main" data-mohalla-card="${escapeHtml(row.stored)}" aria-label="${escapeHtml(`${row.stored}: ${row.count} ${t('dash_mohalla_users')}, ${t('dash_mohalla_unpaid')} ${formatPKR(row.unpaidPKR)}, ${t('dash_mohalla_paid')} ${paidText}`)}"><span class="mohalla-card-name">${escapeHtml(row.stored)}</span><strong class="mohalla-card-count">${row.count}</strong><span class="mohalla-card-users">${escapeHtml(t('dash_mohalla_users'))}</span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_unpaid'))}</span><strong>${escapeHtml(formatPKR(row.unpaidPKR))}</strong></span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_paid'))}</span><strong>${paidText}</strong></span>${freeLine}</button><button type="button" class="mohalla-card-collect" data-mohalla-collect="${escapeHtml(row.stored)}">${escapeHtml(t('dash_mohalla_collect'))}</button><button type="button" class="mohalla-card-collect" data-mohalla-area-view="${escapeHtml(row.stored)}">Area view</button></div>`;
-    }).join('');
-    mohallaCardsEl.querySelectorAll('[data-mohalla-card]').forEach((button) => button.addEventListener('click', () => {
-      customerSearchField = 'area';
-      customerAreaFilter = 'all';
-      if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
-      if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
-      if ($('#customerListSearch')) $('#customerListSearch').value = button.dataset.mohallaCard;
-      customerCurrentPage = 1;
-      switchView('customers');
-      renderCustomers();
-    }));
-    mohallaCardsEl.querySelectorAll('[data-mohalla-collect]').forEach((button) => button.addEventListener('click', () => {
-      window.fieldModeController?.openForMohalla?.(button.dataset.mohallaCollect);
-    }));
-    // Plan T: one area view per mohalla card — dues, defaulters,
-    // promises and collections for that area in a single dialog, built
-    // from the same figures as the card, Top Defaulters and the Waada
-    // queue. Its actions reuse existing navigation (Customers list
-    // with the Area search set, Field Mode scoped to the mohalla).
-    mohallaCardsEl.querySelectorAll('[data-mohalla-area-view]').forEach((button) => button.addEventListener('click', () => {
-      const dialog = $('#areaOperationsDialog');
-      if (!dialog) return;
-      if (!dialog.dataset.areaCloseWired) {
-        dialog.dataset.areaCloseWired = '1';
-        dialog.querySelectorAll('[data-area-operations-close]').forEach((closeBtn) => closeBtn.addEventListener('click', () => {
-          if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-          else dialog.hidden = true;
-        }));
-      }
-      const stored = button.dataset.mohallaAreaView;
-      const view = buildAreaOperationsView({
-        customers: state.customers,
-        allocations: calculatePaymentAllocations(state),
-        currentMonth: pakistanMonthNow(referenceDate),
-        area: stored,
-        todayStr: pakistanToday(),
-      });
-      const bodyEl = $('#areaOperationsBody');
-      if (bodyEl) bodyEl.innerHTML = areaOperationsViewHtml(view);
-      const titleEl = $('#areaOperationsTitle');
-      if (titleEl) titleEl.textContent = view.validArea ? `Area view — ${view.area.stored}` : 'Area view';
-      const customersBtn = $('#areaOperationsCustomersBtn');
-      if (customersBtn) customersBtn.onclick = () => {
-        customerSearchField = 'area';
-        customerAreaFilter = 'all';
-        if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
-        if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
-        if ($('#customerListSearch')) $('#customerListSearch').value = stored;
-        customerCurrentPage = 1;
-        if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-        switchView('customers');
-        renderCustomers();
-      };
-      const collectBtn = $('#areaOperationsCollectBtn');
-      if (collectBtn) collectBtn.onclick = () => {
-        if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-        window.fieldModeController?.openForMohalla?.(stored);
-      };
-      if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
-      else dialog.hidden = false;
-    }));
+    areaModuleCardStats = buildMohallaCardStats(state.customers, calculatePaymentAllocations(state), pakistanMonthNow(referenceDate));
+    renderAreaModuleCards();
+    renderAreaModuleJumpOptions();
   }
   // SISP-17: monthly complaint report card (this-month 4-part report totals).
   const monthlyReportSummaryEl = $('#monthlyComplaintReportSummary');
@@ -2593,6 +2806,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardMonthlyReportValue');
     const periodEl = $('#dashboardMonthlyReportPeriod');
     if (valueEl) valueEl.textContent = report.summary.totalComplaints === 0 ? t('dash_complaint_empty') : t('dash_report_value', null, { count: report.summary.totalComplaints, hours: report.summary.totalDowntime });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', report.summary.totalComplaints === 0);
     if (periodEl) periodEl.textContent = report.summary.totalComplaints === 0 ? t('dash_report_period_empty') : t('dash_report_period', null, { resolved: report.summary.resolvedCount, pending: report.summary.pendingCount, hours: report.summary.fiberCutHours });
     monthlyReportSummaryEl.innerHTML = report.summary.totalComplaints === 0
       ? ''
@@ -2618,6 +2832,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardInventoryValue');
     const periodEl = $('#dashboardInventoryPeriod');
     if (valueEl) valueEl.textContent = movements.length === 0 ? t('dash_inv_empty') : t(lowItems.length === 1 ? 'dash_inv_low_sing' : 'dash_inv_low_plur', null, { count: lowItems.length });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', movements.length === 0);
     if (periodEl) periodEl.textContent = movements.length === 0 ? t('dash_inv_period_empty') : t(movements.length === 1 ? 'dash_inv_move_sing' : 'dash_inv_move_plur', null, { count: movements.length });
     const fiberRow = stock.find((row) => row.id === 'fiber-2core');
     inventorySummaryEl.innerHTML = movements.length === 0
@@ -2642,6 +2857,7 @@ function renderDashboard() {
     const drumValueEl = $('#dashboardFiberDrumValue');
     const drumPeriodEl = $('#dashboardFiberDrumPeriod');
     if (drumValueEl) drumValueEl.textContent = drumSummary.drumCount === 0 ? t('dash_drum_empty') : t(drumSummary.drumCount === 1 ? 'dash_drum_count_sing' : 'dash_drum_count_plur', null, { count: drumSummary.drumCount });
+    if (drumValueEl) drumValueEl.classList.toggle('ds-card-metric--empty', drumSummary.drumCount === 0);
     if (drumPeriodEl) drumPeriodEl.textContent = drumSummary.drumCount === 0 ? t('dash_drum_period_empty') : `${drumSummary.totalRemaining} m`;
     fiberDrumSummaryEl.innerHTML = drumSummary.drumCount === 0
       ? ''
@@ -2654,6 +2870,7 @@ function renderDashboard() {
     const outageValueEl = $('#dashboardOutageValue');
     const outagePeriodEl = $('#dashboardOutagePeriod');
     if (outageValueEl) outageValueEl.textContent = feeder.linkedCount === 0 ? t('dash_outage_empty') : t('dash_outage_linked', null, { count: feeder.linkedCount });
+    if (outageValueEl) outageValueEl.classList.toggle('ds-card-metric--empty', feeder.linkedCount === 0);
     if (outagePeriodEl) outagePeriodEl.textContent = feeder.maxDownstream === 0 ? t('dash_outage_period_empty') : t('dash_outage_chain', null, { count: feeder.maxDownstream });
     outageSummaryEl.innerHTML = feeder.maxSource
       ? `<p><span>${t('dash_outage_chain_label')}</span><strong>${escapeHtml(t('dash_outage_downstream', null, { name: feeder.maxSource.name || t('dash_fallback_unknown'), count: feeder.maxDownstream }))}</strong></p>`
@@ -2666,6 +2883,7 @@ function renderDashboard() {
     const daisyValueEl = $('#dashboardDaisyChainValue');
     const daisyPeriodEl = $('#dashboardDaisyChainPeriod');
     if (daisyValueEl) daisyValueEl.textContent = chainTree.totals.placed === 0 ? t('dash_daisychain_empty') : t('dash_daisychain_roots', null, { count: chainTree.totals.roots });
+    if (daisyValueEl) daisyValueEl.classList.toggle('ds-card-metric--empty', chainTree.totals.placed === 0);
     if (daisyPeriodEl) daisyPeriodEl.textContent = chainTree.totals.deepChain === 0 ? t('dash_daisychain_period_ok') : t('dash_daisychain_deep', null, { count: chainTree.totals.deepChain });
     daisySummaryEl.innerHTML = '';
   }
@@ -2676,6 +2894,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardSaadVisitsValue');
     const periodEl = $('#dashboardSaadVisitsPeriod');
     if (valueEl) valueEl.textContent = summary.visits.length === 0 ? t('dash_saad_empty') : `${t(summary.visits.length === 1 ? 'dash_saad_visit_sing' : 'dash_saad_visit_plur', null, { count: summary.visits.length })} · ${t(summary.dayCount === 1 ? 'dash_saad_day_sing' : 'dash_saad_day_plur', null, { count: summary.dayCount })}`;
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', summary.visits.length === 0);
     if (periodEl) periodEl.textContent = summary.visits.length === 0 ? t('dash_saad_period_empty') : t('dash_saad_period', null, { hours: formatHours(summary.totalHours), amount: summary.grandTotal });
     saadSummaryEl.innerHTML = summary.visits.length === 0
       ? ''
@@ -2706,6 +2925,7 @@ function renderDashboard() {
     const pendingValueEl = $('#dashboardPendingWorksValue');
     const pendingPeriodEl = $('#dashboardPendingWorksPeriod');
     if (pendingValueEl) pendingValueEl.textContent = pendingSummary.pendingCount === 0 ? t('dash_pending_empty') : pendingSummary.dueCount > 0 ? t('dash_pending_due', null, { count: pendingSummary.dueCount }) : t('dash_pending_count', null, { count: pendingSummary.pendingCount });
+    if (pendingValueEl) pendingValueEl.classList.toggle('ds-card-metric--empty', pendingSummary.pendingCount === 0);
     if (pendingPeriodEl) pendingPeriodEl.textContent = pendingSummary.nearestLabel ? t('dash_pending_nearest', null, { label: pendingSummary.nearestLabel }) : t('dash_pending_period_empty');
     pendingWorksSummaryEl.innerHTML = pendingSummary.dueItems.length === 0
       ? ''
@@ -2718,6 +2938,7 @@ function renderDashboard() {
     const poleValueEl = $('#dashboardPoleLandmarkValue');
     const polePeriodEl = $('#dashboardPoleLandmarkPeriod');
     if (poleValueEl) poleValueEl.textContent = poleSummary.mappedCount === 0 ? t('dash_pole_empty') : t(poleSummary.mappedCount === 1 ? 'dash_pole_map_sing' : 'dash_pole_map_plur', null, { count: poleSummary.mappedCount });
+    if (poleValueEl) poleValueEl.classList.toggle('ds-card-metric--empty', poleSummary.mappedCount === 0);
     if (polePeriodEl) polePeriodEl.textContent = t('dash_pole_period', null, { total: poleSummary.totalCustomers });
     poleSummaryEl.innerHTML = poleSummary.mappedCount === 0
       ? ''
@@ -2730,6 +2951,7 @@ function renderDashboard() {
     const groupValueEl = $('#dashboardGroupBillingValue');
     const groupPeriodEl = $('#dashboardGroupBillingPeriod');
     if (groupValueEl) groupValueEl.textContent = groupSummary.groupCount === 0 ? t('dash_group_empty') : formatAmount(groupSummary.totalDueCents / 100);
+    if (groupValueEl) groupValueEl.classList.toggle('ds-card-metric--empty', groupSummary.groupCount === 0);
     if (groupPeriodEl) groupPeriodEl.textContent = groupSummary.groupCount === 0 ? t('dash_group_period_empty') : `${t(groupSummary.groupCount === 1 ? 'dash_group_sing' : 'dash_group_plur', null, { count: groupSummary.groupCount })} · ${t('dash_group_dues', null, { count: groupSummary.groupsWithDue })}`;
     groupBillingSummaryEl.innerHTML = groupSummary.groupCount === 0
       ? ''
@@ -2744,6 +2966,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardHardwareRecoveryValue');
     const periodEl = $('#dashboardHardwareRecoveryPeriod');
     if (valueEl) valueEl.textContent = pending.length === 0 ? t('dash_pending_empty') : `${t(pending.length === 1 ? 'dash_recovery_cust_sing' : 'dash_recovery_cust_plur', null, { count: pending.length })} · ${t(pendingItems === 1 ? 'dash_recovery_item_sing' : 'dash_recovery_item_plur', null, { count: pendingItems })}`;
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', pending.length === 0);
     if (periodEl) periodEl.textContent = pending.length === 0 ? t('dash_recovery_period_empty') : t('dash_recovery_period');
     recoverySummaryEl.innerHTML = pending.length === 0
       ? ''
@@ -2806,6 +3029,7 @@ function renderDashboard() {
     const poleValueEl = $('#dashboardPoleRegistryValue');
     const polePeriodEl = $('#dashboardPoleRegistryPeriod');
     if (poleValueEl) poleValueEl.textContent = poleSummary.poleCount === 0 ? t('dash_polereg_empty') : String(poleSummary.poleCount);
+    if (poleValueEl) poleValueEl.classList.toggle('ds-card-metric--empty', poleSummary.poleCount === 0);
     if (polePeriodEl) polePeriodEl.textContent = poleSummary.poleCount === 0
       ? t('dash_polereg_period')
       : t('polereg_summary', null, { poles: poleSummary.poleCount, drops: poleSummary.dropCount, boxes: poleSummary.boxCount });
@@ -2822,6 +3046,7 @@ function renderDashboard() {
     healthValueEl.textContent = health.totalRecords === 0
       ? t('dash_health_empty')
       : t(health.totalRecords === 1 ? 'dash_health_record_sing' : 'dash_health_record_plur', null, { count: health.totalRecords });
+    healthValueEl.classList.toggle('ds-card-metric--empty', health.totalRecords === 0);
     if (healthPeriodEl) healthPeriodEl.textContent = health.unreadableCount > 0
       ? t('dash_health_unreadable', null, { count: health.unreadableCount })
       : health.totalRecords === 0
@@ -2842,6 +3067,7 @@ function renderDashboard() {
       linemanValueEl.textContent = t(totalResolved === 1 ? 'dash_lineman_resolved_sing' : 'dash_lineman_resolved_plur', null, { count: totalResolved });
       if (linemanPeriodEl) linemanPeriodEl.textContent = t('dash_lineman_period', null, { linemen: scorecard.linemen.length, collectors: scorecard.collectors.length });
     }
+    linemanValueEl.classList.toggle('ds-card-metric--empty', totalResolved === 0 && scorecard.collectors.length === 0);
   }
   // SISP-112: fuel efficiency card — monthly roznamcha petrol divided
   // by field jobs (collections + Saad visits + resolved tickets), with
@@ -2894,8 +3120,14 @@ function renderDashboard() {
   // payment method, each in PKR, with the day total in PKR.
   renderMethodStrip(document, calculateMethodStrip(state, referenceDate));
   // Plan 475: the per-mohalla bars — collected and still due in
-  // PKR for each mohalla, as a short bar, in one glance.
-  renderMohallaBars(document, calculateMohallaBars(state, referenceDate));
+  // PKR for each mohalla, as a short bar, in one glance. The
+  // summary is stored for the Area & Mohalla Analytics module:
+  // its Tab 1 renders the same rows filtered by the dues chip
+  // and sliced to the Top 5 (renderAreaModuleBars feeds the full
+  // summary to renderMohallaBars so the totals never follow the
+  // filter), and its jump control lists the same mohallas.
+  areaModuleBarsSummary = calculateMohallaBars(state, referenceDate);
+  renderAreaModuleBars();
   // Plan 476: the per-collector today card — today's collections
   // in PKR, the count of payments, and the dues still open on
   // each collector's round, in one glance.
@@ -2992,10 +3224,13 @@ function renderDashboard() {
   if (kpiMonthEl) {
     const collStr = formatAmount(kpis.currentMonthCollection || 0);
     const billStr = formatAmount(kpis.currentMonthBilled || 0);
-    kpiMonthEl.textContent = `${collStr} / ${billStr}`;
+    // Home Dashboard polish: the value carries the collected figure
+    // only (one line at full card width); the billed figure + rate
+    // move to the sub-line above the progress bar.
+    kpiMonthEl.textContent = collStr;
     const kpiRateSub = $('#kpiMonthRateSub');
     if (kpiRateSub) {
-      kpiRateSub.textContent = kpis.collectionRate !== null ? t('dash_kpi_rate', null, { rate: kpis.collectionRate }) : t('dash_kpi_rate_zero');
+      kpiRateSub.textContent = kpis.collectionRate !== null ? t('dash_kpi_month_sub', null, { billed: billStr, rate: kpis.collectionRate }) : t('dash_kpi_month_sub_zero', null, { billed: billStr });
     }
     // Home Dashboard overhaul: the month KPI carries its own
     // progress bar (the "PKR 119,700 / PKR 194,300" figure is shown
@@ -3058,7 +3293,14 @@ function renderDashboard() {
   // ledger itself via collection-forecaster.js, never a typed-in
   // goal), the required daily run-rate for the days left, and
   // area-by-area progress bars. Read-only presentation.
-  const fcstSection = $('#collectionForecastSection');
+  // Area & Mohalla Analytics module: the thermometer lives at
+  // the top of the module now (it moved from Reports into the
+  // Collect tab with the bars). The per-area rows below it are
+  // NOT rendered here any more — Tab 1 renders the same figures
+  // from the bars summary (calculateMohallaBars), filtered by
+  // the dues chip and sliced to the Top 5, so the two never
+  // disagree about what an area owes.
+  const fcstSection = $('#areaAnalyticsModule');
   if (fcstSection) {
     const forecast = buildCollectionForecast(state, totals.currentMonth, referenceDate);
     const pctText = forecast.progressPercent === null ? '—' : `${forecast.progressPercent}%`;
@@ -3115,19 +3357,6 @@ function renderDashboard() {
     }
     const emptyEl = $('#collectionForecastEmpty');
     if (emptyEl) emptyEl.hidden = forecast.hasTarget;
-    const areasTitleEl = fcstSection.querySelector('.collection-forecast-areas-title');
-    if (areasTitleEl) areasTitleEl.hidden = forecast.areas.length === 0;
-    const areasEl = $('#collectionForecastAreas');
-    if (areasEl) {
-      areasEl.innerHTML = forecast.areas.map(area => {
-        const areaPct = Math.min(100, Math.max(0, area.progressPercent ?? 0));
-        return `<div class="fcst-area-row">
-          <div class="fcst-area-head"><span class="fcst-area-label">${escapeHtml(area.label)}</span><span class="fcst-area-figures">${escapeHtml(formatAmount(area.collectedCents / 100))} / ${escapeHtml(formatAmount(area.targetCents / 100))} · ${area.progressPercent}%</span></div>
-          <div class="fcst-area-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${areaPct}" aria-label="${escapeHtml(area.label)}"><div class="fcst-area-fill" style="width: ${areaPct}%"></div></div>
-          <span class="fcst-area-sub">${escapeHtml(t('fcst_remaining', null, { amount: formatAmount(area.remainingCents / 100) }))}</span>
-        </div>`;
-      }).join('');
-    }
   }
 
   // SISP-70: Multi-Month Growth & Finance Matrix — 3/6/12-month
@@ -3340,6 +3569,16 @@ function renderDashboard() {
   if (!dashboardPlaceRestored) {
     dashboardPlaceRestored = true;
     restoreDashboardPlace(document, window, storageAvailable ? localStorage : null);
+  }
+  // Area & Mohalla Analytics module: re-sync the chrome after
+  // every render (the toggle labels reset on a language change,
+  // the toggle visibility follows the filtered counts) and set
+  // up the inline estimator once, now that state is available
+  // for its recorded-data prefill. The prefill runs exactly
+  // once — a later render must never wipe a typed scenario.
+  syncAreaModuleChrome();
+  if (!areaModuleEstimatorReady) {
+    areaModuleEstimatorReady = setupExpansionEstimatorInline(() => areaModuleState) !== null;
   }
   // Plan 487: the dashboard labels read in the operator's stored
   // script — Urdu script when the option is on, the app's own
@@ -4162,7 +4401,7 @@ function receiptSmsSlipMarkup(customer, receipt) {
   if (!sms.valid) return '';
   return `<a class="receipt-whatsapp-action receipt-sms-action" href="${escapeHtml(sms.url)}" aria-label="${escapeHtml(t('sms_slip_aria', null, { number: customer.customerNumber, name: customer.name }))}">${escapeHtml(t('sms_slip_btn'))}</a>`;
 }
-function receiptWhatsAppActionMarkup(customer, receiptInput, { askLabel = null } = {}) {
+function receiptWhatsAppActionMarkup(customer, receiptInput, { askLabel = null, draftLabel = null } = {}) {
   // SISP-96: the WhatsApp draft closes with the owner-configured receipt
   // footer (ONE builder in receipt-footer-studio.js), attached here as
   // receiptFooterText. '' when unconfigured — the draft then stays
@@ -4176,7 +4415,10 @@ function receiptWhatsAppActionMarkup(customer, receiptInput, { askLabel = null }
     return `${smsMarkup}<button class="receipt-phone-help" type="button" data-edit-receipt-phone="${escapeHtml(customer.id)}" aria-label="${label} for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)} before preparing this receipt" title="Use this customer's full international number including country code.">${label}</button>`;
   }
   if (action.type !== 'draft') return smsMarkup || '<span class="whatsapp-receipt-unavailable">Receipt draft unavailable for this customer.</span>';
-  const whatsappMarkup = `<span class="receipt-whatsapp-action-wrap"><a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; an internet connection is required to open WhatsApp; it will not send automatically" title="Draft prepared locally; internet is required to open WhatsApp.">WhatsApp receipt</a><small class="receipt-network-note">Internet required to open WhatsApp.</small></span>`;
+  // Transactions & Recent Receipts Polish §4: the draft anchor text
+  // defaults to 'WhatsApp receipt' everywhere; the finder passes its
+  // concise label via draftLabel so the anchor fits one grid column.
+  const whatsappMarkup = `<span class="receipt-whatsapp-action-wrap"><a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; an internet connection is required to open WhatsApp; it will not send automatically" title="Draft prepared locally; internet is required to open WhatsApp.">${escapeHtml(draftLabel || 'WhatsApp receipt')}</a><small class="receipt-network-note">Internet required to open WhatsApp.</small></span>`;
   // SISP-76: an SMS-preference customer sees the SMS slip first.
   // SISP-91: decided by the ONE channel mapping (receiptChannelPreference),
   // so an explicit 'sms' channel and the legacy prefersSms flag agree.
@@ -5783,6 +6025,10 @@ let transactionLiveSearch = '';
 // goes live at two characters (see normalizeReceiptFinderQuery) — a
 // two-digit customer number is a complete customer ID.
 let receiptFinderQuery = '';
+// Transactions & Recent Receipts Polish §3: the finder pages at 25
+// receipts per page (Show More), starting at the first 25 — reset to 25
+// whenever the query, the active pill, or Clear filters changes.
+let receiptFinderShown = 25;
 // Plan 465: the refine box — the second term typed on the
 // Transactions screen; '' means no refine. The refine only goes
 // live at three or more characters (see normalizeLedgerRefine).
@@ -5966,6 +6212,9 @@ function applyTransactionQuickPill(pill) {
   } else if (pill === 'partial') {
     transactionStatusFilter = 'partial';
   }
+  // Transactions & Recent Receipts Polish §3: a new pill resets the
+  // finder to its first 25 rows, like the list resets to page 1.
+  receiptFinderShown = 25;
   transactionCurrentPage = 1;
   renderTransactions();
 }
@@ -6151,10 +6400,16 @@ function renderTransactions() {
   transactions = sortTransactionsList(transactions, transactionSortBy);
 
   const total = listTransactions(state).length;
-  $('#transactionsCount').textContent = `${transactions.length} of ${total} recorded ${total === 1 ? 'payment' : 'payments'}`;
+  const summary = calculateTransactionSummary(transactions);
+  // Transactions & Recent Receipts Polish §2: the count line carries the
+  // filtered total from the SAME summary object the summary bar reads
+  // (#txSummaryTotal below), so the two totals agree by construction.
+  // Rupees throughout — summary.totalAmount is never divided by 100.
+  // (Pre-existing asymmetry, not fixed here: the N/M counts include
+  // voided rows as history while the total excludes them per SISP-34.)
+  $('#transactionsCount').textContent = `${transactions.length} of ${total} recorded ${total === 1 ? 'payment' : 'payments'} • ${formatAmount(summary.totalAmount)}`;
   $('#transactionsEmpty').hidden = transactions.length > 0;
 
-  const summary = calculateTransactionSummary(transactions);
   const totalEl = $('#txSummaryTotal');
   const avgEl = $('#txSummaryAverage');
   if (totalEl) totalEl.textContent = formatAmount(summary.totalAmount);
@@ -6358,7 +6613,6 @@ function renderTransactions() {
   // (Plan 396) is gone — it repeated the first day-group below, so
   // the same payment appeared twice in a row. Today is still the
   // first day-group, with the recorded time on each row.
-  let lastDay = null;
   // Plan F: one customer index per render, not one roster scan per
   // visible row. Grouping/summary above still scans the filtered
   // list (day headers show full-day totals, so they must), but
@@ -6367,7 +6621,13 @@ function renderTransactions() {
   // Plan 467: the clearance records, read only while the reference
   // search is live — each matched row names its clearance state.
   const referenceClearances = referenceSearch.active ? loadPaymentClearance() : [];
-  transactionList.innerHTML = paged.items.map(transaction => {
+  // Collect Tab polish: the feed renders one <details> day-group per
+  // day — Today open, Yesterday and older closed — so Yesterday's
+  // rows sit one tap away and Today's Field Recovery sits higher on
+  // the screen. The row markup is built by renderFeedRow below; the
+  // grouping wraps it afterwards. Header text and the tx-day-header
+  // class are unchanged.
+  const renderFeedRow = (transaction) => {
     const { customer: resolvedCustomer, bill: resolvedBill, payment: resolvedPayment } = resolveTransactionCustomer(transaction, customerIndex);
     const customer = resolvedCustomer;
     const statusText = reportStatusLabel(transaction.status);
@@ -6386,11 +6646,6 @@ function renderTransactions() {
     // the row's accessible label and in the expanded detail.
     const whenText = queueEntryTime(transaction.recordedAt) || transaction.collectionMohalla || '';
     const detailsId = `txd-${String(transaction.paymentId).replace(/[^A-Za-z0-9_-]/g, '')}`;
-    let header = '';
-    if (dayGroups && transaction.date !== lastDay) {
-      lastDay = transaction.date;
-      header = `<li class="tx-day-header" role="presentation"><span class="tx-day-text">${escapeHtml(dayHeaderText(transaction.date, dayGroups.get(transaction.date) || [], todayKey))}</span></li>`;
-    }
     const context = [
       billMonthDiffers(transaction) ? `Bill month: ${escapeHtml(monthName(transaction.month))}` : '',
       `Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span>`,
@@ -6402,7 +6657,18 @@ function renderTransactions() {
     // badge used to widen it and ellipsize the customer name ("#35 RA...").
     const advanceBadge = transaction.isAdvance ? `<span class="advance-badge">${transaction.targetMonth ? `${t('adv_badge')} · ${escapeHtml(t('adv_target_suffix', null, { month: displayMonthName(transaction.targetMonth) }))}` : t('adv_badge')}</span>` : '';
     const splitBadge = savedPayment ? splitBadgeMarkup(savedPayment) : '';
-    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(shortTransactionMethodLabel(transaction.method))}</span>${whenText ? `<span class="tx-when">${escapeHtml(whenText)}</span>` : ''}</span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${referenceSearch.active ? ledgerReferenceClearanceSuffix(referenceClearances, transaction.paymentId) : ''}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction, generateReceiptNumber)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions"><span class="receipt-primary">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, status: receiptData?.status ?? null, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], salesTaxCents:receiptData?.salesTaxCents ?? null, area:receiptData?.area ?? null, advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)), ...autoPackageFieldForDraft(savedPayment) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button></span><details class="receipt-more-actions"><summary>${t('nav_more')}</summary><span class="receipt-more-body"><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</span></details></div></div></li>`;  }).join('');
+    return `<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(shortTransactionMethodLabel(transaction.method))}</span>${whenText ? `<span class="tx-when">${escapeHtml(whenText)}</span>` : ''}</span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${referenceSearch.active ? ledgerReferenceClearanceSuffix(referenceClearances, transaction.paymentId) : ''}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction, generateReceiptNumber)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions"><span class="receipt-primary">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, status: receiptData?.status ?? null, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], salesTaxCents:receiptData?.salesTaxCents ?? null, area:receiptData?.area ?? null, advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)), ...autoPackageFieldForDraft(savedPayment) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button></span><details class="receipt-more-actions"><summary>${t('nav_more')}</summary><span class="receipt-more-body"><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</span></details></div></div></li>`;
+  };
+  // Day-group accordion (see the renderFeedRow comment above): one
+  // <details> per day, Today open, Yesterday and older closed. When
+  // the list is not date-sorted there are no day groups, so rows
+  // render flat exactly as before.
+  transactionList.innerHTML = dayGroups
+    ? [...groupByDay(paged.items).entries()].map(([date, dayTxs]) => {
+        const headerText = dayHeaderText(date, dayGroups.get(date) || [], todayKey);
+        return `<li class="tx-day-group"><details${date === todayKey ? ' open' : ''}><summary class="tx-day-header"><span class="tx-day-text">${escapeHtml(headerText)}</span></summary><ul class="tx-day-rows">${dayTxs.map(renderFeedRow).join('')}</ul></details></li>`;
+      }).join('')
+    : paged.items.map(renderFeedRow).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
   transactionList.querySelectorAll('[data-transaction-void]').forEach(button => button.addEventListener('click', () => openVoidPaymentDialog(button.dataset.customerId, button.dataset.month, button.dataset.transactionVoid)));
@@ -6419,8 +6685,11 @@ function renderTransactions() {
   bindReceiptPhoneActions(transactionList);
   // Transactions Screen Overhaul: the quick pills' counts and
   // pressed state always describe the ledger as recorded.
+  // Transactions & Recent Receipts Polish §3: the finder shows the
+  // receipts matching the SELECTED pill (and the unified search) — it
+  // receives the already-filtered list, not the whole ledger.
   syncTransactionQuickPills(listTransactions(state), todayKey);
-  renderReceiptFinder();
+  renderReceiptFinder(transactions);
 }
 // Unpaid Cards: the Recent receipts finder — a quick path over the
 // local ledger on the Transactions screen. Blank box: the 10 most
@@ -6429,10 +6698,29 @@ function renderTransactions() {
 // or re-sends it (WhatsApp text / PNG screenshot) with the same
 // builders the transaction rows use. The input lives outside the
 // results list, so re-rendering the results never steals focus.
+// Transactions & Recent Receipts Polish §4: the finder method pill
+// reuses .method-chip — shop-cash variants fold under Cash, like the
+// list rows do (methodSlug), and the label is the same short label the
+// list rows show (shop name for shop cash, else the method).
+function receiptFinderMethodChipClass(method) {
+  const slug = methodSlug(method);
+  if (slug === 'cash' || slug.startsWith('cash-')) return 'cash';
+  if (slug === 'easypaisa') return 'easypaisa';
+  if (slug === 'jazzcash') return 'jazzcash';
+  if (slug === 'raast') return 'raast';
+  if (slug === 'bank' || slug === 'bank-transfer') return 'bank';
+  return 'other';
+}
 function receiptFinderRowHtml(transaction, customerIndex) {
   const { customer, bill, payment } = resolveTransactionCustomer(transaction, customerIndex);
   const pid = escapeHtml(transaction.paymentId);
-  const meta = `${escapeHtml(humanDate(transaction.date))} · ${escapeHtml(transaction.method)}${receiptNumberSearchRowMarkup(transaction, generateReceiptNumber)}`;
+  // The receipt ID is wrapped at the finder call site only — the shared
+  // receiptNumberSearchRowMarkup stays plain text (the Transactions
+  // "Find by receipt number" flow pins it), and the ID is displayed
+  // as-is: stored numbers win over derived ones, nothing is renumbered.
+  const receiptRef = receiptNumberOfRow(transaction, generateReceiptNumber);
+  const receiptBadge = receiptRef ? ` · <span class="receipt-finder-receipt-id">Receipt ${escapeHtml(receiptRef)}</span>` : '';
+  const meta = `${escapeHtml(humanDate(transaction.date))} · <span class="method-chip ${receiptFinderMethodChipClass(transaction.method)}">${escapeHtml(shortTransactionMethodLabel(transaction.method))}</span>${receiptBadge}`;
   const main = `<span class="receipt-finder-main"><span class="receipt-finder-name">#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}</span><span class="receipt-finder-meta">${meta}</span></span><strong class="receipt-finder-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>`;
   // A receipt whose customer, bill or payment no longer resolves
   // still shows (it is ledger history) but carries no actions —
@@ -6440,24 +6728,44 @@ function receiptFinderRowHtml(transaction, customerIndex) {
   if (!customer || !bill || !payment) return `<li class="receipt-finder-row">${main}</li>`;
   const receiptData = buildPaymentReceipt(customer, bill, payment);
   const receiptBillStatus = receiptData?.status === 'PAID' ? 'paid' : receiptData?.status === 'PARTIAL' ? 'partial' : null;
-  const whatsapp = receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus: receiptBillStatus, status: receiptData?.status ?? null, billAmount: receiptData?.nominalPrice ?? null, balanceDueCents: receiptData?.balanceDueCents ?? null, ticketCharges: receiptData?.ticketCharges ?? [], salesTaxCents: receiptData?.salesTaxCents ?? null, area: receiptData?.area ?? null, advanceCredit: receiptData?.advanceCredit ?? null, waivedAmount: receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown: buildArrearsBreakdown(customer, (customer.bills ?? []).find((billEntry) => billEntry.month === transaction.month)), ...autoPackageFieldForDraft(payment) }, { askLabel: 'WhatsApp receipt' });
-  return `<li class="receipt-finder-row">${main}<span class="receipt-finder-actions"><button class="secondary-button" type="button" data-receipt-finder-open data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="${escapeHtml(t('receipt_finder_open'))} — ${escapeHtml(transaction.customerName)}">${escapeHtml(t('receipt_finder_open'))}</button>${whatsapp}${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}</span></li>`;
+  const whatsapp = receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus: receiptBillStatus, status: receiptData?.status ?? null, billAmount: receiptData?.nominalPrice ?? null, balanceDueCents: receiptData?.balanceDueCents ?? null, ticketCharges: receiptData?.ticketCharges ?? [], salesTaxCents: receiptData?.salesTaxCents ?? null, area: receiptData?.area ?? null, advanceCredit: receiptData?.advanceCredit ?? null, waivedAmount: receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown: buildArrearsBreakdown(customer, (customer.bills ?? []).find((billEntry) => billEntry.month === transaction.month)), ...autoPackageFieldForDraft(payment) }, { askLabel: 'WhatsApp receipt', draftLabel: t('receipt_finder_whatsapp_short') });
+  // The three actions sit in ONE 3-column grid row (see styles.css):
+  // Open (short label; the aria-label keeps the full key), the WhatsApp
+  // markup in its own cell (its <small> network note is hidden in the
+  // finder — the anchor already carries the same text as its title —
+  // and an SMS-slip anchor, when present, stacks under it in the same
+  // cell), and the PNG button with its short label.
+  return `<li class="receipt-finder-row">${main}<span class="receipt-finder-actions"><button class="secondary-button" type="button" data-receipt-finder-open data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="${escapeHtml(t('receipt_finder_open'))} — ${escapeHtml(transaction.customerName)}">${escapeHtml(t('receipt_finder_open_short'))}</button><span class="receipt-finder-action-cell">${whatsapp}</span>${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber, t('receipt_finder_png_short'))}</span></li>`;
 }
-function renderReceiptFinder() {
+// Transactions & Recent Receipts Polish §2/§3: the finder reads the
+// UNIFIED search query (its own input is deleted) and shows the
+// receipts matching the active pill — it receives the filtered list
+// from renderTransactions, defaulting to the whole ledger for
+// standalone callers. Paging lives here in app.js (receipt-finder.js
+// stays pure): the first page shows receiptFinderShown (25) rows and
+// Show More adds 25; the count line names { shown, total } in both
+// modes (recent total = the filtered list's length; search total =
+// the full match count from findReceipts).
+function renderReceiptFinder(filteredList) {
   const list = $('#receiptFinderResults');
   const countEl = $('#receiptFinderCount');
+  const showMoreBtn = $('#receiptFinderShowMore');
   if (!list) return;
-  const found = findReceipts(listTransactions(state), receiptFinderQuery, { deriveReceiptNumber: generateReceiptNumber });
+  const entries = Array.isArray(filteredList) ? filteredList : listTransactions(state);
+  const found = findReceipts(entries, receiptFinderQuery, { recentLimit: receiptFinderShown, searchLimit: receiptFinderShown, deriveReceiptNumber: generateReceiptNumber });
   const customerIndex = indexCustomers(state.customers);
   list.innerHTML = found.rows.map(transaction => receiptFinderRowHtml(transaction, customerIndex)).join('');
+  const totalAvailable = found.mode === 'search' ? found.total : entries.length;
+  const shown = found.rows.length;
+  if (showMoreBtn) showMoreBtn.hidden = totalAvailable <= shown;
   if (countEl) {
     const query = receiptFinderQuery.trim();
     if (found.rows.length === 0) {
       countEl.textContent = found.mode === 'search' ? t('receipt_finder_none', null, { query }) : t('receipt_finder_empty');
     } else if (found.mode === 'search') {
-      countEl.textContent = t('receipt_finder_match', null, { count: found.total, query }) + (found.total > found.rows.length ? ` ${t('receipt_finder_more', null, { shown: found.rows.length, total: found.total })}` : '');
+      countEl.textContent = t('receipt_finder_match', null, { count: found.total, query }) + (found.total > shown ? ` ${t('receipt_finder_more', null, { shown, total: found.total })}` : '');
     } else {
-      countEl.textContent = t('receipt_finder_recent', null, { count: found.rows.length });
+      countEl.textContent = t('receipt_finder_recent', null, { shown, total: totalAvailable });
     }
   }
   list.querySelectorAll('[data-receipt-finder-open]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
@@ -10210,7 +10518,11 @@ async function saveLocalSnapshot(kind) {
   const createdAt = new Date();
   const backupText = createJsonBackup(state, createdAt, backupExtras());
   const record = await localBackupStore.saveBackup(backupText, { kind, createdAt });
-  try { localStorage.setItem(LAST_BACKUP_TIME_KEY, createdAt.toISOString()); } catch { /* ignore */ }
+  // Home Dashboard polish (D2): a LOCAL snapshot must NOT stamp the
+  // legacy backup key — that stamp is what let the storage badge (and
+  // the health record's migration fallback) read a local snapshot as
+  // if it were an off-device backup. Only real off-device exports
+  // stamp the key (recordOffDeviceBackupExport).
   updateDataSafetyUi();
   return record;
 }
@@ -12656,8 +12968,12 @@ $('#transactionAmountMax').addEventListener('input', event => { transactionAmoun
 // Transactions Screen Overhaul: this input is the one smart search
 // bar at the top — the same keystrokes also match a reference and
 // an exact receipt number (see searchLedgerUnified).
-$('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
-$('#receiptFinderSearch')?.addEventListener('input', event => { receiptFinderQuery = event.currentTarget.value; renderReceiptFinder(); });
+// Transactions & Recent Receipts Polish §2: ONE search bar — the
+// unified input feeds the finder too (its own input is deleted), so
+// the finder follows the same keystrokes with its own 2-char floor;
+// a new query resets the finder to its first 25 rows.
+$('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; receiptFinderQuery = event.currentTarget.value; receiptFinderShown = 25; transactionCurrentPage = 1; renderTransactions(); });
+$('#receiptFinderShowMore')?.addEventListener('click', () => { receiptFinderShown += 25; renderTransactions(); });
 // Plan 465: the refine box — narrowing only the already-found list
 // on every keystroke; clearing the box (or dropping below three
 // characters) restores the full first list.
@@ -12773,8 +13089,7 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   resetTransactionFilterState();
   transactionQuickPill = 'all';
   receiptFinderQuery = '';
-  const receiptFinderInput = $('#receiptFinderSearch');
-  if (receiptFinderInput) receiptFinderInput.value = '';
+  receiptFinderShown = 25;
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');
   if (reportSearch) reportSearch.value = '';
@@ -21551,7 +21866,7 @@ function renderRollForward() {
       // are untouched — only the display is normalised.
       const displayRows = rows.map((row) => ({ ...row, mohalla: canonicalMohalla(row.mohalla)?.label ?? row.mohalla }));
       bodyEl.innerHTML = rollForwardTableHtml(displayRows);
-      if (summaryEl) summaryEl.textContent = rollForwardSummaryText({ ...totals, month });
+      if (summaryEl) summaryEl.innerHTML = rollForwardEquationHtml({ ...totals, month });
     }
   }
   if (!rollForwardBound) {
@@ -21889,8 +22204,6 @@ function renderAnnualSummary() {
   const year = yearEl?.value ?? localDate().slice(0, 4);
   const view = buildAnnualSummary({ year, months: annualSummaryRowsForYear(year) });
   bodyEl.innerHTML = view ? annualSummaryHtml(view) : '<p style="font-size: 12px;">Pick a valid year to see the annual summary.</p>';
-  const summaryEl = $('#annualSummarySummary');
-  if (summaryEl) summaryEl.textContent = view ? annualSummaryText(view) : '';
   if (!annualSummaryBound) {
     annualSummaryBound = true;
     $('#annualSummaryYear')?.addEventListener('change', () => renderAnnualSummary());
@@ -21926,6 +22239,19 @@ function renderEnquiryLog() {
   if (!bodyEl) return;
   const customers = state.customers ?? [];
   const entries = loadEnquiryLog();
+  // Annual Owner Summary cleanup (2026-11-13): at 0 records the
+  // filters, the mutation form, and the Export button hide — they
+  // render with empty dropdowns and no rows to act on. TOTAL
+  // entries, not the filtered view, so the operator can always
+  // clear a filter back to 0. The creation form stays reachable
+  // behind its + Record Enquiry button.
+  const hasEnquiries = entries.length > 0;
+  const enquiryFilterRow = $('#enquiryFilterRow');
+  if (enquiryFilterRow) enquiryFilterRow.style.display = hasEnquiries ? 'flex' : 'none';
+  const enquiryMutationRow = $('#enquiryMutationRow');
+  if (enquiryMutationRow) enquiryMutationRow.style.display = hasEnquiries ? 'flex' : 'none';
+  const enquiryExportBtn = $('#enquiryExportBtn');
+  if (enquiryExportBtn) enquiryExportBtn.style.display = hasEnquiries ? '' : 'none';
   const showAll = $('#enquiryShowAll')?.checked ?? false;
   const pending = pendingEnquiries(entries, {
     type: $('#enquiryFilterType')?.value ?? '',
@@ -22001,6 +22327,8 @@ function renderEnquiryLog() {
       saveEnquiryLog(upsertEnquiry(loadEnquiryLog(), record));
       toast('Enquiry recorded in the pending queue. Answering it here never changes any bill, payment, ticket, or request record.');
       renderEnquiryLog();
+      const enquiryCreateDetails = $('#enquiryCreateDetails');
+      if (enquiryCreateDetails) enquiryCreateDetails.open = false;
     });
     $('#enquiryApplyBtn')?.addEventListener('click', () => {
       const id = $('#enquirySelect')?.value ?? '';
@@ -22061,6 +22389,19 @@ function renderDepositRegister() {
   if (!bodyEl) return;
   const customers = state.customers ?? [];
   const entries = loadDepositRegister();
+  // Annual Owner Summary cleanup (2026-11-13): at 0 records the
+  // filters, the mutation form, and the Export button hide — they
+  // render with empty dropdowns and no rows to act on. TOTAL
+  // entries, not the filtered view, so the operator can always
+  // clear a filter back to 0. The creation form stays reachable
+  // behind its + Record Equipment Deposit button.
+  const hasDeposits = entries.length > 0;
+  const depositFilterRow = $('#depositFilterRow');
+  if (depositFilterRow) depositFilterRow.style.display = hasDeposits ? 'flex' : 'none';
+  const depositMutationRow = $('#depositMutationRow');
+  if (depositMutationRow) depositMutationRow.style.display = hasDeposits ? 'flex' : 'none';
+  const depositExportBtn = $('#depositExportBtn');
+  if (depositExportBtn) depositExportBtn.style.display = hasDeposits ? '' : 'none';
   const shown = depositsFiltered(entries, {
     status: $('#depositFilterStatus')?.value ?? '',
     deviceType: $('#depositFilterDevice')?.value ?? '',
@@ -22131,6 +22472,8 @@ function renderDepositRegister() {
       saveDepositRegister(upsertDeposit(loadDepositRegister(), record));
       toast('Deposit recorded as held. This register moves no money itself.');
       renderDepositRegister();
+      const depositCreateDetails = $('#depositCreateDetails');
+      if (depositCreateDetails) depositCreateDetails.open = false;
     });
     $('#depositApplyBtn')?.addEventListener('click', () => {
       const id = $('#depositSelect')?.value ?? '';
@@ -22188,6 +22531,19 @@ function renderLoanTracker() {
   if (!bodyEl) return;
   const customers = state.customers ?? [];
   const entries = loadLoanTracker();
+  // Annual Owner Summary cleanup (2026-11-13): at 0 records the
+  // filters, the mutation form, and the Export button hide — they
+  // render with empty dropdowns and no rows to act on. TOTAL
+  // entries, not the filtered view, so the operator can always
+  // clear a filter back to 0. The creation form stays reachable
+  // behind its + Issue Loan Equipment button.
+  const hasLoans = entries.length > 0;
+  const loanFilterRow = $('#loanFilterRow');
+  if (loanFilterRow) loanFilterRow.style.display = hasLoans ? 'flex' : 'none';
+  const loanMutationRow = $('#loanMutationRow');
+  if (loanMutationRow) loanMutationRow.style.display = hasLoans ? 'flex' : 'none';
+  const loanExportBtn = $('#loanExportBtn');
+  if (loanExportBtn) loanExportBtn.style.display = hasLoans ? '' : 'none';
   const today = new Date().toISOString().slice(0, 10);
   const overdue = overdueLoans(entries, today);
   const showOverdueOnly = $('#loanShowOverdue')?.checked ?? false;
@@ -22198,13 +22554,22 @@ function renderLoanTracker() {
   });
   const names = {};
   for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
-  bodyEl.innerHTML = loanHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  bodyEl.innerHTML = (showOverdueOnly && entries.length > 0 && shown.length === 0)
+    // Annual Owner Summary cleanup (2026-11-13): with the overdue
+    // filter on and loans present but none overdue, the body used to
+    // say 'No loans recorded.' — false. It is the overdue list that
+    // is empty, not the register.
+    ? '<p class="empty-state">No overdue loans.</p>'
+    : loanHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
   const summaryEl = $('#loanTrackerSummary');
   if (summaryEl) summaryEl.textContent = loanSummaryText(buildLoanSummary(entries, today));
   const overdueEl = $('#loanOverdueBody');
   if (overdueEl) {
+    // Annual Owner Summary cleanup (2026-11-13): the 'No overdue
+    // loans.' line only renders when loans exist — at 0 loans it
+    // stacked under the body's own 'No loans recorded.' line.
     overdueEl.innerHTML = overdue.length === 0
-      ? '<p class="empty-state">No overdue loans.</p>'
+      ? (entries.length === 0 ? '' : '<p class="empty-state">No overdue loans.</p>')
       : `<div class="table-scroll"><table><thead><tr><th>Loan</th><th>Customer</th><th>Return due</th><th>Days overdue</th></tr></thead><tbody>${overdue.map((entry) => `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(names[entry.customerId] || entry.customerId)}</td><td>${escapeHtml(entry.expectedReturnDate)}</td><td>${escapeHtml(entry.daysOverdue)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   const customerEl = $('#loanCustomer');
@@ -22270,6 +22635,8 @@ function renderLoanTracker() {
       saveLoanTracker(upsertLoan(loadLoanTracker(), record));
       toast('Loan recorded as out. This tracker moves no money and changes no ticket, package, or bill.');
       renderLoanTracker();
+      const loanCreateDetails = $('#loanCreateDetails');
+      if (loanCreateDetails) loanCreateDetails.open = false;
     });
     $('#loanApplyBtn')?.addEventListener('click', () => {
       const id = $('#loanSelect')?.value ?? '';
@@ -22328,6 +22695,43 @@ function jobRupeesToCents(value) {
 // expense, raises no bill, and moves no stock; stock totals move
 // only through the normal stock-issue movement, and a job with no
 // cost entries shows as uncosted, never as zero-cost.
+// More Tab Operational Registries polish: a registry row is a flex
+// div with an inline display style, so the hidden attribute alone
+// cannot hide it (inline display beats the UA [hidden] rule) —
+// toggle its inline display instead.
+function setRegistryRowVisible(el, visible) {
+  if (el) el.style.display = visible ? 'flex' : 'none';
+}
+// Conditional-field visibility for the registry forms: the label
+// wraps its input, so hiding the label hides the field. A hidden
+// field's stale value is dropped, so it can never be submitted from
+// a state where the form says it does not apply (the normalisers
+// ignore those values either way).
+function setRegistryFieldVisible(labelEl, visible, inputEl) {
+  if (!labelEl) return;
+  labelEl.hidden = !visible;
+  if (!visible && inputEl) inputEl.value = '';
+}
+// More Tab Operational Registries polish: the vacation-hold and
+// resume-queue sections share one card with two segmented tabs.
+// The selected tab survives re-renders through this variable;
+// both render functions re-apply it (same shape as
+// activateProfileTab's aria-selected + panel hidden toggle).
+let holdsResumeTab = 'holds';
+function applyHoldsResumeTab() {
+  const holdsBtn = $('#holdsTabBtn');
+  const resumeBtn = $('#resumeTabBtn');
+  if (holdsBtn) holdsBtn.setAttribute('aria-selected', holdsResumeTab === 'holds' ? 'true' : 'false');
+  if (resumeBtn) resumeBtn.setAttribute('aria-selected', holdsResumeTab === 'resume' ? 'true' : 'false');
+  const holdsPanel = $('#holdsTabPanel');
+  const resumePanel = $('#resumeTabPanel');
+  if (holdsPanel) holdsPanel.hidden = holdsResumeTab !== 'holds';
+  if (resumePanel) resumePanel.hidden = holdsResumeTab !== 'resume';
+}
+function setHoldsResumeTab(tab) {
+  holdsResumeTab = tab === 'resume' ? 'resume' : 'holds';
+  applyHoldsResumeTab();
+}
 function renderJobCost() {
   const bodyEl = $('#jobCostBody');
   if (!bodyEl) return;
@@ -22362,6 +22766,10 @@ function renderJobCost() {
       el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
     }
   }
+  // 'Other material name' shows only when Material is 'Other'
+  // (hidden when 'ONU' is selected); the normaliser already ignores
+  // the label for any other material.
+  setRegistryFieldVisible($('#jobCostMaterialOtherLabel'), $('#jobCostMaterial')?.value === 'other', $('#jobCostMaterialOther'));
   const mohallaEl = $('#jobCostMohalla');
   if (mohallaEl && document.activeElement !== mohallaEl) {
     const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
@@ -22377,6 +22785,9 @@ function renderJobCost() {
     });
     $('#jobCostFilterStatus')?.addEventListener('change', () => renderJobCost());
     $('#jobCostFilterMohalla')?.addEventListener('input', () => renderJobCost());
+    $('#jobCostMaterial')?.addEventListener('change', () => {
+      setRegistryFieldVisible($('#jobCostMaterialOtherLabel'), $('#jobCostMaterial')?.value === 'other', $('#jobCostMaterialOther'));
+    });
     $('#jobCostRecordBtn')?.addEventListener('click', () => {
       const customerId = $('#jobCostCustomer')?.value ?? '';
       if (!customerId) { toast('Pick a customer first.'); return; }
@@ -22528,12 +22939,30 @@ function renderRmaLog() {
       el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
     }
   }
+  // At 0 records the filters, Export CSV, awaiting section, and
+  // mutation row hide; the summary line is the single empty state
+  // and the creation form stays reachable behind + Record Warranty
+  // Return. Replacement / rejection fields show only for the action
+  // that needs them (validation already follows the same condition).
+  const rmaEmpty = entries.length === 0;
+  const rmaExportBtn = $('#rmaExportBtn');
+  if (rmaExportBtn) rmaExportBtn.hidden = rmaEmpty;
+  setRegistryRowVisible($('#rmaFilterRow'), !rmaEmpty);
+  // The awaiting body has no inline display style, so the hidden
+  // attribute hides it (unlike the flex rows above).
+  if (awaitingEl) awaitingEl.hidden = rmaEmpty;
+  setRegistryRowVisible($('#rmaActionRow'), !rmaEmpty);
+  const rmaAction = $('#rmaAction')?.value ?? '';
+  setRegistryFieldVisible($('#rmaReplacementSerialLabel'), rmaAction === 'replaced', $('#rmaReplacementSerial'));
+  setRegistryFieldVisible($('#rmaReplacementConnectionIdLabel'), rmaAction === 'replaced', $('#rmaReplacementConnectionId'));
+  setRegistryFieldVisible($('#rmaReasonLabel'), rmaAction === 'rejected', $('#rmaReason'));
   if (!rmaLogBound) {
     rmaLogBound = true;
     $('#rmaFilterStatus')?.addEventListener('change', () => renderRmaLog());
     $('#rmaFilterSupplier')?.addEventListener('input', () => renderRmaLog());
     $('#rmaFilterDevice')?.addEventListener('change', () => renderRmaLog());
     $('#rmaShowAwaiting')?.addEventListener('change', () => renderRmaLog());
+    $('#rmaAction')?.addEventListener('change', () => renderRmaLog());
     $('#rmaRecordBtn')?.addEventListener('click', () => {
       const record = normalizeRma({
         id: $('#rmaId')?.value ?? '',
@@ -22552,6 +22981,8 @@ function renderRmaLog() {
       }
       saveRmaLog(upsertRma(loadRmaLog(), record));
       toast('Warranty return recorded as sent. This log creates no purchase, bill, or stock record.');
+      const rmaCreateDetails = $('#rmaCreateDetails');
+      if (rmaCreateDetails) rmaCreateDetails.open = false;
       renderRmaLog();
     });
     $('#rmaApplyBtn')?.addEventListener('click', () => {
@@ -22644,6 +23075,16 @@ function renderRecoveryQueue() {
   bodyEl.innerHTML = recoveryHtml(shown);
   const summaryEl = $('#recoveryQueueSummary');
   if (summaryEl) summaryEl.textContent = recoverySummaryText(buildRecoverySummary(queue, loadRecoveryQueue()));
+  // At 0 queued devices the filters, Export CSV, and mutation row
+  // hide — the count is the derived queue, not the stored total, so
+  // a queue of 0 with collected records still hides them. The
+  // summary line is the single empty state; there is no creation
+  // form here (records arrive from the end-of-service flow).
+  const recoveryEmpty = queue.length === 0;
+  const recoveryExportBtn = $('#recoveryExportBtn');
+  if (recoveryExportBtn) recoveryExportBtn.hidden = recoveryEmpty;
+  setRegistryRowVisible($('#recoveryFilterRow'), !recoveryEmpty);
+  setRegistryRowVisible($('#recoveryActionRow'), !recoveryEmpty);
   const selectEl = $('#recoverySelect');
   if (selectEl && document.activeElement !== selectEl) {
     selectEl.innerHTML = queue.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.customerName || entry.customerId)} — ${escapeHtml(entry.serial)} — ${escapeHtml(RECOVERY_STATUS_LABELS[entry.status])}</option>`).join('')
@@ -22769,6 +23210,18 @@ function renderVacationHolds() {
       el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
     }
   }
+  // At 0 holds the filters, Export CSV, check-month row, and
+  // mutation row hide; the creation form stays reachable behind
+  // + Add Customer Hold and the summary line stays a count line.
+  // 'Retention charge (Rs.)' shows only for a retention hold
+  // (validation already follows the same condition).
+  const holdsEmpty = entries.length === 0;
+  const vacationExportBtn = $('#vacationExportBtn');
+  if (vacationExportBtn) vacationExportBtn.hidden = holdsEmpty;
+  setRegistryRowVisible($('#vacationFilterRow'), !holdsEmpty);
+  setRegistryRowVisible($('#vacationActionRow'), !holdsEmpty);
+  setRegistryRowVisible($('#vacationCheckRow'), !holdsEmpty);
+  setRegistryFieldVisible($('#vacationRetentionLabel'), $('#vacationTreatment')?.value === 'retention', $('#vacationRetention'));
   const mohallaEl = $('#vacationMohalla');
   if (mohallaEl && document.activeElement !== mohallaEl) {
     const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
@@ -22780,6 +23233,9 @@ function renderVacationHolds() {
     $('#vacationFilterReason')?.addEventListener('change', () => renderVacationHolds());
     $('#vacationFilterTreatment')?.addEventListener('change', () => renderVacationHolds());
     $('#vacationFilterMohalla')?.addEventListener('input', () => renderVacationHolds());
+    $('#vacationTreatment')?.addEventListener('change', () => renderVacationHolds());
+    $('#holdsTabBtn')?.addEventListener('click', () => setHoldsResumeTab('holds'));
+    $('#resumeTabBtn')?.addEventListener('click', () => setHoldsResumeTab('resume'));
     $('#vacationCustomer')?.addEventListener('change', () => {
       const selected = customers.find((c) => String(c.id) === String($('#vacationCustomer')?.value ?? ''));
       const mohallaInput = $('#vacationMohalla');
@@ -22808,6 +23264,8 @@ function renderVacationHolds() {
       }
       saveVacationHolds(next);
       toast('Hold recorded. It creates no bill by itself.');
+      const vacationCreateDetails = $('#vacationCreateDetails');
+      if (vacationCreateDetails) vacationCreateDetails.open = false;
       renderVacationHolds();
     });
     $('#vacationEndBtn')?.addEventListener('click', () => {
@@ -22853,6 +23311,7 @@ function renderVacationHolds() {
       downloadCsvFile(holdFilename(), holdCsv(fresh));
     });
   }
+  applyHoldsResumeTab();
 }
 const SUSPENSION_RECORDS_KEY = 'shahdara_suspension_records_v1';
 function loadSuspensions() {
@@ -22889,6 +23348,15 @@ function renderSuspensions() {
   bodyEl.innerHTML = suspensionHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
   const summaryEl = $('#suspensionRecordsSummary');
   if (summaryEl) summaryEl.textContent = suspensionSummaryText(buildSuspensionSummary(entries));
+  // At 0 suspensions the filters, Export CSV, checklist row, and
+  // action row hide; the creation form stays reachable behind
+  // + Record Suspension and the summary line stays a count line.
+  const suspensionsEmpty = entries.length === 0;
+  const suspensionExportBtn = $('#suspensionExportBtn');
+  if (suspensionExportBtn) suspensionExportBtn.hidden = suspensionsEmpty;
+  setRegistryRowVisible($('#suspensionFilterRow'), !suspensionsEmpty);
+  setRegistryRowVisible($('#suspensionChecklistRow'), !suspensionsEmpty);
+  setRegistryRowVisible($('#suspensionActionRow'), !suspensionsEmpty);
   const customerEl = $('#suspensionCustomer');
   if (customerEl && document.activeElement !== customerEl) {
     customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
@@ -22959,6 +23427,8 @@ function renderSuspensions() {
       }
       saveSuspensions(next);
       toast('Suspension recorded. It disconnects nothing by itself and creates no charge.');
+      const suspensionCreateDetails = $('#suspensionCreateDetails');
+      if (suspensionCreateDetails) suspensionCreateDetails.open = false;
       renderSuspensions();
     });
     for (const item of CHECKLIST_ITEMS) {
@@ -23043,7 +23513,17 @@ function renderResumeQueue() {
   });
   bodyEl.innerHTML = resumeHtml(shown);
   const summaryEl = $('#resumeQueueSummary');
-  if (summaryEl) summaryEl.textContent = resumeSummaryText(buildResumeSummary(queue)) + ' Relocations from Plan 85 moves are included.';
+  if (summaryEl) summaryEl.textContent = resumeSummaryText(buildResumeSummary(queue));
+  // At 0 resumes (unfiltered queue — a filter yielding 0 with
+  // records present keeps the filters visible) the Export CSV,
+  // filter row, and mutation row hide. The Window (days) input is
+  // a view control, not a filter: widening the window can find
+  // resumes, so it stays visible.
+  const resumeEmpty = queue.length === 0;
+  const resumeExportBtn = $('#resumeExportBtn');
+  if (resumeExportBtn) resumeExportBtn.hidden = resumeEmpty;
+  setRegistryRowVisible($('#resumeFilterRow'), !resumeEmpty);
+  setRegistryRowVisible($('#resumeActionRow'), !resumeEmpty);
   const selectEl = $('#resumeSelect');
   if (selectEl && document.activeElement !== selectEl) {
     selectEl.innerHTML = shown.map((row) => `<option value="${escapeHtml(row.kind === 'relocation' ? `relocation:${row.id}` : row.id)}">${escapeHtml(row.id)} — ${escapeHtml(row.customerName || row.customerId)} — ${escapeHtml(RESUME_KIND_LABELS[row.kind] ?? row.kind)} — return ${escapeHtml(row.returnDate)}</option>`).join('')
@@ -23101,6 +23581,7 @@ function renderResumeQueue() {
       downloadCsvFile(resumeFilename(), resumeCsv(fresh));
     });
   }
+  applyHoldsResumeTab();
 }
 const MOVE_TRANSFERS_KEY = 'shahdara_move_transfers_v1';
 function loadMoveTransfers() {
@@ -45223,10 +45704,14 @@ if (typeof document !== 'undefined') {
   // checks run on synthetic in-memory fixtures only and never read or
   // write the live ledger.
   setupInAppSelfTest({ onToast: (msg, opts) => toast(msg, opts) });
-  // SISP-135: new-street expansion estimator — a pure planning dialog;
-  // it only reads state for recorded-data prefill defaults and never
-  // writes anything back.
-  setupExpansionEstimatorModal(() => state);
+  // SISP-135: new-street expansion estimator — a pure planning
+  // calculator, inline in the Area & Mohalla Analytics module's
+  // third tab (no dialog any more); it only reads state for
+  // recorded-data prefill defaults and never writes anything
+  // back. The chrome wiring runs here; the estimator's own
+  // setup runs once from the first dashboard render, when state
+  // is available for the prefill (see renderDashboard).
+  setupAreaAnalyticsModule();
   // SISP-83: receipt verification lookup — the operator types the VER
   // code (or receipt number) printed on a paper receipt; the pure
   // lookup in receipt-verifier.js recomputes codes from the saved

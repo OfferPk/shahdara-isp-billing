@@ -611,7 +611,7 @@ import { urduNoteMarkup } from './urdu-note.js';
 import { crossPaymentNoteMarkup, crossPaymentsMadeBy, crossPaymentsMadeSectionHtml } from './cross-payment-note.js';
 import { normalizeReceiptNumber, findTransactionByReceiptNumber, receiptNumberSearchLineText, receiptNumberSearchRowMarkup, receiptNumberOfRow } from './receipt-number-search.js';
 import { findReceipts } from './receipt-finder.js';
-import { customerIdPillClass, customerHealthReasonPillClass, healthScoreBandClass } from './customer-card-style.js';
+import { customerIdPillClass, healthScoreBandClass } from './customer-card-style.js';
 import { billMonthChoiceOf, normalizeBillMonthChoice, billMonthSelectOptions, billMonthChoiceLineText } from './bill-month-selector.js?v=1.11.0';
 import { queueEntryTime } from './offline-queue-status.js';
 import { paymentMethodDetailMarkup, paymentMethodReferenceMarkup } from './payment-method-detail.js';
@@ -3813,7 +3813,11 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
   const serviceAria = t('cust_service_status_chip', null, { status: serviceLabel });
   // TOP sub-line: mohalla (fallback zone) omitted when unrecorded;
   // package fallback stays exactly "Package not set".
-  const mohallaPart = (customer.mohalla || customer.zone || '').trim();
+  // §4: one normalized casing on every card — the canonical label
+  // (Title Case, e.g. Charyaa), never the raw stored value (CHARYAA
+  // vs Charyaa rendered side by side before this).
+  const mohallaRaw = (customer.mohalla || customer.zone || '').trim();
+  const mohallaPart = mohallaRaw ? (canonicalMohalla(mohallaRaw)?.label ?? mohallaRaw) : '';
   const packagePart = customer.packageSpeed || t('cust_card_package_not_set');
   const subline = mohallaPart ? `${mohallaPart} · ${packagePart}` : packagePart;
   // Outstanding (bills + manual baqaya, the same figure the profile
@@ -3837,8 +3841,11 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
   // is just score + category); coloured with the same health-* classes
   // as the old badge pill.
   const healthValue = health?.score === null || !health ? t('cust_health_cat_insufficient') : `${health.score}/100 · ${CUST_HEALTH_CATS[health.category] ? t(CUST_HEALTH_CATS[health.category]) : health.category}`;
-  const healthClass = health?.score === null || !health ? '' : `health-${(health.category ?? 'unknown').toLowerCase().replaceAll(' ', '-')}`;
-  const healthReasons = (health?.reasons ?? []).map((reason, index) => `<li class="customer-health-reason-pill ${customerHealthReasonPillClass(index)}">${escapeHtml(reason)}</li>`).join('');
+  // Customers Cards Compact: the health pill reuses healthValue
+  // verbatim — the CUST_HEALTH_CATS map above never matches the real
+  // categories (Good/Risk/Critical), so the raw category word is what
+  // the live card already showed; do NOT "fix" the map in this item.
+  const healthPillText = `${t('cust_card_health')}: ${healthValue}`;
   // Unpaid Cards: the ID pill colour and the health band class (both
   // pure helpers in customer-card-style.js), and the card Clear dues
   // gate — the button shows only under the "Unpaid This Month" pill,
@@ -3847,13 +3854,30 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
   const healthBandClass = healthScoreBandClass(health?.score);
   const showCardClearDues = !archived && customerRosterPill === 'unpaid' && billing.value === 'pending' && outstanding.totalCents > 0;
   const receiptValue = receipts.receiptCount ? formatAmount(receipts.total) : t('cust_card_no_receipts');
-  const receiptCount = receipts.receiptCount ? (cardIsUr ? t('cust_card_recorded_receipts', null, { count: receipts.receiptCount }) : plural(receipts.receiptCount, 'recorded receipt')) : t('cust_card_no_payment_entries');
+  // PILL EVERYTHING (B1): the two stat boxes become two condensed pills
+  // in one row; the Father/reference + mohalla lines become meta-pills.
+  // The lifetime pill carries the receipt count in parens; with 0
+  // receipts the value is already "No receipts", so no parens render.
+  const lifetimePillText = receipts.receiptCount ? `${t('cust_card_lifetime_label')}: ${receiptValue} (${receipts.receiptCount})` : `${t('cust_card_lifetime_label')}: ${receiptValue}`;
+  // Compact tenure: "N mos · since <date>" for a current tenure only.
+  // Every other status reuses the presentation primary as-is (never a
+  // forced month count, never an invented date).
+  const tenureRaw = summarizeCustomerTenure(customer, new Date());
+  const tenurePillText = tenureRaw.status === 'current' ? `${t('cust_card_tenure_months_short', null, { n: tenureRaw.serviceMonths })} · ${t('cust_card_tenure_since_short', null, { date: humanDate(tenureRaw.connectionDate) })}` : tenure.primary;
+  const knownAsName = knownAsNameFor(customer);
+  const knownAsShortLabel = knownAsName ? t(String(customer?.fatherOrReferenceName ?? '').trim() ? 'cust_card_father_ref_short' : 'cust_card_alias_short') : '';
+  const callHref = contactActionTargets(customer.phone)?.tel ?? null;
+  // Badge strip (R1): the number-line badges lose their home when the
+  // Customer N pill is deleted — they render here, under the header,
+  // only when at least one exists (all of them are plain spans, so the
+  // strip is safe inside the whole-card <button>).
+  const badgeStripInner = `${archived ? `<span class="customer-card-strip-badge">${escapeHtml(t('cust_card_archived'))}</span>` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''}${taggedFirstMonths(customer).map(tagged => ` <span class="free-connection-badge">🔖 ${t('cust_first_month_free')} — ${escapeHtml(formatReceiptMonth(tagged.month) ?? tagged.month)}</span>`).join('')} ${prepaidUntilBadgeHtml(state, customer)} ${suspensionShieldBadgeHtml(customer, localDate())} ${loyaltyBadgeHtml(customer)} ${sameNameBadgeHtml(state, customer)}${manualBaqayaCardBadgeMarkup(customer)}`;
   const openLabel = t('cust_card_open_profile_title', null, { number: customer.customerNumber, name: customer.name, receipts: receiptValue, health: healthLabel, tenurePrimary: tenure.primary, tenureDetail: tenure.detail });
   // Cards redesign (variant B): the service-status segmented control is
   // gone from the card — the read-only badge above replaces it and the
   // set control lives in the profile edit form. The live-session line
   // is gone from the card too — it lives in the profile uptime panel.
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="customer-copy"><span class="customer-number-line"><span class="customer-id-pill${idPillClass ? ` ${idPillClass}` : ''}">${escapeHtml(t('cust_card_customer_number', null, { number: customer.customerNumber }))}</span>${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''}${taggedFirstMonths(customer).map(tagged => ` <span class="free-connection-badge">🔖 ${t('cust_first_month_free')} — ${escapeHtml(formatReceiptMonth(tagged.month) ?? tagged.month)}</span>`).join('')} ${prepaidUntilBadgeHtml(state, customer)} ${suspensionShieldBadgeHtml(customer, localDate())} ${loyaltyBadgeHtml(customer)} ${sameNameBadgeHtml(state, customer)}</span><span class="customer-name-pill${idPillClass ? ` ${idPillClass}` : ''}" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>${knownAsInlineHtml(customer, 'customer-known-as')}<span class="customer-card-subline">${escapeHtml(subline)}</span>${manualBaqayaCardBadgeMarkup(customer)}</span><span class="customer-service-badge customer-service-${serviceStatus}" aria-label="${escapeHtml(serviceAria)}">${escapeHtml(serviceLabel)}</span></span><span class="customer-card-stats"><span class="customer-card-stat customer-card-stat-received"><span>${t('cust_card_actually_received_lifetime')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat customer-card-stat-tenure"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span></button><div class="customer-card-rows" data-customer-id="${escapeHtml(customer.id)}"><span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_payment')}</span>${showCardClearDues ? `<button type="button" class="customer-card-clear-dues" data-clear-dues-card="${escapeHtml(customer.id)}" aria-label="${escapeHtml(t('prof_action_clear_dues'))} — ${escapeHtml(customer.name)}">${escapeHtml(t('prof_action_clear_dues'))}</button>` : `<span class="customer-billing-badge ${billing.className}">${escapeHtml(chipText)}</span>`}</span>${outstanding.totalCents > 0 ? `<span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_outstanding')}</span><span class="customer-card-row-value"><span class="customer-card-row-amount"><span class="customer-billing-badge status-pending">${escapeHtml(formatAmount(outstanding.total))}</span>${additionalButton}</span>${outstanding.manualBaqayaCents > 0 ? `<small class="customer-card-row-sub">${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(outstanding.billDues), additional: formatPKR(outstanding.manualBaqaya) }))}</small>` : ''}</span></span>` : ''}<span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_health')}</span><strong class="customer-card-health-value ${healthClass}${healthBandClass ? ` ${healthBandClass}` : ''}">${escapeHtml(healthValue)}</strong></span><button type="button" class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></button></div><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="customer-id-pill${idPillClass ? ` ${idPillClass}` : ''}">#${escapeHtml(String(customer.customerNumber))}</span><span class="customer-card-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span><span class="customer-service-badge customer-service-${serviceStatus}" aria-label="${escapeHtml(serviceAria)}">${escapeHtml(serviceLabel)}</span>${showCardClearDues ? `<span class="customer-card-clear-dues" role="button" tabindex="0" data-clear-dues-card="${escapeHtml(customer.id)}" aria-label="${escapeHtml(t('prof_action_clear_dues'))} — ${escapeHtml(customer.name)}">${escapeHtml(t('prof_action_clear_dues'))}</span>` : `<span class="customer-billing-badge ${billing.className}">${escapeHtml(chipText)}</span>`}</span>${badgeStripInner.trim() ? `<span class="customer-card-badge-strip">${badgeStripInner}</span>` : ''}<span class="customer-card-pill-row">${knownAsName ? `<span class="customer-card-meta-pill">${escapeHtml(knownAsShortLabel)}: ${escapeHtml(knownAsName)}</span>` : ''}<span class="customer-card-meta-pill">${escapeHtml(subline)}</span></span><span class="customer-card-pill-row"><span class="customer-card-lifetime-pill">${escapeHtml(lifetimePillText)}</span><span class="customer-card-tenure-pill">${escapeHtml(tenurePillText)}</span></span><span class="customer-card-pill-row"><span class="customer-card-health-pill${healthBandClass ? ` ${healthBandClass}` : ''}">${escapeHtml(healthPillText)}</span></span></button><div class="customer-card-rows" data-customer-id="${escapeHtml(customer.id)}">${outstanding.totalCents > 0 ? `<span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_outstanding')}</span><span class="customer-card-row-value"><span class="customer-card-row-amount"><span class="customer-billing-badge status-pending">${escapeHtml(formatAmount(outstanding.total))}</span>${additionalButton}</span>${outstanding.manualBaqayaCents > 0 ? `<small class="customer-card-row-sub">${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(outstanding.billDues), additional: formatPKR(outstanding.manualBaqaya) }))}</small>` : ''}</span></span>` : ''}<div class="customer-card-actions">${callHref ? `<a class="customer-card-action-btn customer-card-action-call" href="${escapeHtml(callHref)}" data-card-call="${escapeHtml(customer.id)}">${dsIcon('Phone', 18)}<span>${escapeHtml(t('qc3_call'))}</span></a>` : `<button type="button" class="customer-card-action-btn customer-card-action-call" data-card-call="${escapeHtml(customer.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_phone'))}">${dsIcon('Phone', 18)}<span>${escapeHtml(t('qc3_call'))}</span></button>`}<button type="button" class="customer-card-action-btn customer-card-action-collect" data-card-collect="${escapeHtml(customer.id)}"${archived ? ' disabled aria-disabled="true"' : ''}>${dsIcon('CreditCard', 18)}<span>${escapeHtml(t('qc3_collect'))}</span></button><button type="button" class="customer-card-action-btn customer-card-action-profile" data-card-open-profile="${escapeHtml(customer.id)}">${dsIcon('UserPlus', 18)}<span>${escapeHtml(t('cust_card_open_profile'))}</span></button></div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
@@ -4232,11 +4256,26 @@ function renderCustomers() {
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-set-service]').forEach(button => button.addEventListener('click', () => setManualServiceStatus(button.dataset.setService, button.dataset.serviceStatus)));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-additional-pending]').forEach(button => button.addEventListener('click', (event) => { event.stopPropagation(); openAdditionalPendingDialog(button.dataset.additionalPending); }));
-  // Unpaid Cards: the green Clear dues button on the card — it sits
-  // inside the rows div (a selectCustomer tap target), so the tap
-  // must stop propagation exactly like the Additional button, or the
-  // profile would open under the confirm dialog.
+  // Unpaid Cards: the green Clear dues control on the card — it sits
+  // in the header, inside the whole-card <button> (a selectCustomer
+  // tap target), so the tap must stop propagation exactly like the
+  // Additional button, or the profile would open under the confirm
+  // dialog. It is a <span role="button">, not a <button>: a real
+  // button cannot nest inside the whole-card <button> (the parser
+  // would close the outer button early and mangle the card), so the
+  // span also gets the keyboard half of the button contract below.
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-clear-dues-card]').forEach(button => button.addEventListener('click', (event) => { event.stopPropagation(); clearCustomerDues(button.dataset.clearDuesCard, { button }); }));
+  for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-clear-dues-card]').forEach(button => button.addEventListener('keydown', (event) => { if (event.key !== 'Enter' && event.key !== ' ') return; event.preventDefault(); event.stopPropagation(); clearCustomerDues(button.dataset.clearDuesCard, { button }); }));
+  // Customers Cards Compact: the action row. Call is a tel: link and
+  // Collect opens the Quick Collect flow through the existing bridge
+  // (the global-search Add Payment pattern — no second handler); both
+  // stop propagation so the rows-div tap target does not open the
+  // profile underneath. Full Profile selects the customer explicitly.
+  // Collect is disabled on archived cards (D-B4), so the handler never
+  // fires there — it must not widen the record-on-archived trap.
+  for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-card-call]').forEach(button => button.addEventListener('click', (event) => { event.stopPropagation(); }));
+  for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-card-collect]').forEach(button => button.addEventListener('click', (event) => { event.stopPropagation(); const customerId = button.dataset.cardCollect; if (window.quickCollectModalController?.selectAndOpen) window.quickCollectModalController.selectAndOpen(customerId); else selectCustomer(customerId); }));
+  for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-card-open-profile]').forEach(button => button.addEventListener('click', (event) => { event.stopPropagation(); selectCustomer(button.dataset.cardOpenProfile); }));
   $('#archivedCustomerList').querySelectorAll('[data-unarchive-customer]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); restoreCustomer(button.dataset.unarchiveCustomer); }));
   renderNewCustomersPanel();
   updateNavigationBadges(state);

@@ -10,7 +10,7 @@ body{font-family:var(--font-sans)}
 @media(max-width:620px){.topbar{height:58px;max-height:64px;padding:0 8px;gap:6px;box-sizing:border-box;max-width:100vw;overflow-x:clip}.brand-mark{width:32px;height:32px;border-radius:10px;font-size:16px;flex:0 0 32px}.brand-copy{min-width:0;overflow:hidden;flex:0 1 auto}.brand-copy h1{font-size:14px;line-height:1.2;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-.2px}.brand-copy p{display:none}.brand-title-full{display:none}.brand-title-short{display:inline}.topbar-actions{margin-left:auto;display:flex;align-items:center;gap:4px;flex-shrink:0}.privacy-pill,#networkStatusPill,#commandPaletteTrigger,#shortcutsHelpButton{display:none!important}#navDrawerToggle,#mobileCustomerSearchTrigger,#topbarPendingActionsBtn,.topbar-actions .theme-toggle{width:38px;height:38px;min-width:38px;min-height:38px;padding:0}#languageToggleBtn{min-height:38px;height:38px;padding:0 8px;font-size:11px;gap:3px;border-radius:9px}.app-shell{display:block;padding:0;margin:0;min-height:calc(100vh - 116px)}.customer-pane,.detail-pane{height:auto;min-height:calc(100vh - 116px);border:0;border-radius:0;box-shadow:none}.customer-pane{position:relative;top:auto}.detail-pane{padding:20px 16px 30px}.app-shell.show-detail .customer-pane{display:none}.app-shell:not(.show-detail) .detail-pane{display:none}.app-shell.show-detail .back-button{display:inline-flex}.pane-heading{padding:20px 17px 14px}.customer-list{padding:0 10px 14px}.customer-select{min-height:48px}.pane-footer{padding:13px 17px}.detail-title-row h2{font-size:24px}.detail-title-row{align-items:flex-start}.text-button{padding-top:4px}.ledger-heading{margin-top:22px}.month-card summary{padding:12px;gap:7px}.month-label{font-size:12px}.month-status{font-size:9px;padding:5px 7px}.month-body{padding:12px}.form-grid{gap:7px}.app-footer{padding:12px 15px 20px;align-items:flex-start;flex-direction:column;gap:2px;border-top:1px solid var(--line);background:#fff}.welcome-card{margin:19vh auto 40px;padding:0 24px}.welcome-card h2{font-size:22px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
 
-.dashboard{max-width:1320px;margin:18px auto 0;padding:0 24px}.dashboard-heading{display:flex;justify-content:space-between;align-items:end;gap:12px;margin-bottom:12px}.dashboard-heading h2{font:700 21px Manrope,sans-serif;letter-spacing:-.5px;margin:0}.dashboard-units{color:var(--muted);font-size:11px;margin:0}.summary-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px}.summary-card{min-width:0;min-height:120px;padding:14px 13px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 5px 18px rgba(22,52,43,.045);display:flex;flex-direction:column;align-items:flex-start}.summary-label{font-size:11px;line-height:1.35;font-weight:700;color:#60756c;margin:0;min-height:30px}.summary-value{font:700 clamp(18px,2vw,25px)/1.15 Manrope,system-ui,sans-serif;letter-spacing:-.5px;color:var(--green);margin:7px 0 4px;overflow-wrap:anywhere}.summary-period{font-size:9px;line-height:1.4;color:var(--muted);margin:auto 0 0}.summary-profit{background:linear-gradient(155deg,#f4fbf7,#fff);border-color:#cfe5d8}.dashboard-exclusions{font-size:11px;line-height:1.5;color:#725720;margin:10px 2px 0}.dashboard-method{max-width:1200px;font-size:10px;line-height:1.5;color:#5c6e66;margin:5px 2px 0}.customer-copy{display:flex;flex-direction:column;min-width:0;gap:2px;flex:1}.customer-profit-line{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#5c6e66;font-size:9px;font-weight:500;line-height:1.3}.customer-select[aria-current=true] .customer-profit-line{color:#527268}.customer-meta{display:grid;gap:10px}.profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}.profile-field{display:block;min-width:0}.profile-field .field-label{margin:0 0 5px}.profile-field input,.profile-field select,.profile-field textarea{display:block;width:100%;min-width:0;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--surface);padding:9px 11px;color:var(--ink);font:500 13px 'DM Sans',sans-serif;resize:vertical}.profile-field textarea{min-height:62px}.profile-field input:focus,.profile-field select:focus,.profile-field textarea:focus{outline:3px solid #cce9dd;border-color:#60a68d}.profile-help{color:#5c6e66;font-size:10px;line-height:1.5;margin:0}.profile-profit{color:#365c4e;font-size:11px;font-weight:700;line-height:1.45;margin:0}
+.dashboard{max-width:1320px;margin:18px auto 0;padding:0 24px}.dashboard-heading{display:flex;justify-content:space-between;align-items:end;gap:12px;margin-bottom:12px}.dashboard-heading h2{font:700 21px Manrope,sans-serif;letter-spacing:-.5px;margin:0}.dashboard-units{color:var(--muted);font-size:11px;margin:0}.summary-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px}.summary-card{min-width:0;min-height:120px;padding:14px 13px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 5px 18px rgba(22,52,43,.045);display:flex;flex-direction:column;align-items:flex-start}.summary-label{font-size:11px;line-height:1.35;font-weight:700;color:#60756c;margin:0;min-height:30px}.summary-value{font:700 clamp(18px,2vw,25px)/1.15 Manrope,system-ui,sans-serif;letter-spacing:-.5px;color:var(--green);margin:7px 0 4px;overflow-wrap:anywhere}.summary-period{font-size:9px;line-height:1.4;color:var(--muted);margin:auto 0 0}.summary-profit{background:linear-gradient(155deg,#f4fbf7,#fff);border-color:#cfe5d8}.dashboard-exclusions{font-size:11px;line-height:1.5;color:#725720;margin:10px 2px 0}.dashboard-method{max-width:1200px;font-size:10px;line-height:1.5;color:#5c6e66;margin:5px 2px 0}.customer-profit-line{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#5c6e66;font-size:9px;font-weight:500;line-height:1.3}.customer-select[aria-current=true] .customer-profit-line{color:#527268}.customer-meta{display:grid;gap:10px}.profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}.profile-field{display:block;min-width:0}.profile-field .field-label{margin:0 0 5px}.profile-field input,.profile-field select,.profile-field textarea{display:block;width:100%;min-width:0;min-height:40px;border:1px solid var(--line);border-radius:9px;background:var(--surface);padding:9px 11px;color:var(--ink);font:500 13px 'DM Sans',sans-serif;resize:vertical}.profile-field textarea{min-height:62px}.profile-field input:focus,.profile-field select:focus,.profile-field textarea:focus{outline:3px solid #cce9dd;border-color:#60a68d}.profile-help{color:#5c6e66;font-size:10px;line-height:1.5;margin:0}.profile-profit{color:#365c4e;font-size:11px;font-weight:700;line-height:1.45;margin:0}
 @media(max-width:1150px){.summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:800px){.dashboard{margin:14px auto 0;padding:0 14px}.dashboard-heading{align-items:flex-start}.summary-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.summary-card{min-height:112px;padding:12px 10px}.app-shell{margin-top:12px}}
 @media(max-width:620px){.dashboard{margin:12px auto 10px;padding:0 12px}.dashboard-heading{flex-direction:column;gap:4px;margin-bottom:9px}.dashboard-heading h2{font-size:19px}.dashboard-units{font-size:10px}.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.summary-card{min-height:105px;padding:11px 10px}.summary-label{font-size:10px;min-height:27px}.summary-value{font-size:21px}.summary-period{font-size:9px}.dashboard-exclusions{font-size:10px;margin-top:8px}.dashboard-method{font-size:9px}.profile-grid{grid-template-columns:1fr;gap:9px}.customer-select{min-height:53px}.customer-profit-line{font-size:9px}}
@@ -283,7 +283,7 @@ textarea { line-height: 1.5; }
   line-height: 1.35;
 }
 .customer-name, .transaction-customer, .report-customer-name,
-.transaction-title, .payment-main, .customer-copy { min-width: 0; }
+.transaction-title, .payment-main { min-width: 0; }
 .customer-number-line, .customer-profit-line { color: #5b7067; font-size: 12px; }
 .avatar { width: 32px; height: 32px; font-size: 12px; }
 .customer-billing-badge, .month-status, .archive-state-badge,
@@ -980,7 +980,7 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 }
 /* Customer Card Polish: the heading avatar rule stays even though no
    avatar is rendered any more (user decision 2026-11-12) — its #245e4c
-   is counted in the §8.9 ratchet (styles.css pinned at 614 distinct
+   is counted in the §8.9 ratchet (styles.css pinned at 613 distinct
    hex), so deleting the rule would drop the pin. */
 .customer-card-heading .avatar {
   width: 44px;
@@ -990,8 +990,6 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   background: #e7f2ec;
   color: #245e4c;
 }
-.customer-card-heading .customer-copy { gap: 3px; }
-.customer-card-heading .customer-number-line { font-size: 9px; letter-spacing: .6px; }
 .customer-id-pill {
   display: inline-block;
   padding: 1px 6px;
@@ -1005,7 +1003,7 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
    black, 2 yellow, 3 green, 4 blue, 5 slate, 6 red, 7 teal,
    8 orange, then back to black. Every colour is reused from a
    palette already in the stylesheet (health, status, service,
-   slate) — no new hex: the §8.9 ratchet pins styles.css at 614
+   slate) — no new hex: the §8.9 ratchet pins styles.css at 613
    distinct hex. The class comes from
    customerIdPillClass in customer-card-style.js. */
 .customer-id-pill-0 { background: #000; color: #fff; border-color: #000; }
@@ -1016,27 +1014,6 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .customer-id-pill-5 { background: #fee2e2; color: #b91c1c; border-color: #dc9478; }
 .customer-id-pill-6 { background: #e7f2ec; color: #0e5b4d; border-color: #9acbad; }
 .customer-id-pill-7 { background: #fff0e8; color: #8a2b12; border-color: #dc9478; }
-/* Customer Card Polish: the name is a pill in the same style as the
-   Customer N pill, slightly larger — 18px via --text-card-name (the
-   ID pill text is 9px) and a touch more padding. It is FLEXIBLE: the
-   pill sizes to the name (white-space normal, overflow-wrap anywhere,
-   max-width 100%), so a long name grows the pill instead of clipping.
-   The rotation colour is shared with the ID pill (the same
-   customer-id-pill-N class), so the pair reads as one identity. */
-.customer-card-heading .customer-name-pill {
-  display: inline-block;
-  max-width: 100%;
-  padding: 3px 10px;
-  border: 1px solid var(--ds-line);
-  border-radius: var(--radius-pill);
-  background: var(--ds-nested);
-  color: var(--ink);
-  font-size: var(--text-card-name);
-  font-weight: 700;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
 /* Compact customer cards: the service badge is the bare status word only
    (the full "Service status: …" text lives in its aria-label), coloured
    with the existing service-choice palette — no new hex. */
@@ -1053,83 +1030,127 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .customer-service-active { border-color: #9acbad; background: #eff9f2; color: #155b3b; }
 .customer-service-offline { border-color: #dfb4b1; background: #fff1f0; color: #783631; }
 .customer-service-not-set { border-color: #c9d2ce; background: #f1f3f2; color: #465650; }
-.customer-card-subline {
-  display: block;
-  color: #526a61;
-  font-size: 10px;
-  font-weight: 600;
-}
-.customer-card-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 10px;
-}
-.customer-card-stat {
-  display: flex;
-  flex-direction: column;
+/* Customers Cards Compact (B1/B2): the card is pills, not boxes. The
+   name is bold plain text (flex:1, ellipsis) — the wide grey input-box
+   look came from the deleted .customer-copy column (align-items:
+   stretch). The [#N] badge keeps the ID-pill rotation, the status and
+   billing pills sit at the header's right, and every row below is
+   adjacent pills (flex-start, never space-between — B2: a
+   space-between row leaves a dead middle). Trailing tails are NOT
+   dead bands: pills sit together at the left and are never stretched
+   to fill the row. No new hex — every colour reuses a palette already
+   in this sheet. */
+.customer-card-name {
+  flex: 1 1 auto;
   min-width: 0;
-  min-height: 56px;
-  padding: 7px 9px;
-  border: 1px solid var(--ds-line);
-  border-radius: var(--radius-sm);
-  background: var(--ds-nested);
-}
-.customer-card-stat > span {
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-.customer-card-stat strong {
-  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--ink);
-  font-size: 14px;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--text-card-name);
+  font-weight: 700;
+  line-height: 1.25;
 }
-.customer-card-stat small {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 9px;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
+.customer-card-heading .customer-id-pill {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
 }
-/* Unpaid Cards: the two stat boxes carry their own colours —
-   "Actually received · lifetime" green (the health-good palette),
-   "Time with ISP" blue (the status-partial palette). The label,
-   value and caption all take the stat colour. */
-.customer-card-stat-received { background: #e8f5ed; border-color: #a8d6ba; }
-.customer-card-stat-received > span { color: #19704e; }
-.customer-card-stat-received strong { color: #19704e; }
-.customer-card-stat-received small { color: #19704e; }
-.customer-card-stat-tenure { background: #e5efff; border-color: #adc9f1; }
-.customer-card-stat-tenure > span { color: #174b87; }
-.customer-card-stat-tenure strong { color: #174b87; }
-.customer-card-stat-tenure small { color: #174b87; }
-/* Customer Card Polish: the open hint is ONE pill-style button — the
-   label and the arrow together in one pill. The tap still opens the
-   profile through the rows div, as before; the button carries no
-   data-customer-id of its own, so selectCustomer fires exactly once.
-   Colours reuse the teal palette already in this sheet — no new hex. */
-.customer-card-open-hint {
+.customer-card-heading .customer-billing-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.customer-card-badge-strip {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  margin-top: 10px;
-  padding: 8px 12px;
-  border: 1px solid #9acbad;
-  border-radius: var(--radius-pill);
-  background: #e7f2ec;
-  color: #0e5b4d;
-  font: 700 11px 'DM Sans', sans-serif;
-  cursor: pointer;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
-/* BOTTOM rows: label left, value right, one line each. The rows div is a
-   tap target too (it carries data-customer-id, bound by renderCustomers);
+.customer-card-strip-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--radius-pill);
+  background: var(--ds-nested);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+.customer-card-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  justify-content: flex-start;
+}
+.customer-card-meta-pill {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 9px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--radius-pill);
+  background: var(--ds-nested);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.customer-card-lifetime-pill {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 9px;
+  border: 1px solid #a8d6ba;
+  border-radius: var(--radius-pill);
+  background: #e8f5ed;
+  color: #19704e;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.customer-card-tenure-pill {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 9px;
+  border: 1px solid #adc9f1;
+  border-radius: var(--radius-pill);
+  background: #e5efff;
+  color: #174b87;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.customer-card-health-pill {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 9px;
+  border: 1px solid var(--ds-line);
+  border-radius: var(--radius-pill);
+  background: var(--ds-nested);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.customer-card-health-pill.health-score-high { background: #e8f5ed; color: #19704e; }
+.customer-card-health-pill.health-score-mid { background: #fff5df; color: #9a5e06; }
+.customer-card-health-pill.health-score-low { background: #ffebea; color: #a3342d; }
+/* BOTTOM rows: adjacent pills, never space-between (B2 — a
+   space-between row leaves a dead middle). The rows div is a tap
+   target too (it carries data-customer-id, bound by renderCustomers);
    the Additional button inside stops propagation. */
 .customer-card-rows {
   display: flex;
@@ -1138,7 +1159,7 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 }
 .customer-card-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   gap: 8px;
   margin-top: 8px;
@@ -1151,7 +1172,7 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .customer-card-row-value {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 2px;
   min-width: 0;
 }
@@ -1166,13 +1187,46 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   font-size: 9px;
   font-weight: 600;
   line-height: 1.3;
-  text-align: right;
+  text-align: left;
   overflow-wrap: anywhere;
 }
-.customer-card-health-value {
-  padding: 4px 8px;
-  border-radius: 999px;
-  font-size: 10px;
+/* Customers Cards Compact (§3): ONE action row, last on the card.
+   Collect is flex:1 so the row fills exactly; the 36px min-height is
+   a class rule beating the app-wide 44px button floor (same pattern
+   as .customer-card-clear-dues below). */
+.customer-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.customer-card-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--ds-line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.customer-card-action-btn svg { flex: 0 0 auto; }
+.customer-card-action-collect {
+  flex: 1 1 0;
+  min-width: 0;
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+.customer-card-action-btn:disabled {
+  opacity: .6;
+  cursor: default;
 }
 /* Unpaid Cards: the health value is coloured by SCORE band, not by
    the category word — 70+ green, 40–70 yellow, below 40 red. The
@@ -1183,15 +1237,21 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .health-score-high { background: #e8f5ed; color: #19704e; }
 .health-score-mid { background: #fff5df; color: #9a5e06; }
 .health-score-low { background: #ffebea; color: #a3342d; }
-/* Unpaid Cards: the green Clear dues button on the card — it sits
-   where the Due badge sits under the "Unpaid This Month" pill, at
-   badge size. The global button rule floors buttons at 40px, so the
-   min-height is set here (a class beats the element selector). Green
-   is the --green token, the same as the profile Clear dues button. */
+/* Unpaid Cards: the green Clear dues control on the card — it sits in
+   the header pill's seat (where the Due badge sits under the "Unpaid
+   This Month" pill), at badge size. The global button rule floors
+   buttons at 40px, so the min-height is set here (a class beats the
+   element selector). Green is the --green token, the same as the
+   profile Clear dues button. It is a <span role="button">, not a
+   <button>: a real button cannot nest inside the whole-card <button>
+   (Customers Cards Compact) — the span carries the same class, gate,
+   binding and keyboard handling. */
 .customer-card-clear-dues {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  white-space: nowrap;
   min-height: 26px;
   padding: 3px 10px;
   border: 1px solid var(--green);
@@ -1358,7 +1418,6 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 @media (max-width: 620px) {
   .customer-list, .archived-customer-list { gap: 9px; padding: 10px 12px 14px; }
   .customer-select.customer-profile-card-open { padding: 12px; }
-  .customer-card-stat { min-height: 56px; padding: 7px 9px; }
   .customer-card-controls { padding: 0 13px 12px; }
   .customer-receipt-summary { margin-top: 14px; padding: 13px; }
   .profile-summary-grid { grid-template-columns: minmax(0, 1fr); }
@@ -1550,7 +1609,7 @@ is only ~300px wide. */
 /* Customer Card Polish: the profile-avatar rule stays even though the
    header avatar is gone (user decision 2026-11-12) — its #c8e2d3,
    #e5f4eb, #cfe9da and #14563f are counted in the §8.9 ratchet
-   (styles.css pinned at 614 distinct hex), so deleting the rule would
+   (styles.css pinned at 613 distinct hex), so deleting the rule would
    drop the pin. */
 .profile-avatar{display:grid;place-items:center;flex:0 0 62px;width:62px;height:62px;border:1px solid #c8e2d3;border-radius:19px;background:linear-gradient(145deg,#e5f4eb,#cfe9da);color:#14563f;font:800 20px/1 'DM Sans',system-ui,sans-serif;letter-spacing:.4px;box-shadow:inset 0 1px #fff}
 .profile-identity-copy{min-width:0}
@@ -1874,23 +1933,8 @@ voice-armed controls and the answer-waiting dot. Token colours only. */
 .recovery-priority-pills button[aria-pressed="true"]{background:var(--green);border-color:var(--green);color:#fff}
 .customer-health-badge{display:inline-flex;align-self:flex-start;margin-top:5px;padding:5px 8px;border-radius:999px;background:#eef4f1;color:#52685f;font-size:10px;font-weight:700}
 .health-good{background:#e8f5ed;color:#19704e}.health-risk{background:#fff5df;color:#9a5e06}.health-critical{background:#ffebea;color:#a3342d}
-.customer-health-reasons{margin:0 9px 6px;padding:0 8px;color:#62766d;font-size:10px;line-height:1.45}
-.customer-health-reasons summary,.customer-health-summary summary{cursor:pointer;font-weight:700}
-.customer-health-reasons ul,.customer-health-summary ul{padding-left:18px}
-/* Customer Card Polish: the five health reasons open as pills — one
-   colour each, in the fixed scoreCustomer order (Payment regularity,
-   Due-date history, Outstanding, Partial installments, Average
-   settlement delay). Every colour reuses an ID-pill slot already in
-   this sheet (yellow, green, blue, red, teal) — no new hex. The list
-   itself is a wrapping flex row, so the pills flow instead of
-   stacking as a bulleted list. */
-.customer-health-reasons ul{display:flex;flex-wrap:wrap;gap:6px;padding-left:0;list-style:none}
-.customer-health-reason-pill{display:inline-block;padding:3px 9px;border:1px solid var(--ds-line);border-radius:var(--radius-pill);white-space:normal;overflow-wrap:anywhere}
-.customer-health-reason-pill-0{background:#fef3c7;color:#704600;border-color:#e7c77e}
-.customer-health-reason-pill-1{background:#dcfce7;color:#145b38;border-color:#5fa876}
-.customer-health-reason-pill-2{background:#e5efff;color:#174b87;border-color:#adc9f1}
-.customer-health-reason-pill-3{background:#fee2e2;color:#b91c1c;border-color:#dc9478}
-.customer-health-reason-pill-4{background:#e7f2ec;color:#0e5b4d;border-color:#9acbad}
+.customer-health-summary summary{cursor:pointer;font-weight:700}
+.customer-health-summary ul{padding-left:18px}
 .customer-health-summary{margin:10px 0;padding:11px 13px;background:#f7faf8;border:1px solid #e7eeea;border-radius:10px;font-size:12px;line-height:1.5}
 .customer-health-summary details{margin-top:6px;color:var(--muted);font-size:10px}
 @media(max-width:900px){.owner-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.comparison-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.closing-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -10268,7 +10312,7 @@ html, body {
    polish, from the user's running list (items 1–14). Token-only: every
    colour below is a var() over tokens.css (--qc-* is the user's exact
    palette, defined there per the #230 rule) — no new hex enters this
-   file, so the 614-hex ratchet stays green. The rgba shadows are the
+   file, so the 613-hex ratchet stays green. The rgba shadows are the
    user's specified values (Collect 0 4px 12px rgba(22,163,74,0.25),
    help card 0 10px 25px rgba(0,0,0,0.15)); rgba carries no hex.
    ========================================================================== */
@@ -13131,7 +13175,7 @@ dialog.help-guide-modal::backdrop {
    the double ID + !important mirrors the QC fix §4.1.4 precedent and
    the Bulk Collect close); and the Actions drawer is grouped under 3
    mini-labels in a compact 2-column grid. Tokens and already-present
-   hex only — no new hex (the 614-hex ratchet). */
+   hex only — no new hex (the 613-hex ratchet). */
 #topDefaultersModal #closeTopDefaultersModalBtn.td-close-btn {
   width: 36px !important;
   height: 36px !important;

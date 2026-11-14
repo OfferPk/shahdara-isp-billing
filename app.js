@@ -3454,6 +3454,21 @@ function renderDashboard() {
       setupDashboardBriefingModal(state, referenceDate, { onToast: toast });
     }
   });
+  // Sharafat 22 — lazy dashboard charts: renderDashboardCharts is a
+  // no-op while #homeChartsCollapsible is closed, so attach ONE toggle
+  // listener (dataset.wired guard, like the other once-only wirings in
+  // this function) that re-renders the dashboard — with live state —
+  // when the operator opens the section. Attached before the charts
+  // call below, so the Plan 485 restore-open (which sets .open after
+  // the charts call) also triggers a render. Closing the section does
+  // nothing; a later renderDashboard() while open re-renders as usual.
+  const chartsSection = $('#homeChartsCollapsible');
+  if (chartsSection && !chartsSection.dataset.wired) {
+    chartsSection.dataset.wired = 'true';
+    chartsSection.addEventListener('toggle', () => {
+      if (chartsSection.open) renderDashboard();
+    });
+  }
   // QC-11: home top shortcuts. Home Dashboard overhaul: the "Most
   // used" row is gone — Quick Collect now leads the primary actions
   // (data-shortcut="quick-collect", class home-top-shortcut) and is

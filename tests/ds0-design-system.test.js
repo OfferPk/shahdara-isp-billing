@@ -140,10 +140,55 @@ const EXPECTED_ICON_NAMES = [
   // Location / Collect) and ClipboardList (Switch to Full Ledger) —
   // the picker's last 3D emoji become DS-0 SVGs.
   'Tag', 'Moon', 'Phone', 'MapPin', 'ClipboardList', 'CreditCard',
+  // Home Dashboard polish (Nov 2026) adds 3: Calendar (Today badge),
+  // Landmark (Cash in Hand bank glyph) and CheckCircle (Active
+  // Subscribers) replace the last 3D emoji in the KPI strip / Today card.
+  // (Landmark is shared with Collect Tab polish — listed once below.)
+  'Calendar', 'CheckCircle',
+  // Collect Tab & Field Operations Dashboard Polish (Nov 2026) adds 10:
+  // Target (Today's Field Recovery), TrendingUp (Collection insights),
+  // Landmark (Advance Held), Store / Coins / Wifi (Shop Cash +
+  // Installation Tracker), Briefcase / Plug (Zone Field Dispatch Board)
+  // and ChevronLeft / ChevronRight (Collected Feed pagination) — the
+  // Collect dashboard loses its last 3D emoji.
+  'Target', 'TrendingUp', 'Landmark', 'Store', 'Coins', 'Wifi',
+  'Briefcase', 'Plug', 'ChevronLeft', 'ChevronRight',
+  // More Tab & Wallet Inbox Polish (Nov 2026) adds 19: Hammer
+  // (Complaint Register), TrendingDown (Downtime Analytics), RadioTower
+  // (Upstream SLA), Signal (Fleet Uptime),
+  // Ruler (Link Budget), Backpack (Field Bag), Factory (Supplier
+  // Khata), Cylinder (Fiber Drums), Siren (Emergency Runbook),
+  // CloudSun (Post-Storm Checklist), TreeDeciduous (Daisy-Chain Tree),
+  // ClipboardCheck (Saad Visit Log), Pin (Pending Works), TreePine
+  // (Pole Registry), Stethoscope (System Health), HardHat (Lineman
+  // Scorecard), BatteryCharging (Power Backup), Inbox (Wallet empty
+  // state), Satellite (PON Port
+  // Capacity) — the 22 registry & operations cards + the Wallet inbox
+  // lose their last 3D emoji. Paths verified against lucide-static
+  // 1.72.0. NOTE (resolved at rebase onto main d80db831): Plug
+  // (Collect Tab) and Calendar (Home Dashboard) had both merged —
+  // their entries here are dropped and the count is recounted
+  // to 19 new names (91 total: 72 + 19).
+  'Hammer', 'TrendingDown', 'RadioTower', 'Signal', 'Ruler',
+  'Backpack', 'Factory', 'Cylinder', 'Siren', 'CloudSun',
+  'TreeDeciduous', 'ClipboardCheck', 'Pin', 'TreePine', 'Stethoscope',
+  'HardHat', 'BatteryCharging', 'Inbox', 'Satellite',
+  // Area Analytics, Month-End Close Tables & Sidebar Drawer CSS Polish
+  // (Nov 2026) adds 2: Smartphone (drawer PWA status square) and
+  // Keyboard (drawer shortcuts square) replace the 3D emoji.
+  'Smartphone', 'Keyboard',
+  // Area & Mohalla Analytics compact module (Nov 2026) adds 2:
+  // Calculator (Expansion Planner tab), Flame (Pending Dues chip).
+  // CheckCircle (100% Cleared chip) was already in main (Home
+  // Dashboard block) — not duplicated here.
+  // Rebase note (Nov 2026): rebased onto main 2f7a08ca — Calculator /
+  // Flame appended after the Area Analytics block; total 95 (93 + 2).
+  'Calculator', 'Flame',
+  // Rebase note (Nov 2026): rebased onto main f9ad16c2 — Smartphone /
+  // Keyboard appended after the More Tab block; total 93 (91 + 2).
 ];
 
-test('DS-0 icons: the full §3.2 path set is exported (60 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish + 6 QC cash modal overhaul)', () => {
-  assert.deepEqual([...DS_ICON_NAMES].sort(), [...EXPECTED_ICON_NAMES].sort(), 'ds-icons.js must export exactly the §3.2 icon set');
+test('DS-0 icons: the full §3.2 path set is exported (95 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish + 6 QC cash modal overhaul + 3 home dashboard polish + 10 collect tab polish + 19 More Tab & Wallet Inbox polish + 2 area analytics month-end close polish + 2 area & mohalla analytics compact module, Landmark shared — counted once)', () => {  assert.deepEqual([...DS_ICON_NAMES].sort(), [...EXPECTED_ICON_NAMES].sort(), 'ds-icons.js must export exactly the §3.2 icon set');
   for (const name of EXPECTED_ICON_NAMES) {
     assert.ok(isDsIconName(name), `${name} must be a known icon name`);
   }

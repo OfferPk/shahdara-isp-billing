@@ -3,10 +3,13 @@
 // cannot run in the VM; written for CI, not claimed as run locally).
 // Seeds a minimal synthetic ledger for the CURRENT Pakistan-Time
 // month and checks, at a real 360px viewport:
-//   - the thermometer section renders on Home with the pool progress
-//     (two Rs. 3,000 bills, one paid → 50%);
-//   - the area bars list both mohallas (paid BARRIAN at 100%, unpaid
-//     PALALIYAA at 0% with the full amount remaining);
+//   - the thermometer renders in the Area & Mohalla Analytics module
+//     in the Collect tab with the pool progress (two Rs. 3,000 bills,
+//     one paid → 50%);
+//   - the Tab 1 area bars list both mohallas once the All chip is
+//     on (paid BARRIAN at 100%, unpaid PALALIYAA at 0% with the full
+//     amount remaining) — the default Pending Dues chip hides the
+//     cleared BARRIAN row, so the spec taps All first;
 //   - the card stays on theme tokens in dark mode;
 //   - no horizontal overflow at 360px.
 import { test, expect } from '@playwright/test';
@@ -43,19 +46,23 @@ async function seed(page) {
 test('thermometer shows pool progress and area bars at 360px', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await seed(page);
-  await page.goto('/');
+  await page.goto('/#/transactions');
 
-  const section = page.locator('#collectionForecastSection');
+  const section = page.locator('#areaAnalyticsModule');
   await expect(section).toBeVisible();
   await expect(page.locator('#collectionForecastPct')).toHaveText('50%');
   await expect(page.locator('#collectionForecastCollected')).toContainText('3,000');
 
-  const areas = page.locator('#collectionForecastAreas .fcst-area-row');
+  // The default Pending Dues chip hides the cleared BARRIAN row —
+  // tap All Mohallas first, then both rows are listed, highest
+  // still-due first.
+  await page.locator('[data-area-chip="all"]').click();
+  const areas = page.locator('#mdbMohallaRows .fcst-area-row');
   await expect(areas).toHaveCount(2);
   await expect(areas.nth(0)).toContainText('PALALIYAA');
-  await expect(areas.nth(0)).toContainText('0%');
+  await expect(areas.nth(0).locator('.fcst-area-bar')).toHaveAttribute('aria-valuenow', '0');
   await expect(areas.nth(1)).toContainText('BARRIAN');
-  await expect(areas.nth(1)).toContainText('100%');
+  await expect(areas.nth(1).locator('.fcst-area-bar')).toHaveAttribute('aria-valuenow', '100');
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
@@ -64,12 +71,12 @@ test('thermometer shows pool progress and area bars at 360px', async ({ page }) 
 test('thermometer card renders on theme tokens in dark mode', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await seed(page);
-  await page.goto('/');
+  await page.goto('/#/transactions');
   await page.evaluate(() => localStorage.setItem('shahdara_theme', 'dark'));
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect(page.locator('#collectionForecastSection')).toBeVisible();
+  await expect(page.locator('#areaAnalyticsModule')).toBeVisible();
   await expect(page.locator('#collectionForecastPct')).toHaveText('50%');
-  const cardBg = await page.locator('.collection-forecast-card').evaluate(el => getComputedStyle(el).backgroundColor);
+  const cardBg = await page.locator('#areaAnalyticsModule .collection-forecast-card').evaluate(el => getComputedStyle(el).backgroundColor);
   expect(cardBg).not.toBe('rgb(255, 255, 255)');
 });

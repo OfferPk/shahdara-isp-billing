@@ -432,6 +432,49 @@ test('SISP-186 wiring: dashboard section, app render + bulk action, token CSS', 
   assert.ok(!/#fff|#ffffff|white/.test(block.slice(0, block.indexOf('.upsell-section'))), 'no hardcoded white in the expired-holds CSS');
 });
 
+test('Sharafat 25: expired-hold checkboxes default UNCHECKED (fresh render has zero boxes checked)', () => {
+  // Source-scan pin (no DOM harness exists for app.js): the render
+  // template's checkbox input must carry no `checked` attribute, so a
+  // fresh render selects nobody and one tap cannot bulk-resume holds
+  // the operator never reviewed.
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const templateLine = app.split('\n').find((line) => line.includes('class="expired-hold-check"'));
+  assert.ok(templateLine, 'expired-hold checkbox template line exists');
+  assert.ok(!/\schecked[\s>]/.test(templateLine), 'template checkbox must not carry a checked attribute');
+  assert.ok(templateLine.includes('data-expired-hold-id'), 'template still tags each box with its hold id');
+});
+
+test('Sharafat 25: Resume with none checked shows the existing toast and resumes nobody', () => {
+  // Source-scan pin: the empty-selection guard returns BEFORE the
+  // script builder, the core transition, or save() can run, so the
+  // empty path is a pure no-op — no state write, no clipboard write.
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const handlerStart = app.indexOf("const checkedIds = [...document.querySelectorAll('.expired-hold-check:checked')]");
+  assert.ok(handlerStart >= 0, 'resume handler collects :checked ids');
+  const handler = app.slice(handlerStart, handlerStart + 3000);
+  const guard = handler.indexOf('checkedIds.length === 0');
+  assert.ok(guard >= 0, 'empty-selection guard exists');
+  const scriptAt = handler.indexOf('buildExpiredHoldResumeScript(selected', guard);
+  assert.ok(scriptAt > guard, 'script builder call exists after the guard');
+  assert.ok(handler.indexOf("t('exphold_none_selected')", guard) < scriptAt, 'toast fires before the script builder');
+  assert.ok(handler.indexOf('return;', guard) < scriptAt, 'handler returns before the script builder');
+  const transitionAt = handler.indexOf('updateCustomerProfile(state, customer.id', guard);
+  assert.ok(scriptAt < transitionAt, 'script built before the core transition');
+  assert.ok(transitionAt < handler.indexOf('save();', guard), 'core transition before save');
+  assert.ok(handler.indexOf('selected.length === 0') > guard, 'second (stale-selection) toast still exists');
+});
+
+test('Sharafat 25: checking every box by hand still resumes all (no select-all control added)', () => {
+  // The minimal fix adds NO select-all control (parent decision); the
+  // operator checks boxes by hand, and the handler must still collect
+  // every checked box. Source-scan pin.
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.ok(app.includes("document.querySelectorAll('.expired-hold-check:checked')"), 'handler reads :checked boxes');
+  assert.ok(app.includes('.filter((row) => checkedIds.includes(String(row.id)))'), 'handler resumes exactly the checked ids');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.ok(!html.includes('expiredHoldsSelectAll'), 'no select-all control was added to the section');
+});
+
 test('generators are read-only: frozen held input is untouched', () => {
   const frozen = Object.freeze(heldCustomer());
   assert.doesNotThrow(() => buildVacationHoldDisableSnippet(frozen, { todayStr: '2026-10-06' }));

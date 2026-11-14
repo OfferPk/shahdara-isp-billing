@@ -22,6 +22,7 @@ import {
   RECENT_PAYMENTS_FILTER_POOL,
   RECENT_PAYMENTS_ALL_FILTER
 } from '../recent-payments.js';
+import { t } from '../nav-language.js';
 
 function payment(id, date, amount, method, extra = {}) {
   return { id, date, amount, method, ...extra };
@@ -374,9 +375,13 @@ test('SISP-174: dashboard wires the pills and the 1-tap Receipt / WhatsApp / PNG
 
 test('SISP-174: the new dashboard strings exist in both languages', () => {
   const nav = readFileSync(new URL('../nav-language.js', import.meta.url), 'utf8');
-  for (const key of ['dash_recent_filter_all', 'dash_recent_filter_label', 'dash_recent_receipt', 'dash_recent_receipt_aria']) {
+  for (const key of ['dash_recent_filter_all', 'dash_recent_filter_label', 'dash_recent_receipt', 'dash_recent_receipt_aria', 'dash_recent_showing']) {
     assert.equal(nav.split(`${key}:`).length - 1, 2, `${key} must exist in en and ur`);
   }
+  // Sharafat 21: the new key carries the {shown}/{total} placeholders in
+  // both languages, and the Urdu value carries Urdu script.
+  assert.ok(nav.includes("dash_recent_showing: 'Showing {shown} of {total} payments'"), 'English showing note exists');
+  assert.ok(nav.includes("dash_recent_showing: '{total} میں سے {shown} ادائیگیاں دکھائی جا رہی ہیں'"), 'Urdu showing note exists');
 });
 
 test('home dashboard polish: Recent Payments rows are name-primary with Method • date and amount + Receipt on the right', () => {
@@ -394,4 +399,98 @@ test('home dashboard polish: Recent Payments rows are name-primary with Method �
   const filters = css.slice(css.indexOf('.recent-payments-filters {'), css.indexOf('.recent-payments-filters {') + 300);
   assert.ok(filters.includes('flex-wrap: nowrap'), 'filter pills do not wrap');
   assert.ok(filters.includes('overflow-x: auto'), 'filter pills scroll horizontally');
+});
+
+// ---------------------------------------------------------------------------
+// Sharafat 21: "Showing 3 of N" — pill counts describe the 25-row pool
+// while the card shows 3 rows, so the visible count is stated next to
+// the pills, denominator = the ACTIVE filter's matches (option c).
+// ---------------------------------------------------------------------------
+
+/** Seven payments, five of them Cash — the seeded fixture's Cash count (2) can never exhibit the bug. */
+function cashHeavyState() {
+  return {
+    customers: [
+      customer('cust-a', 1, 'Ahmed Khan', [
+        bill('2026-10', [
+          payment('c1', '2026-10-01', 1000, 'Cash'),
+          payment('c2', '2026-10-05', 1000, 'Cash'),
+          payment('c3', '2026-10-09', 1000, 'Cash'),
+          payment('c4', '2026-10-13', 1000, 'Cash'),
+          payment('c5', '2026-10-17', 1000, 'Cash')
+        ])
+      ]),
+      customer('cust-b', 2, 'Kamran Iqbal', [
+        bill('2026-10', [
+          payment('j1', '2026-10-19', 2000, 'JazzCash'),
+          payment('e1', '2026-10-21', 1500, 'Easypaisa')
+        ])
+      ])
+    ]
+  };
+}
+
+test('Sharafat 21: pill counts describe the pool while the card shows 3 — the note states shown vs the active filter', () => {
+  const pool = buildRecentPayments(cashHeavyState(), RECENT_PAYMENTS_FILTER_POOL);
+  assert.equal(pool.length, 7);
+  const cashPill = buildRecentPaymentPills(pool).find(pill => pill.key === 'method:Cash');
+  assert.equal(cashPill.count, 5, 'the Cash pill counts the pool, not the screen');
+  // The card renders 3 rows under Cash…
+  assert.deepEqual(filterRecentPayments(pool, 'method:Cash', 3).map(r => r.paymentId), ['c5', 'c4', 'c3']);
+  // …so the note's denominator under Cash is the pool's 5, not 3…
+  assert.equal(filterRecentPayments(pool, 'method:Cash', RECENT_PAYMENTS_FILTER_POOL).length, 5);
+  // …and under All it is the whole pool.
+  assert.equal(filterRecentPayments(pool, RECENT_PAYMENTS_ALL_FILTER, RECENT_PAYMENTS_FILTER_POOL).length, 7);
+  // The note text itself, both languages.
+  assert.equal(t('dash_recent_showing', 'en', { shown: 3, total: 5 }), 'Showing 3 of 5 payments');
+  assert.equal(t('dash_recent_showing', 'ur', { shown: 3, total: 5 }), '5 میں سے 3 ادائیگیاں دکھائی جا رہی ہیں');
+});
+
+test('Sharafat 21: a 25-row pool reads "Showing 3 of 25" under All', () => {
+  const payments = [];
+  for (let i = 0; i < 25; i += 1) {
+    payments.push(payment(`p${i}`, `2026-10-${String(1 + i).padStart(2, '0')}`, 1000, i % 2 === 0 ? 'Cash' : 'JazzCash'));
+  }
+  const state = {
+    customers: [customer('cust-a', 1, 'Ahmed Khan', [bill('2026-10', payments)])]
+  };
+  const pool = buildRecentPayments(state, RECENT_PAYMENTS_FILTER_POOL);
+  assert.equal(pool.length, 25, 'the pool holds all 25');
+  assert.equal(filterRecentPayments(pool, RECENT_PAYMENTS_ALL_FILTER, 3).length, 3, 'the card shows 3');
+  assert.equal(t('dash_recent_showing', 'en', { shown: 3, total: 25 }), 'Showing 3 of 25 payments');
+});
+
+test('Sharafat 21: an empty pool shows no note — total equals shown at zero', () => {
+  const pool = buildRecentPayments({ customers: [] }, RECENT_PAYMENTS_FILTER_POOL);
+  assert.deepEqual(pool, []);
+  assert.equal(filterRecentPayments(pool, RECENT_PAYMENTS_ALL_FILTER, RECENT_PAYMENTS_FILTER_POOL).length, 0);
+  assert.equal(filterRecentPayments(pool, RECENT_PAYMENTS_ALL_FILTER, 3).length, 0);
+  // The renderer's `total > shown` gate hides the note at zero (see the
+  // wiring test's `recentShowingEl.hidden = true` pin).
+});
+
+test('Sharafat 21: the "Showing 3 of N" note is a separate element under the pills, wired to the active filter', () => {
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../dashboard.css', import.meta.url), 'utf8');
+  // Placement: between the filters div and the list — never inside the
+  // pills row and never inside the recentRows.map row template.
+  const filtersAt = html.indexOf('id="recentPaymentsFilters"');
+  const showingAt = html.indexOf('id="recentPaymentsShowing"');
+  const listAt = html.indexOf('id="recentPaymentsList"');
+  assert.ok(filtersAt !== -1 && showingAt !== -1 && listAt !== -1, 'note element exists');
+  assert.ok(filtersAt < showingAt && showingAt < listAt, 'note sits between the pills and the list');
+  assert.ok(html.includes('<p id="recentPaymentsShowing" class="recent-payments-showing" hidden></p>'), 'note is a hidden paragraph');
+  // Wiring: denominator is the active filter's matches in the pool, the
+  // note shows only when the total exceeds the visible rows.
+  assert.ok(app.includes("$('#recentPaymentsShowing')"), 'renderer looks up the note element');
+  assert.ok(app.includes('filterRecentPayments(recentPool, recentPaymentsFilter, RECENT_PAYMENTS_FILTER_POOL).length'), 'denominator counts the active filter across the pool');
+  assert.ok(app.includes('if (recentFilteredTotal > recentRows.length)'), 'note shows only when total exceeds shown');
+  assert.ok(app.includes("t('dash_recent_showing', null, { shown: recentRows.length, total: recentFilteredTotal })"), 'note text comes from the i18n key with shown/total');
+  assert.ok(app.includes('recentShowingEl.hidden = false'), 'note unhides when it applies');
+  assert.ok(app.includes('recentShowingEl.hidden = true'), 'note hides when everything fits');
+  // Token-only rule, no hex (the polish18 ratchet pins dashboard.css at 85).
+  const rule = css.slice(css.indexOf('.recent-payments-showing {'), css.indexOf('.recent-payments-showing {') + 300);
+  assert.ok(rule.includes('color: var(--muted)'), 'note uses the muted token');
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(rule), 'note rule carries no hex');
 });

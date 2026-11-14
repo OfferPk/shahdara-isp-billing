@@ -11,7 +11,8 @@
  * - setupHomeTodaySection: binds WhatsApp dispatch button and live event listeners.
  */
 
-import { formatPKR, calculateDashboard } from './core.js';
+import { formatPKR, calculateDashboard, calculatePaymentAllocations } from './core.js';
+import { totalOutstandingFigures } from './manual-baqaya.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { pkrNoteChipsMarkup } from './pkr-notes.js';
 import { calculateDailyClosingSummary } from './dashboard-daily-closing.js';
@@ -58,6 +59,11 @@ export function calculateHomeTodaySummary(state = {}, referenceDate = new Date()
   let newConnectionsThisMonth = 0;
   const overdueCustomers = [];
 
+  // Sharafat 19 — one engine pass for the whole roster, shared by
+  // every customer's outstanding figure below; totalOutstandingFigures
+  // reuses it instead of running one pass per customer.
+  const allocations = calculatePaymentAllocations(state);
+
   for (const c of (state.customers ?? [])) {
     if (c.archived) continue;
 
@@ -72,24 +78,27 @@ export function calculateHomeTodaySummary(state = {}, referenceDate = new Date()
       newConnectionsThisMonth++;
     }
 
-    // Check customer's total outstanding balance. A voided receipt
-    // is history, never a payment: it counts toward neither the
-    // paid total nor the month's collections.
-    let custTotalDueCents = 0;
+    // Sharafat 19 — the overdue figure comes from the allocation
+    // engine (the same source as the profile and the KPI strip), not
+    // raw due−paid: applied credit/advance, concessions and manual
+    // baqaya are all reflected in it, so Top 3 amounts equal the
+    // profile outstanding for the same customers. A voided receipt is
+    // history, never a payment: the engine ignores it too, so it
+    // counts toward neither the overdue figure nor the month's
+    // collections. The figure is already integer cents — use it
+    // directly; do NOT re-derive rupees from per-bill rounding, or
+    // Top 3 would disagree with the profile by paisa.
+    const custTotalDueCents = totalOutstandingFigures(c, allocations).totalCents;
     const bills = Array.isArray(c.bills) ? c.bills : [];
     for (const b of bills) {
-      const due = Number(b.dueAmount) || 0;
-      const payments = Array.isArray(b.payments) ? b.payments : [];
-      const paid = payments.reduce((sum, p) => sum + (p?.voided === true ? 0 : (Number(p.amount) || 0)), 0);
-      const balance = Math.max(0, due - paid);
-      custTotalDueCents += Math.round(balance * 100);
-
-      // Current month billed
+      // Current month billed (stays raw: it reads the bill amount
+      // directly and its pins expect that — not part of this item).
       if (b.month === currentMonth && b.dueAmount !== null && b.dueAmount !== undefined) {
         monthBilledCents += Math.round(Number(b.dueAmount) * 100);
       }
 
       // Current month collected (payments dated in current month)
+      const payments = Array.isArray(b.payments) ? b.payments : [];
       for (const p of payments) {
         if (p?.voided === true) continue;
         if (typeof p.date === 'string' && p.date.slice(0, 7) === currentMonth) {

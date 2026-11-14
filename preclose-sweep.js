@@ -311,16 +311,22 @@ export function precloseSweepHtml(sweep) {
     return '<p style="font-size: 12px;">Nothing unreconciled: no unclaimed suspense, unmatched wallet entries, open payment claims, or unclosed day handovers.</p>';
   }
   const groupHtml = sweep.groups.filter((group) => group.count > 0).map((group) => {
-    const rows = group.items.map((item) => {
-      const bits = [`<strong>${escapeHtml(item.label)}</strong>`];
-      if (item.detail) bits.push(escapeHtml(item.detail));
-      if (item.date) bits.push(escapeHtml(item.date));
-      if (item.ageDays !== null) bits.push(`${item.ageDays} days`);
-      bits.push(item.amount === null ? 'Amount not recorded' : escapeHtml(formatAmount(item.amount)));
-      bits.push(`Clear from: ${escapeHtml(item.screen)}`);
-      return `<li>${bits.join(' · ')}</li>`;
+    // Area Analytics polish: each item renders as a structured white
+    // card instead of a raw <ul><li> bullet. Same fields, no data
+    // loss — label, detail, date, id (TID), age, amount, and the
+    // owning screen. The screen badge is a STATIC label (the sweep
+    // resolves nothing here — the header buttons own navigation).
+    const cards = group.items.map((item) => {
+      const meta = [];
+      if (item.date) meta.push(escapeHtml(item.date));
+      if (item.id) meta.push(escapeHtml(item.id));
+      if (item.ageDays !== null) meta.push(`${item.ageDays} days`);
+      const main = [`<strong>${escapeHtml(item.label)}</strong>`];
+      if (item.detail) main.push(`<span>${escapeHtml(item.detail)}</span>`);
+      if (meta.length) main.push(`<span>${meta.join(' · ')}</span>`);
+      return `<article class="sweep-item-card"><div class="sweep-item-main">${main.join('')}</div><div class="sweep-item-side"><strong>${item.amount === null ? 'Amount not recorded' : escapeHtml(formatAmount(item.amount))}</strong><span class="sweep-item-screen">${escapeHtml(item.screen)} →</span></div></article>`;
     }).join('');
-    return `<h4 style="font-size: 13px; margin: 10px 0 4px;">${escapeHtml(group.label)} — ${group.count} item${group.count === 1 ? '' : 's'}${group.amount === null ? '' : ` · ${escapeHtml(formatAmount(group.amount))}`}</h4><ul style="font-size: 12px;">${rows}</ul>`;
+    return `<h4 style="font-size: 13px; margin: 10px 0 4px;">${escapeHtml(group.label)} — ${group.count} item${group.count === 1 ? '' : 's'}${group.amount === null ? '' : ` · ${escapeHtml(formatAmount(group.amount))}`}</h4>${cards}`;
   }).join('');
   const carriedHtml = sweep.carriedForward.length > 0
     ? `<h4 style="font-size: 13px; margin: 10px 0 4px;">Carried-forward exceptions from closed month ${escapeHtml(sweep.month)}${sweep.closedMonth?.closedDate ? ` (closed ${escapeHtml(sweep.closedMonth.closedDate)}${sweep.closedMonth.closedBy ? ` by ${escapeHtml(sweep.closedMonth.closedBy)}` : ''})` : ''}</h4><p style="font-size: 12px;">These ${sweep.carriedForward.length} item${sweep.carriedForward.length === 1 ? '' : 's'} were still open when the month was marked closed. They stay visible here until cleared from their own screen.</p>`

@@ -20,6 +20,19 @@ test('normalizeWhatsAppNumber handles local and international Pakistani numbers'
   assert.equal(normalizeWhatsAppNumber(''), '');
 });
 
+test('normalizeWhatsAppNumber returns empty for invalid digit strings (Sharafat 23)', () => {
+  // The validity rule is ^923\d{9}$ — exactly what the three branches
+  // above produce. Anything unmatched is '' so no dead wa.me/ link renders.
+  assert.equal(normalizeWhatsAppNumber('12345'), '');
+  assert.equal(normalizeWhatsAppNumber('0511234567'), '');
+  assert.equal(normalizeWhatsAppNumber('030012345678'), '');
+  assert.equal(normalizeWhatsAppNumber('921234567890'), '');
+  assert.equal(normalizeWhatsAppNumber('00923001234567'), '');
+  // Pattern-fake +92 shape (same shape as the design doc's example, never
+  // a real number) still converts — only the unmatched shapes are rejected.
+  assert.equal(normalizeWhatsAppNumber('+92 301 2345678'), '923012345678');
+});
+
 test('calculateHomeTodaySummary computes today collections, month targets and top overdue', () => {
   const refDate = new Date('2026-10-15T12:00:00Z');
   let state = createInitialState([]);
@@ -198,6 +211,55 @@ test('renderHomeTodaySummary populates DOM elements and top 3 overdue cards', ()
   assert.ok(listHtml.indexOf('pkr-note-chips') > subStart, 'the note chips sit inside the sub-line');
   assert.ok(listHtml.includes('₨1000 ×2'), 'PKR 2,000 breaks down to two 1000 chips');
   assert.ok(listHtml.includes('overdue-item-name'), 'the name still carries its ellipsis class');
+});
+
+test('renderHomeTodaySummary renders no WhatsApp link for short/landline phones (Sharafat 23)', () => {
+  const elements = {};
+  const mockDoc = {
+    getElementById(id) {
+      if (!elements[id]) {
+        elements[id] = { textContent: '', innerHTML: '' };
+      }
+      return elements[id];
+    }
+  };
+
+  const summary = {
+    todayStr: '2026-10-15',
+    todayCollected: 0,
+    todayCount: 0,
+    cashCollected: 0,
+    digitalCollected: 0,
+    monthBilled: 6000,
+    monthCollected: 0,
+    targetPct: 0,
+    totalDue: 6000,
+    customersWithDuesCount: 3,
+    newCustomersThisMonth: 0,
+    topOverdue: [
+      { id: 'c1', customerNumber: 102, name: 'Bilal Ahmed', phone: '03219998877', mohalla: 'Kot Mohibbu', balanceDue: 2000 },
+      { id: 'c2', customerNumber: 103, name: 'Short Number', phone: '12345', mohalla: 'Saeed Park', balanceDue: 1500 },
+      { id: 'c3', customerNumber: 104, name: 'Landline Only', phone: '0511234567', mohalla: 'Main Bazaar', balanceDue: 2500 }
+    ]
+  };
+
+  renderHomeTodaySummary(mockDoc, summary);
+
+  const listHtml = elements['homeTopOverdueList'].innerHTML;
+  // Count the WhatsApp anchors — a bare !includes('wa.me/') would be wrong
+  // because the valid row's link is in the same HTML. Exactly one anchor:
+  // the valid row's only.
+  const waLinks = listHtml.match(/overdue-wa-link/g) || [];
+  assert.equal(waLinks.length, 1, 'only the valid-phone row gets a WhatsApp link');
+  assert.ok(listHtml.includes('https://wa.me/923219998877'));
+  assert.ok(!listHtml.includes('wa.me/12345'), 'no dead link for the short number');
+  assert.ok(!listHtml.includes('wa.me/0511234567'), 'no dead link for the landline');
+  // Collect stays for every row — the invalid rows show Collect only.
+  assert.ok(listHtml.includes('#quick-collect/c1'));
+  assert.ok(listHtml.includes('#quick-collect/c2'));
+  assert.ok(listHtml.includes('#quick-collect/c3'));
+  assert.ok(listHtml.includes('Short Number'));
+  assert.ok(listHtml.includes('Landline Only'));
 });
 
 test('calculateHomeTodaySummary: connectionDate decides the new-connection month, and a voided payment counts nowhere', () => {

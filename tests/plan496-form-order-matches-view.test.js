@@ -67,7 +67,14 @@ function fieldOrder(form) {
 const VIEW_PINNED = {
   customer: [
     'profileNameInput', 'mohallaInput', 'zoneInput', 'nameUrduInput',
-    'phoneInput', 'cnicInput', 'fatherOrReferenceNameInput', 'searchAliasesInput',
+    // Profile Number Field at Top (item C) — the phone field MOVED out
+    // of the form to #profileTopPhoneRow, directly under the title row
+    // (D-C1/D-C2). It is deliberately NOT in this list any more: the
+    // relative-order pin only covers fields that still sit in the form,
+    // and the top-row placement is pinned instead by
+    // tests/profile-number-field-top.test.js. The field itself, its id
+    // and its save path are unchanged — only its position moved.
+    'cnicInput', 'fatherOrReferenceNameInput', 'searchAliasesInput',
     'whatsappPhoneInput', 'alternatePhoneInput', 'prefersSmsCheckbox',
     'preferredReceiptLangSelect', 'preferredReceiptChannelSelect',
     'addressInput', 'customerNotesInput',
@@ -140,7 +147,10 @@ test('plan 496: each section holds all its fields, nothing split', () => {
   // The old Contact/Connection runs are split across the new sections
   // now (Contact across S1, Connection across S4/S5/S6); each section
   // holds its whole Table A list in one run.
-  assert.equal(byKey.get('customer').length, 18, 'all 18 Customer fields in one section');
+  // Profile Number Field at Top (item C) — the Customer section holds
+  // 17 fields now, not 18: the phone field moved out of the form to the
+  // top row under the title row. Its id and save path are unchanged.
+  assert.equal(byKey.get('customer').length, 17, 'all 17 Customer fields in one section (item C moved phone to the top row)');
   assert.equal(byKey.get('service').length, 16, 'all 16 Service fields in one section');
   assert.equal(byKey.get('financial').length, 4, 'all 4 Financial fields in one section');
   assert.equal(byKey.get('connection').length, 7, 'all 7 Connection fields in one section (Phase D added otherInstallCost)');
@@ -164,11 +174,15 @@ test('plan 496: seasonal sits before package, expiry/cancellation end S2', () =>
 // so no field may sit outside a heading at all. The serial number in
 // S6 is the last field overall (the old "staff name stays last" pin
 // is false under Phase C: staff name ends S2).
+// Profile Number Field at Top (item C) — the form holds 69 fields now,
+// not 70: the phone field moved out of the form to the top row under
+// the title row. Its id and save path are unchanged; only its position
+// moved, and the move is pinned by tests/profile-number-field-top.test.js.
 test('plan 496: no ungrouped fields remain — the serial number is last', () => {
   const order = fieldOrder(formHtml());
   const at = (id) => order.indexOf(id);
   const grouped = parseSections(formHtml()).flatMap((s) => s.fields);
-  assert.equal(grouped.length, 70, 'all 70 fields grouped (Phase D added otherInstallCost)');
+  assert.equal(grouped.length, 69, 'all 69 fields grouped (item C moved phone to the top row)');
   for (const f of order) {
     assert.ok(grouped.includes(f), `${f} must sit under a section heading`);
   }
@@ -178,8 +192,8 @@ test('plan 496: no ungrouped fields remain — the serial number is last', () =>
 
 test('plan 496: no field lost, duplicated or re-marked up', () => {
   const order = fieldOrder(formHtml());
-  assert.equal(order.length, 70, 'still 70 fields (Phase D added otherInstallCost)');
-  assert.equal(new Set(order).size, 70, 'no duplicate field ids');
+  assert.equal(order.length, 69, 'still 69 fields (item C moved phone out of the form to the top row)');
+  assert.equal(new Set(order).size, 69, 'no duplicate field ids');
   const form = formHtml();
   // Every field keeps its input/select/textarea and its label markup.
   for (const id of order) {

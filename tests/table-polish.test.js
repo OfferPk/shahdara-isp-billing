@@ -151,4 +151,72 @@ test('Customer Roster Table Polish & CSV Export Suite', async t => {
     assert.ok(css.includes('.customer-table-empty'), 'Must have customer-table-empty style');
     assert.ok(css.includes('.sort-icon'), 'Must have sort-icon style');
   });
+
+  await t.test('cards-mode empty state carries a sibling reset button reusing cust_table_reset (Sharafat 35)', () => {
+    const indexPath = path.join(__dirname, '..', 'index.html');
+    const html = fs.readFileSync(indexPath, 'utf8');
+    const lines = html.split('\n');
+    const emptyLine = lines.findIndex(line => line.includes('id="noSearchResults"'));
+    assert.ok(emptyLine >= 0, 'Must have #noSearchResults');
+    // The button must NOT nest inside the textContent-driven <p> — a nested
+    // button would be destroyed on the next render.
+    assert.doesNotMatch(lines[emptyLine], /resetCustomerCardsFiltersBtn/, 'Reset button must not live inside #noSearchResults');
+    const wrapperLine = lines.findIndex(line => line.includes('id="customerCardsEmptyActions"'));
+    assert.strictEqual(wrapperLine, emptyLine + 1, 'Cards reset wrapper must be the sibling directly after #noSearchResults');
+    assert.match(lines[wrapperLine], /hidden/, 'Wrapper starts hidden; renderCustomers() toggles it with the empty state');
+    assert.match(lines[wrapperLine], /id="resetCustomerCardsFiltersBtn"/);
+    assert.match(lines[wrapperLine], /class="secondary-button reset-filter-btn"/);
+    assert.match(lines[wrapperLine], /data-i18n="cust_table_reset"/, 'Cards button reuses the table reset label — zero new i18n keys');
+  });
+
+  await t.test('table reset and cards reset share one named handler that clears all eight filters (Sharafat 35)', () => {
+    const appPath = path.join(__dirname, '..', 'app.js');
+    const app = fs.readFileSync(appPath, 'utf8');
+    const defs = app.match(/function resetCustomerRosterFilters\(\) \{/g) || [];
+    assert.strictEqual(defs.length, 1, 'Exactly one shared reset handler');
+    const bodyStart = app.indexOf('function resetCustomerRosterFilters() {');
+    const bodyEnd = app.indexOf('\n}\n', bodyStart);
+    const body = app.slice(bodyStart, bodyEnd);
+    // All eight clears, exactly as the table reset always cleared them.
+    assert.match(body, /\$\('#customerListSearch'\)\.value = '';/);
+    assert.match(body, /\$\('#globalCustomerSearch'\)\.value = '';/);
+    assert.match(body, /customerSearchField = UNIFIED_IDENTIFIER_FIELD_ID;/);
+    assert.match(body, /\$\('#customerSearchField'\)\.value = UNIFIED_IDENTIFIER_FIELD_ID;/);
+    assert.match(body, /customerRosterPill = 'all';/);
+    assert.match(body, /customerAreaFilter = 'all';/);
+    assert.match(body, /\$\('#customerFilterArea'\)\.value = 'all';/);
+    assert.match(body, /selectedServiceFilter = 'all';/);
+    assert.match(body, /selectedBillingFilter = 'all';/);
+    assert.match(body, /customerCurrentPage = 1;/);
+    assert.match(body, /renderCustomers\(\);/);
+    // Fork 2 (a): renderCustomers() ONLY — the global-query staleness is
+    // found-not-fixed, not widened here.
+    assert.doesNotMatch(body, /renderGlobalSearch|renderTransactions|renderMonthlyReport/);
+    // Month and sort are untouched, exactly as the table reset left them.
+    assert.doesNotMatch(body, /selectedBillingMonth|customerSortBy/);
+    // Both buttons call the one handler; the old inline body is gone.
+    assert.match(app, /\$\('#resetCustomerTableFiltersBtn'\)\?\.addEventListener\('click', resetCustomerRosterFilters\);/);
+    assert.match(app, /\$\('#resetCustomerCardsFiltersBtn'\)\?\.addEventListener\('click', resetCustomerRosterFilters\);/);
+    assert.doesNotMatch(app, /resetCustomerTableFiltersBtn'\)\?\.addEventListener\('click', \(\) => \{/);
+  });
+
+  await t.test('cards reset button is wired once at module setup, never inside renderCustomers (Sharafat 35)', () => {
+    const appPath = path.join(__dirname, '..', 'app.js');
+    const app = fs.readFileSync(appPath, 'utf8');
+    const wiring = app.match(/\$\('#resetCustomerCardsFiltersBtn'\)\?\.addEventListener/g) || [];
+    assert.strictEqual(wiring.length, 1, 'Cards reset wired exactly once');
+    const renderStart = app.indexOf('function renderCustomers()');
+    const renderEnd = app.indexOf('\nfunction ', renderStart + 1);
+    const renderBody = app.slice(renderStart, renderEnd);
+    assert.doesNotMatch(renderBody, /resetCustomerCardsFiltersBtn/, 'Wiring inside renderCustomers() would double-bind on every render');
+    // The toggle lives in the empty-state block instead, gated on cards mode.
+    assert.match(renderBody, /cardsEmptyActions\.hidden = emptySearch\.hidden \|\| customerViewMode !== 'cards';/);
+  });
+
+  await t.test('styles.css gives the cards reset the table button sizing with zero new hex (Sharafat 35)', () => {
+    const cssPath = path.join(__dirname, '..', 'styles.css');
+    const css = fs.readFileSync(cssPath, 'utf8');
+    assert.match(css, /\.customer-cards-empty-actions \.reset-filter-btn \{[^}]*min-height: 38px;/);
+    assert.match(css, /\.customer-cards-empty-actions \{[^}]*text-align: center;/);
+  });
 });

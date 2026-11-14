@@ -311,8 +311,10 @@ test('renderCustomerTableRowMarkup - archived rows carry the marker and an Unarc
 
   assert.match(html, /is-archived/);
   assert.match(html, /#9 \(Archived\)/);
-  // Parent decision (a): Unarchive sits ALONGSIDE Open in the Action
-  // cell — the name button and the Open button still open the profile.
+  // Parent decision 33-(a): Unarchive sits ALONGSIDE Open in the Action
+  // cell. Sharafat 36, shape (b): the name is plain text now, so the Open
+  // button is the row's single profile opener — the Unarchive placement
+  // (and this test's Unarchive assertions) are unchanged.
   assert.match(html, /data-unarchive-customer="c-arch-01"/);
   assert.match(html, /Unarchive/);
   assert.match(html, /data-customer-id="c-arch-01"/);
@@ -326,6 +328,61 @@ test('renderCustomerTableRowMarkup - archived rows carry the marker and an Unarc
   assert.doesNotMatch(activeHtml, /is-archived/);
   assert.doesNotMatch(activeHtml, /\(Archived\)/);
   assert.doesNotMatch(activeHtml, /data-unarchive-customer/);
+});
+
+test('renderCustomerTableRowMarkup - exactly one profile-opening control per row; the name is plain text (Sharafat 36, shape (b))', () => {
+  const customer = {
+    id: 'c-one-01',
+    customerNumber: 7,
+    name: 'Single Opener Customer',
+    phone: '03001234567',
+    mohalla: 'Baradari',
+    packageSpeed: '20 Mbps',
+    serviceStatus: 'active',
+    bills: [
+      { month: '2026-10', dueAmount: 2000, payments: [{ amount: 2000 }] }
+    ]
+  };
+
+  const html = renderCustomerTableRowMarkup(customer, {
+    selectedCustomerId: 'c-one-01',
+    selectedBillingMonth: '2026-10'
+  });
+
+  // One Tab stop per row: exactly one element carries data-customer-id,
+  // and it is the Action column's Open button — the name cell is plain
+  // text now (no button, no profile-open title).
+  assert.equal((html.match(/data-customer-id="/g) || []).length, 1);
+  assert.match(html, /<button class="secondary-button table-select-btn" type="button" data-customer-id="c-one-01">/);
+  assert.doesNotMatch(html, /customer-row-btn/);
+  assert.doesNotMatch(html, /Open profile for #7/);
+  // The name and phone still render, as plain text.
+  assert.match(html, /<span class="customer-name-text">/);
+  assert.match(html, /<strong>Single Opener Customer<\/strong>/);
+  assert.match(html, /03001234567/);
+
+  // The archived row keeps exactly one opener PLUS exactly one Unarchive
+  // control (Unarchive is not an opener and must not be counted as one).
+  const archivedHtml = renderCustomerTableRowMarkup(customer, {
+    selectedCustomerId: 'c-one-01',
+    selectedBillingMonth: '2026-10',
+    archived: true
+  });
+  assert.equal((archivedHtml.match(/data-customer-id="/g) || []).length, 1);
+  assert.equal((archivedHtml.match(/data-unarchive-customer="/g) || []).length, 1);
+  assert.match(archivedHtml, /Unarchive/);
+
+  // Shape (b) keeps the Action column: the active thead still carries the
+  // Action header, and the empty row is still colspan="8" (also pinned in
+  // table-polish.test.js).
+  assert.match(index, /<th scope="col" class="col-action"[^>]*><span data-i18n="cust_th_action">Action<\/span><\/th>/);
+
+  // The surviving opener still selects: the [data-customer-id] bindings
+  // in renderCustomers (active + archived tables) still call selectCustomer.
+  // (The double-fire — direct bindings plus the delegated tbody listener —
+  // is pre-existing and untouched by this change; see the PR body.)
+  assert.ok(app.includes("querySelectorAll('[data-customer-id]')"), 'renderCustomers still binds [data-customer-id]');
+  assert.ok(app.includes('selectCustomer(button.dataset.customerId)'), 'the binding still calls selectCustomer');
 });
 
 test('HTML and CSS integrity - verifies billing tables, roster table, view toggle, and pagination elements exist', () => {

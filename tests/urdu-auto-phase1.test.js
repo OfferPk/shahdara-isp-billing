@@ -85,7 +85,12 @@ test('phase 1 dictionary: English pins are byte-identical to the pre-change stri
     cust_search_placeholder: 'Name, phone, customer # or ID',
     cust_search_clear: 'Clear',
     cust_th_customer: 'Customer',
-    cust_th_balance: 'Balance Due',
+    // Sharafat 27, shape (a): the Balance column is the selected month's
+    // balance only, so the header carries its scope as a {month} param —
+    // renderCustomers interpolates it with displayMonthName. The bare
+    // 'Balance Due' is gone by design; the {month} placeholder stays in the
+    // value so the pin below (and the engine) can still see the template.
+    cust_th_balance: 'Balance Due · {month}',
     cust_th_action: 'Action',
     cust_prev: '← Previous',
     cust_next: 'Next →',
@@ -109,6 +114,12 @@ test('phase 1 dictionary: interpolated keys keep their params in both languages'
   assert.equal(t('cust_page_info', 'ur', { page: 2, totalPages: 5, total: 98 }), 'صفحہ 2 / 5 (98 کل)');
   assert.equal(t('cust_newcust_joined', 'en', { month: '2026-10' }), 'joined 2026-10');
   assert.equal(t('cust_newcust_joined', 'ur', { month: '2026-10' }), '2026-10 کو شامل ہوئے');
+  // Sharafat 27, shape (a): the Balance column header states its month scope
+  // ("Balance Due · Nov 2026") — the month is displayMonthName's UR-aware
+  // output ("November 2026" / "نومبر 2026"), interpolated here in JS at
+  // render time because static data-i18n has no {month} param support.
+  assert.equal(t('cust_th_balance', 'en', { month: 'Nov 2026' }), 'Balance Due · Nov 2026');
+  assert.equal(t('cust_th_balance', 'ur', { month: 'نومبر 2026' }), 'واجب الادا بیلنس · نومبر 2026');
   assert.equal(t('cust_table_empty_query_area', 'en', { query: 'Ali', area: 'Barrian' }), 'No customers matching "Ali" in Barrian.');
   assert.equal(t('cust_table_empty_query_area', 'ur', { query: 'Ali', area: 'Barrian' }), 'کوئی گاہک "Ali" سے Barrian میں مماثل نہیں ملا۔');
 });

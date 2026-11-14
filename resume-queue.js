@@ -276,7 +276,11 @@ export function resumeSummaryText(summary) {
 
 export function resumeHtml(rows) {
   const list = Array.isArray(rows) ? rows : [];
-  if (!list.length) return '<p class="chart-note">No resumes in the window and none overdue.</p>';
+  // More Tab Operational Registries polish (§2 dedup): the summary
+  // line is now the single empty state ("No resumes in the window
+  // and none overdue."), so the body renders nothing at 0 instead
+  // of repeating the same sentence a second time.
+  if (!list.length) return '';
   const body = list.map((row) => {
     const when = row.status === 'overdue'
       ? `${escapeHtml(row.returnDate)} (${row.daysOverdue} day${row.daysOverdue === 1 ? '' : 's'} overdue)`

@@ -50,22 +50,6 @@ export function healthScoreBandClass(score) {
   return 'health-score-low';
 }
 
-/** How many colours the health-reason pills rotate through. */
-export const CUSTOMER_HEALTH_REASON_PILL_CLASS_COUNT = 5;
-
-/**
- * The pill class for one health reason by its position in the reasons
- * list, or '' when the position is not a usable index. The five
- * reasons always arrive in the same order (Payment regularity,
- * Due-date history, Outstanding, Partial installments, Average
- * settlement delay — scoreCustomer in owner-insights.js), so position
- * 0–4 gives each reason its own colour; a sixth reason (there is
- * none today) wraps back to 0.
- */
-export function customerHealthReasonPillClass(index) {
-  const number = Number(index);
-  if (!Number.isFinite(number)) return '';
-  const whole = Math.floor(number);
-  if (whole < 0) return '';
-  return `customer-health-reason-pill-${whole % CUSTOMER_HEALTH_REASON_PILL_CLASS_COUNT}`;
-}
+// Health reasons live in the profile's Billing tab only (Customers
+// Cards Compact, B2) — the card's <details> element and this helper
+// were deleted with it; do not re-add a card-side reasons pill.

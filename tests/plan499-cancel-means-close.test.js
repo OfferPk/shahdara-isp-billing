@@ -175,7 +175,10 @@ test('Plan 499: the label is re-synced on open, on every keystroke, and after a 
   const app = read('app.js');
   assert.ok(app.includes('snapshotProfileCancelBaseline();'), 'the open-time values must be snapshotted when the form opens');
   assert.ok(app.includes('profileCancelOpenValues = null;'), 'the snapshot must clear when the form closes');
-  assert.equal(app.split('syncProfileCancelButton();').length - 1, 4, 'sync must run on open, on input, on change, and after a per-field save');
+  // Profile Number Field at Top (item C) — six call sites now, not
+  // four: the top-row phone field mirrors the form's input and change
+  // listeners, and each of those re-syncs the Cancel label too.
+  assert.equal(app.split('syncProfileCancelButton();').length - 1, 6, 'sync must run on open, on input, on change, after a per-field save, and on the top-row input and change');
   assert.ok(app.includes('function syncProfileCancelButton()'), 'the sync helper must exist');
   assert.ok(app.includes('function snapshotProfileCancelBaseline()'), 'the snapshot helper must exist');
 });

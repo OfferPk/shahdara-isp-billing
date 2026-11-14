@@ -4305,7 +4305,35 @@ function renderCustomers() {
   // count badge above now shows the full archived total (Sharafat 30).
   const archivedPaged = archivedRosterPage(archived, archivedCurrentPage, customerPageSize);
   archivedCurrentPage = archivedPaged.page;
-  $('#archivedCustomerList').innerHTML = archivedPaged.items.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
+  // Sharafat 33: the archived panel follows the view mode — table rows
+  // in table mode, cards in cards mode. The rows reuse
+  // renderCustomerTableRowMarkup with archived: true, so they carry the
+  // "(Archived)" marker; the Action cell gains an Unarchive button
+  // alongside Open (parent decision (a)) because the row markup had no
+  // unarchive control. The archived thead is static (no data-sort-cust):
+  // the header-click handler wires every [data-sort-cust] in the
+  // document, and the archived rows already follow the global sort set
+  // by the main table / dropdown. An empty archived pool hides the
+  // table wrap — the empty-markup reset button carries a fixed id that
+  // would duplicate the active table's when both pools are empty.
+  const archivedList = $('#archivedCustomerList');
+  const archivedTableWrap = $('#archivedCustomerTableWrap');
+  const archivedTableBody = $('#archivedCustomerTableBody');
+  if (customerViewMode === 'table') {
+    if (archivedList) { archivedList.hidden = true; archivedList.innerHTML = ''; }
+    if (archivedTableWrap) archivedTableWrap.hidden = archivedPaged.items.length === 0;
+    if (archivedTableBody) {
+      archivedTableBody.innerHTML = archivedPaged.items.map(customer => renderCustomerTableRowMarkup(customer, { selectedCustomerId, selectedBillingMonth, allocations: healthAllocations, archived: true })).join('');
+      archivedTableBody.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
+      archivedTableBody.querySelectorAll('[data-unarchive-customer]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); restoreCustomer(button.dataset.unarchiveCustomer); }));
+    }
+  } else {
+    if (archivedList) {
+      archivedList.hidden = false;
+      archivedList.innerHTML = archivedPaged.items.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
+    }
+    if (archivedTableWrap) archivedTableWrap.hidden = true;
+  }
   const archivedPagNav = $('#archivedPagination');
   if (archivedPagNav) {
     archivedPagNav.hidden = archived.length === 0;

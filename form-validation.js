@@ -584,6 +584,7 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
     <td class="col-balance font-mono ${balance > 0 ? 'text-due' : 'text-clear'}">PKR ${safeNum}</td>
     <td class="col-action">
       <button class="secondary-button table-select-btn" type="button" data-customer-id="${escapeHtml(customer.id)}">${t('cust_table_open')}</button>
+      ${archived ? `<button class="secondary-button table-unarchive-btn" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}
     </td>
   </tr>`;
 }

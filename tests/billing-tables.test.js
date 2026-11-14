@@ -289,6 +289,45 @@ test('renderCustomerTableRowMarkup - generates valid HTML row markup with status
   assert.match(html, /data-customer-id="c-test-01"/);
 });
 
+test('renderCustomerTableRowMarkup - archived rows carry the marker and an Unarchive button alongside Open (Sharafat 33)', () => {
+  const archivedCustomer = {
+    id: 'c-arch-01',
+    customerNumber: 9,
+    name: 'Archived Customer',
+    phone: '03001234567',
+    mohalla: 'Baradari',
+    packageSpeed: '20 Mbps',
+    serviceStatus: 'active',
+    bills: [
+      { month: '2026-10', dueAmount: 2000, payments: [{ amount: 2000 }] }
+    ]
+  };
+
+  const html = renderCustomerTableRowMarkup(archivedCustomer, {
+    selectedCustomerId: 'c-arch-01',
+    selectedBillingMonth: '2026-10',
+    archived: true
+  });
+
+  assert.match(html, /is-archived/);
+  assert.match(html, /#9 \(Archived\)/);
+  // Parent decision (a): Unarchive sits ALONGSIDE Open in the Action
+  // cell — the name button and the Open button still open the profile.
+  assert.match(html, /data-unarchive-customer="c-arch-01"/);
+  assert.match(html, /Unarchive/);
+  assert.match(html, /data-customer-id="c-arch-01"/);
+
+  // The default (archived: false) row is unchanged: no marker, no
+  // Unarchive control — the active roster never offers it.
+  const activeHtml = renderCustomerTableRowMarkup(archivedCustomer, {
+    selectedCustomerId: 'c-arch-01',
+    selectedBillingMonth: '2026-10'
+  });
+  assert.doesNotMatch(activeHtml, /is-archived/);
+  assert.doesNotMatch(activeHtml, /\(Archived\)/);
+  assert.doesNotMatch(activeHtml, /data-unarchive-customer/);
+});
+
 test('HTML and CSS integrity - verifies billing tables, roster table, view toggle, and pagination elements exist', () => {
   assert.match(index, /id="customerFilterArea"/, 'index.html must have #customerFilterArea');
   assert.match(index, /id="customerSortSelect"/, 'index.html must have #customerSortSelect');

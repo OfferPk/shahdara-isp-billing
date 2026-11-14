@@ -92,6 +92,112 @@ test('sortCustomerRoster - sorts roster by outstanding balance and total collect
   assert.deepEqual(byReceivedDesc.map(c => c.customerNumber), [1, 2, 3]); // 1500, 500, 0
 });
 
+test('sortCustomerRoster - sorts roster by package speed descending and area descending (Sharafat 29)', () => {
+  const customers = [
+    { id: 'c1', customerNumber: 1, name: 'A', mohalla: 'Vandala Road', packageSpeed: '30 Mbps' },
+    { id: 'c2', customerNumber: 2, name: 'B', mohalla: 'Baradari', packageSpeed: '10 Mbps' },
+    { id: 'c3', customerNumber: 3, name: 'C', mohalla: 'Begum Kot', packageSpeed: '50 Mbps' }
+  ];
+
+  const byPlanDesc = sortCustomerRoster(customers, { sortBy: 'package-desc' });
+  assert.deepEqual(byPlanDesc.map(c => c.packageSpeed), ['50 Mbps', '30 Mbps', '10 Mbps']);
+  // Regression proof: on pristine code package-desc fell through to the
+  // default number-asc sort, which would order the numbers [1, 2, 3].
+  assert.deepEqual(byPlanDesc.map(c => c.customerNumber), [3, 1, 2]);
+
+  const byAreaDesc = sortCustomerRoster(customers, { sortBy: 'mohalla-desc' });
+  assert.deepEqual(byAreaDesc.map(c => c.mohalla), ['Vandala Road', 'Begum Kot', 'Baradari']);
+  // mohalla-desc is the exact reverse of mohalla-asc (also pinned in
+  // mohalla-numbering.test.js).
+  const byAreaAsc = sortCustomerRoster(customers, { sortBy: 'mohalla-asc' });
+  assert.deepEqual(byAreaDesc.map(c => c.id), [...byAreaAsc.map(c => c.id)].reverse());
+});
+
+test('sortCustomerRoster - sorts roster by total collections ascending (Sharafat 29)', () => {
+  // Same fixtures as the balance/received test above: received 1500/500/0.
+  const customers = [
+    {
+      id: 'c1', customerNumber: 1, name: 'Customer Low Due',
+      bills: [
+        { month: '2026-10', dueAmount: 1500, payments: [{ amount: 1500 }] }
+      ]
+    },
+    {
+      id: 'c2', customerNumber: 2, name: 'Customer High Due',
+      bills: [
+        { month: '2026-10', dueAmount: 3000, payments: [{ amount: 500 }] }
+      ]
+    },
+    {
+      id: 'c3', customerNumber: 3, name: 'Customer Med Due',
+      bills: [
+        { month: '2026-10', dueAmount: 2000, payments: [] }
+      ]
+    }
+  ];
+
+  const byReceivedAsc = sortCustomerRoster(customers, { sortBy: 'received-asc' });
+  assert.deepEqual(byReceivedAsc.map(c => c.customerNumber), [3, 2, 1]); // 0, 500, 1500
+});
+
+test('sort states sync - every header sort has a dropdown option and every option is a sorter case (Sharafat 29)', () => {
+  const formValidation = read('form-validation.js');
+  const navLanguage = read('nav-language.js');
+
+  // Header fields: every data-sort-cust value in the table headers.
+  const headerFields = [...index.matchAll(/data-sort-cust="([^"]+)"/g)].map(m => m[1]);
+  assert.deepEqual([...headerFields].sort(), ['balance', 'mohalla', 'name', 'number', 'package']);
+
+  // Dropdown options: every <option value> inside #customerSortSelect.
+  const selectStart = index.indexOf('id="customerSortSelect"');
+  assert.ok(selectStart > -1, 'customerSortSelect exists');
+  const selectEnd = index.indexOf('</select>', selectStart);
+  const selectBlock = index.slice(selectStart, selectEnd);
+  const optionValues = [...selectBlock.matchAll(/<option value="([^"]+)"/g)].map(m => m[1]);
+
+  // Every header toggle must land on a sort the dropdown can show: the
+  // select's .value assignment is a silent no-op for a missing option.
+  for (const field of headerFields) {
+    assert.ok(optionValues.includes(`${field}-asc`), `select has ${field}-asc`);
+    assert.ok(optionValues.includes(`${field}-desc`), `select has ${field}-desc`);
+  }
+
+  // Every dropdown option must be a case sortCustomerRoster implements.
+  // Scope the parse to the sortCustomerRoster body ONLY: the file holds
+  // two more sorter switches (sortMonthlyReportRows with date-asc/amount-*
+  // cases, sortTransactionsList), and a file-wide parse would wrongly
+  // demand select options for those keys.
+  const sorterStart = formValidation.indexOf('export function sortCustomerRoster(');
+  assert.ok(sorterStart > -1, 'sortCustomerRoster exists');
+  const sorterEnd = formValidation.indexOf('\n}\n', sorterStart);
+  const sorterBody = formValidation.slice(sorterStart, sorterEnd);
+  const sorterCases = [...sorterBody.matchAll(/case '([^']+)':/g)].map(m => m[1]);
+  for (const value of optionValues) {
+    assert.ok(sorterCases.includes(value), `sorter implements ${value}`);
+  }
+
+  // The full unified set: the 10 header-producible keys (5 headers x
+  // asc/desc) + received-asc/received-desc, which are select-only by
+  // design — there is no Received column in the table.
+  assert.deepEqual([...optionValues].sort(), [
+    'balance-asc', 'balance-desc', 'mohalla-asc', 'mohalla-desc',
+    'name-asc', 'name-desc', 'number-asc', 'number-desc',
+    'package-asc', 'package-desc', 'received-asc', 'received-desc'
+  ]);
+
+  // The four new i18n keys exist in BOTH dicts. EN and UR values differ,
+  // so each exact string pins the dict its key lives in.
+  for (const [key, en, ur] of [
+    ['cust_sort_mohalla_desc', 'Area (12 → 1)', 'علاقہ (12 سے 1)'],
+    ['cust_sort_package_asc', 'Plan (A → Z)', 'پلان (A سے Z)'],
+    ['cust_sort_package_desc', 'Plan (Z → A)', 'پلان (Z سے A)'],
+    ['cust_sort_received_asc', 'Collected (Low → High)', 'وصول شدہ (کم سے زیادہ)']
+  ]) {
+    assert.ok(navLanguage.includes(`${key}: '${en}',`), `${key} in EN dict`);
+    assert.ok(navLanguage.includes(`${key}: '${ur}',`), `${key} in UR dict`);
+  }
+});
+
 test('filterCustomersByArea and getUniqueCustomerAreas - handles exact and case-insensitive area filtering', () => {
   const customers = [
     { id: 'c1', name: 'A', mohalla: 'Baradari' },

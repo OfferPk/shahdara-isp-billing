@@ -637,32 +637,13 @@ function skippedDamagedNoteText(count) {
     : `${n} damaged customer records were skipped — they are not shown in this list.`;
 }
 
-// QC-12: the bill-status dropdown above the picker search (Unpaid /
-// Paid / All) sets the same pool the filter chips below the search
-// set, so the two controls never disagree. The dropdown values are
-// the operator's words; the filter types are the pool's words.
-// Unknown values fall back to the default pending view — never to
-// an empty list.
-export const QC_STATUS_FILTER_UNPAID = 'unpaid';
-export const QC_STATUS_FILTER_PAID = 'paid';
-export const QC_STATUS_FILTER_ALL = 'all';
-
-/** Dropdown value -> picker pool filter type. */
-export function qcStatusFilterFromDropdown(value) {
-  const v = String(value ?? '').trim().toLowerCase();
-  if (v === QC_STATUS_FILTER_PAID) return 'paid';
-  if (v === QC_STATUS_FILTER_ALL) return 'all';
-  return 'all-dues';
-}
-
-/** Picker pool filter type -> dropdown value. No chip maps to Paid
- * (chips are dues-based), so the dropdown is the only control that
- * shows it. */
-export function qcStatusFilterForChip(filterType) {
-  if (filterType === 'paid') return QC_STATUS_FILTER_PAID;
-  if (filterType === 'all') return QC_STATUS_FILTER_ALL;
-  return QC_STATUS_FILTER_UNPAID;
-}
+// QC True 1-Row Tightening (item A): the QC-12 bill-status
+// dropdown is deleted (the filter chips are the only status control
+// now, with a 4th pill 'Paid' reaching the paid pool), so its two
+// mapping helpers and the three QC_STATUS_FILTER_* constants are
+// deleted with it. The picker pool itself is unchanged — setFilter
+// already accepts 'paid', and the pool branches below still serve
+// all four filter types.
 
 /**
  * Computes default prefilled values for a 2-tap payment collection sheet.
@@ -2096,8 +2077,12 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // truncated "Outstanding PKR X (+X amount…)" line under the
     // name, so the subtitle is "Mohalla • Package Name" instead.
     const cardPriority = qc2CardPriority(priorityById?.get(c.id));
+    // QC True 1-Row Tightening (item A): the modal shows the SHORT
+    // multi-month label ('2+ mos arrears') so the chips row fits one
+    // line — the shared qc2_tier_multi_month value ('2+ months
+    // arrears') stays for Field Mode, which renders the same map.
     const tierLabels = cardPriority
-      ? cardPriority.tierKeys.map((key) => `<span class="qc2-tier-label">${escapeHtml(t(QC2_HIGH_BALANCE_TIER_LABEL_KEYS[key]))}</span>`).join('')
+      ? cardPriority.tierKeys.map((key) => `<span class="qc2-tier-label">${escapeHtml(t(key === 'multi-month' ? 'qc2_tier_multi_month_short' : QC2_HIGH_BALANCE_TIER_LABEL_KEYS[key]))}</span>`).join('')
       : '';
     // Quick Collect CSS tightening (user instruction 2026-11-13):
     // the priority badge, the High-balance tag and the tier labels
@@ -2150,6 +2135,10 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // on the button was the second copy. A settled customer keeps
     // the plain Collect label: "Collect PKR 0" would promise a
     // collection of nothing.
+    // QC True 1-Row Tightening (item A): the modal's Location button
+    // reads 'Map' (modal-only key qc3_location_short) so the action
+    // row fits one line — the shared qc3_location value ('Location')
+    // stays for Field Mode, which renders the same key.
     const callHref = c.callHref ?? null;
     const mapsUrl = c.mapsUrl ?? null;
     const collectLabel = t('qc3_collect');
@@ -2159,8 +2148,8 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
           ? `<a class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--call" href="${escapeHtml(callHref)}" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}">${dsIcon('Phone', 18)} ${escapeHtml(t('qc3_call'))}</a>`
           : `<button type="button" class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--call" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_phone'))}">${dsIcon('Phone', 18)} ${escapeHtml(t('qc3_call'))}</button>`}
         ${mapsUrl
-          ? `<a class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--location" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location'))}</a>`
-          : `<button type="button" class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--location" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_location'))}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location'))}</button>`}
+          ? `<a class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--location" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location_short'))}</a>`
+          : `<button type="button" class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--location" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_location'))}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location_short'))}</button>`}
         <button type="button" class="qc3-action-btn qc3-collect" data-qc3-action="collect" data-customer-id="${escapeHtml(c.id)}">${dsIcon('CreditCard', 18)} ${escapeHtml(collectLabel)}</button>
       </div>`;
 
@@ -2206,7 +2195,6 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
           </div>
           <div class="qc3-figures">
             <span class="qc3-figure">
-              <span class="qc3-figure-label">${escapeHtml(t('qc3_outstanding'))}</span>
               <span class="qc3-figure-value">${dueLabel}</span>
             </span>
           </div>
@@ -2569,10 +2557,6 @@ export function setupQuickCollectModal({
   // dues, in name order; clearing it returns the full list.
   const mohallaFilterSelect = document.getElementById('mhfMohallaFilter');
   const mohallaFilterSummary = document.getElementById('mhfMohallaFilterSummary');
-  // QC-12: the bill-status dropdown above the picker search (null
-  // when the host page predates it) — Unpaid / Paid / All; it sets
-  // the same pool the chips filter. Class-found, no new element id.
-  const statusFilterSelect = modal.querySelector('[data-qc-status-filter]');
   // QC-2: the sort-order dropdown above the picker search (null
   // when the host page predates it) — Highest dues first / Oldest
   // due first; it re-orders the same pool, never the pool itself.
@@ -2587,6 +2571,10 @@ export function setupQuickCollectModal({
   const duesCountEl = document.getElementById('quickCollectDuesCount');
   const highDuesCountEl = document.getElementById('quickCollectHighDuesCount');
   const allCountEl = document.getElementById('quickCollectAllCount');
+  // QC True 1-Row Tightening (item A): the 4th pill 'Paid' shows its
+  // pool count like its three siblings (the deleted dropdown never
+  // showed one — the pill does, so the operator can see the pool).
+  const paidCountEl = document.getElementById('quickCollectPaidCount');
 
   // Form Elements
   const backToPickBtn = document.getElementById('quickCollectBackToPickBtn');
@@ -3738,10 +3726,12 @@ export function setupQuickCollectModal({
     const allDues = getPendingCollectionCustomers(state, '', 'all-dues');
     const highDues = getPendingCollectionCustomers(state, '', 'high-dues');
     const all = getPendingCollectionCustomers(state, '', 'all');
+    const paid = getPendingCollectionCustomers(state, '', 'paid');
 
     if (duesCountEl) duesCountEl.textContent = allDues.length;
     if (highDuesCountEl) highDuesCountEl.textContent = highDues.length;
     if (allCountEl) allCountEl.textContent = all.length;
+    if (paidCountEl) paidCountEl.textContent = paid.length;
     refreshRoundTotals();
     refreshDailyTargetProgress();
     refreshEndOfDaySummary();
@@ -3985,12 +3975,9 @@ export function setupQuickCollectModal({
       c.classList.toggle('is-active', isActive);
       c.setAttribute('aria-selected', String(isActive));
     });
-    // QC-12: keep the bill-status dropdown on the same pool — no
-    // chip maps to Paid, so the dropdown is the only control that
-    // shows it, and the chips go quiet while it is active.
-    if (statusFilterSelect) {
-      statusFilterSelect.value = qcStatusFilterForChip(activeFilter);
-    }
+    // QC True 1-Row Tightening (item A): the chips ARE the status
+    // control now (the Bill-status dropdown is deleted) — setFilter
+    // only toggles chip state; there is no dropdown to sync.
   }
 
   function showStep(stepName) {
@@ -5837,14 +5824,6 @@ export function setupQuickCollectModal({
       setFilter(chip.getAttribute('data-filter') || 'all-dues');
       renderList();
     });
-  });
-
-  // QC-12: the bill-status dropdown above the search sets the same
-  // pool the chips filter — Unpaid is the pending pool, Paid is the
-  // paid-up pool, All is everyone. One pool, two controls.
-  statusFilterSelect?.addEventListener('change', () => {
-    setFilter(qcStatusFilterFromDropdown(statusFilterSelect.value));
-    renderList();
   });
 
   // QC-2: the sort-order dropdown above the search re-orders the

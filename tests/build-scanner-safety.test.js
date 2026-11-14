@@ -91,12 +91,17 @@ async function listFilesRecursive(dir, prefix = '') {
   return out.sort();
 }
 
-test('#219 bundle ceiling: the build ships exactly 24 files, within the perf budget', async () => {
+test('#219 bundle ceiling: the build ships exactly 25 files, within the perf budget', async () => {
   const dist = await mkdtemp(path.join(os.tmpdir(), 'shahdara-dist-191-'));
   try {
     const distFiles = await build({ root: ROOT, dist, quiet: true });
     assert.ok(distFiles.length <= PERF_BUDGET.maxFirstLoadRequests, `dist ships ${distFiles.length} files, budget is ${PERF_BUDGET.maxFirstLoadRequests}`);
-    assert.equal(distFiles.length, 24, 'dist currently ships exactly 24 bundled files (pin updated 25 -> 24 at the SISP-191 merge, main having consolidated to 24)');
+    // WHY (More Tab & Wallet Inbox Polish): pin updated 24 -> 25. ds-icons.js grew
+    // by 21 icons and payments-inbox.js now imports it too, so esbuild splits the
+    // icon map into its own shared chunk (11 chunks, was 10). Total stays within
+    // the pinned 25-request perf budget (build.mjs / plan-f-runtime-performance).
+    assert.equal(distFiles.length, 25, 'dist currently ships exactly 25 bundled files (pin updated 24 -> 25 by the More Tab polish: ds-icons.js +21 icons, payments-inbox.js now imports it, icon map split into its own shared chunk)');
+    assert.deepEqual(await listFilesRecursive(dist), [...distFiles].sort(), 'files on disk in dist match the count the build itself reports');
     assert.deepEqual(await listFilesRecursive(dist), [...distFiles].sort(), 'files on disk in dist match the count the build itself reports');
   } finally {
     await rm(dist, { recursive: true, force: true });

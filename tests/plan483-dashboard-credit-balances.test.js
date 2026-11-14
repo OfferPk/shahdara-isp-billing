@@ -194,7 +194,7 @@ test('credit balances wiring: the total sits on the billing dashboard after the 
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="creditBalancesSection"'), 'credit-balances section exists');
   assert.ok(page.indexOf('id="creditBalancesSection"') > page.indexOf('id="pendingClearanceSection"'), 'total follows the pending-clearance total');
-  assert.ok(page.indexOf('id="creditBalancesSection"') < page.indexOf('id="collectionForecastSection"'), 'total sits before the forecast section');
+  assert.ok(page.indexOf('id="creditBalancesSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'total sits before the matrix section');
   assert.ok(page.includes('id="crbCreditTotal"'), 'credit total element exists');
   assert.ok(page.includes('id="crbCreditLine"'), 'count line element exists');
   assert.ok(page.includes('id="crbCreditEmpty"'), 'empty state element exists');

@@ -205,7 +205,7 @@ test('print summary wiring: the section sits on the billing dashboard after the 
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="printSummarySection"'), 'print summary section exists');
   assert.ok(page.indexOf('id="printSummarySection"') > page.indexOf('id="refundsSection"'), 'summary follows the refunds strip');
-  assert.ok(page.indexOf('id="printSummarySection"') < page.indexOf('id="collectionForecastSection"'), 'summary sits before the forecast section');
+  assert.ok(page.indexOf('id="printSummarySection"') < page.indexOf('id="multiMonthMatrixSection"'), 'summary sits before the matrix section');
   assert.ok(page.includes('id="ppsPrintBtn"'), 'print action exists');
   assert.ok(page.includes('id="ppsPrintDate"'), 'date line element exists');
   assert.ok(page.includes('id="ppsTodayCollected"'), 'today figure element exists');

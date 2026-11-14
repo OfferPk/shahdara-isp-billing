@@ -1878,9 +1878,6 @@ body.field-mode-open { overflow: hidden; }
 .mohalla-card-main:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 .mohalla-card-name { display: block; width: 100%; font-size: 14px; font-weight: 700; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mohalla-card-count { font-size: 30px; line-height: 1.1; font-weight: 800; color: var(--green); font-variant-numeric: var(--numeric); }
-/* Collect Tab polish: the user count sits on the same baseline as
-   the big number (one row, not "7" above "users"). */
-.mohalla-card-count-row { display: flex; align-items: baseline; gap: 4px; }
 .mohalla-card-users { font-size: 11px; color: var(--muted); }
 .mohalla-card-stat { display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 11px; color: var(--muted); margin-top: 2px; }
 .mohalla-card-stat strong { color: var(--ink); font-variant-numeric: var(--numeric); }
@@ -4025,3 +4022,38 @@ button:not([hidden]).help-info-btn {
 .shift-weekday-pills { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .shift-weekday-pill { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 10px; font-size: 12px; cursor: pointer; min-height: 0; }
 .shift-weekday-pill.is-on { background: var(--color-success); border-color: var(--color-success); color: var(--surface); font-weight: 700; }
+
+/* Area & Mohalla Analytics compact module (Nov 2026): ONE module
+   in the Collect tab replaces four stacked sections (thermometer,
+   bars, cards, estimator). Module-scoped rules only — the shared
+   .mohalla-card rule is untouched (Reports cards use it too).
+   Tokens only, both themes. */
+#areaAnalyticsModule [role="tabpanel"] { margin-top: 14px; }
+.area-analytics-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; }
+.area-analytics-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.area-analytics-tabs { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; }
+.area-analytics-tab { flex: 1 0 auto; justify-content: center; white-space: nowrap; }
+.area-analytics-chip .ds-action-icon svg,
+.area-analytics-tab .ds-action-icon svg,
+.area-analytics-toggle .ds-action-icon svg { width: 14px; height: 14px; flex: none; }
+.area-analytics-jump { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.area-analytics-jump-select { min-width: 0; max-width: 180px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+.area-analytics-toggle { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font-size: 12px; cursor: pointer; }
+.area-analytics-toggle[hidden] { display: none; }
+.area-analytics-toggle.is-expanded .ds-action-icon svg { transform: rotate(180deg); }
+#areaAnalyticsModule .xest-group + .xest-group { margin-top: 14px; }
+#areaAnalyticsModule .xest-results { margin-top: 14px; }
+/* Compact card shape (Collect Tab §3 + this module §3): the name
+   stays on one line (ellipsis), count + users + paid % share one
+   headline line, and the two buttons sit side by side on one row
+   instead of stacking. The Unpaid stat and the Free line are
+   unchanged. */
+#areaAnalyticsModule .mohalla-card-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: stretch; max-width: 100%; }
+#areaAnalyticsModule .mohalla-card-headline { display: flex; align-items: baseline; gap: 6px; width: 100%; flex-wrap: wrap; }
+#areaAnalyticsModule .mohalla-card-headline-sep { color: var(--muted); }
+#areaAnalyticsModule .mohalla-card-paid { font-size: 11px; color: var(--muted); white-space: nowrap; }
+#areaAnalyticsModule .mohalla-card-paid strong { color: var(--ink); }
+#areaAnalyticsModule .mohalla-card-actions { display: flex; gap: 8px; margin-top: auto; width: 100%; }
+#areaAnalyticsModule .mohalla-card-collect { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-top: 0; min-width: 0; min-height: 36px; }
+#areaAnalyticsModule .mohalla-card-collect--primary { flex: 1.4; background: var(--ds-brand); border-color: transparent; color: var(--white); }
+#areaAnalyticsModule .mohalla-card-collect--compact { flex: 1; font-size: 11px; padding: 7px 6px; }

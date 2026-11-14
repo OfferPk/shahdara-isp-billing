@@ -241,8 +241,8 @@ test('collector card: the view never changes any bill, payment, or customer reco
 test('collector card wiring: the card sits on the billing dashboard after the mohalla bars, and the dashboard renders it', () => {
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="collectorCardSection"'), 'collector card section exists');
-  assert.ok(page.indexOf('id="collectorCardSection"') > page.indexOf('id="mohallaBarsSection"'), 'card follows the mohalla bars');
-  assert.ok(page.indexOf('id="collectorCardSection"') < page.indexOf('id="collectionForecastSection"'), 'card sits before the forecast section');
+  assert.ok(page.indexOf('id="collectorCardSection"') > page.indexOf('id="areaAnalyticsModule"'), 'card follows the area analytics module');
+  assert.ok(page.indexOf('id="collectorCardSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'card sits before the matrix section');
   assert.ok(page.includes('id="clcCollectorTotal"'), 'day total element exists');
   assert.ok(page.includes('id="clcCollectorLine"'), 'count line exists');
   assert.ok(page.includes('id="clcCollectorRows"'), 'rows element exists');

@@ -230,22 +230,23 @@ const SOURCE_HINT_IDS = {
 };
 
 /**
- * Dashboard dialog controller. Opening prefills the four recordable
- * price/fee fields from the ledger's recorded figures (labelled with a
- * "from your recorded data" hint); everything else starts at 0. Typing
- * recomputes live. Closing discards the scenario — nothing is stored.
+ * Inline estimator controller (Area & Mohalla Analytics module, Tab 3).
+ * The form lives inline in the module instead of a dialog, so there is
+ * no open button and no close button: setup prefills the four
+ * recordable price/fee fields from the ledger's recorded figures
+ * (labelled with a "from your recorded data" hint) once, and typing
+ * recomputes live. Closing the tab discards the scenario — nothing
+ * is stored. The field ids are unchanged, so the same FIELD_IDS map
+ * and live-recompute wiring keep working.
  */
-export function setupExpansionEstimatorModal(getState) {
+export function setupExpansionEstimatorInline(getState) {
   if (typeof document === 'undefined') return null;
-  const dialog = document.getElementById('expansionEstimatorModal');
-  const openBtn = document.getElementById('expansionEstimatorOpenBtn');
-  if (!dialog || !openBtn) return null;
-  const closeBtn = document.getElementById('expansionEstimatorCloseBtn');
   const fields = new Map();
   for (const [key, id] of FIELD_IDS) {
     const el = document.getElementById(id);
     if (el) fields.set(key, el);
   }
+  if (fields.size === 0) return null;
   const out = id => document.getElementById(id);
 
   function readInputs() {
@@ -289,11 +290,6 @@ export function setupExpansionEstimatorModal(getState) {
   }
 
   for (const el of fields.values()) el.addEventListener('input', render);
-  openBtn.addEventListener('click', () => {
-    prefill();
-    if (typeof dialog.showModal === 'function') dialog.showModal();
-    else dialog.setAttribute('open', '');
-  });
-  closeBtn?.addEventListener('click', () => dialog.close());
-  return { open: () => openBtn.click(), render };
+  prefill();
+  return { render };
 }

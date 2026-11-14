@@ -185,7 +185,11 @@ test('method strip: rows render as .ds-stat-box cells in a 2-column grid', () =>
 
 test('mohalla card: name nowrap+ellipsis, count row, primary Bike collect, compact area view', () => {
   const app = read('app.js');
-  assert.ok(app.includes('mohalla-card-count-row'), 'count row wrapper missing');
+  // Rebase #1402 (Area Compact): #1401's inline card renderer was superseded
+  // by the module renderer renderAreaModuleCards(), which folds the count+users
+  // row into .mohalla-card-headline (count + users + paid % on one line, §3).
+  // The count row still exists — under the headline class, not count-row.
+  assert.ok(app.includes('mohalla-card-headline'), 'count row wrapper missing');
   assert.ok(app.includes('mohalla-card-collect--primary'), 'primary collect modifier missing');
   assert.ok(app.includes("dsIcon('Bike', 16)"), 'Bike icon missing');
   assert.ok(app.includes('mohalla-card-collect--compact'), 'compact area-view modifier missing');

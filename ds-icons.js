@@ -172,6 +172,15 @@ const DS_ICON_PATHS = Object.freeze({
    * rebased onto main f9ad16c2; Smartphone/Keyboard were not in main. */
   Smartphone: "<rect width=\"14\" height=\"20\" x=\"5\" y=\"2\" rx=\"2\" ry=\"2\" /> <path d=\"M12 18h.01\" />",
   Keyboard: "<path d=\"M10 8h.01\" /> <path d=\"M12 12h.01\" /> <path d=\"M14 8h.01\" /> <path d=\"M16 12h.01\" /> <path d=\"M18 8h.01\" /> <path d=\"M6 8h.01\" /> <path d=\"M7 16h10\" /> <path d=\"M8 12h.01\" /> <rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\" />",
+  /* Area & Mohalla Analytics compact module (Nov 2026) adds 2:
+   * Calculator (Expansion Planner tab), Flame (Pending Dues chip).
+   * CheckCircle (100% Cleared chip) was already in main (Home
+   * Dashboard block) with the identical path — not duplicated here.
+   * Same Lucide 24x24 stroke set, same licence.
+   * Rebase note (Nov 2026): appended after the Area Analytics block
+   * when rebased onto main 2f7a08ca; total 95 (93 + 2). */
+  Calculator: "<rect width=\"16\" height=\"20\" x=\"4\" y=\"2\" rx=\"2\" /> <line x1=\"8\" x2=\"16\" y1=\"6\" y2=\"6\" /> <line x1=\"16\" x2=\"16\" y1=\"14\" y2=\"18\" /> <path d=\"M8 10h.01\" /> <path d=\"M12 10h.01\" /> <path d=\"M8 14h.01\" /> <path d=\"M12 14h.01\" /> <path d=\"M8 18h.01\" /> <path d=\"M12 18h.01\" />",
+  Flame: "<path d=\"M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z\" />",
 });
 
 export const DS_ICON_NAMES = Object.freeze(Object.keys(DS_ICON_PATHS));

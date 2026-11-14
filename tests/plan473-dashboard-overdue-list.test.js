@@ -211,7 +211,7 @@ test('overdue list wiring: the view sits on the billing dashboard after the upco
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="overdueListSection"'), 'overdue list section exists');
   assert.ok(page.indexOf('id="overdueListSection"') > page.indexOf('id="upcomingDuesSection"'), 'view follows the upcoming dues view');
-  assert.ok(page.indexOf('id="overdueListSection"') < page.indexOf('id="collectionForecastSection"'), 'view sits before the forecast section');
+  assert.ok(page.indexOf('id="overdueListSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'view sits before the matrix section');
   assert.ok(page.includes('id="dolOverdueTotal"'), 'total overdue element exists');
   assert.ok(page.includes('id="dolOverdueLine"'), 'count line exists');
   assert.ok(page.includes('id="dolOverdueRows"'), 'list element exists');

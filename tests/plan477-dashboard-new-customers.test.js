@@ -172,7 +172,7 @@ test('new customers strip wiring: the strip sits on the billing dashboard after 
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="newCustomersSection"'), 'new customers section exists');
   assert.ok(page.indexOf('id="newCustomersSection"') > page.indexOf('id="collectorCardSection"'), 'strip follows the collector card');
-  assert.ok(page.indexOf('id="newCustomersSection"') < page.indexOf('id="collectionForecastSection"'), 'strip sits before the forecast section');
+  assert.ok(page.indexOf('id="newCustomersSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'strip sits before the matrix section');
   assert.ok(page.includes('id="ncmNewTotal"'), 'count element exists');
   assert.ok(page.includes('id="ncmNewLine"'), 'count line exists');
   assert.ok(page.includes('id="ncmNewRows"'), 'rows element exists');

@@ -38,7 +38,12 @@ export function normalizeWhatsAppNumber(phone) {
   if (digits.startsWith('3') && digits.length === 10) {
     return '92' + digits;
   }
-  return digits;
+  // Sharafat 23: an unmatched digit string is NOT a number for WhatsApp —
+  // a dead wa.me/ link is worse than no link. Valid results are only the
+  // three branches above, all 12-digit 923… (rule ^923\d{9}$); anything else
+  // (short fragments, landlines, over-long strings) yields '' so both
+  // callers fall back to their no-number state.
+  return '';
 }
 
 /**

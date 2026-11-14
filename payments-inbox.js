@@ -35,6 +35,13 @@ import { buildWalletReconciliation } from './wallet-reconciliation.js';
 
 import { loadSuspensePayments, unclaimedSuspense } from './suspense-payments.js';
 
+// More Tab & Wallet Inbox Polish (Nov 2026): the toolbar + empty state
+// lose their last 3D emoji — ClipboardList (Paste SMS / CSV) and Inbox
+// (empty state) come from the DS-0 set via direct dsIcon() calls: the
+// inbox renders after startup, so the nav.js bootstrapper (static
+// markup only) never sees these templates.
+import { dsIcon } from './ds-icons.js';
+
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 
 export function dateKey(date = new Date()) {
@@ -610,10 +617,10 @@ export class PaymentsInboxController {
               <span aria-hidden="true">↻</span> Sync Sheet
             </button>
             <button type="button" id="easypaisaImportManualBtn" class="secondary-button">
-              <span aria-hidden="true">📋</span> Paste SMS / CSV
+              <span class="ds-icon-tile ds-icon-tile--sm" aria-hidden="true">${dsIcon('ClipboardList', 14)}</span> Paste SMS / CSV
             </button>
-            <button type="button" id="easypaisaSettingsBtn" class="secondary-button" title="Configure Sheet URL & Owner Number">
-              <span aria-hidden="true">⚙</span> Settings
+            <button type="button" id="easypaisaSettingsBtn" class="secondary-button" title="Configure Sheet URL & Owner Number" aria-label="Configure Sheet URL & Owner Number">
+              <span aria-hidden="true">⚙</span>
             </button>
           </div>
         </div>
@@ -786,8 +793,10 @@ export class PaymentsInboxController {
               <strong>#${escapeHtml(String(p.customerNumber))} ${escapeHtml(p.customerName)}</strong>
               <span>${escapeHtml(p.date)} · ${escapeHtml(p.method)}${p.transactionId ? ` · TID ${escapeHtml(p.transactionId)}` : ''}${p.senderLabel ? ` · ${escapeHtml(p.senderLabel)}` : ''}</span>
             </div>
-            <strong class="wallet-review-amount">${escapeHtml(formatPKR(p.amount))}</strong>
-            <button type="button" class="secondary-button wallet-review-verify" data-wallet-toggle="${escapeHtml(p.customerId)}|${escapeHtml(p.billMonth)}|${escapeHtml(p.paymentId)}|verified">Mark verified ✓</button>
+            <div class="wallet-review-side">
+              <strong class="wallet-review-amount">${escapeHtml(formatPKR(p.amount))}</strong>
+              <button type="button" class="secondary-button wallet-review-verify" data-wallet-toggle="${escapeHtml(p.customerId)}|${escapeHtml(p.billMonth)}|${escapeHtml(p.paymentId)}|verified">Mark verified ✓</button>
+            </div>
           </article>`).join('')}
         </div>` : ''}
         ${duplicateGroups.length > 0 ? `
@@ -809,8 +818,10 @@ export class PaymentsInboxController {
               <strong>${escapeHtml(entry.wallet || 'Wallet')} · ${escapeHtml(entry.suspenseId || '')}</strong>
               <span>${escapeHtml(entry.date || '')}${entry.tid ? ` · TID ${escapeHtml(entry.tid)}` : ''}${entry.senderName ? ` · ${escapeHtml(entry.senderName)}` : ''}</span>
             </div>
-            <strong class="wallet-review-amount">${escapeHtml(formatPKR(entry.amount))}</strong>
-            <button type="button" class="secondary-button" data-suspense-review>Review &amp; claim</button>
+            <div class="wallet-review-side">
+              <strong class="wallet-review-amount">${escapeHtml(formatPKR(entry.amount))}</strong>
+              <button type="button" class="secondary-button" data-suspense-review>Review &amp; claim</button>
+            </div>
           </article>`).join('')}
         </div>` : ''}
       </section>
@@ -820,7 +831,7 @@ export class PaymentsInboxController {
   renderEmptyState() {
     return `
       <div class="easypaisa-empty-state">
-        <div class="empty-icon">📥</div>
+        <div class="empty-icon">${dsIcon('Inbox', 40)}</div>
         <h3>No Easypaisa transactions found</h3>
         <p>Sync your Google Sheet or paste an Easypaisa email to populate the inbox.</p>
         <div class="empty-actions">

@@ -32,14 +32,14 @@ function buildFixture() {
   ]);
   const id = (index) => state.customers[index].id;
 
-  // A (CHARYAA — folds to CHAMYAAA under the canonical map, so A
-  // and B count on the CHAMYAAA row): 3000 bill, 1000 paid this
-  // month — collected 1000, still due 2000.
+  // A (CHARYAA — its own mohalla, never folded to CHAMYAAA):
+  // 3000 bill, 1000 paid this month — collected 1000, still
+  // due 2000.
   state.customers[0].mohalla = 'CHARYAA';
   state = saveBillMonth(state, id(0), { month: MONTH, dueAmount: 3000, status: 'pending', dueDate: TODAY }, REF_DATE);
   state = addPayment(state, id(0), MONTH, { amount: 1000, date: '2026-11-05', method: 'Cash' }, REF_DATE);
-  // B (CHARYAA → CHAMYAAA): 1500 bill from last month, never paid
-  // — still due 1500. CHAMYAAA totals: collected 1000, due 3500.
+  // B (CHARYAA): 1500 bill from last month, never paid — still
+  // due 1500. CHARYAA totals: collected 1000, due 3500.
   state.customers[1].mohalla = 'CHARYAA';
   state = saveBillMonth(state, id(1), { month: '2026-10', dueAmount: 1500, status: 'pending', dueDate: '2026-10-05' }, REF_DATE);
   // C (GANGALL): 2000 bill, paid in full this month — collected
@@ -96,8 +96,8 @@ function buildFixture() {
   state.customers[8].archived = true;
   // J (CHAMYAAA): a free connection with a 1000 bill — a free
   // connection never owes anything, so its bill never counts
-  // as due. J shares the CHAMYAAA row with A and B (folded), and
-  // adds nothing to it.
+  // as due. J sits on the separate CHAMYAAA row (A and B are on
+  // the CHARYAA row) and adds nothing to it.
   state.customers[9].mohalla = 'CHAMYAAA';
   state.customers[9].isFreeConnection = true;
   state.customers[9].bills.push({
@@ -260,11 +260,15 @@ test('mohalla bars: the view never changes any bill, payment, or customer record
   assert.equal(JSON.stringify(state), before);
 });
 
-test('mohalla bars wiring: the bars sit on the billing dashboard after the method strip, and the dashboard renders them', () => {
+test('mohalla bars wiring: the bars sit in the Area & Mohalla Analytics module after the method strip, and the dashboard renders them', () => {
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.ok(page.includes('id="mohallaBarsSection"'), 'mohalla bars section exists');
-  assert.ok(page.indexOf('id="mohallaBarsSection"') > page.indexOf('id="methodStripSection"'), 'bars follow the method strip');
-  assert.ok(page.indexOf('id="mohallaBarsSection"') < page.indexOf('id="collectionForecastSection"'), 'bars sit before the forecast section');
+  // Area & Mohalla Analytics compact module (Nov 2026): the bars
+  // section id is gone — the bars live in the module's Tab 1
+  // (Progress & Dues) at the old bars position, inside the Collect
+  // tab, after the method strip and before the matrix.
+  assert.ok(page.includes('id="areaAnalyticsModule"'), 'module exists');
+  assert.ok(page.indexOf('id="areaAnalyticsModule"') > page.indexOf('id="methodStripSection"'), 'module follows the method strip');
+  assert.ok(page.indexOf('id="areaAnalyticsModule"') < page.indexOf('id="multiMonthMatrixSection"'), 'module sits before the matrix');
   assert.ok(page.includes('id="mdbMohallaTotal"'), 'still-due total element exists');
   assert.ok(page.includes('id="mdbMohallaLine"'), 'collected line exists');
   assert.ok(page.includes('id="mdbMohallaRows"'), 'rows element exists');
@@ -274,7 +278,13 @@ test('mohalla bars wiring: the bars sit on the billing dashboard after the metho
 
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.ok(app.includes("from './dashboard-mohalla-bars.js?v=1.11.0'"), 'dashboard imports the mohalla bars module at the pinned version');
-  assert.ok(app.includes('renderMohallaBars(document, calculateMohallaBars(state, referenceDate))'), 'renderDashboard fills the mohalla bars');
+  // The render call split: the summary is computed once, stored
+  // for the module, and rendered through renderAreaModuleBars,
+  // which feeds the full summary to renderMohallaBars so the
+  // totals never follow the dues filter — only the rows do.
+  assert.ok(app.includes('areaModuleBarsSummary = calculateMohallaBars(state, referenceDate)'), 'renderDashboard computes the bars summary');
+  assert.ok(app.includes('renderAreaModuleBars()'), 'renderDashboard renders the bars through the module');
+  assert.ok(app.includes('renderMohallaBars(document, { ...summary, rows: visible })'), 'module renders totals from the full summary, rows filtered');
 });
 
 test('i18n: every dash_mohallabars_ key used exists in English and Urdu', () => {

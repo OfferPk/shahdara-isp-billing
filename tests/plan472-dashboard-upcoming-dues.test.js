@@ -219,7 +219,7 @@ test('upcoming dues wiring: the view sits in the Collect tab (transactionsView),
   // (before Reports) and still before the forecast section.
   assert.ok(page.indexOf('id="upcomingDuesSection"') > page.indexOf('id="transactionsView"'), 'view sits inside the Collect tab');
   assert.ok(page.indexOf('id="upcomingDuesSection"') < page.indexOf('id="billingReportsView"'), 'view sits before the Reports tab');
-  assert.ok(page.indexOf('id="upcomingDuesSection"') < page.indexOf('id="collectionForecastSection"'), 'view sits before the forecast section');
+  assert.ok(page.indexOf('id="upcomingDuesSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'view sits before the matrix section');
   assert.ok(page.includes('id="dudSevenDayTotal"'), 'seven-day total element exists');
   assert.ok(page.includes('id="dudSevenDayLine"'), 'window line exists');
   assert.ok(page.includes('id="dudUpcomingDays"'), 'per-day list element exists');

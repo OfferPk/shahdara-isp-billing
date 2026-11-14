@@ -104,6 +104,11 @@ test('mohalla canonical keys follow Plan T, unassigned never dropped', () => {
     { ...base, id: 'S-2', mohalla: '' },
   ]);
   assert.equal(suspensionsFiltered(list, { mohalla: '__unassigned__' }).length, 1);
+  // More Tab Operational Registries polish (§1): the filter
+  // placeholder invites the word "Unassigned", so the folded word
+  // matches the same no-mohalla rows as the literal sentinel.
+  assert.equal(suspensionsFiltered(list, { mohalla: 'Unassigned' }).length, 1);
+  assert.equal(suspensionsFiltered(list, { mohalla: 'unassigned' }).length, 1);
   assert.equal(suspensionsFiltered(list, { mohalla: 'banii' }).length, 1);
 });
 

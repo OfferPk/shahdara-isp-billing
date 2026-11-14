@@ -144,7 +144,8 @@ test('mohalla counts: a non-canonical area with real users still gets its own ca
 
 // ---------------------------------------------------------------------------
 // SISP-175: Mohalla card enrichment — live Unpaid PKR, Paid %, FREE count,
-// and the 🏍️ Field Collect launch into Field Mode scoped to the mohalla.
+// and the Field Collect launch (Bike icon) into Field Mode scoped to
+// the mohalla.
 // Synthetic data only. Fixtures are plain records (the collection-
 // forecaster pattern) fed through the REAL allocation engine.
 // ---------------------------------------------------------------------------
@@ -309,7 +310,9 @@ test('wiring: search field select, mohalla dashboard section and app.js hooks ex
     assert.ok(index.includes(`<option value="${value}"`), `field select offers ${value}`);
   }
   assert.ok(index.includes('id="mohallaDashboardCards"'), 'dashboard has the mohalla cards grid');
-  assert.ok(index.includes('id="mohallaDashboardSection"'), 'dashboard has the mohalla section');
+  // Area & Mohalla Analytics compact module (Nov 2026): the cards
+  // live in the module's Tab 2 now, not in their own section.
+  assert.ok(index.includes('id="areaAnalyticsModule"'), 'dashboard has the area analytics module');
   const app = readRepoFile('app.js');
   assert.ok(app.includes("from './customer-search-filter.js?v=1.11.0'"), 'app.js imports the search-filter module');
   assert.ok(app.includes('filterCustomersBySearchField'), 'roster render applies the field filter');

@@ -101,7 +101,11 @@ export function methodStripSectionHtml(summary) {
   const methods = Array.isArray(summary?.methods) ? summary.methods : [];
   return methods.filter((method) => (method.amountCents ?? 0) > 0 || (method.count ?? 0) > 0).map((method) => {
     const countText = t(method.count === 1 ? 'dash_methodstrip_payments_sing' : 'dash_methodstrip_payments_plur', null, { count: method.count });
-    return `<li><span class="provider-breakdown-name">${escapeHtml(method.label)}</span><strong>${escapeHtml(formatPKR((method.amountCents ?? 0) / 100))}</strong><span class="provider-breakdown-meta">${escapeHtml(countText)}</span></li>`;
+    // Collect Tab polish: each method renders as a .ds-stat-box cell
+    // in the 2-column #dmsMethodRows grid (components.css) instead of
+    // a full-width stacked box. Label, figure and count text are
+    // unchanged.
+    return `<li class="ds-stat-box"><span class="ds-stat-box__label">${escapeHtml(method.label)}</span><strong class="ds-stat-box__value">${escapeHtml(formatPKR((method.amountCents ?? 0) / 100))}</strong><span class="ds-stat-box__meta">${escapeHtml(countText)}</span></li>`;
   }).join('');
 }
 

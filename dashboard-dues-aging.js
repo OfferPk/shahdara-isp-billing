@@ -207,6 +207,12 @@ export function calculateDuesAgingBreakdown(state, referenceDate = new Date()) {
   let totalOutstanding = 0;
   let totalWeightedDayAmount = 0;
 
+  // Sharafat 42: bills the 24-month retention window drops are counted here
+  // (count + remaining balance) so the modal/CSV/briefing can list them
+  // instead of vanishing them silently. Totals and buckets are unchanged.
+  let excludedBillsCount = 0;
+  let excludedAmountCents = 0;
+
   for (const c of (state?.customers ?? [])) {
     if (c.archived) continue;
 
@@ -223,9 +229,25 @@ export function calculateDuesAgingBreakdown(state, referenceDate = new Date()) {
     };
 
     for (const bill of (c.bills ?? [])) {
-      if (!retainedMonths.has(bill.month)) continue;
+      if (!retainedMonths.has(bill.month)) {
+        // Sharafat 42: the retention window is [current−23, current] — a bill
+        // exactly 24 months back is OUT. Accumulate its remaining balance
+        // (the allocation when present, else the house fallback below) so the
+        // exclusion line can name it; a fully-paid old bill is not dues.
+        const oldAlloc = allocations.forMonth?.(c.id, bill.month);
+        const oldBalanceCents = oldAlloc?.balanceDueCents ?? Math.round(Number(bill.dueAmount || bill.amount || 0) * 100);
+        if (oldBalanceCents > 0) {
+          excludedBillsCount++;
+          excludedAmountCents += oldBalanceCents;
+        }
+        continue;
+      }
       const alloc = allocations.forMonth?.(c.id, bill.month);
-      const balanceDueCents = alloc?.balanceDueCents ?? Math.round(Number(bill.amount || 0) * 100);
+      // Sharafat 42: house pattern — dueAmount first, legacy amount kept. A
+      // bare bill.dueAmount swap would make a legacy amount-only bill age at
+      // 0; the fallback fires only for unpriced bills, where dueAmount is
+      // definitionally absent, so the swap would change nothing for them.
+      const balanceDueCents = alloc?.balanceDueCents ?? Math.round(Number(bill.dueAmount || bill.amount || 0) * 100);
 
       if (balanceDueCents > 0) {
         customerDueCents += balanceDueCents;
@@ -392,6 +414,8 @@ export function calculateDuesAgingBreakdown(state, referenceDate = new Date()) {
     criticalOverduePkr,
     criticalOverduePercent,
     weightedAverageDays,
+    excludedBillsCount,
+    excludedAmountPkr: Math.round(excludedAmountCents / 100),
     portfolioRiskStatus,
     portfolioRiskBadgeClass,
     buckets,
@@ -481,6 +505,23 @@ export function renderDuesAgingSvg(agingData, options = {}) {
 }
 
 /**
+ * One shared exclusion line for the CSV, the briefing and the modal note, so
+ * the three surfaces can never word the same exclusion differently. English
+ * only (register note + Sharafat 39's monthlyReportCsvNote precedent); no
+ * i18n key. The window is [current−23, current] — a bill exactly 24 months
+ * back is outside it, so the line says "outside the 24-month window", never
+ * "older than 24 months".
+ *
+ * @param {object} agingData - Data from calculateDuesAgingBreakdown
+ * @returns {string} '' when the retention window dropped nothing
+ */
+function excludedBillsNote(agingData) {
+  if (!agingData || !(agingData.excludedBillsCount > 0)) return '';
+  const count = agingData.excludedBillsCount;
+  return `Excluded: ${count} bill${count === 1 ? '' : 's'} outside the 24-month window (${formatPKR(agingData.excludedAmountPkr)})`;
+}
+
+/**
  * Generates RFC-4180 compliant CSV export for Dues Aging report.
  * Includes UTF-8 BOM, executive bucket summary, and customer drill-down rows.
  *
@@ -529,6 +570,13 @@ export function generateDuesAgingCsv(agingData, referenceDate = new Date()) {
     agingData.totalOutstanding,
     '100.0%'
   ].map(csvEscape).join(','));
+  // Sharafat 42: the retention window's excluded bills, listed right under the
+  // totals they were left out of — a single-cell row, like the section
+  // headers above. Omitted entirely when nothing was excluded.
+  const excludedNote = excludedBillsNote(agingData);
+  if (excludedNote) {
+    rows.push([excludedNote].map(csvEscape).join(','));
+  }
   rows.push('');
 
   rows.push(['--- SUBSCRIBER RECEIVABLES DRILL-DOWN LEDGER ---'].map(csvEscape).join(','));
@@ -585,6 +633,9 @@ export function generateDuesAgingCsv(agingData, referenceDate = new Date()) {
 export function generateDuesAgingBriefing(agingData, referenceDate = new Date()) {
   const ref = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
   const dateStr = ref.toISOString().slice(0, 10);
+  // Sharafat 42: the exclusion line sits after the overview block, before the
+  // buckets — the same count + PKR the CSV and the modal note carry.
+  const excludedNote = excludedBillsNote(agingData);
 
   const lines = [
     `📊 SHAHDARA ISP - DUES AGING & RECEIVABLES BRIEFING`,
@@ -597,6 +648,7 @@ export function generateDuesAgingBriefing(agingData, referenceDate = new Date())
     `  Critical Dues (61+ Days): ${formatPKR(agingData.criticalOverduePkr)} (${agingData.criticalOverduePercent}%)`,
     `  Weighted Average Aging: ${agingData.weightedAverageDays} days overdue`,
     ``,
+    ...(excludedNote ? [excludedNote, ``] : []),
     `[ AGING BUCKETS BREAKDOWN ]`
   ];
 
@@ -806,6 +858,15 @@ export function setupDuesAgingModal(state, options = {}) {
     if (riskStatusBadge) {
       riskStatusBadge.textContent = data.portfolioRiskStatus;
       riskStatusBadge.className = `sim-delta-badge ${data.portfolioRiskBadgeClass}`;
+    }
+
+    // Sharafat 42: the exclusion note — hidden when the retention window
+    // dropped nothing, shown with count + PKR otherwise.
+    const excludedNoteEl = document.getElementById('duesAgingExcludedNote');
+    if (excludedNoteEl) {
+      const excludedNote = excludedBillsNote(data);
+      excludedNoteEl.textContent = excludedNote;
+      excludedNoteEl.hidden = !excludedNote;
     }
 
     // Populate SVG chart

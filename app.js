@@ -4237,6 +4237,21 @@ function renderCustomers() {
         tableBody.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
       }
     }
+    // Sharafat 27 — shape (a): the Balance column is the selected month's
+    // balance only, so the header states its scope ("Balance Due · Nov 2026").
+    // The month suffix is set here on every render: the static HTML keeps the
+    // bare data-i18n label for the first paint, and the i18n engine has no
+    // {month} param support in static HTML, so the suffix cannot live in the
+    // markup. The language-change listener re-runs renderCustomers, so a
+    // language switch re-renders the label in the new language instead of
+    // leaving the engine's un-interpolated value. displayMonthName is the
+    // UR-aware month format the app uses for interpolated month labels
+    // elsewhere ("November 2026" / "نومبر 2026").
+    const balanceHeaderLabel = document.querySelector('#customerRosterTable th[data-sort-cust="balance"] span[data-i18n="cust_th_balance"]');
+    const balanceMonthLabel = displayMonthName(selectedBillingMonth);
+    if (balanceHeaderLabel && balanceMonthLabel) {
+      balanceHeaderLabel.textContent = t('cust_th_balance', null, { month: balanceMonthLabel });
+    }
     document.querySelectorAll('#customerRosterTable th[data-sort-cust]').forEach(th => {
       const field = th.dataset.sortCust;
       const icon = th.querySelector('.sort-icon');

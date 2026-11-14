@@ -199,3 +199,91 @@ test('HTML and CSS integrity - verifies billing tables, roster table, view toggl
   assert.match(styles, /\.customer-view-toggle/, 'styles.css must style .customer-view-toggle');
   assert.match(styles, /\[data-theme="dark"\] \.customer-roster-table/, 'styles.css must have dark theme support for customer roster table');
 });
+
+test('renderCustomerTableRowMarkup - a voided-only payment never reduces the balance or marks the bill paid (Sharafat 27)', () => {
+  const voidedOnly = {
+    id: 'c-void-01',
+    customerNumber: 11,
+    name: 'Voided Only Customer',
+    phone: '03001234567',
+    mohalla: 'Baradari',
+    packageSpeed: '20 Mbps',
+    serviceStatus: 'active',
+    bills: [
+      { month: '2026-10', dueAmount: 2000, payments: [{ amount: 2000, voided: true }] }
+    ]
+  };
+
+  // The fallback (no allocations) is the honest gate: the engine path already
+  // excludes voided payments, so the helpers are called WITHOUT allocations.
+  assert.strictEqual(getCustomerMonthBalance(voidedOnly, '2026-10'), 2000);
+  assert.strictEqual(getCustomerTotalCollections(voidedOnly), 0);
+
+  const html = renderCustomerTableRowMarkup(voidedOnly, { selectedBillingMonth: '2026-10' });
+  assert.match(html, /PKR 2,000/);
+  assert.match(html, /text-due/);
+  assert.match(html, /status-pending/);
+  assert.doesNotMatch(html, /status-received/);
+
+  // Mixed case: a real 500 plus a voided 1500 on a 2000 bill → balance 1500,
+  // badge partial — the voided 1500 counts for neither.
+  const mixed = {
+    ...voidedOnly,
+    id: 'c-void-02',
+    customerNumber: 12,
+    name: 'Mixed Payment Customer',
+    bills: [
+      { month: '2026-10', dueAmount: 2000, payments: [{ amount: 500 }, { amount: 1500, voided: true }] }
+    ]
+  };
+  assert.strictEqual(getCustomerMonthBalance(mixed, '2026-10'), 1500);
+  assert.strictEqual(getCustomerTotalCollections(mixed), 500);
+  const mixedHtml = renderCustomerTableRowMarkup(mixed, { selectedBillingMonth: '2026-10' });
+  assert.match(mixedHtml, /PKR 1,500/);
+  assert.match(mixedHtml, /text-due/);
+  assert.match(mixedHtml, /status-partial/);
+  assert.doesNotMatch(mixedHtml, /status-received/);
+});
+
+test('sortCustomerRoster - a voided-only payment sorts as 0 collected and full due (Sharafat 27)', () => {
+  const customers = [
+    {
+      id: 'c-void',
+      customerNumber: 1,
+      name: 'Voided Payer',
+      bills: [{ month: '2026-10', dueAmount: 2000, payments: [{ amount: 2000, voided: true }] }]
+    },
+    {
+      id: 'c-real',
+      customerNumber: 2,
+      name: 'Real Payer',
+      bills: [{ month: '2026-10', dueAmount: 2000, payments: [{ amount: 2000 }] }]
+    }
+  ];
+
+  // Equal-size payments, one voided, one real: the real payer collected 2000,
+  // the voided-only customer collected 0.
+  const byReceivedDesc = sortCustomerRoster(customers, { sortBy: 'received-desc' });
+  assert.deepEqual(byReceivedDesc.map(c => c.customerNumber), [2, 1]); // 2000, 0
+
+  // And the balance sort is the mirror image: the voided-only customer still
+  // owes the full 2000, the real payer owes 0.
+  const byBalanceDesc = sortCustomerRoster(customers, { sortBy: 'balance-desc', billingMonth: '2026-10' });
+  assert.deepEqual(byBalanceDesc.map(c => c.customerNumber), [1, 2]); // 2000, 0
+});
+
+test('Balance column label - the header states its month scope and renderCustomers sets it (Sharafat 27, shape (a))', () => {
+  // The static HTML keeps the bare data-i18n label for the first paint; the
+  // month suffix is set from JS at render time (see the why-comment in
+  // renderCustomers) because the i18n engine has no {month} param support in
+  // static HTML.
+  assert.match(index, /<span data-i18n="cust_th_balance">Balance Due<\/span>/, 'index.html must keep the bare cust_th_balance label for first paint');
+  assert.ok(
+    app.includes("t('cust_th_balance', null, { month: balanceMonthLabel })"),
+    'renderCustomers must set the Balance header from cust_th_balance with the month'
+  );
+  assert.ok(
+    app.includes('displayMonthName(selectedBillingMonth)'),
+    'renderCustomers must derive the header month from the selected billing month'
+  );
+});

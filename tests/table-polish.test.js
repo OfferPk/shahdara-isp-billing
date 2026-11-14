@@ -91,6 +91,45 @@ test('Customer Roster Table Polish & CSV Export Suite', async t => {
     assert.match(defaultEmpty, /No customers found\./);
   });
 
+  await t.test('generateCustomerRosterCsv excludes voided payments from status, balance and collections (Sharafat 27)', () => {
+    // A voided-only payment is history, never money: the CSV must agree with
+    // the table — status PENDING (not PAID), full balance due, 0 collected.
+    const voidedOnly = {
+      id: 'cust-void-01',
+      customerNumber: 201,
+      name: 'Voided Only Customer',
+      phone: '03001234567',
+      mohalla: 'Baradari',
+      zone: 'North',
+      address: 'House 1',
+      packageSpeed: '20 Mbps Fiber',
+      monthlySellingAmount: 2000,
+      serviceStatus: 'active',
+      bills: [
+        { month: '2026-10', dueAmount: 2000, payments: [{ amount: 2000, voided: true }] }
+      ]
+    };
+    const csv = generateCustomerRosterCsv([voidedOnly], { billingMonth: '2026-10' });
+    const lines = csv.split('\r\n');
+    assert.strictEqual(lines.length, 2, 'Header plus the one customer row');
+    assert.match(lines[1], /"PENDING","2000","0"$/, 'Voided-only row: PENDING, full 2000 due, 0 collected');
+    assert.doesNotMatch(lines[1], /"PAID"/);
+
+    // Mixed case: a real 500 plus a voided 1500 on a 2000 bill → PARTIAL,
+    // 1500 still due, 500 collected.
+    const mixed = {
+      ...voidedOnly,
+      id: 'cust-void-02',
+      customerNumber: 202,
+      name: 'Mixed Payment Customer',
+      bills: [
+        { month: '2026-10', dueAmount: 2000, payments: [{ amount: 500 }, { amount: 1500, voided: true }] }
+      ]
+    };
+    const mixedCsv = generateCustomerRosterCsv([mixed], { billingMonth: '2026-10' });
+    assert.match(mixedCsv.split('\r\n')[1], /"PARTIAL","1500","500"$/);
+  });
+
   await t.test('index.html contains customerTableExpandBtn, exportCustomerRosterCsvBtn, and sortable headers', () => {
     const indexPath = path.join(__dirname, '..', 'index.html');
     const html = fs.readFileSync(indexPath, 'utf8');

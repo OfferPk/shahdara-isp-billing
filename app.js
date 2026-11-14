@@ -4119,7 +4119,21 @@ function renderCustomers() {
   }
 
   const sortSelect = $('#customerSortSelect');
-  if (sortSelect) sortSelect.value = customerSortBy;
+  if (sortSelect) {
+    sortSelect.value = customerSortBy;
+    // Sharafat 32: the balance sort keys on getCustomerMonthBalance for
+    // the selected billing month, so label the two balance options with
+    // that month (long form, UR-aware, via displayMonthName — the same
+    // helper the adjacent month dropdown uses). Target the options by
+    // value, never by index (Sharafat 29 inserted four options into this
+    // select). When selectedBillingMonth is empty the static option text
+    // stays as the fallback.
+    const balanceMonthLabel = selectedBillingMonth ? displayMonthName(selectedBillingMonth) : '';
+    const balanceDescOption = sortSelect.querySelector('option[value="balance-desc"]');
+    const balanceAscOption = sortSelect.querySelector('option[value="balance-asc"]');
+    if (balanceDescOption && balanceMonthLabel) balanceDescOption.textContent = t('cust_sort_balance_desc_month', null, { month: balanceMonthLabel });
+    if (balanceAscOption && balanceMonthLabel) balanceAscOption.textContent = t('cust_sort_balance_asc_month', null, { month: balanceMonthLabel });
+  }
 
   const searchFieldSelect = $('#customerSearchField');
   if (searchFieldSelect) searchFieldSelect.value = customerSearchField;

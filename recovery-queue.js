@@ -324,10 +324,19 @@ export function recoveryQueueFiltered(queue, filters = {}) {
   const entries = Array.isArray(queue) ? queue : [];
   const status = text(filters.status);
   const mohalla = text(filters.mohalla);
+  // The mohalla filter placeholder invites the word "Unassigned":
+  // accept it (any case, underscores optional, a leading "Mohalla"
+  // stripped) as the sentinel for queue entries with no mohalla,
+  // keeping the literal '__unassigned__' working for back-compat.
+  // Without this, typing Unassigned would match nothing —
+  // canonicalRecoveryMohalla folds it to the key 'unassigned',
+  // while an entry with no mohalla canonicalises to '__unassigned__'.
+  const stripped = text(mohalla).replace(/^mohalla\s+/i, '').trim();
+  const isUnassigned = stripped.toLowerCase().replace(/[\s_]+/g, '') === 'unassigned';
   return entries.filter((entry) => {
     if (status && entry.status !== status) return false;
     if (mohalla) {
-      if (mohalla === '__unassigned__') {
+      if (isUnassigned) {
         if (canonicalRecoveryMohalla(entry.mohalla).key !== '__unassigned__') return false;
       } else if (canonicalRecoveryMohalla(entry.mohalla).key !== canonicalRecoveryMohalla(mohalla).key) return false;
     }
@@ -358,7 +367,11 @@ export function recoverySummaryText(summary) {
 
 export function recoveryHtml(entries) {
   const rows = Array.isArray(entries) ? entries : [];
-  if (rows.length === 0) return '<p>No unreturned equipment in the queue.</p>';
+  // More Tab Operational Registries polish (§2 dedup): the summary
+  // line is now the single empty state ("No equipment recovery
+  // records yet."), so the body renders nothing at 0 instead of
+  // repeating the same meaning a second time.
+  if (rows.length === 0) return '';
   const body = rows.map((entry) => {
     const extra = entry.status === 'not_returned' && entry.reason
       ? ` — ${escapeHtml(entry.reason)}`

@@ -1,11 +1,14 @@
 /* #298 Payments list: compact rows, day subtotals, tap-to-expand details. */
 #transactionsList { display: grid; gap: 6px; }
-#transactionsList > .tx-day-header {
+/* Collect Tab polish: the day header is now a <summary> inside a
+   <details> day-group (not a direct <li> child of the list), so the
+   selectors below use the descendant form. */
+#transactionsList .tx-day-header {
   list-style: none; margin: 10px 2px 2px; padding: 0;
   font: 700 13px/1.3 'DM Sans', system-ui, sans-serif; color: #31584a;
 }
-#transactionsList > .tx-day-header:first-child { margin-top: 0; }
-#transactionsList > .transaction-card.tx-compact {
+#transactionsList .tx-day-group:first-child .tx-day-header { margin-top: 0; }
+#transactionsList .transaction-card.tx-compact {
   display: block !important; padding: 0 !important; gap: 0 !important; overflow: hidden;
   border-radius: 12px; list-style: none;
 }
@@ -67,7 +70,7 @@
 .app-confirm-input[hidden] { display: none !important; }
 .app-confirm-input input { min-height: 44px; padding: var(--space-2) 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); font: inherit; font-weight: 400; }
 
-[data-theme="dark"] #transactionsList > .tx-day-header { color: var(--dk-muted); }
+[data-theme="dark"] #transactionsList .tx-day-header { color: var(--dk-muted); }
 [data-theme="dark"] .tx-avatar { background: var(--color-dark-surface); color: var(--dk-ink); }
 [data-theme="dark"] .tx-main .transaction-customer { color: var(--dk-ink); }
 [data-theme="dark"] .tx-main .transaction-customer-number, [data-theme="dark"] .tx-sub, [data-theme="dark"] .tx-chevron { color: var(--dk-muted); }
@@ -121,7 +124,7 @@
   .tx-main .transaction-customer, .tx-sub, .tx-side .transaction-amount { line-height: 17px; font-size: 13px; }
   .tx-sub, .tx-method-chip, .tx-side .tx-status-chip { font-size: 11px !important; }
   .tx-side .tx-status-chip { line-height: 15px !important; }
-  #transactionsList > .tx-day-header { font-size: var(--text-xs); margin-top: 6px; }
+  #transactionsList .tx-day-header { font-size: var(--text-xs); margin-top: 6px; }
   #transactionSummaryBar .tx-summary-label { font-size: 0; }
   #transactionSummaryBar .tx-summary-item:first-child .tx-summary-label::before { content: 'Total'; font-size: var(--text-xs); margin-right: var(--space-1); }
   #transactionSummaryBar .tx-summary-item:nth-child(2) .tx-summary-label::before { content: 'Avg'; font-size: var(--text-xs); margin-right: var(--space-1); }
@@ -139,3 +142,12 @@
 [data-theme="dark"] .tx-details .payment-allocation { background: #20403a; color: var(--dk-ink); border-color: var(--dk-line); }
 [data-theme="dark"] .tx-details :is(.receipt-phone-help, .receipt-whatsapp-action) { background: #1f3a33; color: var(--dk-ink); border-color: #3b5d51; }
 [data-theme="dark"] .tx-details :is(.receipt-phone-help, .receipt-whatsapp-action):hover { background: #27483f; border-color: #5d8a78; }
+
+/* Collect Tab polish: day-group accordion wrappers — the <li> and
+   the inner row <ul> carry no list styling of their own, and the
+   <summary> header hides its native disclosure marker. */
+.tx-day-group { list-style: none; }
+.tx-day-rows { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+summary.tx-day-header { cursor: pointer; list-style: none; }
+summary.tx-day-header::-webkit-details-marker { display: none; }
+summary.tx-day-header::marker { content: ''; }

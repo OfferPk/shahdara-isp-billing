@@ -209,12 +209,19 @@ test('purity: the module is pure and import-free — no storage, clock, network,
   assert.equal(ownSrc.includes(`${aliasModule}.js`), false, 'test must not name the alias module file');
 });
 
-test('wiring: the app imports the module and shows the known-as line beside the formal name on cards and in global search', () => {
+test('wiring: the app imports the module and shows the known-as name beside the formal name on cards and in global search', () => {
   assert.ok(appSrc.includes("from './known-as-name.js'"), 'app imports the known-as module');
   assert.ok(appSrc.includes('function knownAsInlineHtml(customer, className)'), 'app has the inline known-as helper');
   const cardStart = appSrc.indexOf('function customerCardMarkup(');
   const cardEnd = appSrc.indexOf('function ', cardStart + 10);
-  assert.ok(appSrc.slice(cardStart, cardEnd).includes("knownAsInlineHtml(customer, 'customer-known-as')"), 'customer card shows the known-as line');
+  // Customers Cards Compact retired the card's inline known-as line:
+  // the name is a pill in the sub-line row, built from knownAsNameFor
+  // with the Father/Ref or alias short label. Global search keeps the
+  // inline helper (asserted below).
+  assert.ok(appSrc.slice(cardStart, cardEnd).includes('knownAsNameFor(customer)'), 'customer card derives the known-as name from the module');
+  assert.ok(appSrc.slice(cardStart, cardEnd).includes("'cust_card_father_ref_short'"), 'card pill uses the Father/Ref short label');
+  assert.ok(appSrc.slice(cardStart, cardEnd).includes("'cust_card_alias_short'"), 'card pill uses the alias short label');
+  assert.ok(!appSrc.slice(cardStart, cardEnd).includes("knownAsInlineHtml(customer, 'customer-known-as')"), 'card no longer renders the inline known-as line');
   const globalStart = appSrc.indexOf('function renderGlobalSearch(');
   const globalEnd = appSrc.indexOf('function ', globalStart + 10);
   assert.ok(appSrc.slice(globalStart, globalEnd).includes("knownAsInlineHtml(customer, 'global-result-known-as')"), 'global search result shows the known-as line');

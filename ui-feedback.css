@@ -252,7 +252,7 @@ button.profile-action-btn:not([hidden]) { min-height: 48px !important; padding: 
 .cust-compact .customer-card-heading .customer-number-line { order: 2; font-size: 11px; }
 .cust-compact .customer-card-heading .customer-name { order: 1; font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .cust-compact .customer-card-package { margin: 0 0 0 44px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cust-compact :is(.customer-card-stats, .customer-health-badge, .customer-card-open-hint, .customer-health-reasons, .service-choice-group) { display: none !important; }
+.cust-compact :is(.customer-card-stats, .customer-health-badge, .customer-card-open-hint, .service-choice-group) { display: none !important; }
 .cust-compact .customer-card-controls { padding: 2px 10px 8px 54px; border: 0; margin: 0; background: transparent; display: flex; }
 .cust-compact .customer-billing-badge[data-short] { font-size: 0 !important; white-space: nowrap; }
 .cust-compact .customer-billing-badge[data-short]::after { content: attr(data-short); font-size: 12px; }

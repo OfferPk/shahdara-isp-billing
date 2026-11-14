@@ -98,8 +98,17 @@ test('#230 legacy hex ratchet: counts may only shrink', () => {
     // DS-0 lowered styles.css 619->616 (#164d3b, #274036 and #f6f9f7 now
     // occur nowhere in the file) and nav.css 163->162 (#1a0505 now
     // occurs nowhere in the file).
+    // Pending Actions Center Modal Compression raised nav.css 162->164:
+    // the two new hex are NOT new colours — they are the token VALUES
+    // repeated as var() fallbacks the spec itself mandates:
+    // var(--ds-brand, #0F5338) on .pending-wa-btn (#0f5338 is the
+    // --ds-brand token value) and var(--color-neutral-100, #f0f4f2)
+    // on the modal-scoped close override (the QC §4.1.4 precedent's
+    // own fallback). No new hard-coded colour was introduced; the
+    // baseline moves because the ratchet counts file-local distinct
+    // hex, and these two values did not occur in nav.css before.
     'bulk-collect.css': 37, 'customer-import.css': 29, 'dark-contrast.css': 20,
-    'dashboard.css': 87, 'nav.css': 162, 'payments-inbox.css': 25,
+    'dashboard.css': 87, 'nav.css': 164, 'payments-inbox.css': 25,
     'payments-list.css': 12, 'profile-ui.css': 1, 'screen-router.css': 53,
     'styles.css': 616, 'ui-feedback.css': 57, 'urdu-font.css': 1
   };

@@ -1438,110 +1438,6 @@
         </div>
       </dialog>
 
-      <dialog id="expansionEstimatorModal" class="dashboard-modal expansion-estimator-modal" aria-labelledby="expansionEstimatorModalTitle">
-        <div class="dashboard-modal-card">
-          <div class="dashboard-modal-header">
-            <div>
-              <p class="eyebrow" data-i18n="xest_eyebrow">EXPANSION PLANNING</p>
-              <h3 id="expansionEstimatorModalTitle" data-i18n="xest_modal_title">New Street / Mohalla Expansion Estimate</h3>
-            </div>
-            <button id="expansionEstimatorCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">↩</button>
-          </div>
-          <p class="dashboard-modal-sub" data-i18n="xest_modal_sub">Type the plan — results update live. Nothing here is saved: no expense, stock, or partner entry is created.</p>
-
-          <div class="xest-group">
-            <h4 class="xest-group-title" data-i18n="xest_group_plant">Plant &amp; Quantities</h4>
-            <div class="xest-grid">
-              <div class="xest-field">
-                <label for="xestDropMetersInput" data-i18n="xest_drop_meters">Drop cable (meters)</label>
-                <input id="xestDropMetersInput" type="number" min="0" step="any" inputmode="decimal" value="0">
-              </div>
-              <div class="xest-field">
-                <label for="xestFeederMetersInput" data-i18n="xest_feeder_meters">Feeder cable (meters)</label>
-                <input id="xestFeederMetersInput" type="number" min="0" step="any" inputmode="decimal" value="0">
-              </div>
-              <div class="xest-field">
-                <label for="xestBoxesInput" data-i18n="xest_boxes">Splitter boxes</label>
-                <input id="xestBoxesInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-              </div>
-              <div class="xest-field">
-                <label for="xestPolesInput" data-i18n="xest_poles">Poles / clamps</label>
-                <input id="xestPolesInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-              </div>
-              <div class="xest-field">
-                <label for="xestSplicingJobsInput" data-i18n="xest_splicing_jobs">Splicing jobs</label>
-                <input id="xestSplicingJobsInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-              </div>
-            </div>
-          </div>
-
-          <div class="xest-group">
-            <h4 class="xest-group-title" data-i18n="xest_group_prices">Unit Prices</h4>
-            <div class="xest-grid">
-              <div class="xest-field">
-                <label for="xestDropPriceInput" data-i18n="xest_drop_price">Drop cable price (PKR / meter)</label>
-                <input id="xestDropPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-                <span class="xest-source-hint" id="xestDropPriceSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
-              </div>
-              <div class="xest-field">
-                <label for="xestFeederPriceInput" data-i18n="xest_feeder_price">Feeder cable price (PKR / meter)</label>
-                <input id="xestFeederPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-                <span class="xest-source-hint" id="xestFeederPriceSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
-              </div>
-              <div class="xest-field">
-                <label for="xestBoxPriceInput" data-i18n="xest_box_price">Splitter box price (PKR each)</label>
-                <input id="xestBoxPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-              </div>
-              <div class="xest-field">
-                <label for="xestPolePriceInput" data-i18n="xest_pole_price">Pole / clamp price (PKR each)</label>
-                <input id="xestPolePriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-              </div>
-              <div class="xest-field">
-                <label for="xestSplicingPriceInput" data-i18n="xest_splicing_price">Splicing price (PKR / job)</label>
-                <input id="xestSplicingPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-              </div>
-            </div>
-          </div>
-
-          <div class="xest-group">
-            <h4 class="xest-group-title" data-i18n="xest_group_subscribers">Subscribers &amp; Fees</h4>
-            <div class="xest-grid">
-              <div class="xest-field">
-                <label for="xestSubscribersInput" data-i18n="xest_subscribers">New subscribers expected</label>
-                <input id="xestSubscribersInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-              </div>
-              <div class="xest-field">
-                <label for="xestMonthlyFeeInput" data-i18n="xest_monthly_fee">Monthly package fee (PKR / subscriber)</label>
-                <input id="xestMonthlyFeeInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-                <span class="xest-source-hint" id="xestMonthlyFeeSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
-              </div>
-              <div class="xest-field">
-                <label for="xestConnectionFeeInput" data-i18n="xest_connection_fee">Connection fee (PKR / subscriber)</label>
-                <input id="xestConnectionFeeInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-                <span class="xest-source-hint" id="xestConnectionFeeSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
-              </div>
-              <div class="xest-field">
-                <label for="xestMonthlyOpexInput" data-i18n="xest_monthly_opex">Monthly running cost of the new street (PKR)</label>
-                <input id="xestMonthlyOpexInput" type="number" min="0" step="1" inputmode="numeric" value="0">
-              </div>
-            </div>
-          </div>
-
-          <div class="xest-results">
-            <h4 class="xest-group-title" data-i18n="xest_results_title">Estimate</h4>
-            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_capex">Total plant cost (Capex)</span><strong class="xest-result-value" id="xestResCapex">PKR 0</strong></div>
-            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_fees">Connection fees expected</span><strong class="xest-result-value" id="xestResFees">PKR 0</strong></div>
-            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_net_upfront">Net upfront investment</span><strong class="xest-result-value" id="xestResNetUpfront">PKR 0</strong></div>
-            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_monthly_revenue">Monthly revenue</span><strong class="xest-result-value" id="xestResMonthlyRevenue">PKR 0</strong></div>
-            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_monthly_net">Monthly net (revenue − running cost)</span><strong class="xest-result-value" id="xestResMonthlyNet">PKR 0</strong></div>
-            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_break_even">Break-even (months)</span><strong class="xest-result-value" id="xestResBreakEven">0</strong></div>
-            <div class="xest-result-row"><span class="xest-result-label" id="xestPartnerName0">Partner — capital share</span><strong class="xest-result-value" id="xestPartnerAmount0">PKR 0</strong></div>
-            <div class="xest-result-row"><span class="xest-result-label" id="xestPartnerName1">Partner — capital share</span><strong class="xest-result-value" id="xestPartnerAmount1">PKR 0</strong></div>
-            <p class="xest-note" id="xestCoveredNote" hidden></p>
-            <p class="xest-note" id="xestBreakEvenNote" hidden data-i18n="xest_break_even_never">Monthly income does not cover the running cost at these figures, so the investment does not break even — raise subscribers or fee, or lower the running cost.</p>
-          </div>
-        </div>
-      </dialog>
 
       <dialog id="dashboardLtvModal" class="dashboard-modal ltv-cohort-modal" aria-labelledby="dashboardLtvModalTitle">
         <div class="dashboard-modal-card ltv-modal-card">
@@ -7354,17 +7250,156 @@
             <p id="dmsMethodEmpty" class="empty-state" hidden data-i18n="dash_methodstrip_empty">No collections today yet.</p>
           </div>
         </section>
-        <section class="collection-forecast-section" id="mohallaBarsSection" aria-labelledby="mohallaBarsHeading">
-          <div class="collection-forecast-card">
+        <section class="collection-forecast-section area-analytics-module" id="areaAnalyticsModule" aria-labelledby="areaAnalyticsModuleHeading">
+          <div class="collection-forecast-card area-analytics-card">
             <div class="collection-forecast-header">
               <div>
-                <h3 id="mohallaBarsHeading" class="collection-forecast-title" data-i18n="dash_mohallabars_title">Dues by mohalla</h3>
-                <p class="chart-caption" data-i18n="dash_mohallabars_sub">Collected and still due, mohalla by mohalla</p>
+                <h3 id="areaAnalyticsModuleHeading" class="collection-forecast-title" data-i18n="area_mod_title">Area &amp; Mohalla Analytics</h3>
+                <p class="chart-caption" data-i18n="area_mod_sub">Dues, collection and expansion — mohalla by mohalla, in one place.</p>
               </div>
-              <strong id="mdbMohallaTotal" class="collection-forecast-pct">PKR 0</strong>
+              <strong id="collectionForecastPct" class="collection-forecast-pct">0%</strong>
             </div>
-            <p id="mdbMohallaLine" class="collection-forecast-collected"></p>
-            <div id="mdbMohallaRows" class="collection-forecast-areas"></div>
+            <div class="fcst-thermo" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Collection progress" data-i18n-aria-label="fcst_bar_aria">
+              <div id="collectionForecastFill" class="fcst-thermo-fill" style="width: 0%"></div>
+            </div>
+            <p id="collectionForecastCollected" class="collection-forecast-collected">PKR 0 of PKR 0 collected</p>
+            <p id="collectionForecastSplit" class="collection-forecast-line"></p>
+            <p id="collectionForecastRunRate" class="collection-forecast-line"></p>
+            <p id="collectionForecastPace" class="collection-forecast-line"></p>
+            <p id="collectionForecastEmpty" class="empty-state" hidden data-i18n="fcst_no_target">No bills for this month yet — the thermometer fills as bills are generated.</p>
+            <div class="area-analytics-controls">
+              <div class="area-analytics-chips" role="group" aria-label="Filter mohallas by dues">
+                <button class="report-filter-button area-analytics-chip" type="button" data-area-chip="pending" aria-pressed="true"><span class="ds-action-icon" data-ds-icon="Flame" aria-hidden="true"></span><span data-i18n="area_mod_chip_pending">Pending Dues</span></button>
+                <button class="report-filter-button area-analytics-chip" type="button" data-area-chip="cleared" aria-pressed="false"><span class="ds-action-icon" data-ds-icon="CheckCircle" aria-hidden="true"></span><span data-i18n="area_mod_chip_cleared">100% Cleared</span></button>
+                <button class="report-filter-button area-analytics-chip" type="button" data-area-chip="all" aria-pressed="false"><span data-i18n="area_mod_chip_all">All Mohallas</span></button>
+              </div>
+              <label class="area-analytics-jump"><span data-i18n="area_mod_jump_label">Jump to Mohalla</span>
+                <select id="areaAnalyticsJumpSelect" class="area-analytics-jump-select"></select>
+              </label>
+            </div>
+            <div class="area-analytics-tabs" role="tablist">
+              <button class="report-filter-button area-analytics-tab" type="button" role="tab" id="areaAnalyticsTabProgressBtn" aria-controls="areaAnalyticsTabProgress" aria-pressed="true"><span class="ds-action-icon" data-ds-icon="BarChart3" aria-hidden="true"></span><span data-i18n="area_mod_tab_progress">Progress &amp; Dues</span></button>
+              <button class="report-filter-button area-analytics-tab" type="button" role="tab" id="areaAnalyticsTabCardsBtn" aria-controls="areaAnalyticsTabCards" aria-pressed="false"><span class="ds-action-icon" data-ds-icon="House" aria-hidden="true"></span><span data-i18n="area_mod_tab_cards">Action Cards</span></button>
+              <button class="report-filter-button area-analytics-tab" type="button" role="tab" id="areaAnalyticsTabPlannerBtn" aria-controls="areaAnalyticsTabPlanner" aria-pressed="false"><span class="ds-action-icon" data-ds-icon="Calculator" aria-hidden="true"></span><span data-i18n="area_mod_tab_planner">Expansion Planner</span></button>
+            </div>
+            <div id="areaAnalyticsTabProgress" role="tabpanel" aria-labelledby="areaAnalyticsTabProgressBtn">
+              <div class="collection-forecast-header">
+                <div>
+                  <h3 id="mohallaBarsHeading" class="collection-forecast-title" data-i18n="dash_mohallabars_title">Dues by mohalla</h3>
+                  <p class="chart-caption" data-i18n="dash_mohallabars_sub">Collected and still due, mohalla by mohalla</p>
+                </div>
+                <strong id="mdbMohallaTotal" class="collection-forecast-pct">PKR 0</strong>
+              </div>
+              <p id="mdbMohallaLine" class="collection-forecast-collected"></p>
+              <div id="mdbMohallaRows" class="collection-forecast-areas"></div>
+              <p id="areaAnalyticsBarsEmpty" class="empty-state" hidden data-i18n="area_mod_empty">No mohalla matches this filter.</p>
+              <button class="area-analytics-toggle" type="button" data-area-toggle><span class="ds-action-icon" data-ds-icon="ChevronDown" aria-hidden="true"></span><span class="area-analytics-toggle-label" data-i18n="area_mod_show_all">Show all mohallas</span></button>
+            </div>
+            <div id="areaAnalyticsTabCards" role="tabpanel" aria-labelledby="areaAnalyticsTabCardsBtn" hidden>
+              <div class="mohalla-dashboard-heading">
+                <p class="eyebrow" data-i18n="dash_mohalla_eyebrow">AREA / MOHALLA</p>
+                <h3 id="mohallaDashboardHeading" data-i18n="dash_mohalla_title">Mohalla Dashboard</h3>
+                <p class="chart-caption" data-i18n="dash_mohalla_sub">Live user count in every mohalla that has customers. Tap a card to open exactly those customers.</p>
+              </div>
+              <div id="mohallaDashboardCards" class="mohalla-cards-grid"></div>
+              <p id="mohallaDashboardEmpty" class="empty-state" hidden data-i18n="dash_mohalla_empty">No mohalla users yet — cards appear here as soon as a customer has a mohalla set.</p>
+              <p id="areaAnalyticsCardsEmpty" class="empty-state" hidden data-i18n="area_mod_empty">No mohalla matches this filter.</p>
+              <button class="area-analytics-toggle" type="button" data-area-toggle><span class="ds-action-icon" data-ds-icon="ChevronDown" aria-hidden="true"></span><span class="area-analytics-toggle-label" data-i18n="area_mod_show_all">Show all mohallas</span></button>
+            </div>
+            <div id="areaAnalyticsTabPlanner" role="tabpanel" aria-labelledby="areaAnalyticsTabPlannerBtn" hidden>
+              <div class="mohalla-dashboard-heading">
+                <h3 id="expansionEstimatorHeading" data-i18n="xest_title">New Street Expansion Calculator</h3>
+                <p class="chart-caption" data-i18n="xest_sub">Plan a new gali / mohalla: plant cost, connection-fee offset, break-even months and each partner’s capital share — figures only, nothing is saved to the ledger</p>
+              </div>
+              <div class="xest-group">
+                <h4 class="xest-group-title" data-i18n="xest_group_plant">Plant &amp; Quantities</h4>
+                <div class="xest-grid">
+                  <div class="xest-field">
+                    <label for="xestDropMetersInput" data-i18n="xest_drop_meters">Drop cable (meters)</label>
+                    <input id="xestDropMetersInput" type="number" min="0" step="any" inputmode="decimal" value="0">
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestFeederMetersInput" data-i18n="xest_feeder_meters">Feeder cable (meters)</label>
+                    <input id="xestFeederMetersInput" type="number" min="0" step="any" inputmode="decimal" value="0">
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestBoxesInput" data-i18n="xest_boxes">Splitter boxes</label>
+                    <input id="xestBoxesInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestPolesInput" data-i18n="xest_poles">Poles / clamps</label>
+                    <input id="xestPolesInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestSplicingJobsInput" data-i18n="xest_splicing_jobs">Splicing jobs</label>
+                    <input id="xestSplicingJobsInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                  </div>
+                </div>
+              </div>
+              <div class="xest-group">
+                <h4 class="xest-group-title" data-i18n="xest_group_prices">Unit Prices</h4>
+                <div class="xest-grid">
+                  <div class="xest-field">
+                    <label for="xestDropPriceInput" data-i18n="xest_drop_price">Drop cable price (PKR / meter)</label>
+                    <input id="xestDropPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                    <span class="xest-source-hint" id="xestDropPriceSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestFeederPriceInput" data-i18n="xest_feeder_price">Feeder cable price (PKR / meter)</label>
+                    <input id="xestFeederPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                    <span class="xest-source-hint" id="xestFeederPriceSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestBoxPriceInput" data-i18n="xest_box_price">Splitter box price (PKR each)</label>
+                    <input id="xestBoxPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestPolePriceInput" data-i18n="xest_pole_price">Pole / clamp price (PKR each)</label>
+                    <input id="xestPolePriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestSplicingPriceInput" data-i18n="xest_splicing_price">Splicing price (PKR / job)</label>
+                    <input id="xestSplicingPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                  </div>
+                </div>
+              </div>
+              <div class="xest-group">
+                <h4 class="xest-group-title" data-i18n="xest_group_subscribers">Subscribers &amp; Fees</h4>
+                <div class="xest-grid">
+                  <div class="xest-field">
+                    <label for="xestSubscribersInput" data-i18n="xest_subscribers">New subscribers expected</label>
+                    <input id="xestSubscribersInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestMonthlyFeeInput" data-i18n="xest_monthly_fee">Monthly package fee (PKR / subscriber)</label>
+                    <input id="xestMonthlyFeeInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                    <span class="xest-source-hint" id="xestMonthlyFeeSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestConnectionFeeInput" data-i18n="xest_connection_fee">Connection fee (PKR / subscriber)</label>
+                    <input id="xestConnectionFeeInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                    <span class="xest-source-hint" id="xestConnectionFeeSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
+                  </div>
+                  <div class="xest-field">
+                    <label for="xestMonthlyOpexInput" data-i18n="xest_monthly_opex">Monthly running cost of the new street (PKR)</label>
+                    <input id="xestMonthlyOpexInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                  </div>
+                </div>
+              </div>
+              <div class="xest-results">
+                <h4 class="xest-group-title" data-i18n="xest_results_title">Estimate</h4>
+                <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_capex">Total plant cost (Capex)</span><strong class="xest-result-value" id="xestResCapex">PKR 0</strong></div>
+                <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_fees">Connection fees expected</span><strong class="xest-result-value" id="xestResFees">PKR 0</strong></div>
+                <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_net_upfront">Net upfront investment</span><strong class="xest-result-value" id="xestResNetUpfront">PKR 0</strong></div>
+                <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_monthly_revenue">Monthly revenue</span><strong class="xest-result-value" id="xestResMonthlyRevenue">PKR 0</strong></div>
+                <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_monthly_net">Monthly net (revenue − running cost)</span><strong class="xest-result-value" id="xestResMonthlyNet">PKR 0</strong></div>
+                <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_break_even">Break-even (months)</span><strong class="xest-result-value" id="xestResBreakEven">0</strong></div>
+                <div class="xest-result-row"><span class="xest-result-label" id="xestPartnerName0">Partner — capital share</span><strong class="xest-result-value" id="xestPartnerAmount0">PKR 0</strong></div>
+                <div class="xest-result-row"><span class="xest-result-label" id="xestPartnerName1">Partner — capital share</span><strong class="xest-result-value" id="xestPartnerAmount1">PKR 0</strong></div>
+                <p class="xest-note" id="xestCoveredNote" hidden></p>
+                <p class="xest-note" id="xestBreakEvenNote" hidden data-i18n="xest_break_even_never">Monthly income does not cover the running cost at these figures, so the investment does not break even — raise subscribers or fee, or lower the running cost.</p>
+              </div>
+            </div>
           </div>
         </section>
         <section class="collection-forecast-section" id="collectorCardSection" aria-labelledby="collectorCardHeading">
@@ -7434,15 +7469,6 @@
             <p id="rfdRefundLine" class="collection-forecast-collected"></p>
             <p id="rfdRefundEmpty" class="empty-state" hidden data-i18n="dash_refunds_empty">No refunds this month.</p>
           </div>
-        </section>
-        <section class="mohalla-dashboard-section" id="mohallaDashboardSection" aria-labelledby="mohallaDashboardHeading">
-          <div class="mohalla-dashboard-heading">
-            <p class="eyebrow" data-i18n="dash_mohalla_eyebrow">AREA / MOHALLA</p>
-            <h3 id="mohallaDashboardHeading" data-i18n="dash_mohalla_title">Mohalla Dashboard</h3>
-            <p class="chart-caption" data-i18n="dash_mohalla_sub">Live user count in every mohalla that has customers. Tap a card to open exactly those customers.</p>
-          </div>
-          <div id="mohallaDashboardCards" class="mohalla-cards-grid"></div>
-          <p id="mohallaDashboardEmpty" class="empty-state" hidden data-i18n="dash_mohalla_empty">No mohalla users yet — cards appear here as soon as a customer has a mohalla set.</p>
         </section>
         <article class="dashboard-chart-card chart-card-worklists" id="worklistsSummaryCard" style="margin-top: 14px;">
           <div class="worklists-card-header">
@@ -7662,38 +7688,6 @@
               <li><span data-i18n="dash_printsummary_overdue">Overdue total</span> <strong id="ppsOverdueTotal">PKR 0</strong></li>
               <li><span data-i18n="dash_printsummary_cash">Cash in hand</span> <strong id="ppsCashInHand">PKR 0</strong></li>
             </ul>
-          </div>
-        </section>
-        <section class="collection-forecast-section" id="collectionForecastSection" aria-labelledby="collectionForecastHeading">
-          <div class="collection-forecast-card">
-            <div class="collection-forecast-header">
-              <div>
-                <h3 id="collectionForecastHeading" class="collection-forecast-title" data-i18n="fcst_title">Monthly Collection Thermometer</h3>
-                <p class="chart-caption" data-i18n="fcst_sub">Collected so far vs this month’s bills + arrears carried in</p>
-              </div>
-              <strong id="collectionForecastPct" class="collection-forecast-pct">0%</strong>
-            </div>
-            <div class="fcst-thermo" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Collection progress" data-i18n-aria-label="fcst_bar_aria">
-              <div id="collectionForecastFill" class="fcst-thermo-fill" style="width: 0%"></div>
-            </div>
-            <p id="collectionForecastCollected" class="collection-forecast-collected">PKR 0 of PKR 0 collected</p>
-            <p id="collectionForecastSplit" class="collection-forecast-line"></p>
-            <p id="collectionForecastRunRate" class="collection-forecast-line"></p>
-            <p id="collectionForecastPace" class="collection-forecast-line"></p>
-            <p id="collectionForecastEmpty" class="empty-state" hidden data-i18n="fcst_no_target">No bills for this month yet — the thermometer fills as bills are generated.</p>
-            <h4 class="collection-forecast-areas-title" data-i18n="fcst_areas_title">Area-wise progress</h4>
-            <div id="collectionForecastAreas" class="collection-forecast-areas"></div>
-          </div>
-        </section>
-        <section class="expansion-estimator-section" id="expansionEstimatorSection" aria-labelledby="expansionEstimatorHeading">
-          <div class="expansion-estimator-card">
-            <div class="expansion-estimator-head">
-              <div>
-                <h3 id="expansionEstimatorHeading" class="expansion-estimator-title" data-i18n="xest_title">New Street Expansion Calculator</h3>
-                <p class="chart-caption" data-i18n="xest_sub">Plan a new gali / mohalla: plant cost, connection-fee offset, break-even months and each partner’s capital share — figures only, nothing is saved to the ledger</p>
-              </div>
-              <button id="expansionEstimatorOpenBtn" class="primary-button" type="button" aria-haspopup="dialog" aria-controls="expansionEstimatorModal" data-i18n="xest_open_btn">🧮 Plan Expansion</button>
-            </div>
           </div>
         </section>
         <section class="multi-month-matrix-section" id="multiMonthMatrixSection" aria-labelledby="multiMonthMatrixHeading">

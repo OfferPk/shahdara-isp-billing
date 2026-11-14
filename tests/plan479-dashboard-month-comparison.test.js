@@ -229,7 +229,7 @@ test('month comparison wiring: the line sits on the billing dashboard after the 
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="monthCompareSection"'), 'comparison section exists');
   assert.ok(page.indexOf('id="monthCompareSection"') > page.indexOf('id="noPaymentSection"'), 'line follows the quiet-customers view');
-  assert.ok(page.indexOf('id="monthCompareSection"') < page.indexOf('id="collectionForecastSection"'), 'line sits before the forecast section');
+  assert.ok(page.indexOf('id="monthCompareSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'line sits before the matrix section');
   assert.ok(page.includes('id="mvcMonthTotal"'), 'current total element exists');
   assert.ok(page.includes('id="mvcMonthLine"'), 'figures line element exists');
   assert.ok(page.includes('id="mvcMonthDiff"'), 'difference element exists');

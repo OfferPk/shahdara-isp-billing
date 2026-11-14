@@ -407,8 +407,14 @@ export function calculateDuesAgingBreakdown(state, referenceDate = new Date()) {
   const areas = Array.from(areaAggregationMap.values())
     .sort((a, b) => b.totalDue - a.totalDue || b.customerCount - a.customerCount);
 
+  // Sharafat 43: the as-of date is a PKT date, not a UTC one — formatDateYmd
+  // (Asia/Karachi) instead of toISOString().slice(0, 10), which lags a day
+  // behind in 00:00–04:59 PKT. The doc's "after ~05:00 PKT" window is
+  // backwards: at 05:00 PKT UTC catches up, and an evening export was
+  // always correct. The same swap is made at the CSV, briefing and
+  // filename sites below.
   return {
-    referenceDateStr: ref.toISOString().slice(0, 10),
+    referenceDateStr: formatDateYmd(ref),
     totalOutstanding,
     totalAccounts: customers.length,
     criticalOverduePkr,
@@ -531,7 +537,10 @@ function excludedBillsNote(agingData) {
  */
 export function generateDuesAgingCsv(agingData, referenceDate = new Date()) {
   const ref = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
-  const dateStr = ref.toISOString().slice(0, 10);
+  // Sharafat 43: PKT date (see the breakdown return above) — the header
+  // literally says "As of … PKT", so a UTC slice dated it yesterday
+  // in 00:00–04:59 PKT.
+  const dateStr = formatDateYmd(ref);
 
   function csvEscape(val) {
     if (val === null || val === undefined) return '""';
@@ -632,7 +641,9 @@ export function generateDuesAgingCsv(agingData, referenceDate = new Date()) {
  */
 export function generateDuesAgingBriefing(agingData, referenceDate = new Date()) {
   const ref = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
-  const dateStr = ref.toISOString().slice(0, 10);
+  // Sharafat 43: PKT date (see the breakdown return above) — the line
+  // literally says "As of: … PKT".
+  const dateStr = formatDateYmd(ref);
   // Sharafat 42: the exclusion line sits after the overview block, before the
   // buckets — the same count + PKR the CSV and the modal note carry.
   const excludedNote = excludedBillsNote(agingData);
@@ -978,7 +989,9 @@ export function setupDuesAgingModal(state, options = {}) {
     exportCsvBtn.addEventListener('click', () => {
       const data = getLatestData();
       const csv = generateDuesAgingCsv(data, options.referenceDate || new Date());
-      const dateStr = (options.referenceDate || new Date()).toISOString().slice(0, 10);
+      // Sharafat 43: PKT date (see the breakdown return above) — the
+      // filename must name the same day its CSV header prints.
+      const dateStr = formatDateYmd(options.referenceDate || new Date());
       const filename = `shahdara-dues-aging-${dateStr}.csv`;
 
       if (typeof window !== 'undefined' && typeof document.createElement === 'function') {

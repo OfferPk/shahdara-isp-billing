@@ -3,6 +3,7 @@ import { calculateDuesByArea, calculateAreaDetailedBreakdown, calculateAreaColle
 import { calculateDuesAgingBreakdown } from './dashboard-dues-aging.js';
 import { runKhataDoctor, repairKhataDoctor } from './qa-khata-doctor.js';
 import { forecastNextBillingMonth } from './billing-cycle.js';
+import { DEFAULT_BILL_DUE_DAY } from './billing-cycle-choice.js';
 
 function escapeXml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
@@ -3620,7 +3621,8 @@ export function calculateDelinquencyRecoveryPipeline(state, referenceDate = new 
         if (bill.dueDate) {
           billDueDate = new Date(bill.dueDate);
         } else if (bill.month) {
-          billDueDate = new Date(`${bill.month}-10`);
+          // Sharafat 37: house rule is the 5th (DEFAULT_BILL_DUE_DAY), not the 10th.
+          billDueDate = new Date(`${bill.month}-${String(DEFAULT_BILL_DUE_DAY).padStart(2, '0')}`);
         }
 
         let daysOverdue = 1;
@@ -4073,7 +4075,8 @@ export function calculateCpeAssetMetrics(state, options = {}) {
       const balanceDueCents = alloc?.balanceDueCents ?? Math.round(Number(bill.amount || 0) * 100);
       if (balanceDueCents > 0) {
         customerDueCents += balanceDueCents;
-        const bDate = bill.dueDate ? new Date(bill.dueDate) : (bill.month ? new Date(`${bill.month}-10`) : null);
+        // Sharafat 37: house rule is the 5th (DEFAULT_BILL_DUE_DAY), not the 10th.
+        const bDate = bill.dueDate ? new Date(bill.dueDate) : (bill.month ? new Date(`${bill.month}-${String(DEFAULT_BILL_DUE_DAY).padStart(2, '0')}`) : null);
         if (bDate && (!oldestBillDate || bDate < oldestBillDate)) {
           oldestBillDate = bDate;
         }

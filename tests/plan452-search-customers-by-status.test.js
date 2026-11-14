@@ -54,7 +54,7 @@ function customers() {
     // #108 due, not overdue: bill due today, 7 Nov.
     { id: 'seed-008', name: 'Nadia Eight', customerNumber: 108, phone: '03012345675', mohalla: 'Mohalla Bani', addedOn: '2026-08-30', bills: [bill('2026-11', 1200, '2026-11-07')] },
     // #109 overdue with no explicit due date: October bill falls back
-    // to the 10th of its month.
+    // to the 5th of its month (Sharafat 37: house rule, not the 10th).
     { id: 'seed-009', name: 'Zaid Nine', customerNumber: 109, phone: '03012345676', mohalla: 'Mohalla Dhok', addedOn: '2026-06-14', bills: [{ month: '2026-10', dueAmount: 1000, status: 'pending', payments: [] }] },
   ];
 }
@@ -118,7 +118,7 @@ test('overdue means a balance past its due date — today is due, not overdue', 
   assert.equal(customerHasOverdueBill(list[3], allocations, REF_DATE), true);
   // Due today: the day has not passed yet.
   assert.equal(customerHasOverdueBill(list[7], allocations, REF_DATE), false);
-  // No explicit due date: the 10th of the bill month.
+  // No explicit due date: the 5th of the bill month (Sharafat 37).
   assert.equal(customerHasOverdueBill(list[8], allocations, REF_DATE), true);
   // A fully paid October bill is never overdue.
   const paidOld = { id: 'seed-090', bills: [bill('2026-10', 1000, '2026-10-10', [payment('p9', 1000, '2026-10-09')])] };

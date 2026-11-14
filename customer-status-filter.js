@@ -24,7 +24,7 @@ import { parseBillDueDate, calculateDaysOverdue } from './dashboard-dues-aging.j
  * - due: owes money, but no bill is past its due date yet.
  * - overdue: at least one bill still owes money past its due date.
  *   The due date is the app's own rule (the dues-aging module):
- *   the bill's explicit dueDate, else the 10th of the bill month, and
+ *   the bill's explicit dueDate, else the 5th of the bill month, and
  *   a bill is overdue only once that calendar day has passed in
  *   Pakistan time. A bill due today is due, not overdue.
  * - suspended: the customer holds an OPEN suspension record (Plan 83)

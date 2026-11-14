@@ -53,7 +53,7 @@ function customers() {
     // #208 due, not overdue: bill due today, 7 Nov.
     { id: 'seed-463-08', name: 'Iqra Eight', customerNumber: 208, phone: '03012345675', mohalla: 'Mohalla Bani', addedOn: '2026-08-30', bills: [bill('2026-11', 1200, '2026-11-07')] },
     // #209 overdue with no explicit due date: October bill falls back
-    // to the 10th of its month.
+    // to the 5th of its month (Sharafat 37: house rule, not the 10th).
     { id: 'seed-463-09', name: 'Junaid Nine', customerNumber: 209, phone: '03012345676', mohalla: 'Mohalla Dhok', addedOn: '2026-06-14', bills: [{ month: '2026-10', dueAmount: 1000, status: 'pending', payments: [] }] },
     // #210 last-payment edges: the latest payment is voided, a zero
     // payment and an impossible date also sit on the bill — only the

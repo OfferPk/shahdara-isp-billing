@@ -18803,7 +18803,8 @@ test('Outstanding Dues Aging Report & Receivables Breakdown Suite', async () => 
   const billWithoutDate = { month: '2026-09' };
   const parsed2 = parseBillDueDate(billWithoutDate);
   assert.ok(parsed2 instanceof Date);
-  assert.equal(formatDateYmd(parsed2), '2026-09-10');
+  // Sharafat 37: the house rule is the 5th (DEFAULT_BILL_DUE_DAY), not the 10th.
+  assert.equal(formatDateYmd(parsed2), '2026-09-05');
 
   // 3. Days Overdue calculation
   const refDate = new Date('2026-10-17T12:00:00+05:00');
@@ -19048,6 +19049,61 @@ test('Outstanding Dues Aging Report & Receivables Breakdown Suite', async () => 
   assert.ok(css.includes('.aging-bucket-tabs'));
   assert.ok(css.includes('.aging-pill-critical'));
   assert.ok(css.includes('[data-theme="dark"] .dues-aging-modal'));
+});
+
+// Sharafat 37: the house rule is pay by the 5th (DEFAULT_BILL_DUE_DAY), not
+// the 10th. A month-only bill (no stored dueDate) defaults to M-05.
+test('Sharafat 37: month-only bill defaults to the 5th — 0 days overdue on M-05, 1 on M-06', async () => {
+  const { parseBillDueDate, calculateDaysOverdue, formatDateYmd } = await import('../dashboard-dues-aging.js');
+
+  const due = parseBillDueDate({ month: '2026-09' });
+  assert.ok(due instanceof Date);
+  assert.equal(formatDateYmd(due), '2026-09-05');
+  assert.equal(calculateDaysOverdue(due, new Date('2026-09-05T12:00:00+05:00')), 0);
+  assert.equal(calculateDaysOverdue(due, new Date('2026-09-06T12:00:00+05:00')), 1);
+
+  // Stored dueDate still wins — never "fix" a stored date to the 5th.
+  assert.equal(formatDateYmd(parseBillDueDate({ month: '2026-09', dueDate: '2026-09-10' })), '2026-09-10');
+  assert.equal(formatDateYmd(parseBillDueDate({ month: '2026-09', dueDate: '2026-09-15' })), '2026-09-15');
+});
+
+test('Sharafat 37: month-only bills land in buckets off the 5th, drill-down row shows M-05', async () => {
+  const { calculateDuesAgingBreakdown } = await import('../dashboard-dues-aging.js');
+  const { createInitialState, addCustomer } = await import('../core.js');
+
+  // Raw month-only bills: saveBillMonth stamps `${month}-05`, so a true
+  // month-only (legacy/imported) bill is pushed directly, like the
+  // plan452/plan463 seed fixtures.
+  let state = createInitialState([]);
+  state = addCustomer(state, 'Test Customer', new Date('2026-06-01T10:00:00+05:00'), {
+    monthlySellingAmount: 2500,
+    phone: '03012345678',
+    area: 'Saeed Park',
+    mohalla: 'Main Bazaar'
+  });
+  const c = state.customers[0];
+  c.bills.push({ month: '2026-09', amount: 2500, dueAmount: 2500, status: 'pending', payments: [] });
+
+  // Doc's example: 32 days past the 5th -> b31_60, not b0_30. Under the old
+  // 10th default this was 27 days -> b0_30.
+  const data32 = calculateDuesAgingBreakdown(state, new Date('2026-10-07T12:00:00+05:00'));
+  assert.equal(data32.customers.length, 1);
+  const row32 = data32.customers[0];
+  assert.equal(row32.oldestOverdueDays, 32);
+  assert.equal(row32.primaryBucket, 'b31_60');
+  assert.equal(row32.b31_60, 2500);
+  assert.equal(row32.oldestDueDate, '2026-09-05');
+  assert.equal(row32.unpaidBills[0].dueDate, '2026-09-05');
+  assert.equal(row32.unpaidBills[0].daysOverdue, 32);
+  assert.equal(row32.unpaidBills[0].bucketKey, 'b31_60');
+
+  // Bucket edges off the 5th: 30 days past -> b0_30, 31 days past -> b31_60.
+  const data30 = calculateDuesAgingBreakdown(state, new Date('2026-10-05T12:00:00+05:00'));
+  assert.equal(data30.customers[0].oldestOverdueDays, 30);
+  assert.equal(data30.customers[0].primaryBucket, 'b0_30');
+  const data31 = calculateDuesAgingBreakdown(state, new Date('2026-10-06T12:00:00+05:00'));
+  assert.equal(data31.customers[0].oldestOverdueDays, 31);
+  assert.equal(data31.customers[0].primaryBucket, 'b31_60');
 });
 
 

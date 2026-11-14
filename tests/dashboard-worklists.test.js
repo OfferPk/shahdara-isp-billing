@@ -117,8 +117,60 @@ test('dashboard-worklists: formatDateYmd and diffCalendarDays compute calendar d
 
 test('dashboard-worklists: parseBillDueDateString resolves explicit dueDate and month default', () => {
   assert.equal(parseBillDueDateString({ dueDate: '2026-04-15', month: '2026-04' }), '2026-04-15');
-  assert.equal(parseBillDueDateString({ month: '2026-04' }), '2026-04-10');
+  // Sharafat 37: the house rule is the 5th (DEFAULT_BILL_DUE_DAY), not the 10th.
+  assert.equal(parseBillDueDateString({ month: '2026-04' }), '2026-04-05');
   assert.equal(parseBillDueDateString(null), null);
+});
+
+// Sharafat 37: a month-only bill is disconnect-eligible 5 days earlier under
+// the 5th default. Ref 2026-04-16: due 2026-04-05 -> 11 days overdue > 10,
+// so the customer IS in To Disconnect. Under the old 10th default it was
+// 6 days overdue -> not disconnect.
+test('Sharafat 37: month-only bill disconnect boundary moves 5 days earlier', () => {
+  const refDate = new Date('2026-04-16T12:00:00Z');
+  let state = createInitialState([]);
+  state = addCustomer(state, 'Test Customer', refDate, {
+    phone: '03012345678',
+    mohalla: 'Main Bazaar',
+    serviceStatus: 'active'
+  });
+  const c = state.customers[state.customers.length - 1];
+  c.area = 'Shahdara Town';
+  c.packageSpeed = '15 Mbps';
+  // Raw month-only bill: saveBillMonth stamps `${month}-05`, so push directly.
+  c.bills.push({ month: '2026-04', amount: 2000, dueAmount: 2000, status: 'pending', payments: [] });
+  const worklists = calculateDisconnectReconnectWorklists(state, {
+    referenceDate: refDate,
+    rules: { disconnectOverdueDays: 10, disconnectMinBalance: 0, reconnectMaxBalance: 0 }
+  });
+  assert.equal(worklists.kpis.toDisconnectCount, 1);
+  assert.equal(worklists.toDisconnect[0].name, 'Test Customer');
+  assert.equal(worklists.toDisconnect[0].oldestDueDate, '2026-04-05');
+  assert.equal(worklists.toDisconnect[0].maxOverdueDays, 11);
+});
+
+// Sharafat 37: an invalid-month bill produces NO fabricated due date —
+// parseBillDueDateString returns null, and the worklist loop must not
+// throw, fabricate, or poison the overdue math (the old fallback built
+// 'undefined-10' for such bills).
+test('Sharafat 37: invalid-month bill yields null due date, no throw, no disconnect', () => {
+  assert.equal(parseBillDueDateString({ month: '2026-13' }), null);
+  assert.equal(parseBillDueDateString({ month: 'not-a-month' }), null);
+  const refDate = new Date('2026-04-16T12:00:00Z');
+  let state = createInitialState([]);
+  state = addCustomer(state, 'Test Customer', refDate, {
+    phone: '03012345678',
+    mohalla: 'Main Bazaar',
+    serviceStatus: 'active'
+  });
+  const c = state.customers[state.customers.length - 1];
+  c.area = 'Shahdara Town';
+  c.bills.push({ month: '2026-13', amount: 2000, dueAmount: 2000, status: 'pending', payments: [] });
+  const worklists = calculateDisconnectReconnectWorklists(state, {
+    referenceDate: refDate,
+    rules: { disconnectOverdueDays: 10, disconnectMinBalance: 0, reconnectMaxBalance: 0 }
+  });
+  assert.equal(worklists.kpis.toDisconnectCount, 0);
 });
 
 test('dashboard-worklists: getWorklistRules and saveWorklistRules manage default thresholds', () => {

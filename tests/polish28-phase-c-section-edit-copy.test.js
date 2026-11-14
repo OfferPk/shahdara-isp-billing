@@ -156,7 +156,11 @@ const EXPECTED_FORM_SECTIONS = {
     headingKey: 'prof_sec_customer',
     fields: [
       'profileNameInput', 'mohallaInput', 'zoneInput', 'nameUrduInput',
-      'phoneInput', 'cnicInput', 'fatherOrReferenceNameInput', 'searchAliasesInput',
+      // Profile Number Field at Top (item C) — the phone field MOVED out
+      // of the form to #profileTopPhoneRow, directly under the title row
+      // (D-C1/D-C2). It is deliberately NOT in this list any more; the
+      // top-row placement is pinned by tests/profile-number-field-top.test.js.
+      'cnicInput', 'fatherOrReferenceNameInput', 'searchAliasesInput',
       'whatsappPhoneInput', 'alternatePhoneInput', 'prefersSmsCheckbox',
       'preferredReceiptLangSelect', 'preferredReceiptChannelSelect',
       'addressInput', 'customerNotesInput',
@@ -220,11 +224,11 @@ test('phase C: the form is regrouped into the six view sections, in view order',
   }
 });
 
-test('phase C: every one of the 70 fields sits under a group heading — no ungrouped fields remain', () => {
+test('phase C: every one of the 69 fields sits under a group heading — no ungrouped fields remain', () => {
   const sections = parseFormSections(formHtml());
   const grouped = sections.flatMap((s) => s.fields);
-  assert.equal(grouped.length, 70, 'all 70 fields grouped (Phase D added otherInstallCost)');
-  assert.equal(new Set(grouped).size, 70, 'no field grouped twice');
+  assert.equal(grouped.length, 69, 'all 69 fields grouped (item C moved phone out of the form to the top row)');
+  assert.equal(new Set(grouped).size, 69, 'no field grouped twice');
   const all = [...formHtml().matchAll(/<label class="profile-field" for="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual([...all].sort(), [...grouped].sort(), 'no field sits outside a group');
 });
@@ -376,11 +380,11 @@ test('phase C: no copy button exists for any password anywhere in the profile vi
 // Pins — what Phase C must not change
 // ---------------------------------------------------------------------------
 
-test('phase C pin: the form still holds all 70 fields and the save path is unchanged', () => {
+test('phase C pin: the form still holds all 69 fields and the save path is unchanged', () => {
   const form = formHtml();
   const fields = [...form.matchAll(/<label class="profile-field" for="([^"]+)"/g)].map((m) => m[1]);
-  assert.equal(fields.length, 70, 'regrouping moves fields, it never adds or drops one — Phase D added otherInstallCost, the 70th');
-  assert.equal(new Set(fields).size, 70, 'no duplicate field ids');
+  assert.equal(fields.length, 69, 'regrouping moves fields, it never adds or drops one — item C moved phone out of the form to the top row (was 70, Phase D added otherInstallCost, the 70th)');
+  assert.equal(new Set(fields).size, 69, 'no duplicate field ids');
   const app = read('app.js');
   assert.ok(app.includes("$('#saveMohallaButton').addEventListener('click'"), 'the full-save click handler must stay');
   assert.ok(app.includes('updateCustomerProfile(state, selectedCustomerId, {'), 'the full save must still go through updateCustomerProfile');

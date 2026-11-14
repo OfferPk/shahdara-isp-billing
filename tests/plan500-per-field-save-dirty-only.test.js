@@ -112,7 +112,10 @@ test('Plan 500: buttons start hidden, so a freshly opened form shows none', () =
 
 test('Plan 500: the sync runs on open, on input, on change, and after the save feedback', () => {
   const app = read('app.js');
-  assert.equal(app.match(/syncProfileFieldSaveButtons\(\);/g).length, 4, 'the sync must run exactly four places: open, input, change, and the save-feedback timer');
+  // Profile Number Field at Top (item C) — six call sites now, not
+  // four: the top-row phone field mirrors the form's input and change
+  // listeners, and each of those re-syncs the per-field Save buttons too.
+  assert.equal(app.match(/syncProfileFieldSaveButtons\(\);/g).length, 6, 'the sync must run exactly six places: open, input, change, the save-feedback timer, and the top-row input and change');
   const visibility = app.slice(app.indexOf('function onProfileFormVisibilityChange()'), app.indexOf('function syncProfileStickySaveBar()'));
   assert.ok(visibility.includes('syncProfileFieldSaveButtons();'), 'opening the form must re-sync (after the open-time snapshot)');
   const input = app.slice(app.indexOf("profileFormEl?.addEventListener('input'"), app.indexOf("profileFormEl?.addEventListener('change'"));

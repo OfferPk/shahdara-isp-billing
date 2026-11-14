@@ -14,12 +14,20 @@ const read = (name) => readFileSync(join(here, '..', name), 'utf8');
 // labels in index.html must equal the map keys, no more and no less.
 // (The pro-rata toggles, contributor editor and incident/uptime forms
 // are not `.profile-field` labels, so they are correctly absent here.)
+// Profile Number Field at Top (item C) — the phone field MOVED out of
+// the form to #profileTopPhoneRow, directly under the title row, so the
+// labels are gathered from BOTH the form slice and the top row: the map
+// still holds all 70 keys, and the top-row field is still exactly one
+// control under exactly one .profile-field label.
 test('profile field save map covers every .profile-field control exactly once', () => {
   const html = read('index.html');
   const formStart = html.indexOf('id="customerProfileForm"');
   assert.notEqual(formStart, -1, 'profile form must exist');
   const formHtml = html.slice(formStart, formStart + 60000);
-  const labels = [...formHtml.matchAll(/<label class="profile-field"[^>]*>(.*?)<\/label>/gs)];
+  const rowStart = html.indexOf('id="profileTopPhoneRow"');
+  assert.notEqual(rowStart, -1, 'top phone row must exist');
+  const rowHtml = html.slice(rowStart, html.indexOf('id="customerCurrentBillSummary"', rowStart));
+  const labels = [...(formHtml + rowHtml).matchAll(/<label class="profile-field"[^>]*>(.*?)<\/label>/gs)];
   assert.ok(labels.length > 0, 'profile-field labels must exist');
   const controlIds = [];
   for (const [, body] of labels) {

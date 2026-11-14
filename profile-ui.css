@@ -203,6 +203,41 @@
   pointer-events: none;
 }
 
+/* Profile Number Field at Top (item C, D-C1/D-C2) — the phone field
+   moved out of the edit form into #profileTopPhoneRow, directly under
+   the title row. In this header context the long label text and the help
+   paragraph would make the row tall, so they are visually hidden here
+   only: the label text uses the sr-only treatment (it stays in the DOM
+   and stays the input's accessible name), the help is display:none, and
+   the validation hint collapses when empty (its 16px min-height would
+   otherwise add 20px to an idle row) but still shows its message when
+   validation speaks. The label is display:block — outside the form grid
+   it would otherwise be inline. The row itself stays 44px: input +
+   Save button, same as in the form. No colour here, so no new hex. */
+.profile-top-phone-row {
+  margin-top: var(--space-2);
+}
+.profile-top-phone-row .profile-field {
+  display: block;
+}
+.profile-top-phone-row .field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.profile-top-phone-row .profile-help {
+  display: none;
+}
+.profile-top-phone-row .phone-validation-hint:empty {
+  display: none;
+}
+
 /* Plan 495 — edit-form group sections: each group spans the full form
    grid width so its fields keep the two-column layout inside; the heading
    reuses the view's group treatment (.profile-info-group h4, styles.css),

@@ -167,6 +167,11 @@ test('queue filters by status and mohalla, including __unassigned__', () => {
   assert.equal(recoveryQueueFiltered(queue, { status: 'pending' }).length, 4);
   assert.deepEqual(recoveryQueueFiltered(queue, { mohalla: 'bani' }).map((entry) => entry.serial), ['ONU-001']);
   assert.deepEqual(recoveryQueueFiltered(queue, { mohalla: '__unassigned__' }).map((entry) => entry.serial), ['ONU-003']);
+  // More Tab Operational Registries polish (§1): the filter
+  // placeholder invites the word "Unassigned", so the folded word
+  // matches the same no-mohalla rows as the literal sentinel.
+  assert.deepEqual(recoveryQueueFiltered(queue, { mohalla: 'Unassigned' }).map((entry) => entry.serial), ['ONU-003']);
+  assert.deepEqual(recoveryQueueFiltered(queue, { mohalla: 'unassigned' }).map((entry) => entry.serial), ['ONU-003']);
   assert.equal(recoveryQueueFiltered(queue, { mohalla: 'nowhere' }).length, 0);
 });
 

@@ -193,7 +193,10 @@ test('HTML escaping, CSV quoting, and filename', () => {
   const csv = resumeCsv(queue);
   assert.ok(csv.includes('"Ba,nii ""x"""'));
   assert.equal(resumeFilename(), 'resume-queue.csv');
-  assert.ok(resumeHtml([]).includes('No resumes'));
+  // More Tab Operational Registries polish (§2 dedup): the summary
+  // line is now the single empty state, so the body renders nothing
+  // at 0 instead of repeating the same sentence a second time.
+  assert.equal(resumeHtml([]), '');
 });
 
 test('catalogues are fixed and labelled', () => {

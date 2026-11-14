@@ -342,7 +342,15 @@ export function suspensionsFiltered(list, filters = {}) {
   const status = text(filters.status);
   const reason = text(filters.reason);
   const mohalla = text(filters.mohalla);
-  const wantedKey = mohalla === '__unassigned__' ? '__unassigned__' : suspensionMohallaKey(mohalla);
+  // The mohalla filter placeholder invites the word "Unassigned":
+  // accept it (any case, underscores optional, a leading "Mohalla"
+  // stripped) as the sentinel for suspensions with no mohalla,
+  // keeping the literal '__unassigned__' working for back-compat.
+  // Without this, typing Unassigned would match nothing —
+  // suspensionMohallaKey folds it to 'UNASSIGNED', while unassigned
+  // suspensions carry mohallaKey null.
+  const stripped = text(mohalla).replace(/^mohalla\s+/i, '').trim();
+  const wantedKey = stripped.toLowerCase().replace(/[\s_]+/g, '') === 'unassigned' ? '__unassigned__' : suspensionMohallaKey(mohalla);
   return entries
     .filter((entry) => (status ? entry.status === status : true))
     .filter((entry) => (reason ? entry.reason === reason : true))
@@ -379,7 +387,12 @@ export function buildSuspensionSummary(list) {
 
 function formatSuspensionAmount(cents) {
   if (cents === null || cents === undefined) return '—';
-  return `Rs. ${(cents / 100).toFixed(2)}`;
+  // More Tab Operational Registries polish: the app-wide money
+  // shape is "PKR 0" for zero (min-0 decimals, thousands grouped),
+  // not "Rs. 0.00." — local mirror of formatPKR (this module stays
+  // import-free, so the shared formatter is not imported here).
+  // CSV output changes with it (Rs. -> PKR); disclosed in the PR.
+  return `PKR ${(cents / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 export function suspensionSummaryText(summary) {

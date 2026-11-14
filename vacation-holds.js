@@ -284,7 +284,8 @@ export function holdMonthTreatmentText(result) {
   if (!result) return 'No treatment: the hold or the month is not well-formed.';
   if (!result.fullyInside) return `${result.month}: ordinary billing — the month is not fully inside the hold.`;
   if (result.treatment === 'retention') {
-    return `${result.month}: retention charge only — Rs. ${(result.chargeCents / 100).toFixed(2)}, and nothing else.`;
+    // Same PKR min-0 shape as formatHoldAmount (see above).
+    return `${result.month}: retention charge only — PKR ${(result.chargeCents / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}, and nothing else.`;
   }
   return `${result.month}: no bill raised for this month.`;
 }
@@ -332,7 +333,14 @@ export function holdsFiltered(list, filters = {}) {
   const reason = text(filters.reason);
   const treatment = text(filters.treatment);
   const mohalla = text(filters.mohalla);
-  const wantedKey = mohalla === '__unassigned__' ? '__unassigned__' : holdMohallaKey(mohalla);
+  // The mohalla filter placeholder invites the word "Unassigned":
+  // accept it (any case, underscores optional, a leading "Mohalla"
+  // stripped) as the sentinel for holds with no mohalla, keeping the
+  // literal '__unassigned__' working for back-compat. Without this,
+  // typing Unassigned would match nothing — holdMohallaKey folds it
+  // to 'UNASSIGNED', while unassigned holds carry mohallaKey null.
+  const stripped = text(mohalla).replace(/^mohalla\s+/i, '').trim();
+  const wantedKey = stripped.toLowerCase().replace(/[\s_]+/g, '') === 'unassigned' ? '__unassigned__' : holdMohallaKey(mohalla);
   return entries
     .filter((entry) => (status ? entry.status === status : true))
     .filter((entry) => (reason ? entry.reason === reason : true))
@@ -370,9 +378,12 @@ export function buildHoldSummary(list) {
 
 function formatHoldAmount(cents) {
   if (cents === null || cents === undefined) return '—';
-  // Owner 5-part fix: whole rupees without decimals, with thousands
-  // grouping (Rs. 6,000, not Rs. 6000.00).
-  return `Rs. ${(cents / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  // More Tab Operational Registries polish: the app-wide money
+  // shape is "PKR 0" for zero (min-0 decimals, thousands grouped),
+  // not "Rs. 0." — local mirror of formatPKR (this module stays
+  // import-free, so the shared formatter is not imported here).
+  // CSV output changes with it (Rs. -> PKR); disclosed in the PR.
+  return `PKR ${(cents / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 export function holdSummaryText(summary) {

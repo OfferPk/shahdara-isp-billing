@@ -17518,3 +17518,51 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
   body[data-screen="customers"] main { padding-bottom: 0; }
   body[data-screen="customers"] .app-footer { border-top: 0; background: #f7faf8; }
 }
+
+/* More Tab Operational Registries polish: registry checkbox labels
+ * stack on phones because the global input rule (min-height 44px)
+ * makes each bare <label> a tall row. A flex row with an 18px box
+ * (the kist-form precedent) keeps label and box on one line. A
+ * distinct class (not the sibling item's) keeps the two parallel
+ * PRs from colliding on one selector. */
+.registry-check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.registry-check-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  flex-shrink: 0;
+}
+/* Registry creation forms collapse behind a <details> summary
+ * styled as a secondary button (the .defaulters-actions-details
+ * precedent): the summary text stays readable and the marker is
+ * hidden. */
+.registry-create-summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.registry-create-summary::-webkit-details-marker {
+  display: none;
+}
+/* Job-cost sheet buttons: five equal buttons in a 2-column grid
+ * (the .transaction-filter-actions <=620px precedent), so the
+ * sheet bar stays compact instead of a 5-button vertical stack. */
+.job-cost-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+.job-cost-actions .secondary-button {
+  min-height: 44px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

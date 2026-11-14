@@ -8,7 +8,8 @@ import {
   generateOwnerDailySummaryWhatsAppText,
   renderHomeTodaySummary
 } from '../home-today.js';
-import { createInitialState, addCustomer, saveBillMonth, addPayment } from '../core.js';
+import { createInitialState, addCustomer, saveBillMonth, addPayment, calculatePaymentAllocations, applyConcessionToBill, addManualBaqayaEntry } from '../core.js';
+import { totalOutstandingFigures } from '../manual-baqaya.js';
 
 test('normalizeWhatsAppNumber handles local and international Pakistani numbers', () => {
   assert.equal(normalizeWhatsAppNumber('03001234567'), '923001234567');
@@ -271,4 +272,152 @@ test('home dashboard polish (A4): a Top-3 row with a WhatsApp link does not over
   const info = css.slice(css.indexOf('.overdue-item-info {'), css.indexOf('.overdue-item-info {') + 200);
   assert.ok(info.includes('flex: 1'), 'left column takes the remaining width');
   assert.ok(info.includes('min-width: 0'), 'left column may shrink');
+});
+
+test('Sharafat 19: a bill fully covered by applied credit drops out of Top 3', () => {
+  // Raw due−paid would still rank this customer: Sep due 1000, paid
+  // 1000 in Sep, Oct due 1500, paid 0 in Oct. The engine sees the
+  // 1500 excess from September as advance credit that settles
+  // October in full — so the customer owes nothing and must not rank.
+  const refDate = new Date('2026-10-15T12:00:00Z');
+  let state = createInitialState([]);
+
+  state = addCustomer(state, 'Covered By Credit', refDate, {
+    phone: '03001112233',
+    monthlySellingAmount: 1500,
+    mohalla: 'Main Bazaar',
+    createdAt: '2026-09-01'
+  });
+  const coveredId = state.customers[state.customers.length - 1].id;
+  state.customers[state.customers.length - 1].connectionDate = '2026-09-01';
+  state = saveBillMonth(state, coveredId, { month: '2026-09', dueAmount: 1000, status: 'pending' }, refDate);
+  state = saveBillMonth(state, coveredId, { month: '2026-10', dueAmount: 1500, status: 'pending' }, refDate);
+  state = addPayment(state, coveredId, '2026-09', {
+    amount: 2500,
+    method: 'Cash',
+    date: '2026-09-20'
+  }, refDate);
+
+  // Still owing: Oct bill 500, unpaid.
+  state = addCustomer(state, 'Still Owing', refDate, {
+    phone: '03004445566',
+    monthlySellingAmount: 500,
+    mohalla: 'Kot Mohibbu',
+    createdAt: '2026-10-01'
+  });
+  const owingId = state.customers[state.customers.length - 1].id;
+  state.customers[state.customers.length - 1].connectionDate = '2026-10-01';
+  state = saveBillMonth(state, owingId, { month: '2026-10', dueAmount: 500, status: 'pending' }, refDate);
+
+  const summary = calculateHomeTodaySummary(state, refDate);
+  assert.equal(summary.topOverdue.length, 1, 'the credit-covered customer drops out');
+  assert.equal(summary.topOverdue[0].name, 'Still Owing');
+  assert.equal(summary.topOverdue[0].balanceDue, 500);
+  assert.equal(summary.customersWithDuesCount, 1);
+  assert.equal(summary.totalDue, 500, 'the dashboard total agrees with Top 3');
+  // The month figures stay raw (Sharafat 19 scope): Oct billed is
+  // 1500 + 500, and the September payment is not October collection.
+  assert.equal(summary.monthBilled, 2000);
+  assert.equal(summary.monthCollected, 0);
+  // The shown figure IS the profile's figure, not a re-derived one.
+  const allocations = calculatePaymentAllocations(state);
+  const owing = state.customers.find(c => c.id === owingId);
+  assert.equal(summary.topOverdue[0].balanceDue, totalOutstandingFigures(owing, allocations).total);
+});
+
+test('Sharafat 19: a baqaya-only customer appears in Top 3 with the baqaya figure', () => {
+  // No bills at all — only a manual baqaya entry. Raw due−paid
+  // could never rank this customer; the engine figure includes it.
+  const refDate = new Date('2026-10-15T12:00:00Z');
+  let state = createInitialState([]);
+
+  state = addCustomer(state, 'Baqaya Only', refDate, {
+    phone: '03001112233',
+    mohalla: 'Main Bazaar',
+    createdAt: '2026-09-01'
+  });
+  const baqayaId = state.customers[state.customers.length - 1].id;
+  state.customers[state.customers.length - 1].connectionDate = '2026-09-01';
+  state = addManualBaqayaEntry(state, baqayaId, { amount: 1500, date: '2026-09-10', note: 'Last month balance' }, refDate);
+
+  const summary = calculateHomeTodaySummary(state, refDate);
+  assert.equal(summary.topOverdue.length, 1);
+  assert.equal(summary.topOverdue[0].name, 'Baqaya Only');
+  assert.equal(summary.topOverdue[0].balanceDue, 1500);
+  assert.equal(summary.customersWithDuesCount, 1, 'the count now includes baqaya-only customers (see the PR body: the KPI defaulter count stays bills-only by design)');
+  const allocations = calculatePaymentAllocations(state);
+  const customer = state.customers.find(c => c.id === baqayaId);
+  assert.equal(summary.topOverdue[0].balanceDue, totalOutstandingFigures(customer, allocations).total);
+});
+
+test('Sharafat 19: a voided payment leaves the full bill due in Top 3; a fully-paid bill drops out', () => {
+  const refDate = new Date('2026-10-15T12:00:00Z');
+  let state = createInitialState([]);
+
+  // Voided: bill 1000, paid 1000 today, then voided — still owes 1000.
+  state = addCustomer(state, 'Voided Pay', refDate, {
+    phone: '03001112233',
+    monthlySellingAmount: 1000,
+    mohalla: 'Main Bazaar',
+    createdAt: '2026-10-01'
+  });
+  const voidedId = state.customers[state.customers.length - 1].id;
+  state.customers[state.customers.length - 1].connectionDate = '2026-10-01';
+  state = saveBillMonth(state, voidedId, { month: '2026-10', dueAmount: 1000, status: 'pending' }, refDate);
+  state = addPayment(state, voidedId, '2026-10', {
+    amount: 1000,
+    method: 'Cash',
+    date: '2026-10-15'
+  }, refDate);
+  state.customers[state.customers.length - 1].bills.find((b) => b.month === '2026-10').payments[0].voided = true;
+
+  // Paid: bill 800, paid 800 — owes nothing, absent from Top 3.
+  state = addCustomer(state, 'Fully Paid', refDate, {
+    phone: '03004445566',
+    monthlySellingAmount: 800,
+    mohalla: 'Kot Mohibbu',
+    createdAt: '2026-10-01'
+  });
+  const paidId = state.customers[state.customers.length - 1].id;
+  state.customers[state.customers.length - 1].connectionDate = '2026-10-01';
+  state = saveBillMonth(state, paidId, { month: '2026-10', dueAmount: 800, status: 'pending' }, refDate);
+  state = addPayment(state, paidId, '2026-10', {
+    amount: 800,
+    method: 'Cash',
+    date: '2026-10-15'
+  }, refDate);
+
+  const summary = calculateHomeTodaySummary(state, refDate);
+  assert.equal(summary.topOverdue.length, 1, 'only the voided-payment customer still owes');
+  assert.equal(summary.topOverdue[0].name, 'Voided Pay');
+  assert.equal(summary.topOverdue[0].balanceDue, 1000);
+  assert.equal(summary.customersWithDuesCount, 1);
+  assert.equal(summary.totalDue, 1000, 'the voided payment leaves the full bill due everywhere');
+});
+
+test('Sharafat 19: a concession-adjusted bill shows the reduced engine figure in Top 3', () => {
+  // SISP-30 outage concession of 500 on a 2000 bill: the gross due
+  // stays 2000 on the bill, but the engine — and the profile — read
+  // 1500. Top 3 must show 1500, not the gross 2000.
+  const refDate = new Date('2026-10-15T12:00:00Z');
+  let state = createInitialState([]);
+
+  state = addCustomer(state, 'Concession Case', refDate, {
+    phone: '03001112233',
+    monthlySellingAmount: 2000,
+    mohalla: 'Main Bazaar',
+    createdAt: '2026-10-01'
+  });
+  const custId = state.customers[state.customers.length - 1].id;
+  state.customers[state.customers.length - 1].connectionDate = '2026-10-01';
+  state = saveBillMonth(state, custId, { month: '2026-10', dueAmount: 2000, status: 'pending' }, refDate);
+  state = applyConcessionToBill(state, custId, '2026-10', { amount: 500, reason: 'Outage concession' }, refDate);
+
+  const summary = calculateHomeTodaySummary(state, refDate);
+  assert.equal(summary.topOverdue.length, 1);
+  assert.equal(summary.topOverdue[0].name, 'Concession Case');
+  assert.equal(summary.topOverdue[0].balanceDue, 1500);
+  const allocations = calculatePaymentAllocations(state);
+  const customer = state.customers.find(c => c.id === custId);
+  assert.equal(summary.topOverdue[0].balanceDue, totalOutstandingFigures(customer, allocations).total);
 });

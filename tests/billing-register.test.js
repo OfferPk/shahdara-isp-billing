@@ -434,3 +434,103 @@ test('register: SISP-171 referral-credit bill (Rs. 3,000 − Rs. 500 credit, Rs.
   const unpaidOnly = buildBillingRegister(state, { period: 'this', status: 'unpaid', currentMonth: CURRENT_MONTH });
   assert.equal(unpaidOnly.rows.length, 0);
 });
+
+// Sharafat 44: the screen totals line names the active status + period, and
+// the row month renders "October 2026", never the raw YYYY-MM.
+// app.js is a browser script (no node import), so the render itself is
+// pinned by source assertion below (the Sharafat 40/43 render-pin pattern);
+// the label values are pinned functionally here with the real t() + builder.
+// The composition below mirrors the render's expression exactly — if a key
+// were missing or the builder stopped normalizing period/status, the
+// composed label would carry the raw key instead of the translated word.
+const sharafat44AppSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+const sharafat44TotalsLabel = (register, lang) => `${t(`bill_reg_status_${register.status}`, lang)} bills · ${t(`bill_reg_period_${register.period}`, lang)}: `;
+const sharafat44ScreenTotalsLine = (register, lang) => sharafat44TotalsLabel(register, lang) + t('bill_reg_totals', lang, {
+  count: register.totals.count,
+  billed: `PKR ${register.totals.totalBilled.toLocaleString('en-PK')}`,
+  paid: `PKR ${register.totals.totalPaid.toLocaleString('en-PK')}`
+});
+
+test('register Sharafat 44: default view totals line names "Paid" + the period', () => {
+  const register = buildBillingRegister(registerState(), { period: 'this', status: 'paid', currentMonth: CURRENT_MONTH });
+  assert.equal(register.period, 'this');
+  assert.equal(register.status, 'paid');
+  assert.equal(register.totals.count, 1);
+  assert.equal(sharafat44TotalsLabel(register, 'en'), 'Paid bills · This Month: ');
+  assert.equal(sharafat44ScreenTotalsLine(register, 'en'), 'Paid bills · This Month: 1 invoices · Billed PKR 3,000 · Paid PKR 3,000');
+  // The render composes the same prefix at the totals site (screen-only).
+  assert.ok(sharafat44AppSource.includes("const totalsLabel = `${t(`bill_reg_status_${register.status}`)} bills · ${t(`bill_reg_period_${register.period}`)}: `;"),
+    'renderBillingRegister prefixes the totals with status + period');
+  assert.ok(sharafat44AppSource.includes("let totalsText = totalsLabel + t('bill_reg_totals'"),
+    'the labelled totals text is what reaches #billingRegisterTotals');
+});
+
+test('register Sharafat 44: switching the chip changes the label every time; "All" never reads "Paid"', () => {
+  const expected = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid', all: 'All' };
+  for (const status of BILLING_REGISTER_STATUSES) {
+    const register = buildBillingRegister(registerState(), { period: 'this', status, currentMonth: CURRENT_MONTH });
+    assert.equal(register.status, status, 'the builder normalizes the chip value back onto the register');
+    assert.equal(sharafat44TotalsLabel(register, 'en'), `${expected[status]} bills · This Month: `);
+  }
+  const all = buildBillingRegister(registerState(), { period: 'this', status: 'all', currentMonth: CURRENT_MONTH });
+  assert.ok(!sharafat44TotalsLabel(all, 'en').startsWith('Paid bills'), '"All bills", never "Paid bills" under status all');
+  const last3 = buildBillingRegister(registerState(), { period: 'last3', status: 'paid', currentMonth: CURRENT_MONTH });
+  assert.equal(sharafat44TotalsLabel(last3, 'en'), 'Paid bills · Last 3 Months: ');
+  // UR composition is English-shaped (accepted per the parent decision — the
+  // CSV note + print filter line already compose the same way today).
+  const paidUr = buildBillingRegister(registerState(), { period: 'this', status: 'paid', currentMonth: CURRENT_MONTH });
+  assert.equal(sharafat44TotalsLabel(paidUr, 'ur'), 'ادا شدہ bills · اس مہینہ: ');
+  const allUr = buildBillingRegister(registerState(), { period: 'this', status: 'all', currentMonth: CURRENT_MONTH });
+  assert.equal(sharafat44TotalsLabel(allUr, 'ur'), 'تمام bills · اس مہینہ: ');
+});
+
+test('register Sharafat 44: row month renders "October 2026", never the raw YYYY-MM', () => {
+  // The builder row model keeps the raw month (pinned at :77/:84/:92–93) —
+  // the formatting happens at the render site only.
+  const register = buildBillingRegister(registerState(), { period: 'this', status: 'paid', currentMonth: CURRENT_MONTH });
+  assert.equal(register.rows[0].month, '2026-10', 'row model stays raw YYYY-MM');
+  assert.equal(register.rows[0].reference, '#12 · 2026-10', 'the reference identifier stays raw too');
+  // The render swaps the Month cell to displayMonthName (same helper the
+  // month selects use since Plan 545); the raw escapeHtml(row.month) is gone
+  // from the register row template.
+  const monthCell = sharafat44AppSource.split('\n').find((line) => line.includes("bill_reg_col_month"));
+  assert.ok(monthCell.includes('displayMonthName(row.month)'), 'register row month uses displayMonthName');
+  assert.ok(!monthCell.includes('${escapeHtml(row.month)}'), 'no raw YYYY-MM left in the register row month cell');
+  // The month names displayMonthName resolves to: UR keys + the EN Intl
+  // long-month fallback (app.js:3962 + :1448 — the helper itself lives in
+  // app.js, so its outputs are pinned here, not imported).
+  assert.equal(t('cust_month_oct', 'ur'), 'اکتوبر');
+  assert.equal(t('cust_month_nov', 'ur'), 'نومبر');
+  const enMonth = (month) => new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${month}-01T00:00:00Z`));
+  assert.equal(enMonth('2026-10'), 'October 2026');
+  assert.equal(enMonth('2026-11'), 'November 2026');
+});
+
+test('register Sharafat 44: ticket suffix still appends AFTER the labelled totals (SISP-176 shape)', () => {
+  const state = { customers: [{
+    id: 'c-t1', customerNumber: 21, name: 'Ticket Pin', phone: '', packageSpeed: '15 Mbps',
+    bills: [ticketBill('b-t1', '2026-10', 3000, [ticketPay('p-t1', 3500, 500)])]
+  }] };
+  const register = buildBillingRegister(state, { period: 'this', status: 'all', currentMonth: CURRENT_MONTH });
+  assert.deepEqual(register.ticketTotals, { totalTicketChargesPaid: 500, totalCollected: 3500 });
+  const ticketText = t('bill_reg_totals_ticket', 'en', { ticket: 'PKR 500', collected: 'PKR 3,500' });
+  const line = `${sharafat44ScreenTotalsLine(register, 'en')} · ${ticketText}`;
+  assert.ok(line.startsWith('All bills · This Month: '), 'label prefix first');
+  assert.ok(line.indexOf('1 invoices') > 0 && line.indexOf(ticketText) > line.indexOf('1 invoices'), 'ticket split after the totals, never before the label');
+  // Source order: the label is built before the ticket append in app.js
+  // (guard the -1: on a tree without the label, indexOf would be -1 and
+  // the < comparison below would pass vacuously).
+  const labelIdx = sharafat44AppSource.indexOf('const totalsLabel = ');
+  const ticketIdx = sharafat44AppSource.indexOf("totalsText += ` · ${t('bill_reg_totals_ticket'");
+  assert.ok(labelIdx > -1, 'the totals label exists in renderBillingRegister');
+  assert.ok(ticketIdx > -1, 'the ticket append exists in renderBillingRegister');
+  assert.ok(labelIdx < ticketIdx, 'label precedes the ticket append in renderBillingRegister');
+});
+
+test('register Sharafat 44: print sheet keeps the BARE totals line (screen-only label)', () => {
+  const register = buildBillingRegister(registerState(), { period: 'last3', status: 'paid', currentMonth: CURRENT_MONTH });
+  const html = buildBillingRegisterPrintHtml(register, { businessName: 'Test Fiber', generatedDate: '2026-10-31', lang: 'en' });
+  assert.ok(html.includes(printTotalsLine(register)), 'print totals line is the bare bill_reg_totals text');
+  assert.ok(!html.includes('Paid bills ·'), 'the screen-only prefix never reaches the print sheet');
+  assert.ok(html.includes('Period: Last 3 Months (2026-08 – 2026-10) · Bill status: Paid'), 'the print header already names the filter, so the bare line is not misleading there');
+});

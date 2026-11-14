@@ -151,5 +151,9 @@ test('app wires the banner, the sticky save and the live counter', () => {
   // i18n title (filled/total params), not escapeHtml(completion.text).
   assert.match(app, /const completion = countProfileCompletion\(customer\);/);
   assert.match(app, /t\('prof_completion_details_title', null, \{ filled: completion\.filled, total: completion\.total \}\)/);
-  assert.match(app, /countProfileCompletionFromControls\(\[/);
+  // Profile Number Field at Top (item C) — the live counter reads its
+  // controls through the shared profileFieldControls() helper now (form
+  // + top row), not through an inline form-only array, so the moved
+  // phone field still counts.
+  assert.match(app, /countProfileCompletionFromControls\(profileFieldControls\(\)\)/);
 });

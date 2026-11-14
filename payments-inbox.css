@@ -54,10 +54,14 @@ body.sr-screen-mode[data-screen="easypaisa"] .app-footer { display: none; }
   flex-wrap: wrap;
 }
 
+/* More Tab & Wallet Inbox Polish (Nov 2026): the toolbar stays on ONE
+   row at every width — the Settings button is icon-only, so the three
+   actions fit 360px; below 480px the buttons squeeze (smaller gap /
+   padding / font) instead of wrapping. */
 .easypaisa-top-actions {
   display: flex;
   gap: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .easypaisa-top-actions button {
@@ -67,6 +71,26 @@ body.sr-screen-mode[data-screen="easypaisa"] .app-footer { display: none; }
   font-weight: 700;
   border-radius: 12px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+#easypaisaSettingsBtn {
+  padding: 0 10px;
+}
+
+@media (max-width: 480px) {
+  .easypaisa-top-actions {
+    gap: 6px;
+  }
+
+  .easypaisa-top-actions button {
+    padding: 0 10px;
+    font-size: var(--text-xs);
+  }
 }
 
 /* KPI Summary Cards */
@@ -92,9 +116,12 @@ body.sr-screen-mode[data-screen="easypaisa"] .app-footer { display: none; }
   background: linear-gradient(135deg, rgba(14, 91, 77, 0.04) 0%, var(--surface, #ffffff) 100%);
 }
 
+/* More Tab polish (Nov 2026): the blue "info" accent becomes DS-0
+   Slate — the KPI cards are informational, not actions. The gradient
+   tint is the same slate (rgba 100,116,139 = --color-slate-500). */
 .easypaisa-kpi-card.highlight-blue {
-  border-left: 5px solid var(--color-info-strong);
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.04) 0%, var(--surface, #ffffff) 100%);
+  border-left: 5px solid var(--color-slate-500);
+  background: linear-gradient(135deg, rgba(100, 116, 139, 0.04) 0%, var(--surface, #ffffff) 100%);
 }
 
 .easypaisa-kpi-card .kpi-label {
@@ -354,9 +381,24 @@ body.sr-screen-mode[data-screen="easypaisa"] .app-footer { display: none; }
   border-radius: 16px;
 }
 
+/* More Tab polish (Nov 2026): the 📥 emoji becomes a 40px DS-0 Inbox
+   SVG in a soft emerald circle (--color-success-bg /
+   --color-emerald-dark; both have no dark override — the light-mint
+   circle reads fine in dark mode as a light chip). */
 .easypaisa-empty-state .empty-icon {
-  font-size: 42px;
-  margin-bottom: var(--space-3);
+  width: 72px;
+  height: 72px;
+  margin: 0 auto var(--space-3);
+  border-radius: 50%;
+  background: var(--color-success-bg);
+  color: var(--color-emerald-dark);
+  display: grid;
+  place-items: center;
+}
+
+.easypaisa-empty-state .empty-icon svg {
+  width: 40px;
+  height: 40px;
 }
 
 .easypaisa-empty-state h3 {
@@ -533,7 +575,9 @@ body.sr-screen-mode[data-screen="easypaisa"] .app-footer { display: none; }
 .easypaisa-wallet-review {
   background: var(--surface, #ffffff);
   border: 1px solid var(--line, #dfe8e3);
-  border-left: 5px solid var(--color-info-strong);
+  /* More Tab polish (Nov 2026): the blue left border becomes DS-0
+     Emerald — the review card is the action surface. */
+  border-left: 5px solid var(--ds-brand);
   border-radius: 16px;
   padding: var(--space-4);
   display: flex;
@@ -611,6 +655,22 @@ body.sr-screen-mode[data-screen="easypaisa"] .app-footer { display: none; }
   font-size: 15px;
   font-weight: 800;
   color: var(--ink, #16342b);
+  white-space: nowrap;
+}
+
+/* More Tab polish (Nov 2026): the row's right column — the amount
+   sits above [Mark verified] / [Review & claim], right-aligned, so
+   the unverified rows read as one compact unit. */
+.wallet-review-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.wallet-review-side .secondary-button {
   white-space: nowrap;
 }
 

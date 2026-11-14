@@ -232,7 +232,12 @@ export function loansFiltered(list, filters = {}) {
   const status = text(filters.status);
   const deviceType = text(filters.deviceType);
   const mohalla = text(filters.mohalla);
-  const wantedKey = mohalla === '__unassigned__' ? '__unassigned__' : loanMohallaKey(mohalla);
+  // Annual Owner Summary cleanup (2026-11-13): the filter
+  // placeholder now reads "Filter by mohalla (or Unassigned)", so
+  // the folded word must match the same no-mohalla rows as the
+  // literal '__unassigned__' sentinel (kept for back-compat).
+  const isUnassigned = mohalla === '__unassigned__' || loanMohallaKey(mohalla) === 'UNASSIGNED';
+  const wantedKey = isUnassigned ? '__unassigned__' : loanMohallaKey(mohalla);
   return entries
     .filter((entry) => (status ? entry.status === status : true))
     .filter((entry) => (deviceType ? entry.deviceType === deviceType : true))

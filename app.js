@@ -2305,6 +2305,24 @@ function renderDashboard() {
         renderDashboard();
       }));
     }
+    // Sharafat 21 (option c): the pills count the 25-row pool while the card
+    // shows only 3 rows — state the visible count against the ACTIVE filter's
+    // matches (All → pool size; Cash (9) → 9), only when the total exceeds
+    // what is shown (the receipt_finder_more precedent). The note is a
+    // separate element under the pills — the pills row itself never wraps
+    // (#1396 pins flex-wrap: nowrap + overflow-x: auto), so nothing is
+    // squeezed into it, and the note never lives inside the row template.
+    const recentShowingEl = $('#recentPaymentsShowing');
+    if (recentShowingEl) {
+      const recentFilteredTotal = filterRecentPayments(recentPool, recentPaymentsFilter, RECENT_PAYMENTS_FILTER_POOL).length;
+      if (recentFilteredTotal > recentRows.length) {
+        recentShowingEl.textContent = t('dash_recent_showing', null, { shown: recentRows.length, total: recentFilteredTotal });
+        recentShowingEl.hidden = false;
+      } else {
+        recentShowingEl.textContent = '';
+        recentShowingEl.hidden = true;
+      }
+    }
     recentPaymentsListEl.innerHTML = recentRows.length === 0
       ? `<li class="recent-payments-empty">${escapeHtml(t('dash_recent_empty'))}</li>`
       : recentRows.map((row) => `<li class="recent-payment-item"><div class="recent-payment-row"><button type="button" class="recent-payment-open" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-name" dir="auto">${escapeHtml(row.customerName)}</strong><span class="recent-payment-sub" dir="auto">${row.method ? `${escapeHtml(row.method)} · ` : ''}${humanDate(row.date)}</span></span></button><div class="recent-payment-right"><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong><details class="recent-payment-actions-menu"><summary class="recent-payment-actions-toggle">${escapeHtml(t('dash_recent_actions'))} ▾</summary>${recentPaymentActionsMarkup(row)}</details></div></div></li>`).join('');

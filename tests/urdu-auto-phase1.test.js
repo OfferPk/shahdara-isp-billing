@@ -155,8 +155,12 @@ test('phase 1 render: table row in English mode is byte-identical to the old str
   setAppLanguage('en');
   const html = renderCustomerTableRowMarkup(customer, { selectedBillingMonth: '2026-10' });
   for (const english of ['>Paid<', '>Active<', 'Open →']) assert.ok(html.includes(english), `row must contain ${english}`);
-  // Params must actually interpolate (this caught t(key, {params}) being read as lang).
-  assert.ok(html.includes('Open profile for #34 Test Customer 35'), 'row title params must interpolate');
+  // Sharafat 36, shape (b): the name is plain text now and the dead
+  // cust_table_open_profile_title key is removed from both dicts — the row
+  // no longer carries the interpolated profile-open title. (The params
+  // themselves still interpolate wherever a key uses them; the title is
+  // gone by design, not by a broken t().)
+  assert.ok(!html.includes('Open profile for #34 Test Customer 35'), 'row must not carry the removed profile-open title');
   assert.ok(!html.includes('{number}') && !html.includes('{name}'), 'row title must not leak raw placeholders');
   const empty = renderCustomerTableEmptyMarkup('Ali', 'Barrian');
   // Quotes are HTML-escaped by the renderer (same as before the change).

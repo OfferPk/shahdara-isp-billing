@@ -572,10 +572,10 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
   return `<tr class="customer-table-row ${isSelected ? 'is-selected' : ''} ${archived ? 'is-archived' : ''}" data-customer-row="${escapeHtml(customer.id)}">
     <td class="col-num">#${custNum}${archived ? ` ${t('cust_table_archived')}` : ''}</td>
     <td class="col-name">
-      <button class="customer-row-btn" type="button" data-customer-id="${escapeHtml(customer.id)}" title="${escapeHtml(t('cust_table_open_profile_title', null, { number: custNum, name: customer.name }))}">
+      <span class="customer-name-text">
         <strong>${escapeHtml(customer.name)}</strong>
         ${customer.phone ? `<small class="cust-phone">${escapeHtml(customer.phone)}</small>` : ''}
-      </button>
+      </span>
     </td>
     <td class="col-area">${escapeHtml(area)}</td>
     <td class="col-plan"><span class="table-plan-badge">${escapeHtml(plan)}</span></td>

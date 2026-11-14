@@ -14263,28 +14263,23 @@ dialog.help-guide-modal::backdrop {
   border-left: 4px solid var(--primary, #0284c7);
 }
 
-.customer-row-btn {
+/* Sharafat 36, shape (b): the name cell is plain text now, not a button —
+   the button reset (border/background/cursor), the blue link-strong and the
+   hover underline are gone so the text never looks clickable. The layout
+   (name over phone) and sizes are unchanged. */
+.customer-name-text {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  border: none;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
   text-align: left;
   color: var(--text-main, #0f172a);
 }
 
-.customer-row-btn strong {
+.customer-name-text strong {
   font-size: 0.9rem;
-  color: var(--primary, #0284c7);
 }
 
-.customer-row-btn:hover strong {
-  text-decoration: underline;
-}
-
-.customer-row-btn .cust-phone {
+.customer-name-text .cust-phone {
   font-size: 0.775rem;
   color: var(--text-muted, #64748b);
 }
@@ -14424,12 +14419,8 @@ dialog.help-guide-modal::backdrop {
   background: rgba(2, 132, 199, 0.25);
 }
 
-[data-theme="dark"] .customer-row-btn {
+[data-theme="dark"] .customer-name-text {
   color: #f8fafc;
-}
-
-[data-theme="dark"] .customer-row-btn strong {
-  color: #38bdf8;
 }
 
 [data-theme="dark"] .table-plan-badge {

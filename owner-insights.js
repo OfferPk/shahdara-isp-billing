@@ -1045,7 +1045,14 @@ export function buildMohallaAnalytics(state, month, referenceDate = new Date(), 
     else if (status === 'offline') group.offline++;
     const dueCents = cents(bill.dueAmount);
     const balanceCents = Math.max(0, allocations.forMonth(customer.id, month)?.balanceDueCents ?? dueCents);
-    const collectedCents = (bill.payments ?? []).filter(payment => payment?.voided !== true && Number.isFinite(Number(payment.amount)) && Number(payment.amount) > 0).reduce((sum, payment) => sum + cents(payment.amount), 0);
+    // Sharafat 40: the card's collected must equal the method chips and the
+    // summary-bar Collected on the same month — all three are bill-based sums
+    // of the bill's non-voided payments (recordedAmount / totalsFromPayments
+    // shape). The old `finite && > 0` filter EXCLUDED negative payments here
+    // while the chips SUBTRACTED them, so one negative payment split the
+    // figures apart. `Number(amount) || 0` keeps garbage amounts at 0 (the
+    // same edge the chips have — amounts are validated at record time).
+    const collectedCents = (bill.payments ?? []).filter(payment => payment?.voided !== true).reduce((sum, payment) => sum + cents(Number(payment.amount) || 0), 0);
     group.billedCents += dueCents;
     group.collectedCents += collectedCents;
     group.outstandingCents += balanceCents;

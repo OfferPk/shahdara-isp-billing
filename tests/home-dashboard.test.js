@@ -104,11 +104,15 @@ test('home share menu unifies the three share buttons at the top of Home', () =>
 });
 
 test('collect tab holds the recovery, dues and ledger sections', () => {
+  // Area & Mohalla Analytics compact module (Nov 2026): the bars
+  // section and the mohalla dashboard section are gone — both live
+  // in the one module (Tab 1 bars, Tab 2 cards) at the old bars
+  // position in the Collect tab.
   for (const id of [
     'upcomingDuesSection', 'overdueListSection', 'methodStripSection',
-    'mohallaBarsSection', 'collectorCardSection', 'noPaymentSection',
+    'areaAnalyticsModule', 'collectorCardSection', 'noPaymentSection',
     'pendingClearanceSection', 'creditBalancesSection', 'refundsSection',
-    'mohallaDashboardSection', 'worklistsSummaryCard', 'kpiCardAdvance'
+    'worklistsSummaryCard', 'kpiCardAdvance'
   ]) {
     inside(`id="${id}"`, collectStart, collectEnd, id);
   }
@@ -119,10 +123,13 @@ test('collect tab holds the recovery, dues and ledger sections', () => {
   assert.ok(!page.includes('href="#/recovery"'), 'old recovery link is gone');
 });
 
-test('reports tab holds the thermometer, comparison, matrix and audits', () => {
+test('reports tab holds the comparison, matrix and audits', () => {
+  // Area & Mohalla Analytics compact module (Nov 2026): the
+  // thermometer and the expansion calculator left Reports — both
+  // live in the Collect module now (thermometer header, planner
+  // tab), so they are no longer pinned here.
   for (const id of [
     'newCustomersSection', 'monthCompareSection', 'printSummarySection',
-    'collectionForecastSection', 'expansionEstimatorSection',
     'multiMonthMatrixSection', 'ownerKhataSummary', 'dashboardTargetChart',
     'auditsClearPill'
   ]) {
@@ -176,7 +183,7 @@ test('home is slim: no duplicate grid, no gauge, no full lists', () => {
   assert.ok(!page.includes('id="dashboardExcludedAmounts"'), 'raw unstyled exclusions paragraph is gone');
   // Full lists are not on Home any more.
   const home = page.slice(homeStart, homeEnd);
-  for (const id of ['overdueListSection', 'methodStripSection', 'mohallaBarsSection', 'collectorCardSection']) {
+  for (const id of ['overdueListSection', 'methodStripSection', 'areaAnalyticsModule', 'collectorCardSection']) {
     assert.ok(!home.includes(`id="${id}"`), `${id} is not on Home`);
   }
   // The Supabase banner is untouched — the app is offline-first by
@@ -185,7 +192,10 @@ test('home is slim: no duplicate grid, no gauge, no full lists', () => {
 });
 
 test('moved ids appear exactly once; the two new ids are disclosed', () => {
-  for (const id of ['dashboardActiveCustomers', 'cihCashTotal', 'kpiAdvanceHeld', 'upcomingDuesSection', 'mohallaDashboardSection', 'collectionForecastSection', 'ownerKhataSummary']) {
+  // Area & Mohalla Analytics compact module (Nov 2026): the
+  // mohalla dashboard section and the forecast section are gone —
+  // the module id takes their place in this list.
+  for (const id of ['dashboardActiveCustomers', 'cihCashTotal', 'kpiAdvanceHeld', 'upcomingDuesSection', 'areaAnalyticsModule', 'ownerKhataSummary']) {
     assert.equal(page.split(`id="${id}"`).length - 1, 1, `${id} appears exactly once`);
   }
   // New element ids in this PR (fence disclosure): the share menu

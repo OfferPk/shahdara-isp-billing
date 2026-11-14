@@ -4093,12 +4093,13 @@ function renderCustomers() {
   const areaSelect = $('#customerFilterArea');
   if (areaSelect) {
     const activeCustomers = state.customers.filter(c => !c.archived);
-    const areaOptions = groupAreasWithCounts(activeCustomers, c => (c.mohalla || c.area || '').trim(), raw => canonicalMohalla(raw)?.key ?? raw.toLowerCase(), raw => canonicalMohalla(raw)?.label ?? raw);
+    const areaOptions = groupAreasWithCounts(state.customers, c => (c.mohalla || c.area || '').trim(), raw => canonicalMohalla(raw)?.key ?? raw.toLowerCase(), raw => canonicalMohalla(raw)?.label ?? raw);
     // Plan L: a counted "No area set" option, built only when at least
     // one ACTIVE customer has no mohalla/area — so it always lists
     // exactly those customers and is never a dead end. The count is
-    // the active count, matching the named-area counts above (which
-    // are also built from active customers only).
+    // the active count. The named-area counts above are the FULL roster
+    // (Sharafat 34: active + archived), so an area that exists only
+    // among archived customers still appears and stays selectable.
     const noAreaCount = activeCustomers.filter(c => !(c.mohalla || c.area || '').trim()).length;
     const noAreaOption = noAreaCount > 0 ? [{ value: NO_AREA_FILTER_VALUE, label: `${t('cust_area_filter_no_area')} (${noAreaCount})` }] : [];
     const allAreaOptions = [...areaOptions, ...noAreaOption];

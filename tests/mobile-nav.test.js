@@ -150,6 +150,10 @@ test('nav.css includes desktop rail collapse styles and scroll-to-top button sty
   assert.match(navCss, /\.bottom-nav-badge/);
   assert.match(navCss, /\.scroll-top-button/);
   assert.match(navCss, /\.scroll-top-button\.is-visible/);
+  // Transactions & Recent Receipts Polish §5: the visible button is
+  // semi-transparent (0.85) so it never fully covers amounts and
+  // pills underneath it.
+  assert.match(navCss, /\.scroll-top-button\.is-visible\s*\{[^}]*opacity:\s*0\.85/);
 });
 
 test('updateNavigationBadges updates badge text and visibility correctly', async () => {

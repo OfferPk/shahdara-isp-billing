@@ -2621,36 +2621,33 @@ export function findDuplicatePaymentReference(state, transactionId, excludePayme
   return null;
 }
 
-export function calculateMethodCollectionTotals(state, month = null) {
-  if (!state || !Array.isArray(state.customers)) return { total: 0, cashTotal: 0, digitalTotal: 0, byMethod: {} };
+// Sharafat 38: the shared method bucketer. Both method-total helpers feed it
+// the payments they own — payment-date-filtered for the month helper,
+// bill-based for the rows helper — so the exact-key bucket map exists in
+// exactly one place and can never drift apart again.
+// SISP-34: voided payments are not receipts anymore — they never count
+// toward method/cash/digital collection totals.
+function totalsFromPayments(payments) {
   let total = 0;
   let cashTotal = 0;
   let digitalTotal = 0;
   const byMethod = {};
 
-  for (const customer of state.customers) {
-    for (const bill of (customer.bills ?? [])) {
-      if (month && bill.month !== month) continue;
-      for (const payment of (bill.payments ?? [])) {
-        // SISP-34: voided payments are not receipts anymore — they never
-        // count toward method/cash/digital collection totals.
-        if (payment?.voided === true) continue;
-        if (month && typeof payment.date === 'string' && payment.date.slice(0, 7) !== month) continue;
-        const amt = Number(payment.amount) || 0;
-        const method = String(payment.method || 'Cash').trim();
-        total += amt;
-        if (isDigitalPaymentMethod(method)) {
-          digitalTotal += amt;
-        } else {
-          cashTotal += amt;
-        }
-        if (!byMethod[method]) {
-          byMethod[method] = { amount: 0, count: 0, isDigital: isDigitalPaymentMethod(method) };
-        }
-        byMethod[method].amount += amt;
-        byMethod[method].count += 1;
-      }
+  for (const payment of (payments ?? [])) {
+    if (payment?.voided === true) continue;
+    const amt = Number(payment.amount) || 0;
+    const method = String(payment.method || 'Cash').trim();
+    total += amt;
+    if (isDigitalPaymentMethod(method)) {
+      digitalTotal += amt;
+    } else {
+      cashTotal += amt;
     }
+    if (!byMethod[method]) {
+      byMethod[method] = { amount: 0, count: 0, isDigital: isDigitalPaymentMethod(method) };
+    }
+    byMethod[method].amount += amt;
+    byMethod[method].count += 1;
   }
 
   return {
@@ -2667,6 +2664,39 @@ export function calculateMethodCollectionTotals(state, month = null) {
       .reduce((s, [, v]) => s + v.amount, 0),
     byMethod
   };
+}
+
+export function calculateMethodCollectionTotals(state, month = null) {
+  if (!state || !Array.isArray(state.customers)) return { total: 0, cashTotal: 0, digitalTotal: 0, byMethod: {} };
+  const payments = [];
+  for (const customer of state.customers) {
+    for (const bill of (customer.bills ?? [])) {
+      if (month && bill.month !== month) continue;
+      for (const payment of (bill.payments ?? [])) {
+        if (month && typeof payment.date === 'string' && payment.date.slice(0, 7) !== month) continue;
+        payments.push(payment);
+      }
+    }
+  }
+  return totalsFromPayments(payments);
+}
+
+// Sharafat 38: method totals for the monthly report's FILTERED rows. Each
+// row's bill payments are summed by method, bill-based like recordedAmount
+// (the summary bar's Collected figure) — so the chips sum to Collected on
+// any filter, including cross-month and dateless payments, which the
+// payment-date-based month helper would miss. A row with no bill for its
+// month sums 0, exactly like recordedAmount(undefined) — never a crash.
+// creditApplied is not cash: only raw payments are bucketed.
+export function calculateMethodTotalsForRows(rows, state) {
+  if (!Array.isArray(rows) || rows.length === 0) return totalsFromPayments([]);
+  const byId = new Map((state?.customers ?? []).map((customer) => [customer.id, customer]));
+  const payments = [];
+  for (const row of rows) {
+    const bill = byId.get(row?.customerId)?.bills?.find((item) => item.month === row.month);
+    if (bill) payments.push(...(bill.payments ?? []));
+  }
+  return totalsFromPayments(payments);
 }
 
 /**

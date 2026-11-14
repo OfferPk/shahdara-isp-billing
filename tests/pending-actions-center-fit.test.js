@@ -246,12 +246,14 @@ test('badge: the [UNSHARED RECEIPT] badge uses a 12px Receipt SVG, not 📱', ()
 
 // --- ratchets ---
 
-test('ratchet: styles.css still 614 distinct hex; nav.css 162 -> 164 is ONLY the two spec-mandated fallbacks', () => {
+test('ratchet: styles.css still 613 distinct hex; nav.css 162 -> 164 is ONLY the two spec-mandated fallbacks', () => {
   const hexCount = (src) => {
     const stripped = src.replace(/\/\*[\s\S]*?\*\//g, '');
     return new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []).size;
   };
-  assert.equal(hexCount(stylesSrc), 614, 'styles.css must stay at 614 distinct hex (this item does not touch it)');
+  // 614 → 613 with Customers Cards Compact (item B): deleting the
+  // card's health-reasons rule removed its unique hex #62766d.
+  assert.equal(hexCount(stylesSrc), 613, 'styles.css must stay at 613 distinct hex (this item does not touch it)');
   // nav.css 162 -> 164: the two new hex are the fallbacks the spec
   // itself mandates — var(--ds-brand, #0F5338) on .pending-wa-btn and
   // var(--color-neutral-100, #f0f4f2) on the close override. Both values

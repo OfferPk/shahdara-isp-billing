@@ -2614,6 +2614,19 @@ html, body {
   cursor: not-allowed;
 }
 
+/* Collect Tab polish: the Collected Feed pagination arrows are clean
+   36x36px squares with Chevron SVGs. Scoped to this nav only —
+   .pagination-btn is shared by four paginations and the archived /
+   report ones carry text labels that must NOT become squares. */
+#transactionPagination .pagination-btn {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
 .pagination-page-info {
   font: 600 12px/1 'DM Sans', system-ui, sans-serif;
   color: var(--muted, #5b7068);

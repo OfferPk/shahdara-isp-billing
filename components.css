@@ -183,6 +183,36 @@
   color: var(--ink);
   font-variant-numeric: var(--numeric);
 }
+/* Collect Tab polish: the payment-method breakdown renders as a
+   2-column grid of .ds-stat-box cells instead of full-width stacked
+   boxes. Scoped to this list only — .provider-cost-list is shared
+   with the upcoming-dues day rows (styles.css) and must not change,
+   and its li rules (grid layout, right-aligned strong) are overridden
+   here by the id-scoped selectors. */
+#dmsMethodRows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+#dmsMethodRows .ds-stat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--ds-nested);
+  border-radius: 10px;
+  padding: 10px;
+  min-height: 56px;
+}
+#dmsMethodRows .ds-stat-box__value {
+  text-align: left;
+}
+#dmsMethodRows .ds-stat-box__meta {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
 .ds-table-card {
   background: var(--ds-card);
   border: 1px solid var(--ds-line);
@@ -251,6 +281,9 @@
 .shop-aging-line { justify-content: flex-start !important; }
 .shop-aging-remind-btn { margin: 6px 0 8px; min-height: 48px; }
 .shop-aging-remind-link { color: var(--color-pending); font-size: 12px; font-weight: 700; }
+/* Collect Tab polish: the per-shop WhatsApp reminder link becomes a
+   compact pill button (same recipient-less wa.me draft href). */
+.shop-aging-remind-pill { display: inline-flex; align-items: center; gap: 4px; background: var(--ds-success-bg); color: var(--ds-success); border: 1px solid var(--ds-success-border); border-radius: var(--radius-pill); padding: 3px 10px; text-decoration: none; white-space: nowrap; }
 /* SISP-93: collector commission cards inside the commission modal. Theme tokens only. */
 .commission-badge { display: inline-block; font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; vertical-align: middle; }
 .commission-rule-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
@@ -1782,19 +1815,27 @@ body.field-mode-open { overflow: hidden; }
 .mohalla-dashboard-section { margin: 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 14px; }
 .mohalla-dashboard-heading h3 { margin: 2px 0 4px; color: var(--ink); font-size: 17px; }
 .mohalla-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; margin-top: 10px; }
-.mohalla-card { display: flex; flex-direction: column; gap: 8px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; color: var(--ink); min-height: 92px; }
+.mohalla-card { display: flex; flex-direction: column; gap: 6px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 10px; color: var(--ink); min-height: 92px; }
 .mohalla-card:hover { border-color: var(--green); }
 /* SISP-175: the card is a container now — the main button carries the
    name/count/stats and the Customers navigation, the collect button is
    its sibling so a tap on it can never trigger the navigation. */
 .mohalla-card-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; background: none; border: none; padding: 0; cursor: pointer; color: var(--ink); font: inherit; width: 100%; }
 .mohalla-card-main:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
-.mohalla-card-name { font-size: 13px; font-weight: 700; letter-spacing: .2px; overflow-wrap: anywhere; }
+.mohalla-card-name { display: block; width: 100%; font-size: 14px; font-weight: 700; letter-spacing: .2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mohalla-card-count { font-size: 30px; line-height: 1.1; font-weight: 800; color: var(--green); font-variant-numeric: var(--numeric); }
+/* Collect Tab polish: the user count sits on the same baseline as
+   the big number (one row, not "7" above "users"). */
+.mohalla-card-count-row { display: flex; align-items: baseline; gap: 4px; }
 .mohalla-card-users { font-size: 11px; color: var(--muted); }
 .mohalla-card-stat { display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 11px; color: var(--muted); margin-top: 2px; }
 .mohalla-card-stat strong { color: var(--ink); font-variant-numeric: var(--numeric); }
 .mohalla-card-collect { margin-top: auto; align-self: stretch; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); color: var(--ink); font: inherit; font-size: 12px; font-weight: 700; padding: 7px 8px; cursor: pointer; min-height: 36px; }
+/* Collect Tab polish: Field Collect is the primary action (emerald
+   tint + Bike icon) and Area view is the compact 32px secondary, so
+   each card is ~20% shorter. */
+.mohalla-card-collect--primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--ds-success-bg); color: var(--ds-success); border-color: var(--ds-success-border); }
+.mohalla-card-collect--compact { min-height: 32px; padding: 5px 8px; }
 .mohalla-card-collect:hover { border-color: var(--green); }
 .mohalla-card-collect:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 @media (max-width: 480px) {
@@ -2659,6 +2700,46 @@ body.field-mode-open { overflow: hidden; }
   .collection-forecast-pct { white-space: normal; }
   .chart-card-header-flex { flex-direction: column; align-items: flex-start; gap: var(--space-2); }
 }
+/* Collect Tab polish: the two PKR 0 cards (Due in the next seven
+   days, Credit balances) collapse to one compact row — title on the
+   left, PKR 0 badge on the right — instead of a ~220px tall card
+   with a giant 32px PKR 0. The renderers toggle the class; the
+   existing total/line/empty elements keep their textContent, so the
+   plan472/plan483 pins stay green. */
+.collection-forecast-zero {
+  display: none;
+  margin: 0;
+}
+.collection-forecast-card--compact-zero {
+  padding: 12px 16px;
+}
+.collection-forecast-card--compact-zero .collection-forecast-header,
+.collection-forecast-card--compact-zero .collection-forecast-collected,
+.collection-forecast-card--compact-zero .collection-forecast-areas,
+.collection-forecast-card--compact-zero .empty-state {
+  display: none;
+}
+.collection-forecast-card--compact-zero .collection-forecast-zero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+.collection-forecast-zero-title {
+  font-weight: 700;
+  color: var(--ink);
+}
+.collection-forecast-zero-badge {
+  flex: none;
+  color: var(--ds-success);
+  background: var(--ds-success-bg);
+  border: 1px solid var(--ds-success-border);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
 .fcst-thermo {
   height: 18px;
   margin-top: var(--space-3);
@@ -2677,6 +2758,11 @@ body.field-mode-open { overflow: hidden; }
 .collection-forecast-line { margin: 2px 0 0; color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
 .collection-forecast-areas-title { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-md); color: var(--ink); }
 .collection-forecast-areas { display: grid; gap: var(--space-3); }
+/* Collect Tab polish: 12px above the first Dues by mohalla row, so
+   the rows do not crowd the line above them. Scoped to this card
+   only — .collection-forecast-areas is also the upcoming-dues days
+   container, which keeps its own spacing. */
+#mdbMohallaRows { margin-top: var(--space-3); }
 .fcst-area-row { min-width: 0; }
 .fcst-area-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
 .fcst-area-label { font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
@@ -3452,8 +3538,9 @@ button.expense-roznamcha-badge {
   padding: var(--space-4);
 }
 .field-dispatch-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
-.field-dispatch-title { margin: 0; font-size: var(--text-lg); color: var(--ink); }
-.field-dispatch-total { font-weight: 700; color: var(--green); font-size: var(--text-sm); font-variant-numeric: var(--numeric); white-space: nowrap; }
+.field-dispatch-title { margin: 0; font-size: var(--text-lg); color: var(--ink); min-width: 0; flex: 1; }
+.field-dispatch-total { font-weight: 700; color: var(--ds-success); font-size: var(--text-xs); font-variant-numeric: var(--numeric); white-space: nowrap; background: var(--ds-success-bg); border: 1px solid var(--ds-success-border); border-radius: var(--radius-pill); padding: 2px 8px; }
+.field-dispatch-total:empty { display: none; }
 .field-dispatch-sub { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--text-sm); }
 .field-dispatch-list { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
 .field-dispatch-empty { margin: 0; color: var(--muted); font-size: var(--text-sm); }

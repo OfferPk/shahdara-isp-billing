@@ -7226,9 +7226,9 @@
         </div>
         <ul id="transactionsList" class="transactions-list" aria-label="All recorded payments"></ul>
         <nav id="transactionPagination" class="table-pagination" aria-label="Transaction history pagination" hidden>
-          <button id="txPrevPage" class="pagination-btn" type="button" aria-label="Previous transactions page">←</button>
+          <button id="txPrevPage" class="pagination-btn" type="button" aria-label="Previous transactions page"><span data-ds-icon="ChevronLeft" aria-hidden="true"></span></button>
           <span id="txPageInfo" class="pagination-page-info" aria-live="polite">Page 1 of 1</span>
-          <button id="txNextPage" class="pagination-btn" type="button" aria-label="Next transactions page">→</button>
+          <button id="txNextPage" class="pagination-btn" type="button" aria-label="Next transactions page"><span data-ds-icon="ChevronRight" aria-hidden="true"></span></button>
           <label class="pagination-size-label" for="txPageSize">Per page
             <select id="txPageSize">
               <option value="15" selected>15</option>
@@ -7243,18 +7243,18 @@
              cards moved here from Home (QC-5 Today's Field Recovery,
              QC-6 Collection Insights). They render from the same
              guarded dashboard writers; only their parent changed. -->
-        <article class="summary-card qc5-field-recovery-card ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">🎯</span><p class="summary-label" data-i18n="qc5_card_title">Today's Field Recovery</p><strong class="summary-value qc5-recovered">PKR 0</strong><p class="qc5-line"><span data-i18n="qc5_target_label">Day target</span>: <strong class="qc5-target">PKR 0</strong> <span class="qc5-target-source"></span></p><div class="route-progress-track qc5-progress-track" role="progressbar" aria-label="Field recovery progress" data-i18n-aria-label="qc5_progress_aria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="route-progress-fill qc5-progress-fill" style="width: 0%;"></div></div><p class="qc5-line qc5-progress-text"></p><div class="qc5-field-recovery-tiles"><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_payments_label">Payments</span><strong class="qc5-field-recovery-tile-value qc5-payments">0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_visited_label">Customers visited</span><strong class="qc5-field-recovery-tile-value qc5-visited">0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_remaining_label">Remaining target</span><strong class="qc5-field-recovery-tile-value qc5-remaining">PKR 0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_pending_label">Pending customers</span><strong class="qc5-field-recovery-tile-value qc5-pending">0</strong></div></div></article>
-        <article class="summary-card qc6-collection-insights-card ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">📈</span><p class="summary-label" data-i18n="qc6_card_title">Collection insights</p><strong class="summary-value qc6-rate">—</strong><p class="qc6-line"><span data-i18n="qc6_rate_period">This month · collected ÷ billed</span>: <span class="qc6-rate-detail"></span></p><div class="qc6-insights-tiles"><div class="qc6-insights-tile"><span class="qc6-insights-tile-label" data-i18n="qc6_avg_label">Average per visit</span><strong class="qc6-insights-tile-value qc6-avg">—</strong><span class="qc6-insights-tile-sub qc6-avg-sub"></span></div><div class="qc6-insights-tile"><span class="qc6-insights-tile-label" data-i18n="qc6_dod_label">Day over day</span><strong class="qc6-insights-tile-value qc6-dod">—</strong><span class="qc6-insights-tile-sub qc6-dod-sub"></span></div></div></article>
+        <article class="summary-card qc5-field-recovery-card ds-stat ds-stat--paid"><div class="ds-stat-head"><span class="ds-stat__icon" data-ds-icon="Target" aria-hidden="true"></span><p class="summary-label" data-i18n="qc5_card_title">Today's Field Recovery</p><strong class="summary-value qc5-recovered">PKR 0</strong></div><p class="qc5-line"><span data-i18n="qc5_target_label">Day target</span>: <strong class="qc5-target">PKR 0</strong> · <span class="qc5-target-source"></span></p><div class="route-progress-track qc5-progress-track" role="progressbar" aria-label="Field recovery progress" data-i18n-aria-label="qc5_progress_aria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="route-progress-fill qc5-progress-fill" style="width: 0%;"></div></div><p class="qc5-line qc5-progress-text"></p><div class="qc5-field-recovery-tiles"><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_payments_label">Payments</span><strong class="qc5-field-recovery-tile-value qc5-payments">0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_visited_label">Customers visited</span><strong class="qc5-field-recovery-tile-value qc5-visited">0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_remaining_label">Remaining target</span><strong class="qc5-field-recovery-tile-value qc5-remaining">PKR 0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_pending_label">Pending customers</span><strong class="qc5-field-recovery-tile-value qc5-pending">0</strong></div></div></article>
+        <article class="summary-card qc6-collection-insights-card ds-stat ds-stat--paid"><div class="ds-stat-head"><span class="ds-stat__icon" data-ds-icon="TrendingUp" aria-hidden="true"></span><p class="summary-label" data-i18n="qc6_card_title">Collection insights</p><strong class="summary-value qc6-rate">—</strong></div><p class="qc6-line"><span data-i18n="qc6_rate_period">This month · collected ÷ billed</span>: <span class="qc6-rate-detail"></span></p><div class="qc6-insights-tiles"><div class="qc6-insights-tile"><span class="qc6-insights-tile-label" data-i18n="qc6_avg_label">Average per visit</span><strong class="qc6-insights-tile-value qc6-avg">—</strong><span class="qc6-insights-tile-sub qc6-avg-sub"></span></div><div class="qc6-insights-tile"><span class="qc6-insights-tile-label" data-i18n="qc6_dod_label">Day over day</span><strong class="qc6-insights-tile-value qc6-dod">—</strong><span class="qc6-insights-tile-sub qc6-dod-sub"></span><span class="qc6-dod-badge"></span></div></div></article>
         <!-- Home Dashboard overhaul: Shop Cash Collection & Handover
              moved here from Home. Full-width on mobile (see CSS). -->
         <article class="summary-card summary-shop-settlement ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_shop">🏪 Shop Cash Collection &amp; Handover</p>
+          <span class="ds-stat__icon" data-ds-icon="Store" aria-hidden="true"></span><p class="summary-label" data-i18n="dash_card_shop">Shop Cash Collection &amp; Handover</p>
           <strong id="dashboardShopSettlementValue" class="summary-value">No shop collections</strong>
           <p id="dashboardShopSettlementPeriod" class="summary-period">Unsettled cash sitting at shops</p>
           <div id="shopSettlementSummary" class="shop-settlement-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_shop_settlement">🏪 Shop Settlement</button>
-            <button id="openCommissionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="comm_btn_open">💰 Collector Commission</button>
+            <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span data-ds-icon="Store" aria-hidden="true"></span><span data-i18n="dash_btn_shop_settlement">Shop Settlement</span></button>
+            <button id="openCommissionModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span data-ds-icon="Coins" aria-hidden="true"></span><span data-i18n="comm_btn_open">Collector Commission</span></button>
           </div>
         </article>
         <!-- Home Dashboard overhaul: Installation Tracker moved here
@@ -7262,12 +7262,12 @@
              as the Zone Field Dispatch Board (openInstallRequests), so
              the "2 pending" board and this card can never disagree. -->
         <article class="summary-card summary-install-tracker ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_install">📡 Installation Tracker</p>
+          <span class="ds-stat__icon" data-ds-icon="Wifi" aria-hidden="true"></span><p class="summary-label" data-i18n="dash_card_install">Installation Tracker</p>
           <strong id="dashboardInstallTrackerValue" class="summary-value">No requests yet</strong>
           <p id="dashboardInstallTrackerPeriod" class="summary-period">New connection requests &amp; install delays</p>
           <div id="installTrackerSummary" class="install-tracker-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openInstallTrackerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_install">📡 Installation Tracker</button>
+            <button id="openInstallTrackerModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span data-ds-icon="Wifi" aria-hidden="true"></span><span data-i18n="dash_card_install">Installation Tracker</span></button>
           </div>
         </article>
         <!-- Home Dashboard overhaul: Digital Wallet Ledger + Suspense
@@ -7296,7 +7296,7 @@
              Home KPI strip (its holders dialog still opens from this
              card — the wiring is by id in renderDashboard). -->
         <div class="home-kpi-card kpi-card-advance ds-stat ds-stat--paid" id="kpiCardAdvance" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="advanceHoldersModal">
-          <span class="ds-stat__icon" aria-hidden="true">🏦</span>
+          <span class="ds-stat__icon" data-ds-icon="Landmark" aria-hidden="true"></span>
           <span class="ds-stat__body">
           <span class="home-kpi-label" data-i18n="dash_adv_held_label">Advance Held</span>
           <strong id="kpiAdvanceHeld" class="home-kpi-val">PKR 0</strong>
@@ -7312,6 +7312,7 @@
               </div>
               <strong id="dudSevenDayTotal" class="collection-forecast-pct">PKR 0</strong>
             </div>
+            <p class="collection-forecast-zero"><span class="collection-forecast-zero-title" data-i18n="dash_upcoming_title">Due in the next seven days</span><span class="collection-forecast-zero-badge" data-i18n="dash_upcoming_zero_badge">PKR 0 · None due</span></p>
             <p id="dudSevenDayLine" class="collection-forecast-collected"></p>
             <div id="dudUpcomingDays" class="collection-forecast-areas"></div>
             <p id="dudUpcomingEmpty" class="empty-state" hidden data-i18n="dash_upcoming_empty">No dues in the next seven days.</p>
@@ -7408,6 +7409,7 @@
               </div>
               <strong id="crbCreditTotal" class="collection-forecast-pct">PKR 0</strong>
             </div>
+            <p class="collection-forecast-zero"><span class="collection-forecast-zero-title" data-i18n="dash_creditbal_title">Credit balances</span><span class="collection-forecast-zero-badge" data-i18n="dash_creditbal_zero_badge">PKR 0 · No credit</span></p>
             <p id="crbCreditLine" class="collection-forecast-collected"></p>
             <p id="crbCreditEmpty" class="empty-state" hidden data-i18n="dash_creditbal_empty">No credit outstanding.</p>
           </div>
@@ -7458,7 +7460,7 @@
         <section class="field-dispatch-section" aria-labelledby="fieldDispatchHeading">
           <div class="field-dispatch-card">
             <div class="field-dispatch-header">
-              <h3 id="fieldDispatchHeading" class="field-dispatch-title" data-i18n="fdisp_title">🧰 Zone Field Dispatch Board</h3>
+              <h3 id="fieldDispatchHeading" class="field-dispatch-title"><span data-ds-icon="Briefcase" aria-hidden="true"></span><span data-i18n="fdisp_title">Zone Field Dispatch Board</span></h3>
               <span id="fieldDispatchTotal" class="field-dispatch-total"></span>
             </div>
             <p class="field-dispatch-sub" data-i18n="fdisp_sub">Open complaints, tickets, installations, pending works and hardware recovery — grouped by mohalla, ready to send to the field.</p>

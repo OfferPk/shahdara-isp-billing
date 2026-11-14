@@ -26,9 +26,9 @@
 // 0` it never binds as a crush floor).
 //
 // Quick Collect CSS tightening (user instruction 2026-11-13): the
-// MODAL action row REVERSES the wrap valve above — it is one row
-// (nowrap, Call / Location flex 1, Collect flex 1.5, 40px) so two
-// cards fit on screen. The base wrap stays for Field Mode. The
+// MODAL action row REVERSES the wrap valve above — it is a GRID
+// (auto auto 1fr, 38px: Call / Map size to their labels, Collect
+// takes the rest) so three cards fit on screen. The base wrap
 // harness must prove the modal row at 360px AND 320px — the valve
 // existed because a 360px card "cannot fit all three labels on one
 // line" (see tests/qc-modal-overhaul-2-fit.test.js).
@@ -66,20 +66,28 @@ test('qc action row wraps and action buttons stay on one line', () => {
   const actions = ruleBlock('.qc3-card-actions {');
   assert.ok(actions.includes('display: flex'), 'the action row must stay flex (three buttons side by side)');
   assert.ok(actions.includes('flex-wrap: wrap'), 'the BASE action row must wrap — Field Mode keeps the wrap valve, so at very narrow widths the third button drops to a second row instead of clipping');
-  // Quick Collect CSS tightening (user instruction 2026-11-13):
-  // the MODAL row is sized for one row (Call / Location flex 1,
-  // Collect flex 1.5, 40px) so two cards fit on screen — but the
-  // wrap valve STAYS: nowrap was measured and rejected (at 320px
-  // the three buttons need 266px for 236px available, a 30px row
-  // overflow / 11px at the list level). The valve only engages
-  // when the row does not fit, so 360px stays one row and 320px
-  // drops the third button instead of clipping. The harness must
-  // prove the row at 360px AND 320px.
+  // QC True 1-Row Tightening (item A): the MODAL row is a GRID
+  // (auto auto 1fr, 38px) — Call / Map size to their labels,
+  // Collect takes the rest — so three cards fit on screen. The
+  // flex wrap valve is GONE for the modal: at 320px the gap drops
+  // to 6px (parent decision D-A10) so the labelled row still fits
+  // (239.4px for 236px at gap 8px — the Collect min-content
+  // trap), never by dropping Collect or going icon-only. The
+  // harness must prove the row at 360px AND 320px.
   const modalActions = ruleBlock('#quickCollectModal .qc3-card-actions {');
-  assert.ok(modalActions.includes('flex-wrap: wrap'), 'the modal action row must keep the wrap valve — one row when it fits, a dropped third button when it does not');
+  assert.ok(modalActions.includes('display: grid'), 'the modal action row must be a grid, not flex');
+  assert.ok(modalActions.includes('grid-template-columns: auto auto 1fr'), 'Call / Map must size to their labels and Collect must take the rest');
+  assert.ok(modalActions.includes('gap: 8px'), 'the modal action row must keep an 8px gap at 360px');
+  assert.ok(stylesSrc.includes('@media (max-width: 320px)'), 'the 320px media block must exist for the gap fix');
+  assert.ok(stylesSrc.includes('gap: 6px'), 'the 320px gap fix must drop the row gap to 6px');
   const btn = ruleBlock('.qc3-action-btn {');
-  assert.ok(btn.includes('flex: 1 1 0'), 'the action buttons must still share the row evenly');
-  assert.ok(btn.includes('white-space: nowrap'), 'an action button label such as "📍 Location" must stay on one line');
+  // The BASE rule keeps flex (Field Mode still wraps); the MODAL
+  // rules carry no flex sizing — the grid sizes them.
+  const modalCall = ruleBlock('#quickCollectModal .qc3-action-btn--call,');
+  assert.ok(!modalCall.includes('flex:'), 'modal Call / Map must carry no flex sizing — the grid sizes them');
+  const modalCollect = ruleBlock('#quickCollectModal .qc3-collect {');
+  assert.ok(!modalCollect.includes('flex:'), 'modal Collect must carry no flex sizing — the grid sizes it');
+  assert.ok(btn.includes('white-space: nowrap'), 'an action button label such as "📍 Map" must stay on one line');
 });
 
 // --- Pins: what the fix must NOT change ------------------------------------

@@ -687,7 +687,7 @@ test('HTML - card list is the primary content: filters first, actions grouped an
   const duesBlock = css.slice(blockStart, tdBlockStart);
   assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(duesBlock), 'Dues-list tile CSS must reuse tokens only, no new hex');
   // The Top Defaulters block reuses only hex already present elsewhere
-  // in styles.css — no new colour (the 614-hex ratchet is the
+  // in styles.css — no new colour (the 613-hex ratchet is the
   // backstop, and this pins the block itself: every hex in it must
   // occur outside it).
   const tdBlock = css.slice(tdBlockStart, css.indexOf('/* Dark Mode Overrides */', tdBlockStart));

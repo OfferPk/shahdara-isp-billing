@@ -149,11 +149,15 @@ test('Polish A (9): the received stat renders only when receipts exist', () => {
 
 // ------------------------------------------------------------ ratchet
 
-test('Polish A ratchet: styles.css still 614 distinct hex (no new hard-coded colour)', () => {
+test('Polish A ratchet: styles.css still 613 distinct hex (no new hard-coded colour)', () => {
   const styles = read('styles.css');
   const stripped = styles.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
-  assert.equal(distinct.size, 614, 'styles.css must stay at 614 distinct hex (no new hard-coded colour)');
+  // 614 → 613 with Customers Cards Compact (item B): deleting the
+  // card's health-reasons rule removed its unique hex #62766d; the
+  // other candidate #526a61 survives via .transactions-count, so the
+  // count is 613, not 612. No new hex was added.
+  assert.equal(distinct.size, 613, 'styles.css must stay at 613 distinct hex (no new hard-coded colour)');
 });
 
 test('Polish A: no real customer names or phone numbers in this test', () => {

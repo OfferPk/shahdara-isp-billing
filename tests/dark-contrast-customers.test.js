@@ -30,8 +30,15 @@ test('dark-contrast has a billing badge variant for status-partial', () => {
   assert.match(css, /\[data-theme="dark"\] :is\(\.month-status, \.report-status, \.customer-billing-badge\)\.status-partial \{/);
 });
 
-test('dark-contrast lifts the health-reasons list text off the base grey', () => {
-  assert.match(css, /\[data-theme="dark"\] \.customer-health-reasons \{[^}]*color:[^}]*--dk-muted/);
+test('dark-contrast drops the card health-reasons rule with the card reasons — the profile summary keeps its dark rules', () => {
+  // Customers Cards Compact (B2) deleted the card's health-reasons
+  // <details> and its dark rule with it. The profile still renders
+  // the same reasons in its Billing tab (.customer-health-summary),
+  // and THAT keeps dark treatment — pin the summary rules, not the
+  // deleted card rule.
+  assert.doesNotMatch(css, /\.customer-health-reasons/, 'no card health-reasons rule in dark-contrast.css');
+  assert.match(css, /\[data-theme="dark"\] \.customer-health-summary summary,/);
+  assert.match(css, /\[data-theme="dark"\] :is\(\.profile-summary-stat, \.current-bill-stat, \.customer-card-stat, \.customer-health-summary,/);
 });
 
 test('dark tokens live in tokens.css (#230) and dark-contrast still uses them', () => {

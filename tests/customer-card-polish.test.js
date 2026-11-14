@@ -1,13 +1,24 @@
-// Customer Card Polish (user request 2026-11-12, Roman Urdu):
+// Customer Card Polish (user request 2026-11-12, Roman Urdu) as revised
+// by Customers Cards Compact (user request 2026-11-14, item B):
 // (1) the DP/avatar tile is removed from the Customers list cards AND
-// the full profile header, "abhi k lye" (for now, not permanent);
-// (2) the customer name is a pill in the same style as the
-// "Customer N" pill, slightly larger; (3) the pill is FLEXIBLE —
-// short name small, long name bigger, full name always visible, never
-// clipped or ellipsised; (4) "Open full profile and monthly billing
-// history" + the arrow merge into ONE pill-style button; (5) tapping
-// "Health reasons" opens the reasons as pills, the 5 reasons in 5
-// DIFFERENT pill colours.
+// the full profile header, "abhi k lye" (for now, not permanent) —
+// STAYS. (2) the customer name was a pill in the same style as the
+// "Customer N" pill, slightly larger — RETIRED: the name is bold plain
+// text now (the Customer N pill is gone too, replaced by the [#N]
+// badge). (3) the pill was FLEXIBLE — short name small, long name
+// bigger, full name always visible, never clipped — REVERSED: the
+// compact header shares one row with [#N] + status + billing pills,
+// so a long name truncates with an ellipsis; the full name is one tap
+// away in the profile (and in the whole-card button's title).
+// (4) "Open full profile and monthly billing history" + the arrow
+// merged into ONE pill-style button — RETIRED: the hint is gone, Full
+// Profile is an action-row button. (5) tapping "Health reasons"
+// opened the reasons as pills, the 5 reasons in 5 DIFFERENT pill
+// colours — RETIRED: the reasons <details> is deleted from the card
+// entirely (B2); the reasons live in the profile's Billing tab only,
+// and the card's health is ONE band-coloured pill. The fixed reasons
+// ORDER in owner-insights.js is still pinned here (the profile
+// renders the same list).
 //
 // Fixtures are generic placeholders only — no real customer data.
 import { test } from 'node:test';
@@ -15,10 +26,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import {
-  customerHealthReasonPillClass,
-  CUSTOMER_HEALTH_REASON_PILL_CLASS_COUNT
-} from '../customer-card-style.js';
+import * as cardStyle from '../customer-card-style.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const read = (file) => readFileSync(path.join(__dirname, '..', file), 'utf8');
@@ -44,88 +52,77 @@ test('card polish: no avatar in the full profile header', () => {
   assert.ok(!app.includes("$('#profileAvatar')"), 'renderDetail no longer touches profileAvatar');
 });
 
-// ---------- (2) name as a pill, same style as the Customer N pill ----------
+// ---------- (2) name as bold plain text, not a pill ----------
 
-test('card polish: name is a pill sharing the Customer N rotation colour', () => {
-  assert.match(
-    card,
-    /<span class="customer-name-pill\$\{idPillClass \? ` \$\{idPillClass\}` : ''\}" dir="auto">\$\{escapeHtml\(displayCustomerName\(customer, currentAppLanguage\(\)\)\)\}<\/span>/,
-    'name wrapped in a pill span carrying the same idPillClass as the Customer N pill'
+test('card polish: name is bold plain text next to the [#N] badge', () => {
+  // Customers Cards Compact retired the name pill with the Customer N
+  // pill: the name is a plain bold element (flex:1) beside the [#N]
+  // badge — the wide grey input-box look came from the deleted
+  // .customer-copy column, not from the name itself.
+  assert.ok(
+    card.includes('<span class="customer-card-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>'),
+    'name is a plain span, not a pill'
   );
-  assert.match(
-    styles,
-    /\.customer-card-heading \.customer-name-pill \{[^}]*border: 1px solid var\(--ds-line\);[^}]*border-radius: var\(--radius-pill\);[^}]*background: var\(--ds-nested\);/s,
-    'name pill shares the ID pill box (border token, pill radius, nested background)'
-  );
-});
-
-// ---------- (3) the name pill is flexible, never clipped ----------
-
-test('card polish: name pill is slightly larger than the Customer N pill', () => {
-  // ID pill text is 9px (the .customer-number-line size) with 1px 6px
-  // padding; the name pill keeps the 18px --text-card-name size with
-  // 3px 10px padding — same style, slightly larger.
-  const idRule = styles.match(/\.customer-id-pill \{[^}]*\}/s);
-  assert.ok(idRule, 'ID pill rule exists');
-  assert.match(idRule[0], /padding: 1px 6px;/, 'ID pill padding is 1px 6px');
-  assert.match(styles, /\.customer-card-heading \.customer-number-line \{[^}]*font-size: 9px;/s, 'ID pill text is 9px');
-  const nameRule = styles.match(/\.customer-card-heading \.customer-name-pill \{[^}]*\}/s);
-  assert.ok(nameRule, 'name pill rule exists');
-  assert.match(nameRule[0], /padding: 3px 10px;/, 'name pill padding is slightly larger');
-  assert.match(nameRule[0], /font-size: var\(--text-card-name\);/, 'name pill text is the 18px token');
-});
-
-test('card polish: name pill grows with the name, never clips', () => {
-  const rule = styles.match(/\.customer-card-heading \.customer-name-pill \{[^}]*\}/s);
-  assert.ok(rule, 'name pill rule exists');
+  assert.ok(!card.includes('customer-name-pill'), 'no name pill in the card');
+  assert.ok(!styles.includes('.customer-name-pill'), 'no name-pill rule in styles.css');
+  const rule = styles.match(/\.customer-card-name \{[^}]*\}/s);
+  assert.ok(rule, 'name rule exists');
   assert.match(rule[0], /font-size: var\(--text-card-name\);/, 'name stays 18px via the token');
-  assert.match(rule[0], /padding: 3px 10px;/, 'padding slightly larger than the ID pill 1px 6px');
-  assert.match(rule[0], /white-space: normal;/, 'long names wrap inside the pill');
-  assert.match(rule[0], /overflow-wrap: anywhere;/, 'long words break inside the pill');
-  assert.match(rule[0], /max-width: 100%;/, 'pill never overflows the card');
-  assert.doesNotMatch(rule[0], /text-overflow: ellipsis/, 'no ellipsis — the full name stays visible');
-  assert.doesNotMatch(rule[0], /overflow: hidden/, 'no clipping');
+  assert.match(rule[0], /font-weight: 700;/, 'name is bold');
+  assert.match(rule[0], /flex: 1 1 auto;/, 'name takes the free header width');
 });
 
-// ---------- (4) open hint + arrow as ONE pill-style button ----------
+// ---------- (3) the name truncates in the shared header row (reversal) ----------
 
-test('card polish: open hint and arrow are one pill-style button', () => {
-  assert.match(
-    card,
-    /<button type="button" class="customer-card-open-hint">\$\{t\('cust_card_open_hint'\)\} <span aria-hidden="true">\$\{cardIsUr \? '←' : '→'\}<\/span><\/button>/,
-    'hint text and arrow together inside one button'
-  );
-  assert.ok(!card.includes('<span class="customer-card-open-hint">'), 'the old hint span is gone');
-  const rule = styles.match(/\.customer-card-open-hint \{[^}]*\}/s);
-  assert.ok(rule, 'open-hint rule exists');
-  assert.match(rule[0], /border-radius: var\(--radius-pill\);/, 'hint is a pill');
-  assert.match(rule[0], /border: 1px solid #9acbad;/, 'hint has a pill border');
-  assert.match(rule[0], /background: #e7f2ec;/, 'hint has a pill background');
-  assert.match(rule[0], /cursor: pointer;/, 'hint reads as a button');
+test('card polish: long names truncate with an ellipsis in the header row', () => {
+  // REVERSAL of the old "never clipped" rule, with why: the compact
+  // header is ONE row — [#N] badge + name + status pill + billing
+  // pill — so a long name must yield instead of growing the card. The
+  // full name stays one tap away in the profile, and in the whole-card
+  // button's title (openLabel carries the name).
+  const rule = styles.match(/\.customer-card-name \{[^}]*\}/s);
+  assert.ok(rule, 'name rule exists');
+  assert.match(rule[0], /overflow: hidden;/, 'name clips instead of wrapping');
+  assert.match(rule[0], /text-overflow: ellipsis;/, 'clipped name shows an ellipsis');
+  assert.match(rule[0], /white-space: nowrap;/, 'name stays on one line');
+  assert.match(rule[0], /min-width: 0;/, 'name shrinks inside the flex row');
+  assert.ok(card.includes('title="${escapeHtml(openLabel)}"'), 'whole-card button title carries the full name');
 });
 
-// ---------- (5) health reasons as 5 different pill colours ----------
+// ---------- (4) open hint is gone — Full Profile is an action button ----------
 
-test('card polish: health-reason pill helper gives 5 distinct classes and wraps', () => {
-  assert.equal(CUSTOMER_HEALTH_REASON_PILL_CLASS_COUNT, 5, 'five reason colours');
-  const classes = [0, 1, 2, 3, 4].map(customerHealthReasonPillClass);
-  assert.equal(new Set(classes).size, 5, 'positions 0-4 are all different');
-  assert.deepEqual(classes, [
-    'customer-health-reason-pill-0',
-    'customer-health-reason-pill-1',
-    'customer-health-reason-pill-2',
-    'customer-health-reason-pill-3',
-    'customer-health-reason-pill-4'
-  ]);
-  assert.equal(customerHealthReasonPillClass(5), 'customer-health-reason-pill-0', 'a sixth reason wraps to 0');
-  assert.equal(customerHealthReasonPillClass(-1), '', 'negative position gets no class');
-  assert.equal(customerHealthReasonPillClass('x'), '', 'non-numeric position gets no class');
+test('card polish: open hint is gone, Full Profile is an action-row button', () => {
+  // Customers Cards Compact retired the one-pill hint button: the card
+  // ends at the action row, and Full Profile is its third button. The
+  // cust_card_open_hint key stays in the dicts (the Urdu pins test
+  // guards its English string) — only the card element is gone.
+  assert.ok(!card.includes('customer-card-open-hint'), 'no open-hint button in the card');
+  assert.ok(!styles.includes('.customer-card-open-hint'), 'no open-hint rule in styles.css');
+  assert.ok(card.includes('customer-card-action-profile'), 'Full Profile action exists');
+  assert.ok(card.includes("t('cust_card_open_profile')"), 'Full Profile label exists');
 });
 
-test('card polish: the five reasons arrive in the fixed order the colours assume', () => {
+// ---------- (5) health reasons deleted from the card ----------
+
+test('card polish: health-reason pill helper is deleted — reasons live in the profile only', () => {
+  // Customers Cards Compact (B2) deleted the card's health-reasons
+  // <details> entirely — the helper, its constant, the import, the CSS
+  // and the dark rule — because the same five reasons already render
+  // in the profile's Billing tab. Do not re-add a card-side reasons
+  // pill: the old helper test (5 positions, 5 colours, wrap) is
+  // deleted with the helper, not kept.
+  assert.equal(cardStyle.customerHealthReasonPillClass, undefined, 'helper export is gone');
+  assert.equal(cardStyle.CUSTOMER_HEALTH_REASON_PILL_CLASS_COUNT, undefined, 'helper constant is gone');
+  assert.ok(!card.includes('customer-health-reason-pill'), 'no reason pills in the card');
+  assert.ok(!styles.includes('.customer-health-reason-pill'), 'no reason-pill rules in styles.css');
+  assert.ok(!card.includes('<details class="customer-health-reasons">'), 'no reasons expandable in the card');
+  assert.ok(app.includes('(health?.reasons ?? []).map'), 'the profile still renders the health reasons (Billing tab)');
+});
+
+test('card polish: the five reasons arrive in the fixed order the profile renders', () => {
   // scoreCustomer in owner-insights.js builds the reasons array in
-  // this order; the pill colour is by position, so the order is the
-  // mapping. Pin it here, not in the card.
+  // this order; the profile renders the same list. Pin it here, not
+  // in the card.
   const order = [
     'Payment regularity:',
     'Due-date history:',
@@ -141,37 +138,11 @@ test('card polish: the five reasons arrive in the fixed order the colours assume
   }
 });
 
-test('card polish: card renders each reason as its position-coloured pill', () => {
-  assert.ok(
-    card.includes('`<li class="customer-health-reason-pill ${customerHealthReasonPillClass(index)}">${escapeHtml(reason)}</li>`'),
-    'reasons map to pill <li> items by position'
-  );
-  // The "no reasons" fallback stays a plain list item — it is not one
-  // of the five reasons, so it gets no pill colour.
-  assert.ok(card.includes("`<li>${t('cust_card_health_none')}</li>`"), 'no-reasons fallback stays plain');
-  assert.ok(card.includes('<details class="customer-health-reasons">'), 'reasons still open from the Health reasons tap');
-});
-
-test('card polish: the five reason pills use five distinct colours, all reused', () => {
-  const backgrounds = [];
-  for (let n = 0; n < 5; n++) {
-    const rule = styles.match(new RegExp(`\\.customer-health-reason-pill-${n}\\s*\\{[^}]*\\}`, 's'));
-    assert.ok(rule, `reason pill ${n} rule exists`);
-    const bg = rule[0].match(/background:\s*(#[0-9a-f]{6});/);
-    assert.ok(bg, `reason pill ${n} has a background`);
-    backgrounds.push(bg[1]);
-    // Every reason-pill colour is an ID-pill slot already in the
-    // sheet — no new hex (the §8.9 ratchet pins styles.css at 614).
-    assert.match(styles, new RegExp(`\\.customer-id-pill-\\d \\{[^}]*background: ${bg[1]};`), `reason pill ${n} background ${bg[1]} is an ID-pill colour`);
-  }
-  assert.equal(new Set(backgrounds).size, 5, 'all five reason pills differ');
-});
-
-test('card polish: reason pills flow as a wrapping row, not a bulleted list', () => {
-  const rule = styles.match(/\.customer-health-reasons ul\{[^}]*\}/s);
-  assert.ok(rule, 'health-reasons list rule exists');
-  assert.match(rule[0], /display:flex;/, 'reasons lay out as a row');
-  assert.match(rule[0], /flex-wrap:wrap;/, 'reasons wrap');
-  assert.match(rule[0], /padding-left:0;/, 'no bullet indent');
-  assert.match(rule[0], /list-style:none/, 'no bullets');
+test('card polish: the health pill takes the score-band colours', () => {
+  // The band colours moved from the old health value + reason pills
+  // onto the single health pill (D-B2): 70+ green, 40–70 yellow,
+  // below 40 red — the same palettes, no new hex.
+  assert.match(styles, /\.customer-card-health-pill\.health-score-high \{[^}]*background: #e8f5ed;[^}]*color: #19704e;/s, 'high band is the health-good green');
+  assert.match(styles, /\.customer-card-health-pill\.health-score-mid \{[^}]*background: #fff5df;[^}]*color: #9a5e06;/s, 'mid band is the health-risk yellow');
+  assert.match(styles, /\.customer-card-health-pill\.health-score-low \{[^}]*background: #ffebea;[^}]*color: #a3342d;/s, 'low band is the health-critical red');
 });

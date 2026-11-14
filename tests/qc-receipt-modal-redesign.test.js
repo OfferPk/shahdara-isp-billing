@@ -246,10 +246,12 @@ test('§8.8 actions: primary, output grid, next row, Done, byte-identical sent t
 // of them (#f8fbf9 background, #667b71 label) appeared nowhere else in
 // the sheet, so they left the distinct set entirely. The direction is
 // the ratchet's own: fewer hardcoded colours, never more.
-test('§8.9 ratchet: styles.css still 614 distinct hex; no new store key or element id', () => {
+test('§8.9 ratchet: styles.css still 613 distinct hex; no new store key or element id', () => {
   const stripped = stylesSrc.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
-  assert.equal(distinct.size, 614, 'styles.css must stay at 614 distinct hex (no new hard-coded colour)');
+  // 614 → 613 with Customers Cards Compact (item B): deleting the
+  // card's health-reasons rule removed its unique hex #62766d.
+  assert.equal(distinct.size, 613, 'styles.css must stay at 613 distinct hex (no new hard-coded colour)');
   const storeKeys = [...new Set(quickCollectSrc.match(/shahdara_[a-z0-9_]+/g) || [])].sort();
   assert.deepEqual(storeKeys, ['shahdara_quick_collect_audits_v1', 'shahdara_quick_collect_last_used_v1'], 'controller must add no store key (both are pre-existing)');
   // The success step's element ids are exactly the known set (parsed

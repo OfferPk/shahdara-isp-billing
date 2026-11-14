@@ -171,7 +171,7 @@
      colours for the Quick Collect picker cards, filter pills and
      one-screen entry view. These hexes are the user's exact values
      (spec items 6–12); they live here as tokens per the #230 rule,
-     so styles.css keeps its 614-hex ratchet — no new hard-coded
+     so styles.css keeps its 613-hex ratchet — no new hard-coded
      colour enters any legacy stylesheet. Colours the palette shares
      with an existing token are NOT redefined here: High bg #fef2f2
      is --ds-footer-bad, High text #dc2626 is --ds-danger-strong,

@@ -9,7 +9,7 @@
 // Ratchet disclosure (in the PR body too): the user's palette is
 // implemented as --qc-* tokens in tokens.css — the user's exact hex
 // values live there, and styles.css uses only var(), so styles.css
-// stays at 614 distinct hex and the ==614 pins stay green. No new
+// stays at 613 distinct hex and the ==613 pins stay green. No new
 // hex enters any legacy stylesheet.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -349,8 +349,10 @@ test('(14) the help dialog is a nested overlay with a ✕ close and a Got-it but
 
 // --- Ratchet: the user's palette lives in tokens.css, not styles.css ---
 
-test('ratchet: styles.css stays at 614 distinct hex — the palette is tokens, not new hex', () => {
-  assert.equal(distinctHex(styles).size, 614);
+test('ratchet: styles.css stays at 613 distinct hex — the palette is tokens, not new hex', () => {
+  // 614 → 613 with Customers Cards Compact (item B): deleting the
+  // card's health-reasons rule removed its unique hex #62766d.
+  assert.equal(distinctHex(styles).size, 613);
   assert.equal(distinctHex(read('components.css')).size, 0, 'components.css must stay hex-free');
 });
 

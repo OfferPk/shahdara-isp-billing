@@ -153,9 +153,29 @@ const EXPECTED_ICON_NAMES = [
   // Collect dashboard loses its last 3D emoji.
   'Target', 'TrendingUp', 'Landmark', 'Store', 'Coins', 'Wifi',
   'Briefcase', 'Plug', 'ChevronLeft', 'ChevronRight',
+  // More Tab & Wallet Inbox Polish (Nov 2026) adds 19: Hammer
+  // (Complaint Register), TrendingDown (Downtime Analytics), RadioTower
+  // (Upstream SLA), Signal (Fleet Uptime),
+  // Ruler (Link Budget), Backpack (Field Bag), Factory (Supplier
+  // Khata), Cylinder (Fiber Drums), Siren (Emergency Runbook),
+  // CloudSun (Post-Storm Checklist), TreeDeciduous (Daisy-Chain Tree),
+  // ClipboardCheck (Saad Visit Log), Pin (Pending Works), TreePine
+  // (Pole Registry), Stethoscope (System Health), HardHat (Lineman
+  // Scorecard), BatteryCharging (Power Backup), Inbox (Wallet empty
+  // state), Satellite (PON Port
+  // Capacity) — the 22 registry & operations cards + the Wallet inbox
+  // lose their last 3D emoji. Paths verified against lucide-static
+  // 1.72.0. NOTE (resolved at rebase onto main d80db831): Plug
+  // (Collect Tab) and Calendar (Home Dashboard) had both merged —
+  // their entries here are dropped and the count is recounted
+  // to 19 new names (91 total: 72 + 19).
+  'Hammer', 'TrendingDown', 'RadioTower', 'Signal', 'Ruler',
+  'Backpack', 'Factory', 'Cylinder', 'Siren', 'CloudSun',
+  'TreeDeciduous', 'ClipboardCheck', 'Pin', 'TreePine', 'Stethoscope',
+  'HardHat', 'BatteryCharging', 'Inbox', 'Satellite',
 ];
 
-test('DS-0 icons: the full §3.2 path set is exported (72 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish + 6 QC cash modal overhaul + 3 home dashboard polish + 10 collect tab polish, Landmark shared — counted once)', () => {
+test('DS-0 icons: the full §3.2 path set is exported (91 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish + 6 QC cash modal overhaul + 3 home dashboard polish + 10 collect tab polish + 19 More Tab & Wallet Inbox polish, Landmark shared — counted once)', () => {
   assert.deepEqual([...DS_ICON_NAMES].sort(), [...EXPECTED_ICON_NAMES].sort(), 'ds-icons.js must export exactly the §3.2 icon set');
   for (const name of EXPECTED_ICON_NAMES) {
     assert.ok(isDsIconName(name), `${name} must be a known icon name`);

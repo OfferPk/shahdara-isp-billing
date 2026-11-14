@@ -1932,6 +1932,9 @@ function renderPowerBackupDashboard(now = new Date()) {
       : summary.activeCount > 0
         ? t('pwr_card_outage', null, { count: summary.activeCount })
         : t('pwr_card_ok', null, { count: summary.nodeCount });
+    // More Tab polish (Nov 2026): the zero-state value ("No UPS nodes
+    // yet") renders as a compact muted pill, not a big metric.
+    valueEl.classList.toggle('ds-card-metric--empty', summary.nodeCount === 0);
   }
   const periodEl = $('#dashboardPowerPeriod');
   if (periodEl) {
@@ -2381,6 +2384,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardBillingCycleValue');
     const periodEl = $('#dashboardBillingCyclePeriod');
     if (valueEl) valueEl.textContent = latest ? t('dash_cycle_cycled', null, { month: displayMonthName(latest.month) }) : t('dash_cycle_empty');
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', !latest);
     if (periodEl) periodEl.textContent = latest ? t('dash_cycle_bills', null, { count: latest.totals.billedCount, amount: formatAmount(latest.totals.netExpectedCollection) }) : t('dash_cycle_period_empty');
     cycleSummaryEl.innerHTML = latest
       ? `<p><span>${escapeHtml(displayMonthName(latest.month))}</span><strong>${escapeHtml(t('dash_cycle_billed', null, { amount: formatAmount(latest.totals.totalBilled) }))}</strong><small> · ${escapeHtml(t('dash_cycle_arrears', null, { amount: formatAmount(latest.totals.totalArrears) }))} · ${escapeHtml(latest.ranAt || '')}</small></p>`
@@ -2412,6 +2416,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardComplaintValue');
     const periodEl = $('#dashboardComplaintPeriod');
     if (valueEl) valueEl.textContent = summary.total === 0 ? t('dash_complaint_empty') : t('dash_complaint_open', null, { open: summary.open, inProgress: summary.inProgress });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', summary.total === 0);
     if (periodEl) periodEl.textContent = summary.total === 0 ? t('dash_complaint_period_empty') : t('dash_complaint_period', null, { resolved: summary.resolved, count: summary.thisMonthCount, hours: summary.thisMonthDowntime });
     complaintSummaryEl.innerHTML = summary.total === 0
       ? ''
@@ -2424,6 +2429,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardFieldTicketsValue');
     const periodEl = $('#dashboardFieldTicketsPeriod');
     if (valueEl) valueEl.textContent = summary.total === 0 ? t('dash_ticket_empty') : t('dash_complaint_open', null, { open: summary.open, inProgress: summary.inProgress });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', summary.total === 0);
     if (periodEl) periodEl.textContent = summary.total === 0 ? t('dash_ticket_period_empty') : t('dash_ticket_period', null, { resolved: summary.resolved, charges: summary.pendingCharges });
     ticketSummaryEl.innerHTML = summary.total === 0
       ? ''
@@ -2436,6 +2442,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardDowntimeValue');
     const periodEl = $('#dashboardDowntimePeriod');
     if (valueEl) valueEl.textContent = analytics.totalComplaints === 0 ? t('dash_downtime_empty') : t('dash_downtime_value', null, { hours: analytics.totalDowntime });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', analytics.totalComplaints === 0);
     if (periodEl) periodEl.textContent = analytics.totalComplaints === 0 ? t('dash_downtime_period_empty') : t('dash_downtime_period', null, { count: analytics.totalComplaints, customers: analytics.perCustomer.length });
     downtimeSummaryEl.innerHTML = analytics.totalComplaints === 0
       ? ''
@@ -2452,6 +2459,7 @@ function renderDashboard() {
     const fleetValueEl = $('#dashboardFleetUptimeValue');
     const fleetPeriodEl = $('#dashboardFleetUptimePeriod');
     if (fleetValueEl) fleetValueEl.textContent = fleet.fleetAvgPercent === null ? '—' : `${fleet.fleetAvgPercent}%`;
+    if (fleetValueEl) fleetValueEl.classList.toggle('ds-card-metric--empty', fleet.fleetAvgPercent === null);
     if (fleetPeriodEl) fleetPeriodEl.textContent = fleet.includedCount === 0
       ? t('upt_fleet_period_none')
       : t('upt_fleet_period', null, { perfect: fleet.perfectCount, count: fleet.includedCount });
@@ -2474,6 +2482,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardUpslaValue');
     const periodEl = $('#dashboardUpslaPeriod');
     if (valueEl) valueEl.textContent = claim.incidentCount === 0 ? t('dash_upsla_empty') : t('dash_upsla_value', null, { hours: claim.totalDowntimeHours });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', claim.incidentCount === 0);
     if (periodEl) periodEl.textContent = claim.incidentCount === 0 ? t('dash_upsla_period_empty') : t('dash_upsla_period', null, { count: claim.incidentCount, pct: claim.availabilityPct });
     upslaSummaryEl.innerHTML = claim.incidentCount === 0
       ? ''
@@ -2489,7 +2498,8 @@ function renderDashboard() {
     const polishReport = buildPolishMismatchReport(state, splitterPolishMap);
     const splitterValueEl = $('#dashboardSplitterValue');
     const splitterPeriodEl = $('#dashboardSplitterPeriod');
-    if (splitterValueEl) splitterValueEl.textContent = overview.boxCount === 0 ? t('dash_splitter_empty') : `${t(overview.boxCount === 1 ? 'dash_splitter_box_sing' : 'dash_splitter_box_plur', null, { count: overview.boxCount })} · ${t('dash_splitter_ports', null, { count: overview.occupiedPorts })}`;
+    if (splitterValueEl) splitterValueEl.textContent = overview.boxCount === 0 ? t('dash_splitter_empty') : `${t(overview.boxCount === 1 ? 'dash_splitter_box_sing' : 'dash_splitter_box_plur', null, { count: overview.boxCount })} · ${t(overview.occupiedPorts === 1 ? 'dash_splitter_port_sing' : 'dash_splitter_ports', null, { count: overview.occupiedPorts })}`;
+    if (splitterValueEl) splitterValueEl.classList.toggle('ds-card-metric--empty', overview.boxCount === 0);
     if (splitterPeriodEl) splitterPeriodEl.textContent = overview.boxCount === 0 ? t('dash_splitter_period_empty') : `${t(overview.freePorts === 1 ? 'dash_splitter_spare_sing' : 'dash_splitter_spare_plur', null, { count: overview.freePorts })}${overview.weakCount ? ` · ${t(overview.weakCount === 1 ? 'dash_splitter_weak_sing' : 'dash_splitter_weak_plur', null, { count: overview.weakCount })}` : ` · ${t('dash_splitter_no_weak')}`}${polishReport.count ? t(polishReport.count === 1 ? 'polish_dash_chip_1' : 'polish_dash_chip_n', null, { count: polishReport.count }) : ''}`;
     splitterSummaryEl.innerHTML = overview.weakCustomers.length === 0
       ? ''
@@ -2505,7 +2515,10 @@ function renderDashboard() {
     const ponPeriodEl = $('#dashboardPonCapacityPeriod');
     if (ponValueEl) ponValueEl.textContent = ponReport.totals.activeOnus === 0
       ? t('poncap_empty')
-      : t('poncap_value', null, { ports: ponReport.totals.portCount, onus: ponReport.totals.activeOnus });
+      : t(ponReport.totals.portCount === 1
+        ? (ponReport.totals.activeOnus === 1 ? 'poncap_value_1port_1onu' : 'poncap_value_1port')
+        : (ponReport.totals.activeOnus === 1 ? 'poncap_value_1onu' : 'poncap_value'), null, { ports: ponReport.totals.portCount, onus: ponReport.totals.activeOnus });
+    if (ponValueEl) ponValueEl.classList.toggle('ds-card-metric--empty', ponReport.totals.activeOnus === 0);
     if (ponPeriodEl) {
       const periodParts = [];
       if (ponReport.totals.activeOnus === 0) periodParts.push(t('poncap_period_empty'));
@@ -2606,6 +2619,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardMonthlyReportValue');
     const periodEl = $('#dashboardMonthlyReportPeriod');
     if (valueEl) valueEl.textContent = report.summary.totalComplaints === 0 ? t('dash_complaint_empty') : t('dash_report_value', null, { count: report.summary.totalComplaints, hours: report.summary.totalDowntime });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', report.summary.totalComplaints === 0);
     if (periodEl) periodEl.textContent = report.summary.totalComplaints === 0 ? t('dash_report_period_empty') : t('dash_report_period', null, { resolved: report.summary.resolvedCount, pending: report.summary.pendingCount, hours: report.summary.fiberCutHours });
     monthlyReportSummaryEl.innerHTML = report.summary.totalComplaints === 0
       ? ''
@@ -2631,6 +2645,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardInventoryValue');
     const periodEl = $('#dashboardInventoryPeriod');
     if (valueEl) valueEl.textContent = movements.length === 0 ? t('dash_inv_empty') : t(lowItems.length === 1 ? 'dash_inv_low_sing' : 'dash_inv_low_plur', null, { count: lowItems.length });
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', movements.length === 0);
     if (periodEl) periodEl.textContent = movements.length === 0 ? t('dash_inv_period_empty') : t(movements.length === 1 ? 'dash_inv_move_sing' : 'dash_inv_move_plur', null, { count: movements.length });
     const fiberRow = stock.find((row) => row.id === 'fiber-2core');
     inventorySummaryEl.innerHTML = movements.length === 0
@@ -2655,6 +2670,7 @@ function renderDashboard() {
     const drumValueEl = $('#dashboardFiberDrumValue');
     const drumPeriodEl = $('#dashboardFiberDrumPeriod');
     if (drumValueEl) drumValueEl.textContent = drumSummary.drumCount === 0 ? t('dash_drum_empty') : t(drumSummary.drumCount === 1 ? 'dash_drum_count_sing' : 'dash_drum_count_plur', null, { count: drumSummary.drumCount });
+    if (drumValueEl) drumValueEl.classList.toggle('ds-card-metric--empty', drumSummary.drumCount === 0);
     if (drumPeriodEl) drumPeriodEl.textContent = drumSummary.drumCount === 0 ? t('dash_drum_period_empty') : `${drumSummary.totalRemaining} m`;
     fiberDrumSummaryEl.innerHTML = drumSummary.drumCount === 0
       ? ''
@@ -2667,6 +2683,7 @@ function renderDashboard() {
     const outageValueEl = $('#dashboardOutageValue');
     const outagePeriodEl = $('#dashboardOutagePeriod');
     if (outageValueEl) outageValueEl.textContent = feeder.linkedCount === 0 ? t('dash_outage_empty') : t('dash_outage_linked', null, { count: feeder.linkedCount });
+    if (outageValueEl) outageValueEl.classList.toggle('ds-card-metric--empty', feeder.linkedCount === 0);
     if (outagePeriodEl) outagePeriodEl.textContent = feeder.maxDownstream === 0 ? t('dash_outage_period_empty') : t('dash_outage_chain', null, { count: feeder.maxDownstream });
     outageSummaryEl.innerHTML = feeder.maxSource
       ? `<p><span>${t('dash_outage_chain_label')}</span><strong>${escapeHtml(t('dash_outage_downstream', null, { name: feeder.maxSource.name || t('dash_fallback_unknown'), count: feeder.maxDownstream }))}</strong></p>`
@@ -2679,6 +2696,7 @@ function renderDashboard() {
     const daisyValueEl = $('#dashboardDaisyChainValue');
     const daisyPeriodEl = $('#dashboardDaisyChainPeriod');
     if (daisyValueEl) daisyValueEl.textContent = chainTree.totals.placed === 0 ? t('dash_daisychain_empty') : t('dash_daisychain_roots', null, { count: chainTree.totals.roots });
+    if (daisyValueEl) daisyValueEl.classList.toggle('ds-card-metric--empty', chainTree.totals.placed === 0);
     if (daisyPeriodEl) daisyPeriodEl.textContent = chainTree.totals.deepChain === 0 ? t('dash_daisychain_period_ok') : t('dash_daisychain_deep', null, { count: chainTree.totals.deepChain });
     daisySummaryEl.innerHTML = '';
   }
@@ -2689,6 +2707,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardSaadVisitsValue');
     const periodEl = $('#dashboardSaadVisitsPeriod');
     if (valueEl) valueEl.textContent = summary.visits.length === 0 ? t('dash_saad_empty') : `${t(summary.visits.length === 1 ? 'dash_saad_visit_sing' : 'dash_saad_visit_plur', null, { count: summary.visits.length })} · ${t(summary.dayCount === 1 ? 'dash_saad_day_sing' : 'dash_saad_day_plur', null, { count: summary.dayCount })}`;
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', summary.visits.length === 0);
     if (periodEl) periodEl.textContent = summary.visits.length === 0 ? t('dash_saad_period_empty') : t('dash_saad_period', null, { hours: formatHours(summary.totalHours), amount: summary.grandTotal });
     saadSummaryEl.innerHTML = summary.visits.length === 0
       ? ''
@@ -2719,6 +2738,7 @@ function renderDashboard() {
     const pendingValueEl = $('#dashboardPendingWorksValue');
     const pendingPeriodEl = $('#dashboardPendingWorksPeriod');
     if (pendingValueEl) pendingValueEl.textContent = pendingSummary.pendingCount === 0 ? t('dash_pending_empty') : pendingSummary.dueCount > 0 ? t('dash_pending_due', null, { count: pendingSummary.dueCount }) : t('dash_pending_count', null, { count: pendingSummary.pendingCount });
+    if (pendingValueEl) pendingValueEl.classList.toggle('ds-card-metric--empty', pendingSummary.pendingCount === 0);
     if (pendingPeriodEl) pendingPeriodEl.textContent = pendingSummary.nearestLabel ? t('dash_pending_nearest', null, { label: pendingSummary.nearestLabel }) : t('dash_pending_period_empty');
     pendingWorksSummaryEl.innerHTML = pendingSummary.dueItems.length === 0
       ? ''
@@ -2731,6 +2751,7 @@ function renderDashboard() {
     const poleValueEl = $('#dashboardPoleLandmarkValue');
     const polePeriodEl = $('#dashboardPoleLandmarkPeriod');
     if (poleValueEl) poleValueEl.textContent = poleSummary.mappedCount === 0 ? t('dash_pole_empty') : t(poleSummary.mappedCount === 1 ? 'dash_pole_map_sing' : 'dash_pole_map_plur', null, { count: poleSummary.mappedCount });
+    if (poleValueEl) poleValueEl.classList.toggle('ds-card-metric--empty', poleSummary.mappedCount === 0);
     if (polePeriodEl) polePeriodEl.textContent = t('dash_pole_period', null, { total: poleSummary.totalCustomers });
     poleSummaryEl.innerHTML = poleSummary.mappedCount === 0
       ? ''
@@ -2743,6 +2764,7 @@ function renderDashboard() {
     const groupValueEl = $('#dashboardGroupBillingValue');
     const groupPeriodEl = $('#dashboardGroupBillingPeriod');
     if (groupValueEl) groupValueEl.textContent = groupSummary.groupCount === 0 ? t('dash_group_empty') : formatAmount(groupSummary.totalDueCents / 100);
+    if (groupValueEl) groupValueEl.classList.toggle('ds-card-metric--empty', groupSummary.groupCount === 0);
     if (groupPeriodEl) groupPeriodEl.textContent = groupSummary.groupCount === 0 ? t('dash_group_period_empty') : `${t(groupSummary.groupCount === 1 ? 'dash_group_sing' : 'dash_group_plur', null, { count: groupSummary.groupCount })} · ${t('dash_group_dues', null, { count: groupSummary.groupsWithDue })}`;
     groupBillingSummaryEl.innerHTML = groupSummary.groupCount === 0
       ? ''
@@ -2757,6 +2779,7 @@ function renderDashboard() {
     const valueEl = $('#dashboardHardwareRecoveryValue');
     const periodEl = $('#dashboardHardwareRecoveryPeriod');
     if (valueEl) valueEl.textContent = pending.length === 0 ? t('dash_pending_empty') : `${t(pending.length === 1 ? 'dash_recovery_cust_sing' : 'dash_recovery_cust_plur', null, { count: pending.length })} · ${t(pendingItems === 1 ? 'dash_recovery_item_sing' : 'dash_recovery_item_plur', null, { count: pendingItems })}`;
+    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', pending.length === 0);
     if (periodEl) periodEl.textContent = pending.length === 0 ? t('dash_recovery_period_empty') : t('dash_recovery_period');
     recoverySummaryEl.innerHTML = pending.length === 0
       ? ''
@@ -2819,6 +2842,7 @@ function renderDashboard() {
     const poleValueEl = $('#dashboardPoleRegistryValue');
     const polePeriodEl = $('#dashboardPoleRegistryPeriod');
     if (poleValueEl) poleValueEl.textContent = poleSummary.poleCount === 0 ? t('dash_polereg_empty') : String(poleSummary.poleCount);
+    if (poleValueEl) poleValueEl.classList.toggle('ds-card-metric--empty', poleSummary.poleCount === 0);
     if (polePeriodEl) polePeriodEl.textContent = poleSummary.poleCount === 0
       ? t('dash_polereg_period')
       : t('polereg_summary', null, { poles: poleSummary.poleCount, drops: poleSummary.dropCount, boxes: poleSummary.boxCount });
@@ -2835,6 +2859,7 @@ function renderDashboard() {
     healthValueEl.textContent = health.totalRecords === 0
       ? t('dash_health_empty')
       : t(health.totalRecords === 1 ? 'dash_health_record_sing' : 'dash_health_record_plur', null, { count: health.totalRecords });
+    healthValueEl.classList.toggle('ds-card-metric--empty', health.totalRecords === 0);
     if (healthPeriodEl) healthPeriodEl.textContent = health.unreadableCount > 0
       ? t('dash_health_unreadable', null, { count: health.unreadableCount })
       : health.totalRecords === 0
@@ -2855,6 +2880,7 @@ function renderDashboard() {
       linemanValueEl.textContent = t(totalResolved === 1 ? 'dash_lineman_resolved_sing' : 'dash_lineman_resolved_plur', null, { count: totalResolved });
       if (linemanPeriodEl) linemanPeriodEl.textContent = t('dash_lineman_period', null, { linemen: scorecard.linemen.length, collectors: scorecard.collectors.length });
     }
+    linemanValueEl.classList.toggle('ds-card-metric--empty', totalResolved === 0 && scorecard.collectors.length === 0);
   }
   // SISP-112: fuel efficiency card — monthly roznamcha petrol divided
   // by field jobs (collections + Saad visits + resolved tickets), with

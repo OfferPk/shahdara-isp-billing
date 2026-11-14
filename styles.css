@@ -1762,6 +1762,25 @@ voice-armed controls and the answer-waiting dot. Token colours only. */
   .more-menu-header{display:flex;align-items:center;justify-content:space-between;padding:4px 8px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
   .more-menu-title{font:700 12px Manrope,sans-serif;color:var(--ink);letter-spacing:-.2px}
   .more-menu-section-label{font:700 9px Manrope,sans-serif;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);padding:8px 8px 3px}
+  /* More Tab & Wallet Inbox Polish (Nov 2026): single-row headers for
+     the 22 registry & operations cards (icon tile + title + status
+     metric on one row), a compact muted pill for zero states, scoped
+     card padding (the global .summary-card padding is shared with the
+     Home KPI + Collect cards, owned by other items), and static
+     section headers at the cards' Reports / Analytics / Inventory
+     homes. The ~50% scrolling claim in the spec is an estimate: header
+     + padding alone save ~20%; the rest needs the Home-D3 follow-up's
+     collapsed accordions. */
+  .summary-card.ops-card{padding:10px 11px;min-height:0}
+  .ds-card-head{display:flex;align-items:center;gap:8px;min-width:0}
+  .ds-card-head .ds-icon-tile{width:28px;height:28px;flex:0 0 auto}
+  .ds-card-head .ds-icon-tile svg{width:16px;height:16px}
+  .ds-card-head .summary-label{flex:1 1 auto;min-width:0;min-height:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ds-card-metric{margin:0;flex:0 0 auto;font-size:15px;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ds-card-metric--empty{font:600 11px 'DM Sans',sans-serif;letter-spacing:0;color:var(--muted);background:#f1f4f2;border-radius:999px;padding:4px 8px;max-width:62%}
+  .ds-icon-tile.ds-icon-tile--sm{width:24px;height:24px;flex:0 0 auto}
+  .ds-icon-tile.ds-icon-tile--sm svg{width:14px;height:14px}
+  .ops-section-header{font:700 13px Manrope,sans-serif;letter-spacing:-.2px;color:var(--ink);margin:18px 2px 8px}
   .mobile-more-menu button{min-height:44px;display:flex;align-items:center;gap:9px;text-align:left;border:0;border-radius:8px;background:transparent;padding:0 10px;color:var(--ink);font:600 13px 'DM Sans',sans-serif;cursor:pointer;width:100%}
   .mobile-more-menu button:hover{background:#f1f7f4}
   .mobile-more-menu button[aria-current=page],.mobile-more-menu button.is-active{background:#e6f3ee;color:var(--green);font-weight:700}

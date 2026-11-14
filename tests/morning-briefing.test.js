@@ -302,3 +302,97 @@ test('home dashboard polish (A3): Backup pill value is the label only, with a st
   assert.ok(css.includes('border-color: var(--color-danger-light)'), 'critical/never carry the alert border');
   assert.ok(css.includes('background: var(--ds-footer-bad)'), 'critical/never carry the alert background');
 });
+
+// Sharafat 26 — the backup sub-line renders a human date, not a raw ISO
+// slice, in the active language. The exact "Oct 30, 2026" string comes from
+// Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }) — the runtime
+// default locale (gates run TZ=UTC, node default en-US) — NOT from an
+// explicit locale; see the formatBriefingBackupDate why-comment.
+function fakeBriefingDoc() {
+  const elements = new Map();
+  const fakeEl = () => ({
+    textContent: '',
+    classList: { add() {}, remove() {} }
+  });
+  const doc = {
+    getElementById: (id) => {
+      if (id === 'morningBriefingSection') return fakeEl();
+      if (!elements.has(id)) elements.set(id, fakeEl());
+      return elements.get(id);
+    }
+  };
+  return { doc, elements };
+}
+
+test('Sharafat 26 render: backup sub-line shows a human date in both languages (timezone trap pinned)', () => {
+  const state = fixtureState();
+  const record = { lastExportAt: '2026-10-30T01:00:00.000Z', paymentCountAtExport: countAllPayments(state) };
+  const briefing = buildMorningBriefing(state, TODAY, fixtureExtras(state, record));
+  assert.equal(briefing.backup.stateKey, 'safe');
+
+  // English (default in node: no localStorage → DEFAULT_LANGUAGE 'en').
+  const { doc, elements } = fakeBriefingDoc();
+  assert.equal(renderMorningBriefing(doc, briefing), true);
+  assert.equal(elements.get('briefBackupSub').textContent, TRANSLATIONS.en.brief_backup_last.replace('{date}', 'Oct 30, 2026'));
+  assert.ok(!elements.get('briefBackupSub').textContent.includes('2026-10-30'), 'no raw ISO slice in the sub-line');
+
+  // Urdu: label switches, date keeps humanDate output (Latin digits —
+  // humanDate parity, NOT Urdu-script digits). renderMorningBriefing calls
+  // t(..., null, ...) so the language resolves via getAppLanguage(), which
+  // reads globalThis.localStorage — stub it and restore it afterwards.
+  const origLocalStorage = globalThis.localStorage;
+  globalThis.localStorage = { getItem: () => 'ur' };
+  try {
+    const ur = fakeBriefingDoc();
+    assert.equal(renderMorningBriefing(ur.doc, briefing), true);
+    assert.equal(ur.elements.get('briefBackupSub').textContent, TRANSLATIONS.ur.brief_backup_last.replace('{date}', 'Oct 30, 2026'));
+    assert.ok(!ur.elements.get('briefBackupSub').textContent.includes('2026-10-30'), 'no raw ISO slice in the Urdu sub-line');
+  } finally {
+    globalThis.localStorage = origLocalStorage;
+  }
+
+  // Timezone trap: a late-evening UTC export (22:00Z = 03:00 PKT next day)
+  // must still show the UTC date part it always showed — the fix formats
+  // the slice, never the full timestamp in PKT.
+  const lateRecord = { lastExportAt: '2026-10-30T22:00:00.000Z', paymentCountAtExport: countAllPayments(state) };
+  const lateBriefing = buildMorningBriefing(state, TODAY, fixtureExtras(state, lateRecord));
+  const late = fakeBriefingDoc();
+  assert.equal(renderMorningBriefing(late.doc, lateBriefing), true);
+  assert.equal(late.elements.get('briefBackupSub').textContent, TRANSLATIONS.en.brief_backup_last.replace('{date}', 'Oct 30, 2026'));
+});
+
+test('Sharafat 26 copy text: Last backup line shows a human date in both blocks', () => {
+  const state = fixtureState();
+  // Late-evening fixture here too: the WhatsApp copy must show the same
+  // UTC date part as the pill sub-line, never the PKT-shifted date.
+  const record = { lastExportAt: '2026-10-30T22:00:00.000Z', paymentCountAtExport: countAllPayments(state) };
+  const briefing = buildMorningBriefing(state, TODAY, fixtureExtras(state, record));
+  const text = buildMorningBriefingText(briefing);
+  assert.match(text, /Last backup: Oct 30, 2026/);
+  assert.match(text, /آخری بیک اپ: Oct 30, 2026/);
+  // The ISO slice survives ONLY in the two titles (brief_text_title uses
+  // briefing.dateStr raw, pinned by the bilingual-text test) — never in a
+  // backup line.
+  assert.equal(text.split('2026-10-30').length - 1, 2);
+  assert.equal(text.split('Oct 30, 2026').length - 1, 2);
+});
+
+test('Sharafat 26 never-branch: "never backed up" sub unchanged in both languages', () => {
+  const state = fixtureState();
+  const briefing = buildMorningBriefing(state, TODAY, fixtureExtras(state, null));
+  assert.equal(briefing.backup.lastExportAt, null);
+
+  const { doc, elements } = fakeBriefingDoc();
+  assert.equal(renderMorningBriefing(doc, briefing), true);
+  assert.equal(elements.get('briefBackupSub').textContent, TRANSLATIONS.en.brief_backup_never_sub);
+
+  const origLocalStorage = globalThis.localStorage;
+  globalThis.localStorage = { getItem: () => 'ur' };
+  try {
+    const ur = fakeBriefingDoc();
+    assert.equal(renderMorningBriefing(ur.doc, briefing), true);
+    assert.equal(ur.elements.get('briefBackupSub').textContent, TRANSLATIONS.ur.brief_backup_never_sub);
+  } finally {
+    globalThis.localStorage = origLocalStorage;
+  }
+});

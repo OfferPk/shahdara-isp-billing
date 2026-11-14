@@ -40,7 +40,7 @@
  * customers (name + connection number + promised amount when recorded).
  */
 
-import { calculatePaymentAllocations, formatPKR } from './core.js';
+import { calculatePaymentAllocations, formatPKR, PAKISTAN_TIME_ZONE } from './core.js';
 import { getWaadaTodayString, isValidWaadaDate } from './waada-queue.js';
 import { buildComplaintSummary } from './complaint-register.js';
 import { buildShopSummaries } from './shop-settlement.js';
@@ -48,6 +48,27 @@ import { requestStatus } from './install-tracker.js';
 import { assessBackupHealth, countAllPayments, countPaymentsAfterDate } from './backup-health.js';
 import { displayCustomerName } from './urdu-names.js';
 import { t } from './nav-language.js';
+
+/**
+ * Sharafat 26 — local duplicate of app.js's `humanDate` one-liner (unexported
+ * const in the 47k-line app.js bundle, so this module cannot import it; a
+ * shared-module extraction was rejected by the parent — minimal, scoped copy
+ * instead, same precedent as signal-history.js `formatSignalDate`).
+ * Takes a YYYY-MM-DD string (the UTC date part of `lastExportAt`, sliced by
+ * the callers) and returns the medium human date, e.g. "Oct 30, 2026".
+ * Locale = humanDate parity: runtime-default locale, Latin digits in both
+ * languages (NOT explicit 'ur-PK'). Timezone trap: the callers keep the
+ * `.slice(0, 10)` date part and format THAT — never the full ISO timestamp
+ * in PKT, which would move the displayed date for late-evening UTC exports.
+ * Invalid input falls back to the raw string instead of throwing in a render.
+ */
+function formatBriefingBackupDate(dateStr) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: PAKISTAN_TIME_ZONE }).format(new Date(`${dateStr}T00:00:00Z`));
+  } catch {
+    return String(dateStr ?? '');
+  }
+}
 
 /** Accepts a Date, a YYYY-MM-DD string, or nothing (→ PKT today). */
 export function morningBriefingDateStr(today) {
@@ -194,7 +215,7 @@ export function buildMorningBriefingText(briefing) {
     }
     const backupLine = t('brief_text_backup', lang, { state: morningBriefingBackupLabel(briefing, lang) });
     lines.push(briefing.backup.lastExportAt
-      ? `${backupLine} · ${t('brief_text_backup_last', lang, { date: String(briefing.backup.lastExportAt).slice(0, 10) })}`
+      ? `${backupLine} · ${t('brief_text_backup_last', lang, { date: formatBriefingBackupDate(String(briefing.backup.lastExportAt).slice(0, 10)) })}`
       : backupLine);
     return lines.join('\n');
   };
@@ -239,7 +260,7 @@ export function renderMorningBriefing(doc = document, briefing) {
   // and the top-bar badge still use the emoji; only this render drops it.
   setText('briefBackupValue', morningBriefingBackupLabel(briefing));
   setText('briefBackupSub', briefing.backup.lastExportAt
-    ? t('brief_backup_last', null, { date: String(briefing.backup.lastExportAt).slice(0, 10) })
+    ? t('brief_backup_last', null, { date: formatBriefingBackupDate(String(briefing.backup.lastExportAt).slice(0, 10)) })
     : t('brief_backup_never_sub'));
 
   const backupPill = doc.getElementById('briefPillBackup');

@@ -216,6 +216,30 @@ export function rollForwardSummaryText(view) {
   return `${proof} No independent closing to check against${unusable ? `, and ${unusable} unusable line${unusable === 1 ? '' : 's'}` : ''}.`;
 }
 
+/**
+ * Totals-view reconciliation grid: the same six figures as
+ * rollForwardSummaryText, as 2x3 stat boxes instead of one long
+ * sentence. Totals view only — the per-customer sentence stays a
+ * sentence. Null is never 0 ("Not recorded"); a differing total
+ * shows its difference plainly in the sixth box, never forced away.
+ */
+export function rollForwardEquationHtml(view) {
+  if (!view || typeof view !== 'object') return '';
+  const money = (cents) => (cents === null ? 'Not recorded' : `Rs. ${(cents / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`);
+  const reported = view.reconciles === true ? `${money(view.reportedCents)} ✓`
+    : view.reconciles === false ? `${money(view.reportedCents)} · Δ ${money(view.differenceCents)}`
+    : 'Not recorded';
+  const box = (label, value) => `<div class="ds-stat-box"><span class="ds-stat-box__label">${label}</span><span class="ds-stat-box__value">${value}</span></div>`;
+  return `<div class="roll-forward-equation" role="status">`
+    + box('Opening', money(view.openingCents))
+    + box('+ Charges', money(view.chargesCents))
+    + box('− Payments', money(view.paymentsCents))
+    + box('− Concessions', money(view.concessionsCents))
+    + box('= Computed', money(view.computedCents))
+    + box('Reported', reported)
+    + `</div>`;
+}
+
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -249,10 +273,12 @@ export function rollForwardHtml(row) {
 export function rollForwardTableHtml(rows) {
   const list = Array.isArray(rows) ? rows : [];
   if (!list.length) return '<p style="font-size: 12px;">No roll-forward rows for this month.</p>';
-  const body = list.map((row) => `<tr><td>${escapeHtml(row.customerName)}</td><td>${escapeHtml(row.mohalla || 'Not recorded')}</td><td>${moneyCell(row.openingCents)}</td><td>${moneyCell(row.chargesCents)}</td><td>${moneyCell(row.paymentsCents)}</td><td>${moneyCell(row.concessionsCents)}</td><td>${moneyCell(row.computedCents)}</td><td>${moneyCell(row.reportedCents)}</td><td>${row.reconciles === true ? 'Matches' : row.reconciles === false ? `Differs ${moneyCell(row.differenceCents)}` : 'Uncheckable'}</td></tr>`).join('');
+  const body = list.map((row) => `<tr><td>${escapeHtml(row.customerName)}</td><td>${escapeHtml(row.mohalla || 'Not recorded')}</td><td>${moneyCell(row.openingCents)}</td><td>${moneyCell(row.chargesCents)}</td><td>${moneyCell(row.paymentsCents)}</td><td>${moneyCell(row.concessionsCents)}</td><td>${moneyCell(row.computedCents)}</td><td>${moneyCell(row.reportedCents)}</td><td>${row.reconciles === true ? '<span class="report-status report-status-paid">✓ Match</span>' : row.reconciles === false ? `<span class="report-status report-status-partial">Differs ${moneyCell(row.differenceCents)}</span>` : '<span class="report-status report-status-not-set">Uncheckable</span>'}</td></tr>`).join('');
   // Owner 5-part fix: the nine-column table scrolls inside its own
   // card on a phone instead of clipping the columns after Charges.
-  return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Customer</th><th>Mohalla</th><th>Opening</th><th>Charges</th><th>Payments</th><th>Concessions</th><th>Computed closing</th><th>Reported closing</th><th>Check</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  // Area Analytics polish: short headers (Paid / Computed / Reported /
+  // Status) + the Matches pill keep the table readable at phone width.
+  return `<div class="table-scroll"><table class="data-table roll-forward-table"><thead><tr><th>Customer</th><th>Mohalla</th><th>Opening</th><th>Charges</th><th>Paid</th><th>Concessions</th><th>Computed</th><th>Reported</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 const csvCell = (value) => {

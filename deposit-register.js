@@ -268,7 +268,12 @@ export function depositsFiltered(list, filters = {}) {
   const status = text(filters.status);
   const deviceType = text(filters.deviceType);
   const mohalla = text(filters.mohalla);
-  const wantedKey = mohalla === '__unassigned__' ? '__unassigned__' : depositMohallaKey(mohalla);
+  // Annual Owner Summary cleanup (2026-11-13): the filter
+  // placeholder now reads "Filter by mohalla (or Unassigned)", so
+  // the folded word must match the same no-mohalla rows as the
+  // literal '__unassigned__' sentinel (kept for back-compat).
+  const isUnassigned = mohalla === '__unassigned__' || depositMohallaKey(mohalla) === 'UNASSIGNED';
+  const wantedKey = isUnassigned ? '__unassigned__' : depositMohallaKey(mohalla);
   return entries
     .filter((entry) => (status ? entry.status === status : true))
     .filter((entry) => (deviceType ? entry.deviceType === deviceType : true))

@@ -21888,8 +21888,6 @@ function renderAnnualSummary() {
   const year = yearEl?.value ?? localDate().slice(0, 4);
   const view = buildAnnualSummary({ year, months: annualSummaryRowsForYear(year) });
   bodyEl.innerHTML = view ? annualSummaryHtml(view) : '<p style="font-size: 12px;">Pick a valid year to see the annual summary.</p>';
-  const summaryEl = $('#annualSummarySummary');
-  if (summaryEl) summaryEl.textContent = view ? annualSummaryText(view) : '';
   if (!annualSummaryBound) {
     annualSummaryBound = true;
     $('#annualSummaryYear')?.addEventListener('change', () => renderAnnualSummary());
@@ -21925,6 +21923,19 @@ function renderEnquiryLog() {
   if (!bodyEl) return;
   const customers = state.customers ?? [];
   const entries = loadEnquiryLog();
+  // Annual Owner Summary cleanup (2026-11-13): at 0 records the
+  // filters, the mutation form, and the Export button hide — they
+  // render with empty dropdowns and no rows to act on. TOTAL
+  // entries, not the filtered view, so the operator can always
+  // clear a filter back to 0. The creation form stays reachable
+  // behind its + Record Enquiry button.
+  const hasEnquiries = entries.length > 0;
+  const enquiryFilterRow = $('#enquiryFilterRow');
+  if (enquiryFilterRow) enquiryFilterRow.style.display = hasEnquiries ? 'flex' : 'none';
+  const enquiryMutationRow = $('#enquiryMutationRow');
+  if (enquiryMutationRow) enquiryMutationRow.style.display = hasEnquiries ? 'flex' : 'none';
+  const enquiryExportBtn = $('#enquiryExportBtn');
+  if (enquiryExportBtn) enquiryExportBtn.style.display = hasEnquiries ? '' : 'none';
   const showAll = $('#enquiryShowAll')?.checked ?? false;
   const pending = pendingEnquiries(entries, {
     type: $('#enquiryFilterType')?.value ?? '',
@@ -22000,6 +22011,8 @@ function renderEnquiryLog() {
       saveEnquiryLog(upsertEnquiry(loadEnquiryLog(), record));
       toast('Enquiry recorded in the pending queue. Answering it here never changes any bill, payment, ticket, or request record.');
       renderEnquiryLog();
+      const enquiryCreateDetails = $('#enquiryCreateDetails');
+      if (enquiryCreateDetails) enquiryCreateDetails.open = false;
     });
     $('#enquiryApplyBtn')?.addEventListener('click', () => {
       const id = $('#enquirySelect')?.value ?? '';
@@ -22060,6 +22073,19 @@ function renderDepositRegister() {
   if (!bodyEl) return;
   const customers = state.customers ?? [];
   const entries = loadDepositRegister();
+  // Annual Owner Summary cleanup (2026-11-13): at 0 records the
+  // filters, the mutation form, and the Export button hide — they
+  // render with empty dropdowns and no rows to act on. TOTAL
+  // entries, not the filtered view, so the operator can always
+  // clear a filter back to 0. The creation form stays reachable
+  // behind its + Record Equipment Deposit button.
+  const hasDeposits = entries.length > 0;
+  const depositFilterRow = $('#depositFilterRow');
+  if (depositFilterRow) depositFilterRow.style.display = hasDeposits ? 'flex' : 'none';
+  const depositMutationRow = $('#depositMutationRow');
+  if (depositMutationRow) depositMutationRow.style.display = hasDeposits ? 'flex' : 'none';
+  const depositExportBtn = $('#depositExportBtn');
+  if (depositExportBtn) depositExportBtn.style.display = hasDeposits ? '' : 'none';
   const shown = depositsFiltered(entries, {
     status: $('#depositFilterStatus')?.value ?? '',
     deviceType: $('#depositFilterDevice')?.value ?? '',
@@ -22130,6 +22156,8 @@ function renderDepositRegister() {
       saveDepositRegister(upsertDeposit(loadDepositRegister(), record));
       toast('Deposit recorded as held. This register moves no money itself.');
       renderDepositRegister();
+      const depositCreateDetails = $('#depositCreateDetails');
+      if (depositCreateDetails) depositCreateDetails.open = false;
     });
     $('#depositApplyBtn')?.addEventListener('click', () => {
       const id = $('#depositSelect')?.value ?? '';
@@ -22187,6 +22215,19 @@ function renderLoanTracker() {
   if (!bodyEl) return;
   const customers = state.customers ?? [];
   const entries = loadLoanTracker();
+  // Annual Owner Summary cleanup (2026-11-13): at 0 records the
+  // filters, the mutation form, and the Export button hide — they
+  // render with empty dropdowns and no rows to act on. TOTAL
+  // entries, not the filtered view, so the operator can always
+  // clear a filter back to 0. The creation form stays reachable
+  // behind its + Issue Loan Equipment button.
+  const hasLoans = entries.length > 0;
+  const loanFilterRow = $('#loanFilterRow');
+  if (loanFilterRow) loanFilterRow.style.display = hasLoans ? 'flex' : 'none';
+  const loanMutationRow = $('#loanMutationRow');
+  if (loanMutationRow) loanMutationRow.style.display = hasLoans ? 'flex' : 'none';
+  const loanExportBtn = $('#loanExportBtn');
+  if (loanExportBtn) loanExportBtn.style.display = hasLoans ? '' : 'none';
   const today = new Date().toISOString().slice(0, 10);
   const overdue = overdueLoans(entries, today);
   const showOverdueOnly = $('#loanShowOverdue')?.checked ?? false;
@@ -22197,13 +22238,22 @@ function renderLoanTracker() {
   });
   const names = {};
   for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
-  bodyEl.innerHTML = loanHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  bodyEl.innerHTML = (showOverdueOnly && entries.length > 0 && shown.length === 0)
+    // Annual Owner Summary cleanup (2026-11-13): with the overdue
+    // filter on and loans present but none overdue, the body used to
+    // say 'No loans recorded.' — false. It is the overdue list that
+    // is empty, not the register.
+    ? '<p class="empty-state">No overdue loans.</p>'
+    : loanHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
   const summaryEl = $('#loanTrackerSummary');
   if (summaryEl) summaryEl.textContent = loanSummaryText(buildLoanSummary(entries, today));
   const overdueEl = $('#loanOverdueBody');
   if (overdueEl) {
+    // Annual Owner Summary cleanup (2026-11-13): the 'No overdue
+    // loans.' line only renders when loans exist — at 0 loans it
+    // stacked under the body's own 'No loans recorded.' line.
     overdueEl.innerHTML = overdue.length === 0
-      ? '<p class="empty-state">No overdue loans.</p>'
+      ? (entries.length === 0 ? '' : '<p class="empty-state">No overdue loans.</p>')
       : `<div class="table-scroll"><table><thead><tr><th>Loan</th><th>Customer</th><th>Return due</th><th>Days overdue</th></tr></thead><tbody>${overdue.map((entry) => `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(names[entry.customerId] || entry.customerId)}</td><td>${escapeHtml(entry.expectedReturnDate)}</td><td>${escapeHtml(entry.daysOverdue)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   const customerEl = $('#loanCustomer');
@@ -22269,6 +22319,8 @@ function renderLoanTracker() {
       saveLoanTracker(upsertLoan(loadLoanTracker(), record));
       toast('Loan recorded as out. This tracker moves no money and changes no ticket, package, or bill.');
       renderLoanTracker();
+      const loanCreateDetails = $('#loanCreateDetails');
+      if (loanCreateDetails) loanCreateDetails.open = false;
     });
     $('#loanApplyBtn')?.addEventListener('click', () => {
       const id = $('#loanSelect')?.value ?? '';

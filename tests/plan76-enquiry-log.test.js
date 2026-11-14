@@ -90,7 +90,13 @@ test('type and status catalogues are exactly the plan lists', () => {
   assert.equal(ENQUIRY_TYPE_LABELS.balance, 'Balance');
   assert.equal(ENQUIRY_STATUS_LABELS.referred_ticket, 'Referred to ticket');
   assert.deepEqual(ENQUIRY_REPLY_DRAFTS, ['balance_reply', 'payment_slip', 'info_card', 'status_reply', 'none']);
-  assert.equal(ENQUIRY_REPLY_DRAFT_LABELS.status_reply, 'Fault/request status reply (Plan 75)');
+  // Annual Owner Summary cleanup (2026-11-13): all four plan
+  // references are stripped from the reply-draft dropdown — the
+  // labels are user-facing and must not leak internal plan numbers.
+  assert.equal(ENQUIRY_REPLY_DRAFT_LABELS.balance_reply, 'Balance Reply');
+  assert.equal(ENQUIRY_REPLY_DRAFT_LABELS.payment_slip, 'Payment history slip');
+  assert.equal(ENQUIRY_REPLY_DRAFT_LABELS.info_card, 'Package info card');
+  assert.equal(ENQUIRY_REPLY_DRAFT_LABELS.status_reply, 'Fault/request status reply');
 });
 
 test('upsert, find, and remove keep exactly one record per id', () => {
@@ -155,6 +161,12 @@ test('pending list filters by type and mohalla, unassigned never dropped', () =>
   assert.deepEqual(pendingEnquiries(rows, { type: 'balance' }).map((row) => row.id), ['e-1', 'e-3']);
   assert.deepEqual(pendingEnquiries(rows, { mohalla: 'bani' }).map((row) => row.id), ['e-1', 'e-2']);
   assert.deepEqual(pendingEnquiries(rows, { mohalla: '__unassigned__' }).map((row) => row.id), ['e-3']);
+  // Annual Owner Summary cleanup (2026-11-13): the filter
+  // placeholder now reads 'Filter by mohalla (or Unassigned)', so
+  // the folded word matches the same no-mohalla rows as the
+  // literal sentinel.
+  assert.deepEqual(pendingEnquiries(rows, { mohalla: 'Unassigned' }).map((row) => row.id), ['e-3']);
+  assert.deepEqual(pendingEnquiries(rows, { mohalla: 'unassigned' }).map((row) => row.id), ['e-3']);
 });
 
 test('summary counts match the log on the same fixture', () => {
@@ -174,7 +186,11 @@ test('summary counts match the log on the same fixture', () => {
   assert.equal(summary.byType.fault_status, 1);
   assert.match(enquirySummaryText(summary), /5 enquiries/);
   assert.match(enquirySummaryText(summary), /2 pending/);
-  assert.equal(enquirySummaryText(buildEnquirySummary([])), 'No enquiries recorded yet.');
+  // Annual Owner Summary cleanup (2026-11-13): at 0 the summary
+  // returns the count line, not 'No enquiries recorded yet.' — the
+  // old sentence duplicated the body's empty state, so the same
+  // words appeared twice. Same shape as deposit/loan summaries.
+  assert.equal(enquirySummaryText(buildEnquirySummary([])), '0 enquiries recorded · 0 pending · 0 answered · 0 referred to a ticket, case, or request queue.');
 });
 
 test('non-mutation and no ledger field fence', () => {

@@ -212,7 +212,14 @@ test('Owner 5-part fix: live (unfrozen) months contribute real figures and are b
   assert.match(text, /Includes live\/unfrozen months: 2026-11/);
   assert.match(text, /live ledger, not a frozen snapshot/);
   const html = annualSummaryHtml(view);
-  assert.ok(html.includes('Includes live/unfrozen months'), 'badge in the table');
+  // Annual Owner Summary cleanup (2026-11-13): the badge is no
+  // longer the literal 'Includes live/unfrozen months' pill — it is
+  // derived from the view ('1 Live Month · Dec 2026 Unfrozen': one
+  // live month, December with no frozen snapshot). The plain-words
+  // text inside the collapsed details still carries the full
+  // 'Includes live/unfrozen months: 2026-11' line.
+  assert.ok(html.includes('1 Live Month · Dec 2026 Unfrozen'), 'derived badge names the live month and the unfrozen December');
+  assert.ok(!html.includes('Includes live/unfrozen months</span>'), 'old literal badge pill is gone');
   assert.ok(html.includes('>Live<'), 'November shows Live in the Snapshot column');
   assert.ok(html.includes('>Frozen<'), 'October still shows Frozen');
   const csv = annualSummaryCsv(view);

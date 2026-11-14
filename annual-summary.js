@@ -301,12 +301,46 @@ export function annualSummaryHtml(view) {
     `<td>${pct(row.churnRatePercent)}</td>` +
     `<td>${row.snapshotClosed ? 'Frozen' : row.live ? 'Live' : 'No snapshot'}</td>` +
     `<td>${row.reconciles === null ? '—' : row.reconciles ? 'Yes' : `No (${row.difference})`}</td></tr>`).join('');
-  // Owner 5-part fix: a live badge names the fallback where the owner
-  // reads it, and the ten-column table scrolls inside its own card
-  // on a phone instead of clipping the right-side columns.
-  const liveBadge = view.liveMonths && view.liveMonths.length
-    ? `<p style="font-size: 12px;"><span class="local-only-badge">Includes live/unfrozen months</span></p>` : '';
-  return `<p style="font-size: 12px;">${escapeHtml(annualSummaryText(view))}</p>` + liveBadge +
+  // Annual Owner Summary cleanup (2026-11-13): the year view is one
+  // KPI grid, one derived badge, and the table — all three read the
+  // same view, so the grid and the table can never disagree again.
+  // The 18-line plain-words summary is no longer printed twice (it
+  // used to render in #annualSummarySummary AND here); the one
+  // remaining copy sits collapsed in the details below, next to the
+  // rules that explain it. Growth shows '+N' when positive and
+  // 'not recorded' when its inputs are missing, never a guessed zero.
+  const growthValue = view.growth === null ? 'not recorded' : `${view.growth > 0 ? '+' : ''}${view.growth}`;
+  const churnLine = view.annualChurnRatePercent === null ? 'churn not recorded' : `${view.annualChurnRatePercent}% churn`;
+  const kpi = '<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0;">' +
+    `<div class="ds-stat-box"><div class="ds-stat-box__label">Collections</div><div class="ds-stat-box__value">${money(view.collectionsTotal)}</div></div>` +
+    `<div class="ds-stat-box"><div class="ds-stat-box__label">Expenses</div><div class="ds-stat-box__value">${money(view.expensesTotal)}</div></div>` +
+    `<div class="ds-stat-box"><div class="ds-stat-box__label">Net</div><div class="ds-stat-box__value">${money(view.netTotal)}</div></div>` +
+    `<div class="ds-stat-box"><div class="ds-stat-box__label">Growth</div><div class="ds-stat-box__value">${growthValue}</div><div style="font-size: 11px; color: var(--muted);">${churnLine}</div></div>` +
+    '</div>';
+  // The badge is derived from the view, never hardcoded: the count
+  // of live months, and whether December has no frozen snapshot. No
+  // badge at all when no month is live. The 73-vs-77 count question
+  // (Nov 2026 screenshots) is answered by the surfaced diagnostics,
+  // not by picking a number: the grid and the table read this one
+  // view, each month carries its own Reconciles flag, and the
+  // details below name the months with no frozen snapshot. Both
+  // photographed counts came from the same churn rows; in any single
+  // render yearStart IS January's customersStart, so the likeliest
+  // cause of the photographed gap (77−73=4) is customers with no
+  // recorded join date being counted as already-customers at every
+  // month start (churn-summary.js :167, :223–226) — a diagnostic
+  // this module drops. The owner confirms the true January start
+  // on-phone after deploy.
+  const december = view.months[11];
+  const decUnfrozen = december && !december.snapshotClosed;
+  const liveCount = view.liveMonths ? view.liveMonths.length : 0;
+  const liveBadge = liveCount
+    ? `<p style="font-size: 12px;"><span class="local-only-badge">${liveCount} Live Month${liveCount === 1 ? '' : 's'}${decUnfrozen ? ` · Dec ${view.year} Unfrozen` : ''}</span></p>` : '';
+  const yearViewRules = `Read-only year view, composed from the twelve monthly figures only: collections and expenses from each month's frozen snapshot, new activations, departures, and churn from each month's churn summary. No new metric, no recalculation, and no change to any monthly pack or live record. A month with no frozen snapshot is flagged incomplete rather than estimated, and its money figures stay unrecorded for that month. Once a year this answers one honest question — did the business grow, did it keep its customers, and can it fund the next stage of growth.`;
+  const details = '<details><summary>ⓘ How this year view works ▾</summary>' +
+    `<p style="font-size: 12px;">${escapeHtml(yearViewRules)}</p>` +
+    `<p style="font-size: 12px;">${escapeHtml(annualSummaryText(view))}</p></details>`;
+  return kpi + liveBadge + details +
     '<div class="table-scroll"><table style="font-size: 12px; border-collapse: collapse;"><thead><tr>' +
     '<th>Month</th><th>Collections</th><th>Expenses</th><th>Net</th><th>New</th><th>Departed</th>' +
     '<th>Customers start → end</th><th>Churn</th><th>Snapshot</th><th>Reconciles</th></tr></thead>' +

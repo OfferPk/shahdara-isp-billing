@@ -155,6 +155,12 @@ test('out list and filters: status, device, mohalla', () => {
   assert.deepEqual(loansFiltered(rows, { deviceType: 'router' }).map((row) => row.id), ['LOAN-002', 'LOAN-003']);
   assert.deepEqual(loansFiltered(rows, { mohalla: 'bani' }).map((row) => row.id), ['LOAN-001']);
   assert.deepEqual(loansFiltered(rows, { mohalla: '__unassigned__' }).map((row) => row.id), ['LOAN-003']);
+  // Annual Owner Summary cleanup (2026-11-13): the filter
+  // placeholder now reads 'Filter by mohalla (or Unassigned)', so
+  // the folded word matches the same no-mohalla rows as the
+  // literal sentinel.
+  assert.deepEqual(loansFiltered(rows, { mohalla: 'Unassigned' }).map((row) => row.id), ['LOAN-003']);
+  assert.deepEqual(loansFiltered(rows, { mohalla: 'unassigned' }).map((row) => row.id), ['LOAN-003']);
   assert.deepEqual(loansFiltered(rows, { status: 'returned' }).map((row) => row.id), ['LOAN-002']);
 });
 

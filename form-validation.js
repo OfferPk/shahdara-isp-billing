@@ -7,6 +7,7 @@ import { EXPENSE_CATEGORIES, canonicalMohalla, compareMohallaAreas } from './pha
 import { areaFilterKey, customerInArea } from './area-operations.js';
 import { t } from './nav-language.js';
 import { documentFooterHtml } from './document-branding.js';
+import { isVoidedPayment } from './payment-void-audit.js';
 
 /**
  * Validates a Pakistani or international phone number.
@@ -284,6 +285,18 @@ export function calculateTransactionSummary(transactions) {
 }
 
 /**
+ * Sums payment amounts excluding SISP-34 voided payments (Sharafat 27).
+ * A voided receipt is history, never money — the app-wide rule
+ * (recent-payments.js, home-today.js) — so it must not reduce a balance
+ * or count as collected. Legacy rows carry no `voided` flag and stay real
+ * money: `isVoidedPayment` is true only for `voided === true`.
+ * One shared reduce for all four call sites below.
+ */
+function sumReceivedExcludingVoided(payments) {
+  return (payments || []).reduce((sum, p) => sum + (isVoidedPayment(p) ? 0 : (Number(p.amount) || 0)), 0);
+}
+
+/**
  * Computes a customer's outstanding balance for a given bill month.
  * @param {Object} customer
  * @param {string} month
@@ -302,7 +315,7 @@ export function getCustomerMonthBalance(customer, month, allocations = null) {
   const bill = (customer.bills || []).find(b => b.month === month);
   if (!bill) return 0;
   const billed = Number(bill.dueAmount ?? bill.nominalPrice ?? 0);
-  const received = (bill.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const received = sumReceivedExcludingVoided(bill.payments);
   return Math.max(0, billed - received);
 }
 
@@ -313,9 +326,7 @@ export function getCustomerMonthBalance(customer, month, allocations = null) {
  */
 export function getCustomerTotalCollections(customer) {
   if (!customer || !Array.isArray(customer.bills)) return 0;
-  return customer.bills.reduce((total, b) => {
-    return total + (b.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  }, 0);
+  return customer.bills.reduce((total, b) => total + sumReceivedExcludingVoided(b.payments), 0);
 }
 
 /**
@@ -526,7 +537,7 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
       if (alloc) billingStatus = alloc.status || 'pending';
     } else {
       const billed = Number(monthBill.dueAmount ?? monthBill.nominalPrice ?? 0);
-      const rec = (monthBill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      const rec = sumReceivedExcludingVoided(monthBill.payments);
       if (rec >= billed && billed > 0) billingStatus = 'paid';
       else if (rec > 0) billingStatus = 'partial';
       else if (billed > 0) billingStatus = 'pending';
@@ -607,7 +618,7 @@ export function generateCustomerRosterCsv(customers = [], { billingMonth = '', a
         if (alloc) billStatus = (alloc.status || 'pending').toUpperCase();
       } else {
         const billed = Number(monthBill.dueAmount ?? monthBill.nominalPrice ?? 0);
-        const rec = (monthBill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        const rec = sumReceivedExcludingVoided(monthBill.payments);
         if (rec >= billed && billed > 0) billStatus = 'PAID';
         else if (rec > 0) billStatus = 'PARTIAL';
         else if (billed > 0) billStatus = 'PENDING';

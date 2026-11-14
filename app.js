@@ -4184,8 +4184,15 @@ function renderCustomers() {
   const unifiedEmptyText = customerSearchField === UNIFIED_IDENTIFIER_FIELD_ID && searched.length === 0
     ? unifiedIdentifierEmptyText(customerQuery)
     : '';
-  const activeTotal = countActiveCustomers(searched);
-  const archivedTotal = searched.filter(customer => customer.archived).length;
+  // Sharafat 30: the badge denominator is the FULL roster, not the
+  // search-only pool. `searched` stays the source for the empty-search
+  // text only (unifiedEmptyText above); the badge must not use it —
+  // with a search typed, "5/98" would read as "5 of 98 customers"
+  // when 98 is only the search match count. Same expression the
+  // welcome count below already uses (countActiveCustomers on the
+  // whole roster — the SCTI source of truth).
+  const activeTotal = countActiveCustomers(state.customers);
+  const archivedTotal = state.customers.filter(customer => customer.archived).length;
 
   // Pagination for Active Roster
   const paged = paginateRows(active, customerCurrentPage, customerPageSize);
@@ -4281,7 +4288,7 @@ function renderCustomers() {
   // Plan Y: the archived panel gets the same page size and prev/next
   // controls as the active roster, paged independently. Only the paged
   // rows render, so the page no longer grows with the archive; the
-  // count badge above still shows the filtered archived total.
+  // count badge above now shows the full archived total (Sharafat 30).
   const archivedPaged = archivedRosterPage(archived, archivedCurrentPage, customerPageSize);
   archivedCurrentPage = archivedPaged.page;
   $('#archivedCustomerList').innerHTML = archivedPaged.items.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
@@ -4306,8 +4313,15 @@ function renderCustomers() {
       downloadCsvFile(`retention-${button.dataset.retentionExportYear}.csv`, retentionYearCsv(state.customers, button.dataset.retentionExportYear));
     }));
   }
-  $('#customerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && customerAreaFilter === 'all' && active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
-  $('#archivedCustomerCount').textContent = archived.length === archivedTotal ? archivedTotal : `${archived.length}/${archivedTotal}`;
+  // Sharafat 30: the plain branch fires only when NOTHING filters the
+  // roster — no search typed (list box or global query), no pill, and
+  // all three checked filters 'all'. A search that happens to match
+  // every customer still shows the fraction, so the plain number can
+  // never be a search count wearing the roster total's clothes. The
+  // archived badge needs the same guards except the pill — the
+  // archived panel is not pill-filtered (SISP-136).
+  $('#customerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && customerAreaFilter === 'all' && customerQuery.trim() === '' && customerRosterPill === 'all' && active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
+  $('#archivedCustomerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && customerAreaFilter === 'all' && customerQuery.trim() === '' && archived.length === archivedTotal ? archivedTotal : `${archived.length}/${archivedTotal}`;
   $('#welcomeCount').textContent = countActiveCustomers(state.customers);
   const emptySearch = $('#noSearchResults');
   if (emptySearch) {

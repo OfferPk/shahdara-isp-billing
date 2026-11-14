@@ -3156,6 +3156,81 @@
   text-overflow: ellipsis;
 }
 
+/* Home Dashboard polish (A1): the KPI cards are columnar — a 28px
+   icon-tile header row above a full-width value, so the PKR figure
+   gets the whole card width on one line instead of wrapping beside
+   the 40px tile. Scoped overrides only: the shared .ds-icon-tile
+   stays 36x36 (ds0 pin), and the per-card tile tints mirror the old
+   .ds-stat__icon modifiers so the dues card stays red-scanable. */
+.home-kpi-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.home-kpi-head .home-kpi-label {
+  white-space: normal;
+  line-height: 1.25;
+}
+.home-kpi-card .ds-icon-tile {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+.home-kpi-card .ds-icon-tile svg {
+  width: 16px;
+  height: 16px;
+}
+.home-kpi-card.ds-stat--paid .ds-icon-tile {
+  background: var(--color-paid);
+  color: var(--white);
+}
+.home-kpi-card.ds-stat--info .ds-icon-tile {
+  background: var(--color-info);
+  color: var(--white);
+}
+.home-kpi-card.ds-stat--overdue .ds-icon-tile {
+  background: var(--color-overdue);
+  color: var(--white);
+}
+.home-kpi-card.ds-stat--whatsapp .ds-icon-tile {
+  background: var(--color-whatsapp);
+  color: var(--white);
+}
+/* A1: the Active Subscribers card is a horizontal strip (icon +
+   label left, value + sub right) once it spans the full row. The
+   .ds-stat qualifier beats the columnar .home-kpi-card.ds-stat rule
+   in components.css, which loads after this file. */
+.home-kpi-card.kpi-card-active.ds-stat {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.home-kpi-strip-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.home-kpi-strip-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* Home Dashboard polish: 80px bottom padding on the Home container
+   so the floating + speed-dial FAB (nav 60px + 16px gap + 50px FAB
+   = 126px band) never covers the last card's buttons or text. The
+   main element already clears 74px; 74 + 80 = 154px clears the whole
+   FAB band with room — same trade-off as the Reports 142px rule
+   (styles.css): page-end only, the fixed FAB still floats over
+   content mid-scroll. */
+#billingDashboard {
+  padding-bottom: 80px;
+}
+
 /* Home Dashboard overhaul: the month KPI carries its own progress
    bar (the "PKR 119,700 / PKR 194,300" figure is shown once, here,
    with the bar — instead of repeating the 62% in three places).
@@ -3199,6 +3274,12 @@
   color: var(--ink, #16342b);
   cursor: pointer;
   list-style: none;
+}
+/* Home Dashboard polish (A2): the Share2 SVG next to the label
+   (18px, the QC-modal precedent for an 18px icon beside 14px text). */
+.home-share-menu-summary svg {
+  width: 18px;
+  height: 18px;
 }
 .home-share-menu-summary::-webkit-details-marker {
   display: none;
@@ -3380,9 +3461,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
-  /* Owner feature 2026-10-29: the fifth KPI card (Advance Held) spans
-     the full phone row so both advance figures stay fully readable. */
-  .home-kpi-card.kpi-card-advance {
+  /* Home Dashboard polish (D1): the fifth KPI card (Active
+     Subscribers) spans the full phone row so its strip stays fully
+     readable. Was: Advance Held — that card moved to the Collect
+     tab. This retarget IS Sharafat 20's designed change, so this
+     item subsumes Sharafat 20 (its fit test lands here). */
+  .home-kpi-card.kpi-card-active {
     grid-column: 1 / -1;
   }
 }
@@ -3439,6 +3523,25 @@
   .home-primary-subtitle {
     font-size: 9.5px;
   }
+}
+
+/* Home Dashboard polish (A2): all four Quick-Action cards share ONE
+   horizontal row geometry (56px, padding 0 14px, gap 10px). This rule
+   sits after the base rule AND the <=620px rule so it wins at every
+   width; it also supersedes the deleted .home-top-shortcut column
+   override below (QC-11's vertical stack + hidden subtitle was a
+   deliberate measured decision — this spec reverses it for visual
+   uniformity, subtitles visible on all four). The
+   .home-top-shortcut CLASS stays on the Quick Collect button: it is
+   the QC-11 JS hook (app.js), only its CSS rule goes. */
+.home-primary-actions .home-primary-btn {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  height: 56px;
+  min-height: 56px;
+  padding: 0 14px;
 }
 
 /* Dark Theme Support */
@@ -4555,9 +4658,15 @@
   border-top: 1px solid var(--line);
 }
 /* SISP-174: method filter pills, derived from the recent pool itself. */
+/* Home Dashboard polish (§3): the method filter pills sit on ONE
+   horizontal scroll row instead of wrapping onto two rows (same
+   pattern as .bc-mohalla-pills: overflow-x auto + scrollbar hidden). */
 .recent-payments-filters {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
   gap: 6px;
   margin: 6px 0 2px;
 }
@@ -4572,6 +4681,7 @@
   font: 600 11px 'DM Sans', system-ui, sans-serif;
   color: var(--muted);
   cursor: pointer;
+  flex-shrink: 0;
 }
 .recent-payment-pill.is-active {
   background: var(--green);
@@ -4582,16 +4692,31 @@
   opacity: 0.75;
   font-weight: 700;
 }
+/* Home Dashboard polish (§3): the row is a horizontal flex row —
+   the profile button (name + Method • date) takes the remaining
+   width, the right column stacks the amount above the compact
+   Receipt toggle. The <details> stays a SIBLING of the button,
+   never nested inside it (the SISP-174 rule). */
 .recent-payment-row {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.recent-payment-right {
+  display: flex;
   flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex-shrink: 0;
 }
 .recent-payment-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   background: none;
   border: none;
   padding: 9px 0 3px;
@@ -4646,7 +4771,10 @@
   gap: 1px;
   min-width: 0;
 }
-.recent-payment-ref {
+/* Home Dashboard polish (§3): the strong is the customer NAME now —
+   the receipt ref left the row (reachable from the receipt actions);
+   the class is renamed so it stops lying about what it holds. */
+.recent-payment-name {
   font-size: 13px;
   font-weight: 700;
   color: var(--ink);
@@ -5503,25 +5631,10 @@
     gap: 6px;
     margin-bottom: 10px;
   }
-  .home-top-shortcut {
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: var(--space-2) 4px;
-    gap: 4px;
-    min-height: 64px;
-  }
-  .home-top-shortcut .home-primary-icon {
-    width: 28px;
-    height: 28px;
-  }
-  .home-top-shortcut .home-primary-title {
-    font-size: var(--text-xs);
-  }
-  .home-top-shortcut .home-primary-subtitle {
-    display: none;
-  }
+/* Home Dashboard polish (A2): the .home-top-shortcut column override
+   is DELETED — Quick Collect no longer stacks its icon above a hidden
+   subtitle while the other three cards sit horizontal. The
+   .home-top-shortcuts (plural) dead row rule above is left alone. */
 }
 
 /* QC-6: Collection insights card — one named collection success rate
@@ -5570,6 +5683,49 @@
 .qc6-insights-tile-sub {
   font-size: var(--text-xs);
   color: var(--muted);
+}
+
+/* Collect Tab polish: the QC-5/QC-6 header is one row — icon tile +
+   title on the left, KPI on the right — instead of three stacked
+   lines with an empty line between title and KPI. The label's 30px
+   two-line reserve is dropped inside the header so the row stays
+   one line tall. Tokens only. */
+.qc5-field-recovery-card .ds-stat-head,
+.qc6-collection-insights-card .ds-stat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+.qc5-field-recovery-card .ds-stat-head .summary-label,
+.qc6-collection-insights-card .ds-stat-head .summary-label {
+  min-height: 0;
+  flex: 1;
+  min-width: 0;
+}
+.qc5-field-recovery-card .ds-stat-head .summary-value,
+.qc6-collection-insights-card .ds-stat-head .summary-value {
+  flex: none;
+}
+
+/* Collect Tab polish: the day-over-day percent leaves the clipped
+   nowrap value and becomes a compact green badge under it, so the
+   percent never truncates with "...". Empty when there is no
+   yesterday data. Tokens only. */
+.qc6-dod-badge {
+  align-self: flex-start;
+  color: var(--ds-success);
+  background: var(--ds-success-bg);
+  border: 1px solid var(--ds-success-border);
+  border-radius: var(--radius-pill);
+  padding: 1px 6px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.qc6-dod-badge:empty {
+  display: none;
 }
 
 /* QC-5: Today's Field Recovery card — one card composing the day's

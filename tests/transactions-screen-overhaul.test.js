@@ -165,7 +165,9 @@ test('top bar: one unified search input, six quick pills, and a collapsible adva
   const html = read('index.html');
   // The unified input lives in the top bar, before the filters panel.
   assert.ok(html.indexOf('id="transactionLiveSearch"') < html.indexOf('id="txAdvancedFilters"'));
-  assert.ok(html.includes('placeholder="Search name, phone, amount, reference, or receipt no."'));
+  // Transactions & Recent Receipts Polish §2: the unified placeholder
+  // is the spec's "Search customer, #ID, amount, or receipt #...".
+  assert.ok(html.includes('placeholder="Search customer, #ID, amount, or receipt #..."'));
   assert.ok(html.includes('id="txAdvancedFiltersToggle"'));
   assert.ok(html.includes('aria-controls="txAdvancedFilters"'));
   assert.ok(html.includes('<div class="transaction-filters" id="txAdvancedFilters" hidden>'));
@@ -211,8 +213,11 @@ test('footer eye: the backup toggle is a labelled control now', () => {
 
 test('pagination: one flex row, icon-only arrows, full page text kept', () => {
   const html = read('index.html');
-  assert.ok(html.includes('aria-label="Previous transactions page">←</button>'));
-  assert.ok(html.includes('aria-label="Next transactions page">→</button>'));
+  // Collect Tab polish: the ←/→ text arrows are ChevronLeft/Right
+  // ds-icons SVGs now (the text arrows clipped at 360px and the
+  // buttons are 36×36px squares); the aria-labels are unchanged.
+  assert.ok(html.includes('aria-label="Previous transactions page"><span data-ds-icon="ChevronLeft"'));
+  assert.ok(html.includes('aria-label="Next transactions page"><span data-ds-icon="ChevronRight"'));
   const css = read('styles.css');
   assert.ok(css.includes('#transactionPagination { flex-wrap: nowrap;'));
   assert.ok(css.includes('#transactionPagination .pagination-size-label { width: auto;'));

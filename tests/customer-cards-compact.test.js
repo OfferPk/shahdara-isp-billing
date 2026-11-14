@@ -244,15 +244,26 @@ test('cards: Additional stays on the card with the same dialog wiring', () => {
   assert.ok(card.includes("t('addpend_edit')"), '✎ edit aria-label preserved');
   assert.ok(card.includes('!archived && customer.isFreeConnection !== true'), 'archived / free connections show no Additional control');
   assert.ok(card.includes('data-unarchive-customer'), 'archived cards still show Unarchive');
-  // Spec §5.2/§5.3 place Additional ONLY on the Outstanding row (＋
-  // Additional when bill dues are owed, ✎ next to the breakdown when
-  // baqaya > 0). A paid-up card has no Outstanding row, so it has no
-  // Additional control — the control is preserved on every card with an
-  // outstanding balance, and on the profile (Manual Baqaya section) for
-  // paid-up customers.
-  assert.ok(!card.includes('customer-card-additional-row'), 'no standalone Additional row on paid-up cards');
+  // Sharafat 28 REVERSAL of spec §5.2/§5.3: Additional used to live ONLY
+  // on the Outstanding row (＋ Additional when bill dues are owed, ✎ next
+  // to the breakdown when baqaya > 0), so a paid-up card had no Additional
+  // control at all — the profile (Manual Baqaya section) was the only way
+  // to add an amount to a paid-up customer. Sharafat 28 overrules that
+  // for paid-up cards: the button now also rides on its own compact row
+  // when the customer is paid up (the comment above additionalButton
+  // always promised this row). The Outstanding-row placement is unchanged,
+  // and the control is still preserved on every card with an outstanding
+  // balance. There is no pinned height budget left to break (the old
+  // ≤330px/≤430px map died with the old card in PR #1406) — the new
+  // measured paid-up height is disclosed in the Sharafat 28 PR body.
+  assert.ok(!card.includes('customer-card-additional-row'), 'no standalone Additional row class — the paid-up row reuses customer-card-row');
   const outstandingBranch = card.slice(card.indexOf('outstanding.totalCents > 0'));
   assert.ok(outstandingBranch.includes('${additionalButton}'), 'Additional lives inside the Outstanding-row branch');
+  const paidUpBranch = card.slice(card.indexOf('outstanding.totalCents === 0'));
+  assert.ok(paidUpBranch.includes('${additionalButton}'), 'Additional also lives on the paid-up row when nothing is owed');
+  assert.ok(card.includes('canAddPending && outstanding.totalCents === 0'), 'the paid-up row is gated on canAddPending — FREE/archived cards render no row at all, not an empty row');
+  const actionsAt = card.indexOf('customer-card-actions');
+  assert.ok(card.indexOf('outstanding.totalCents === 0') > -1 && card.indexOf('outstanding.totalCents === 0') < actionsAt, 'the paid-up row sits between the Outstanding row and the actions div');
   const additionalDef = card.slice(card.indexOf('const additionalButton'));
   assert.ok(additionalDef.includes('data-additional-pending'), 'the Additional button variable carries the dialog wiring');
 });

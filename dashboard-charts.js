@@ -3044,6 +3044,15 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
  */
 export function renderDashboardCharts(state, referenceDate = new Date(), options = {}) {
   if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+  // Sharafat 22 — lazy charts: the charts <details> is collapsed by
+  // default, so skip the whole render (22 SVG builds, 6 button-group
+  // syncs, 13 modal setups, telecom queue, events wiring) while it is
+  // closed — the work is deferred to first open (see the toggle
+  // listener in renderDashboard, app.js). A missing element means a
+  // non-DOM harness (e.g. the pinned dashboard.test.js:770 fake doc) —
+  // render as before.
+  const chartsSection = document.getElementById('homeChartsCollapsible');
+  if (chartsSection && chartsSection.open === false) return;
   const trendMonths = options.trendMonths ?? currentTrendMonths;
   const trendEl = document.getElementById('dashboardTrendChart');
   if (trendEl) {

@@ -793,6 +793,101 @@ test('renderDashboardCharts populates HTML chart containers correctly', () => {
   }
 });
 
+// Sharafat 22 — lazy dashboard charts. The 21 chart containers that
+// actually exist in index.html. dashboardDuesAgingChart is deliberately
+// NOT listed: index.html has no such container (its button opens a
+// modal instead), so the renderer's if (el) guard skips that write on
+// every render — only 21 charts reach the DOM.
+const SHARAFAT22_CHART_CONTAINER_IDS = [
+  'dashboardTrendChart', 'dashboardStatusChart', 'dashboardAreaChart',
+  'dashboardPackageChart', 'dashboardHealthChart', 'dashboardMethodsChart',
+  'dashboardChurnChart', 'dashboardHeatmapChart', 'dashboardSeasonalChart',
+  'dashboardPackageMarginChart', 'dashboardLtvChart', 'dashboardIncidentChart',
+  'dashboardProjectionChart', 'dashboardUpstreamChart', 'dashboardAcquisitionChart',
+  'dashboardShapingChart', 'dashboardFiberChart', 'dashboardDelinquencyChart',
+  'dashboardCpeChart', 'dashboardPowerChart', 'dashboardRouteDensityChart'
+];
+
+test('Sharafat 22 — renderDashboardCharts is a no-op while the charts section is collapsed', () => {
+  const state = createInitialState(['Test User']);
+  const fakeContainers = new Map();
+  for (const id of SHARAFAT22_CHART_CONTAINER_IDS) fakeContainers.set(id, { innerHTML: '' });
+  const fakeDoc = {
+    getElementById(id) {
+      if (id === 'homeChartsCollapsible') return { open: false };
+      return fakeContainers.get(id) || null;
+    }
+  };
+  const origDoc = globalThis.document;
+  globalThis.document = fakeDoc;
+  try {
+    renderDashboardCharts(state, new Date('2026-10-15T12:00:00+05:00'));
+    for (const id of SHARAFAT22_CHART_CONTAINER_IDS) {
+      assert.equal(fakeContainers.get(id).innerHTML, '', `${id} stays empty while collapsed`);
+    }
+    // The dues-aging container does not exist in index.html (its button
+    // opens a modal), so the renderer never finds it.
+    assert.equal(fakeDoc.getElementById('dashboardDuesAgingChart'), null);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('Sharafat 22 — opening the charts section renders all 21 charts', () => {
+  const state = createInitialState(['Test User']);
+  const fakeContainers = new Map();
+  for (const id of SHARAFAT22_CHART_CONTAINER_IDS) fakeContainers.set(id, { innerHTML: '' });
+  const fakeDoc = {
+    getElementById(id) {
+      if (id === 'homeChartsCollapsible') return { open: true };
+      return fakeContainers.get(id) || null;
+    }
+  };
+  const origDoc = globalThis.document;
+  globalThis.document = fakeDoc;
+  try {
+    renderDashboardCharts(state, new Date('2026-10-15T12:00:00+05:00'));
+    for (const id of SHARAFAT22_CHART_CONTAINER_IDS) {
+      assert.ok(fakeContainers.get(id).innerHTML.includes('<svg'), `${id} renders an SVG when open`);
+    }
+    // Still no dues-aging container — the 22nd build is skipped by the
+    // if (el) guard even when open; do NOT add the container here.
+    assert.equal(fakeDoc.getElementById('dashboardDuesAgingChart'), null);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('Sharafat 22 — reopening after a new payment refreshes chart figures', () => {
+  let state = createInitialState(['Test User']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  const fakeContainers = new Map();
+  for (const id of SHARAFAT22_CHART_CONTAINER_IDS) fakeContainers.set(id, { innerHTML: '' });
+  const fakeDoc = {
+    getElementById(id) {
+      if (id === 'homeChartsCollapsible') return { open: true };
+      return fakeContainers.get(id) || null;
+    }
+  };
+  const origDoc = globalThis.document;
+  globalThis.document = fakeDoc;
+  try {
+    renderDashboardCharts(state, refDate);
+    const statusBefore = fakeContainers.get('dashboardStatusChart').innerHTML;
+    assert.ok(statusBefore.includes('0 Bills'));
+    // A payment lands while the section is open (recorded from Quick
+    // Collect) — the next render must show it, not the stale figures.
+    state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: 3000, status: 'pending' }, refDate);
+    state = addPayment(state, state.customers[0].id, '2026-10', { amount: 3000, method: 'Cash', date: '2026-10-15' }, refDate);
+    renderDashboardCharts(state, refDate);
+    const statusAfter = fakeContainers.get('dashboardStatusChart').innerHTML;
+    assert.notEqual(statusAfter, statusBefore);
+    assert.ok(statusAfter.includes('Paid: 1'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
 test('calculatePackageDistribution groups customers by packageSpeed, revenue, and active counts', () => {
   let state = createInitialState(['Cust A', 'Cust B', 'Cust C', 'Cust D', 'Archived Cust']);
   state.customers[0].packageSpeed = '5 Mbps / 150GB';

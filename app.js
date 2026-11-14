@@ -23,6 +23,7 @@ import { calculateUpcomingDues, renderUpcomingDues } from './dashboard-upcoming-
 import { calculateOverdueList, renderOverdueList } from './dashboard-overdue-list.js?v=1.11.0';
 import { calculateMethodStrip, renderMethodStrip } from './dashboard-method-strip.js?v=1.11.0';
 import { calculateMohallaBars, renderMohallaBars } from './dashboard-mohalla-bars.js?v=1.11.0';
+import { AREA_MODULE_TOP_N, areaChipMatches, sortAreaRowsByDueDesc, sliceAreaRows, buildAreaJumpOptions } from './area-analytics-module.js';
 import { calculateCollectorCard, renderCollectorCard } from './dashboard-collector-card.js?v=1.11.0';
 import { calculateNewCustomers, renderNewCustomers } from './dashboard-new-customers.js?v=1.11.0';
 import { calculateNoPaymentCustomers, renderNoPayment } from './dashboard-no-payment.js?v=1.11.0';
@@ -687,7 +688,7 @@ import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-col
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
 import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
-import { setupExpansionEstimatorModal } from './expansion-estimator.js';
+import { setupExpansionEstimatorInline } from './expansion-estimator.js';
 import { EXPENSE_BUDGETS_KEY, loadExpenseBudgets, saveExpenseBudgets } from './expense-budget-caps.js';
 import { FIELD_BAG_KEY, applyFieldBagStockBridge, computeBagStock, loadFieldBagMovements, saveFieldBagMovements, setupFieldBagModal } from './field-bag-stock.js';
 import { POLES_REGISTRY_KEY, loadPolesRegistry, poleRegistrySummary, savePolesRegistry, setupPoleRegistryModal } from './pole-asset-tracker.js';
@@ -1966,6 +1967,248 @@ function renderPowerBackupDashboard(now = new Date()) {
 // on the first render after the page loads — later renders leave
 // the operator where they are.
 let dashboardPlaceRestored = false;
+
+// Area & Mohalla Analytics compact module (Nov 2026): the four
+// Home pieces — the collection thermometer, the per-mohalla bars,
+// the mohalla action cards and the expansion calculator — live in
+// ONE module in the Collect tab instead of four stacked sections
+// across two tabs. The module keeps one shared view state: the
+// active tab, the dues chip and the show-all toggle. The two data
+// summaries it renders from are stored at each dashboard render
+// (bars rows for Tab 1, card stats for Tab 2), together with the
+// state + reference date the card handlers need (the Area-view
+// dialog builds from the live ledger). Nothing here writes to the
+// ledger; the estimator stays a pure calculator.
+let areaModuleTab = 'progress';
+let areaModuleChip = 'pending';
+let areaModuleExpanded = false;
+let areaModuleBarsSummary = null;
+let areaModuleCardStats = [];
+let areaModuleState = null;
+let areaModuleReferenceDate = null;
+let areaModuleEstimatorReady = false;
+
+// Tab 1 (Progress & Dues): the bars rows, filtered by the dues
+// chip, sorted highest still-due first, sliced to the Top 5 until
+// the operator shows all. The totals line above the rows still
+// comes from renderMohallaBars, fed the FULL summary so the
+// totals never follow the filter — only the rows do.
+function renderAreaModuleBars() {
+  const summary = areaModuleBarsSummary;
+  if (!summary) return;
+  const rows = Array.isArray(summary.rows) ? summary.rows : [];
+  const filtered = sortAreaRowsByDueDesc(
+    rows.filter((row) => areaChipMatches(row.dueCents, areaModuleChip)),
+    (row) => row.dueCents
+  );
+  const visible = sliceAreaRows(filtered, areaModuleExpanded);
+  renderMohallaBars(document, { ...summary, rows: visible });
+  const emptyEl = $('#areaAnalyticsBarsEmpty');
+  if (emptyEl) emptyEl.hidden = !(rows.length > 0 && visible.length === 0);
+}
+
+// Tab 2 (Action Cards): the mohalla cards, filtered by the same
+// dues chip, sorted highest unpaid first, sliced to the Top 5
+// until the operator shows all. The three card actions are the
+// same as before the move: open the Customers list for the
+// mohalla, open Field Mode scoped to it, and open its Area view.
+// The card keeps the Collect Tab shape: name on one line
+// (nowrap, ellipsis), count + users + paid % on one headline
+// line, the Unpaid figure, the Free line when there are any, and
+// the Field Collect + Area view buttons side by side on one row.
+function renderAreaModuleCards() {
+  const mohallaCardsEl = $('#mohallaDashboardCards');
+  if (!mohallaCardsEl) return;
+  const stats = areaModuleCardStats || [];
+  const filtered = sortAreaRowsByDueDesc(
+    stats.filter((row) => areaChipMatches(row.unpaidPKR * 100, areaModuleChip)),
+    (row) => row.unpaidPKR * 100
+  );
+  const visible = sliceAreaRows(filtered, areaModuleExpanded);
+  const mohallaEmptyEl = $('#mohallaDashboardEmpty');
+  if (mohallaEmptyEl) mohallaEmptyEl.hidden = stats.length > 0;
+  const cardsEmptyEl = $('#areaAnalyticsCardsEmpty');
+  if (cardsEmptyEl) cardsEmptyEl.hidden = !(stats.length > 0 && visible.length === 0);
+  mohallaCardsEl.innerHTML = visible.map((row) => {
+    const paidText = row.paidPct === null ? '—' : `${row.paidPct}%`;
+    const freeLine = row.freeCount > 0 ? `<span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_free'))}</span><strong>${row.freeCount}</strong></span>` : '';
+    return `<div class="mohalla-card" data-area-key="${escapeHtml(row.key)}"><button type="button" class="mohalla-card-main" data-mohalla-card="${escapeHtml(row.stored)}" aria-label="${escapeHtml(`${row.stored}: ${row.count} ${t('dash_mohalla_users')}, ${t('dash_mohalla_unpaid')} ${formatPKR(row.unpaidPKR)}, ${t('dash_mohalla_paid')} ${paidText}`)}"><span class="mohalla-card-name">${escapeHtml(row.stored)}</span><span class="mohalla-card-headline"><strong class="mohalla-card-count">${row.count}</strong><span class="mohalla-card-users">${escapeHtml(t('dash_mohalla_users'))}</span><span class="mohalla-card-headline-sep">·</span><span class="mohalla-card-paid"><strong>${paidText}</strong> ${escapeHtml(t('dash_mohalla_paid'))}</span></span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_unpaid'))}</span><strong>${escapeHtml(formatPKR(row.unpaidPKR))}</strong></span>${freeLine}</button><div class="mohalla-card-actions"><button type="button" class="mohalla-card-collect mohalla-card-collect--primary" data-mohalla-collect="${escapeHtml(row.stored)}">${dsIcon('Bike', 16)}<span>${escapeHtml(t('dash_mohalla_collect'))}</span></button><button type="button" class="mohalla-card-collect mohalla-card-collect--compact" data-mohalla-area-view="${escapeHtml(row.stored)}">Area view</button></div></div>`;
+  }).join('');
+  mohallaCardsEl.querySelectorAll('[data-mohalla-card]').forEach((button) => button.addEventListener('click', () => {
+    customerSearchField = 'area';
+    customerAreaFilter = 'all';
+    if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
+    if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
+    if ($('#customerListSearch')) $('#customerListSearch').value = button.dataset.mohallaCard;
+    customerCurrentPage = 1;
+    switchView('customers');
+    renderCustomers();
+  }));
+  mohallaCardsEl.querySelectorAll('[data-mohalla-collect]').forEach((button) => button.addEventListener('click', () => {
+    window.fieldModeController?.openForMohalla?.(button.dataset.mohallaCollect);
+  }));
+  // Plan T: one area view per mohalla card — dues, defaulters,
+  // promises and collections for that area in a single dialog, built
+  // from the same figures as the card, Top Defaulters and the Waada
+  // queue. Its actions reuse existing navigation (Customers list
+  // with the Area search set, Field Mode scoped to the mohalla).
+  mohallaCardsEl.querySelectorAll('[data-mohalla-area-view]').forEach((button) => button.addEventListener('click', () => {
+    if (!areaModuleState || !areaModuleReferenceDate) return;
+    const dialog = $('#areaOperationsDialog');
+    if (!dialog) return;
+    if (!dialog.dataset.areaCloseWired) {
+      dialog.dataset.areaCloseWired = '1';
+      dialog.querySelectorAll('[data-area-operations-close]').forEach((closeBtn) => closeBtn.addEventListener('click', () => {
+        if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+        else dialog.hidden = true;
+      }));
+    }
+    const stored = button.dataset.mohallaAreaView;
+    const view = buildAreaOperationsView({
+      customers: areaModuleState.customers,
+      allocations: calculatePaymentAllocations(areaModuleState),
+      currentMonth: pakistanMonthNow(areaModuleReferenceDate),
+      area: stored,
+      todayStr: pakistanToday(),
+    });
+    const bodyEl = $('#areaOperationsBody');
+    if (bodyEl) bodyEl.innerHTML = areaOperationsViewHtml(view);
+    const titleEl = $('#areaOperationsTitle');
+    if (titleEl) titleEl.textContent = view.validArea ? `Area view — ${view.area.stored}` : 'Area view';
+    const customersBtn = $('#areaOperationsCustomersBtn');
+    if (customersBtn) customersBtn.onclick = () => {
+      customerSearchField = 'area';
+      customerAreaFilter = 'all';
+      if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
+      if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
+      if ($('#customerListSearch')) $('#customerListSearch').value = stored;
+      customerCurrentPage = 1;
+      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+      switchView('customers');
+      renderCustomers();
+    };
+    const collectBtn = $('#areaOperationsCollectBtn');
+    if (collectBtn) collectBtn.onclick = () => {
+      if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+      window.fieldModeController?.openForMohalla?.(stored);
+    };
+    if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
+    else dialog.hidden = false;
+  }));
+}
+
+// The jump control: all sixteen mohallas in the fixed numbered
+// order, plus Unassigned last. Picking one switches to the tab
+// that holds the matching row or card, clears the chip filter
+// when it is hiding the target, and scrolls it into view.
+function renderAreaModuleJumpOptions() {
+  const select = $('#areaAnalyticsJumpSelect');
+  if (!select) return;
+  const mohallas = sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS)
+    .map((name) => canonicalMohalla(name))
+    .filter(Boolean)
+    .map((canon) => ({ key: canon.key, label: canon.label }));
+  const options = buildAreaJumpOptions(mohallas);
+  select.innerHTML = `<option value="">${escapeHtml(t('area_mod_jump_placeholder'))}</option>` + options.map((option) => `<option value="${escapeHtml(option.key)}">${escapeHtml(option.label)}</option>`).join('');
+}
+
+function areaModuleJumpTo(key) {
+  if (!key) return;
+  const moduleEl = $('#areaAnalyticsModule');
+  if (!moduleEl) return;
+  // Tab 3 (the planner) holds no rows or cards — a jump from
+  // there lands on Tab 1, where the bars rows live.
+  if (areaModuleTab === 'planner') areaModuleTab = 'progress';
+  const panelId = areaModuleTab === 'cards' ? 'areaAnalyticsTabCards' : 'areaAnalyticsTabProgress';
+  const panel = document.getElementById(panelId);
+  const findTarget = () => panel
+    ? Array.from(panel.querySelectorAll('[data-area-key]')).find((el) => el.dataset.areaKey === key)
+    : null;
+  const target = findTarget();
+  if (target) {
+    target.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  // The chip may be hiding the target, or the Top-5 slice may
+  // have cut it off: show everything, then look again. Still
+  // nothing means the mohalla has no row or card at all (no
+  // customers) — nothing to scroll to.
+  if (areaModuleChip !== 'all' || !areaModuleExpanded) {
+    areaModuleChip = 'all';
+    areaModuleExpanded = true;
+    renderAreaModuleBars();
+    renderAreaModuleCards();
+    syncAreaModuleChrome();
+    const retry = findTarget();
+    if (retry) retry.scrollIntoView({ block: 'nearest' });
+  }
+}
+
+// Chrome sync: which tab is visible, which tab + chip carry
+// aria-pressed, and what the two show-all toggles say. Runs at
+// the end of every dashboard render (a language change re-runs
+// the render and resets the toggle labels through data-i18n,
+// and the toggle visibility follows the filtered counts) and
+// after every tab, chip or toggle tap.
+function syncAreaModuleChrome() {
+  const moduleEl = $('#areaAnalyticsModule');
+  if (!moduleEl) return;
+  const tabs = { progress: 'areaAnalyticsTabProgress', cards: 'areaAnalyticsTabCards', planner: 'areaAnalyticsTabPlanner' };
+  for (const [tab, panelId] of Object.entries(tabs)) {
+    const panel = document.getElementById(panelId);
+    if (panel) panel.hidden = tab !== areaModuleTab;
+    const btn = document.getElementById(`${panelId}Btn`);
+    if (btn) btn.setAttribute('aria-pressed', String(tab === areaModuleTab));
+  }
+  moduleEl.querySelectorAll('[data-area-chip]').forEach((chipBtn) => chipBtn.setAttribute('aria-pressed', String(chipBtn.dataset.areaChip === areaModuleChip)));
+  const filteredCount = areaModuleTab === 'cards'
+    ? (areaModuleCardStats || []).filter((row) => areaChipMatches(row.unpaidPKR * 100, areaModuleChip)).length
+    : (areaModuleBarsSummary && Array.isArray(areaModuleBarsSummary.rows) ? areaModuleBarsSummary.rows.filter((row) => areaChipMatches(row.dueCents, areaModuleChip)).length : 0);
+  moduleEl.querySelectorAll('[data-area-toggle]').forEach((toggleBtn) => {
+    toggleBtn.hidden = filteredCount <= AREA_MODULE_TOP_N;
+    toggleBtn.classList.toggle('is-expanded', areaModuleExpanded);
+    const label = toggleBtn.querySelector('.area-analytics-toggle-label');
+    if (label) label.textContent = t(areaModuleExpanded ? 'area_mod_show_less' : 'area_mod_show_all');
+  });
+}
+
+// One-time wiring for the module chrome: tabs, chips, the two
+// show-all toggles and the jump control. Guarded against
+// double-wiring — the dashboard render re-runs often, but the
+// chrome is wired once. The estimator's inline setup is NOT
+// wired here: its prefill reads recorded data from state, so it
+// runs once from the first dashboard render instead (see the
+// end of renderDashboard).
+function setupAreaAnalyticsModule() {
+  const moduleEl = $('#areaAnalyticsModule');
+  if (!moduleEl || moduleEl.dataset.areaModuleWired) return;
+  moduleEl.dataset.areaModuleWired = '1';
+  moduleEl.querySelectorAll('.area-analytics-tab').forEach((tabBtn) => tabBtn.addEventListener('click', () => {
+    const panelId = tabBtn.getAttribute('aria-controls');
+    const tab = panelId === 'areaAnalyticsTabCards' ? 'cards' : panelId === 'areaAnalyticsTabPlanner' ? 'planner' : 'progress';
+    if (tab === areaModuleTab) return;
+    areaModuleTab = tab;
+    syncAreaModuleChrome();
+  }));
+  moduleEl.querySelectorAll('[data-area-chip]').forEach((chipBtn) => chipBtn.addEventListener('click', () => {
+    if (chipBtn.dataset.areaChip === areaModuleChip) return;
+    areaModuleChip = chipBtn.dataset.areaChip;
+    renderAreaModuleBars();
+    renderAreaModuleCards();
+    syncAreaModuleChrome();
+  }));
+  moduleEl.querySelectorAll('[data-area-toggle]').forEach((toggleBtn) => toggleBtn.addEventListener('click', () => {
+    areaModuleExpanded = !areaModuleExpanded;
+    renderAreaModuleBars();
+    renderAreaModuleCards();
+    syncAreaModuleChrome();
+  }));
+  const jumpSelect = $('#areaAnalyticsJumpSelect');
+  if (jumpSelect) jumpSelect.addEventListener('change', () => {
+    areaModuleJumpTo(jumpSelect.value);
+    jumpSelect.value = '';
+  });
+}
 function renderDashboard() {
   const referenceDate = new Date();
   // SISP-27: upstream bandwidth bill due banner.
@@ -2537,80 +2780,24 @@ function renderDashboard() {
   // SISP-175: each card also carries live figures derived at render from
   // the allocation engine (buildMohallaCardStats): total Unpaid PKR, the
   // Paid % of this month's billed customers, the FREE connection count
-  // (only when there are any), and a 🏍️ Field Collect button that opens
-  // Field Mode scoped to exactly this card's mohalla. The collect button
-  // is a sibling of the card's main button (never nested inside it), so
-  // tapping it never triggers the Customers navigation.
+  // (only when there are any), and a Field Collect button (Bike icon)
+  // that opens Field Mode scoped to exactly this card's mohalla. The
+  // collect button is a sibling of the card's main button (never
+  // nested inside it), so tapping it never triggers the Customers
+  // navigation.
+  // Area & Mohalla Analytics module, Tab 2: the mohalla cards
+  // render from the stored stats (filtered by the dues chip,
+  // Top 5 until show-all) inside renderAreaModuleCards. The
+  // state + reference date are stored here for the card handlers
+  // (the Area-view dialog builds from the live ledger) and for
+  // the inline estimator's recorded-data prefill.
+  areaModuleState = state;
+  areaModuleReferenceDate = referenceDate;
   const mohallaCardsEl = $('#mohallaDashboardCards');
   if (mohallaCardsEl) {
-    const mohallaStats = buildMohallaCardStats(state.customers, calculatePaymentAllocations(state), pakistanMonthNow(referenceDate));
-    const mohallaEmptyEl = $('#mohallaDashboardEmpty');
-    if (mohallaEmptyEl) mohallaEmptyEl.hidden = mohallaStats.length > 0;
-    mohallaCardsEl.innerHTML = mohallaStats.map((row) => {
-      const paidText = row.paidPct === null ? '—' : `${row.paidPct}%`;
-      const freeLine = row.freeCount > 0 ? `<span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_free'))}</span><strong>${row.freeCount}</strong></span>` : '';
-      return `<div class="mohalla-card"><button type="button" class="mohalla-card-main" data-mohalla-card="${escapeHtml(row.stored)}" aria-label="${escapeHtml(`${row.stored}: ${row.count} ${t('dash_mohalla_users')}, ${t('dash_mohalla_unpaid')} ${formatPKR(row.unpaidPKR)}, ${t('dash_mohalla_paid')} ${paidText}`)}"><span class="mohalla-card-name">${escapeHtml(row.stored)}</span><span class="mohalla-card-count-row"><strong class="mohalla-card-count">${row.count}</strong><span class="mohalla-card-users">${escapeHtml(t('dash_mohalla_users'))}</span></span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_unpaid'))}</span><strong>${escapeHtml(formatPKR(row.unpaidPKR))}</strong></span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_paid'))}</span><strong>${paidText}</strong></span>${freeLine}</button><button type="button" class="mohalla-card-collect mohalla-card-collect--primary" data-mohalla-collect="${escapeHtml(row.stored)}">${dsIcon('Bike', 16)}${escapeHtml(t('dash_mohalla_collect'))}</button><button type="button" class="mohalla-card-collect mohalla-card-collect--compact" data-mohalla-area-view="${escapeHtml(row.stored)}">Area view</button></div>`;
-    }).join('');
-    mohallaCardsEl.querySelectorAll('[data-mohalla-card]').forEach((button) => button.addEventListener('click', () => {
-      customerSearchField = 'area';
-      customerAreaFilter = 'all';
-      if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
-      if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
-      if ($('#customerListSearch')) $('#customerListSearch').value = button.dataset.mohallaCard;
-      customerCurrentPage = 1;
-      switchView('customers');
-      renderCustomers();
-    }));
-    mohallaCardsEl.querySelectorAll('[data-mohalla-collect]').forEach((button) => button.addEventListener('click', () => {
-      window.fieldModeController?.openForMohalla?.(button.dataset.mohallaCollect);
-    }));
-    // Plan T: one area view per mohalla card — dues, defaulters,
-    // promises and collections for that area in a single dialog, built
-    // from the same figures as the card, Top Defaulters and the Waada
-    // queue. Its actions reuse existing navigation (Customers list
-    // with the Area search set, Field Mode scoped to the mohalla).
-    mohallaCardsEl.querySelectorAll('[data-mohalla-area-view]').forEach((button) => button.addEventListener('click', () => {
-      const dialog = $('#areaOperationsDialog');
-      if (!dialog) return;
-      if (!dialog.dataset.areaCloseWired) {
-        dialog.dataset.areaCloseWired = '1';
-        dialog.querySelectorAll('[data-area-operations-close]').forEach((closeBtn) => closeBtn.addEventListener('click', () => {
-          if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-          else dialog.hidden = true;
-        }));
-      }
-      const stored = button.dataset.mohallaAreaView;
-      const view = buildAreaOperationsView({
-        customers: state.customers,
-        allocations: calculatePaymentAllocations(state),
-        currentMonth: pakistanMonthNow(referenceDate),
-        area: stored,
-        todayStr: pakistanToday(),
-      });
-      const bodyEl = $('#areaOperationsBody');
-      if (bodyEl) bodyEl.innerHTML = areaOperationsViewHtml(view);
-      const titleEl = $('#areaOperationsTitle');
-      if (titleEl) titleEl.textContent = view.validArea ? `Area view — ${view.area.stored}` : 'Area view';
-      const customersBtn = $('#areaOperationsCustomersBtn');
-      if (customersBtn) customersBtn.onclick = () => {
-        customerSearchField = 'area';
-        customerAreaFilter = 'all';
-        if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
-        if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
-        if ($('#customerListSearch')) $('#customerListSearch').value = stored;
-        customerCurrentPage = 1;
-        if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-        switchView('customers');
-        renderCustomers();
-      };
-      const collectBtn = $('#areaOperationsCollectBtn');
-      if (collectBtn) collectBtn.onclick = () => {
-        if (typeof dialog.close === 'function' && dialog.open) dialog.close();
-        window.fieldModeController?.openForMohalla?.(stored);
-      };
-      if (typeof dialog.showModal === 'function' && !dialog.open) dialog.showModal();
-      else dialog.hidden = false;
-    }));
+    areaModuleCardStats = buildMohallaCardStats(state.customers, calculatePaymentAllocations(state), pakistanMonthNow(referenceDate));
+    renderAreaModuleCards();
+    renderAreaModuleJumpOptions();
   }
   // SISP-17: monthly complaint report card (this-month 4-part report totals).
   const monthlyReportSummaryEl = $('#monthlyComplaintReportSummary');
@@ -2933,8 +3120,14 @@ function renderDashboard() {
   // payment method, each in PKR, with the day total in PKR.
   renderMethodStrip(document, calculateMethodStrip(state, referenceDate));
   // Plan 475: the per-mohalla bars — collected and still due in
-  // PKR for each mohalla, as a short bar, in one glance.
-  renderMohallaBars(document, calculateMohallaBars(state, referenceDate));
+  // PKR for each mohalla, as a short bar, in one glance. The
+  // summary is stored for the Area & Mohalla Analytics module:
+  // its Tab 1 renders the same rows filtered by the dues chip
+  // and sliced to the Top 5 (renderAreaModuleBars feeds the full
+  // summary to renderMohallaBars so the totals never follow the
+  // filter), and its jump control lists the same mohallas.
+  areaModuleBarsSummary = calculateMohallaBars(state, referenceDate);
+  renderAreaModuleBars();
   // Plan 476: the per-collector today card — today's collections
   // in PKR, the count of payments, and the dues still open on
   // each collector's round, in one glance.
@@ -3100,7 +3293,14 @@ function renderDashboard() {
   // ledger itself via collection-forecaster.js, never a typed-in
   // goal), the required daily run-rate for the days left, and
   // area-by-area progress bars. Read-only presentation.
-  const fcstSection = $('#collectionForecastSection');
+  // Area & Mohalla Analytics module: the thermometer lives at
+  // the top of the module now (it moved from Reports into the
+  // Collect tab with the bars). The per-area rows below it are
+  // NOT rendered here any more — Tab 1 renders the same figures
+  // from the bars summary (calculateMohallaBars), filtered by
+  // the dues chip and sliced to the Top 5, so the two never
+  // disagree about what an area owes.
+  const fcstSection = $('#areaAnalyticsModule');
   if (fcstSection) {
     const forecast = buildCollectionForecast(state, totals.currentMonth, referenceDate);
     const pctText = forecast.progressPercent === null ? '—' : `${forecast.progressPercent}%`;
@@ -3157,19 +3357,6 @@ function renderDashboard() {
     }
     const emptyEl = $('#collectionForecastEmpty');
     if (emptyEl) emptyEl.hidden = forecast.hasTarget;
-    const areasTitleEl = fcstSection.querySelector('.collection-forecast-areas-title');
-    if (areasTitleEl) areasTitleEl.hidden = forecast.areas.length === 0;
-    const areasEl = $('#collectionForecastAreas');
-    if (areasEl) {
-      areasEl.innerHTML = forecast.areas.map(area => {
-        const areaPct = Math.min(100, Math.max(0, area.progressPercent ?? 0));
-        return `<div class="fcst-area-row">
-          <div class="fcst-area-head"><span class="fcst-area-label">${escapeHtml(area.label)}</span><span class="fcst-area-figures">${escapeHtml(formatAmount(area.collectedCents / 100))} / ${escapeHtml(formatAmount(area.targetCents / 100))} · ${area.progressPercent}%</span></div>
-          <div class="fcst-area-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${areaPct}" aria-label="${escapeHtml(area.label)}"><div class="fcst-area-fill" style="width: ${areaPct}%"></div></div>
-          <span class="fcst-area-sub">${escapeHtml(t('fcst_remaining', null, { amount: formatAmount(area.remainingCents / 100) }))}</span>
-        </div>`;
-      }).join('');
-    }
   }
 
   // SISP-70: Multi-Month Growth & Finance Matrix — 3/6/12-month
@@ -3382,6 +3569,16 @@ function renderDashboard() {
   if (!dashboardPlaceRestored) {
     dashboardPlaceRestored = true;
     restoreDashboardPlace(document, window, storageAvailable ? localStorage : null);
+  }
+  // Area & Mohalla Analytics module: re-sync the chrome after
+  // every render (the toggle labels reset on a language change,
+  // the toggle visibility follows the filtered counts) and set
+  // up the inline estimator once, now that state is available
+  // for its recorded-data prefill. The prefill runs exactly
+  // once — a later render must never wipe a typed scenario.
+  syncAreaModuleChrome();
+  if (!areaModuleEstimatorReady) {
+    areaModuleEstimatorReady = setupExpansionEstimatorInline(() => areaModuleState) !== null;
   }
   // Plan 487: the dashboard labels read in the operator's stored
   // script — Urdu script when the option is on, the app's own
@@ -45388,10 +45585,14 @@ if (typeof document !== 'undefined') {
   // checks run on synthetic in-memory fixtures only and never read or
   // write the live ledger.
   setupInAppSelfTest({ onToast: (msg, opts) => toast(msg, opts) });
-  // SISP-135: new-street expansion estimator — a pure planning dialog;
-  // it only reads state for recorded-data prefill defaults and never
-  // writes anything back.
-  setupExpansionEstimatorModal(() => state);
+  // SISP-135: new-street expansion estimator — a pure planning
+  // calculator, inline in the Area & Mohalla Analytics module's
+  // third tab (no dialog any more); it only reads state for
+  // recorded-data prefill defaults and never writes anything
+  // back. The chrome wiring runs here; the estimator's own
+  // setup runs once from the first dashboard render, when state
+  // is available for the prefill (see renderDashboard).
+  setupAreaAnalyticsModule();
   // SISP-83: receipt verification lookup — the operator types the VER
   // code (or receipt number) printed on a paper receipt; the pure
   // lookup in receipt-verifier.js recomputes codes from the saved

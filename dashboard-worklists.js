@@ -28,6 +28,7 @@ import {
   formatWhatsAppUrl,
   buildPaymentReminderMessage
 } from './form-validation.js';
+import { DEFAULT_BILL_DUE_DAY } from './billing-cycle-choice.js';
 
 export const WORKLIST_RULES_STORAGE_KEY = 'shahdara_worklist_rules';
 
@@ -88,7 +89,8 @@ export function diffCalendarDays(ymdA, ymdB) {
 
 /**
  * Resolves bill due date as a YYYY-MM-DD string.
- * Defaults to 10th of bill month if not explicitly specified.
+ * Defaults to the 5th of the bill month (the shared house rule:
+ * DEFAULT_BILL_DUE_DAY) if not explicitly specified.
  * @param {object} bill
  * @returns {string|null}
  */
@@ -98,7 +100,7 @@ export function parseBillDueDateString(bill) {
     return bill.dueDate;
   }
   if (bill.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(bill.month)) {
-    return `${bill.month}-10`;
+    return `${bill.month}-${String(DEFAULT_BILL_DUE_DAY).padStart(2, '0')}`;
   }
   return null;
 }
@@ -212,7 +214,13 @@ export function calculateDisconnectReconnectWorklists(state, options = {}) {
 
       if (balanceDueCents > 0) {
         customerDuesCents += balanceDueCents;
-        const dueYmd = parseBillDueDateString(bill) || `${bill.month}-10`;
+        // Sharafat 37: no fabricated fallback — parseBillDueDateString
+        // already returns the 5th for every valid month, so this only fires
+        // for invalid months, where the old `${bill.month}-10` fabricated
+        // garbage (e.g. 'undefined-10'). A null due date is safe here:
+        // diffCalendarDays returns 0 for a null side (no NaN), and the
+        // oldest-date comparison below is guarded on dueYmd.
+        const dueYmd = parseBillDueDateString(bill);
         const daysOverdue = Math.max(0, diffCalendarDays(refYmd, dueYmd));
 
         unpaidBills.push({
@@ -222,7 +230,7 @@ export function calculateDisconnectReconnectWorklists(state, options = {}) {
           balanceDue: Math.round(balanceDueCents / 100)
         });
 
-        if (!oldestDueDateYmd || dueYmd.localeCompare(oldestDueDateYmd) < 0) {
+        if (dueYmd && (!oldestDueDateYmd || dueYmd.localeCompare(oldestDueDateYmd) < 0)) {
           oldestDueDateYmd = dueYmd;
         }
         if (daysOverdue > maxOverdueDays) {

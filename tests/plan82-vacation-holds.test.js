@@ -155,7 +155,9 @@ test('month treatment: a retention month shows that charge and nothing else', ()
   // February is fully inside too.
   assert.deepEqual(holdMonthTreatment(hold, '2026-02'), { month: '2026-02', treatment: 'retention', chargeCents: 50000, fullyInside: true });
   assert.deepEqual(holdMonthTreatment(hold, '2026-03'), { month: '2026-03', treatment: 'ordinary', chargeCents: null, fullyInside: false });
-  assert.match(holdMonthTreatmentText(holdMonthTreatment(hold, '2026-01')), /Rs\. 500\.00/);
+  // More Tab Operational Registries polish (§5b currency): the
+  // retention line now uses the app-wide PKR min-0 shape, not Rs.
+  assert.match(holdMonthTreatmentText(holdMonthTreatment(hold, '2026-01')), /PKR 500/);
 });
 
 test('ending a hold early: later months go ordinary, treated months are never rewritten', () => {
@@ -218,6 +220,11 @@ test('filters: status, reason, treatment, and mohalla with the Plan T rule', () 
   assert.equal(holdsFiltered(list, { mohalla: 'bani' }).length, 1);
   assert.equal(holdsFiltered(list, { mohalla: 'BANII' }).length, 1);
   assert.equal(holdsFiltered(list, { mohalla: '__unassigned__' }).length, 1);
+  // More Tab Operational Registries polish (§1): the filter
+  // placeholder invites the word "Unassigned", so the folded word
+  // matches the same no-mohalla rows as the literal sentinel.
+  assert.equal(holdsFiltered(list, { mohalla: 'Unassigned' }).length, 1);
+  assert.equal(holdsFiltered(list, { mohalla: 'unassigned' }).length, 1);
   assert.equal(holdsFiltered(list, { mohalla: 'Mohalla Bani' }).length, 1);
   assert.equal(holdMohallaKey('Mohalla Bani'), 'BANII');
   assert.equal(holdMohallaKey(''), null);
@@ -236,7 +243,10 @@ test('summary totals are exact, in integer cents', () => {
   assert.equal(summary.byTreatment.retention, 1);
   assert.equal(summary.retentionTotalCents, 50000);
   assert.match(holdSummaryText(summary), /2 holds recorded — 2 active, 0 ended/);
-  assert.match(holdSummaryText(summary), /Rs\. 500/);
+  // More Tab Operational Registries polish (§5b currency): the
+  // summary retention total now uses the app-wide PKR min-0 shape,
+  // not Rs.
+  assert.match(holdSummaryText(summary), /PKR 500/);
 });
 
 test('no bill, payment, or package field is held, and SISP-8 fields are untouched', () => {

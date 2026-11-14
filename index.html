@@ -27100,38 +27100,36 @@
 
       <!-- Step 1: Customer Picker (Tap 1) -->
       <div id="quickCollectStepPick" class="qc-step">
-        <!-- QC Cash Modal Overhaul: bill status + sort sit side by
-             side in one 2-column row (labels above their selects),
-             so the queue starts one screen earlier. The two labels
-             are unchanged; only their shared row is new. -->
+        <!-- QC True 1-Row Tightening (item A, user instruction
+             2026-11-14): Sort by + Mohalla share one 2-column row,
+             labels removed (each select keeps its aria-label), so
+             the picker starts one screen earlier. -->
         <div class="qc-filter-row-2col">
-        <!-- QC-12: bill-status dropdown above the search — Unpaid /
-             Paid / All. One pool, two controls: this select and the
-             filter chips below the search set the same picker pool,
-             so they can never disagree. Default Unpaid, the picker's
-             long-standing default view. Wrapping label, so no new
-             element id; wiring is class-found. -->
-        <label class="qsf-status-filter-row">
-          <span class="qsf-status-filter-label" data-i18n="qc12_status_label">Bill status</span>
-          <select class="qc-input qsf-status-filter" data-qc-status-filter aria-label="Filter customers by bill status">
-            <option value="unpaid" selected data-i18n="qc12_status_unpaid">Unpaid</option>
-            <option value="paid" data-i18n="qc12_status_paid">Paid</option>
-            <option value="all" data-i18n="qc12_status_all">All</option>
-          </select>
-        </label>
-
+        <!-- QC True 1-Row Tightening (item A): the Bill-status
+             dropdown is GONE — the filter chips below the search
+             are the only status control now, with a 4th pill 'Paid'
+             reaching the paid pool (the dropdown was the only
+             control that reached it; the merge keeps the function).
+             The QC-12 'one pool, two controls' design is retired —
+             see setFilter in nav-quick-collect.js. -->
         <!-- QC-2: sort-order dropdown above the search — Highest dues
              first (the default, the picker's long-standing order) /
              Oldest due first (by oldest unpaid bill month). It
              re-orders the same pool, never the pool itself. Wrapping
              label, so no new element id; wiring is class-found. -->
         <label class="qsf-status-filter-row">
-          <span class="qsf-status-filter-label" data-i18n="qc2_sort_label">Sort by</span>
           <select class="qc-input qsf-status-filter" data-qc-sort-order aria-label="Sort customers by dues or oldest due date">
             <option value="amount" selected data-i18n="qc2_sort_amount">Highest dues first</option>
             <option value="oldest" data-i18n="qc2_sort_oldest">Oldest due first</option>
           </select>
         </label>
+        <!-- QC True 1-Row Tightening (item A): the Mohalla select
+             moved here from its own row below the pills, as the
+             row's second cell (same id + class, so its wiring and
+             the #1399 dues-first option order are untouched). -->
+        <select id="mhfMohallaFilter" class="qc-input mhf-mohalla-filter" aria-label="Filter customers by mohalla">
+          <option value="">All</option>
+        </select>
         </div>
 
         <div class="qc-search-box">
@@ -27160,13 +27158,12 @@
           <button type="button" class="quick-collect-filter-chip" data-filter="all" role="tab" aria-selected="false">
             All <span class="qc-count-badge" id="quickCollectAllCount">0</span>
           </button>
-        </div>
-
-        <div class="mhf-mohalla-filter-row">
-          <label for="mhfMohallaFilter">Mohalla</label>
-          <select id="mhfMohallaFilter" class="qc-input mhf-mohalla-filter" aria-label="Filter customers by mohalla">
-            <option value="">All</option>
-          </select>
+          <!-- QC True 1-Row Tightening (item A): 4th pill 'Paid' —
+               the Bill-status dropdown's paid pool, now reached by
+               the chips (setFilter already accepts 'paid'). -->
+          <button type="button" class="quick-collect-filter-chip" data-filter="paid" role="tab" aria-selected="false">
+            Paid <span class="qc-count-badge" id="quickCollectPaidCount">0</span>
+          </button>
         </div>
 
         <p id="mhfMohallaFilterSummary" class="mhf-summary" aria-live="polite"></p>

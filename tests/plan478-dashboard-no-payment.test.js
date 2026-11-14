@@ -235,7 +235,7 @@ test('no payment this month wiring: the view sits in the Collect tab after the c
   // collector card inside transactionsView.
   assert.ok(page.indexOf('id="noPaymentSection"') > page.indexOf('id="collectorCardSection"'), 'view follows the collector card');
   assert.ok(page.indexOf('id="noPaymentSection"') > page.indexOf('id="transactionsView"'), 'view sits inside the Collect tab');
-  assert.ok(page.indexOf('id="noPaymentSection"') < page.indexOf('id="collectionForecastSection"'), 'view sits before the forecast section');
+  assert.ok(page.indexOf('id="noPaymentSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'view sits before the matrix section');
   assert.ok(page.includes('id="nqpNoPaymentTotal"'), 'total element exists');
   assert.ok(page.includes('id="nqpNoPaymentLine"'), 'count line exists');
   assert.ok(page.includes('id="nqpNoPaymentRows"'), 'rows element exists');

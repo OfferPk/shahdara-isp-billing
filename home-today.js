@@ -313,9 +313,9 @@ export function setupHomeTodaySection({ getState, getRefDate = () => new Date(),
 
   // SISP-145: pill taps route to the real surfaces through the host
   // (waada → recovery/defaulters, complaints → register modal, shops →
-  // settlement modal, backup → the top-bar backup badge action). Without
-  // a host handler the pills stay plain buttons that do nothing on tap —
-  // never a fake route.
+  // settlement modal, backup → the footer Backup & Restore controls).
+  // Without a host handler the pills stay plain buttons that do nothing
+  // on tap — never a fake route.
   const pillsEl = doc.getElementById('morningBriefingPills');
   if (pillsEl && !pillsEl._briefingWired) {
     pillsEl._briefingWired = true;

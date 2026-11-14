@@ -268,7 +268,11 @@ export function rmaSummaryText(summary) {
 
 export function rmaHtml(entries) {
   const rows = normalizeRmaList(entries);
-  if (rows.length === 0) return '<p>No warranty returns recorded yet.</p>';
+  // More Tab Operational Registries polish (§2 dedup): the summary
+  // line is now the single empty state ("No warranty returns
+  // recorded yet."), so the body renders nothing at 0 instead of
+  // repeating the same sentence a second time.
+  if (rows.length === 0) return '';
   const body = rows.map((entry) => {
     const extra = entry.status === 'replaced' && entry.replacementSerial
       ? ` — replacement ${escapeHtml(entry.replacementSerial)}`

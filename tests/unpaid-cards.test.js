@@ -7,7 +7,9 @@
 // received green, Time with ISP blue, Outstanding red in the Due
 // badge style, + Additional green with black bold text, health by
 // score band; (4) the ID pill cycles colours by customer number and
-// reads "Customer N" with no "#".
+// the header badge reads "[#N]" (the old "Customer N" pill was
+// retired by the Customers Cards Compact item — the badge keeps the
+// rotation).
 //
 // Fixtures are generic placeholders only ("Customer A", pattern-fake
 // phone 03012345678 family) — no real customer data from any
@@ -52,11 +54,14 @@ test('unpaid cards: ID pill cycles colours by customer number (1 black, 2 yellow
   assert.equal(customerIdPillClass('abc'), '');
 });
 
-test('unpaid cards: ID pill reads "Customer N" with no "#"', () => {
-  assert.equal(TRANSLATIONS.en.cust_card_customer_number, 'Customer {number}');
-  assert.doesNotMatch(TRANSLATIONS.en.cust_card_customer_number, /#/);
-  assert.doesNotMatch(TRANSLATIONS.ur.cust_card_customer_number, /#/);
-  assert.match(TRANSLATIONS.ur.cust_card_customer_number, /[\u0600-\u06FF]/, 'Urdu pill still carries Urdu script');
+test('unpaid cards: header badge reads "[#N]" — the Customer N pill is retired', () => {
+  // Customers Cards Compact retired the `Customer N` pill (and its key):
+  // the header badge is [#N] with the same ID-pill rotation. The "#"
+  // lives inside the badge now — the old no-"#" wording is gone with
+  // the pill, not restyled.
+  assert.equal(TRANSLATIONS.en.cust_card_customer_number, undefined, 'Customer N key deleted from the English dict');
+  assert.equal(TRANSLATIONS.ur.cust_card_customer_number, undefined, 'Customer N key deleted from the Urdu dict');
+  assert.ok(app.includes('#${escapeHtml(String(customer.customerNumber))}'), 'header badge renders [#N]');
 });
 
 test('unpaid cards: pill rotation classes exist in CSS with the documented colours, no new hex', () => {
@@ -97,13 +102,16 @@ test('unpaid cards: health value is coloured by score band (70+ green, 40–70 y
 
 // --- (3) card colours --------------------------------------------------
 
-test('unpaid cards: stat boxes are coloured — Actually received green, Time with ISP blue', () => {
-  assert.ok(app.includes('customer-card-stat customer-card-stat-received'), 'received stat carries its class');
-  assert.ok(app.includes('customer-card-stat customer-card-stat-tenure'), 'tenure stat carries its class');
-  assert.match(styles, /\.customer-card-stat-received \{[^}]*background: #e8f5ed;[^}]*border-color: #a8d6ba;/s, 'received stat is the health-good green');
-  assert.match(styles, /\.customer-card-stat-received strong \{[^}]*color: #19704e;/s, 'received value is green');
-  assert.match(styles, /\.customer-card-stat-tenure \{[^}]*background: #e5efff;[^}]*border-color: #adc9f1;/s, 'tenure stat is the status-partial blue');
-  assert.match(styles, /\.customer-card-stat-tenure strong \{[^}]*color: #174b87;/s, 'tenure value is blue');
+test('unpaid cards: lifetime + tenure pills are coloured — Lifetime green, tenure blue', () => {
+  // Customers Cards Compact replaced the two stat boxes with TWO
+  // condensed pills in one row, keeping the same palettes (the
+  // health-good green for Lifetime, the status-partial blue for
+  // tenure). The pill rules use the border shorthand, not
+  // border-color — the regexes below match the shorthand.
+  assert.ok(app.includes('customer-card-lifetime-pill'), 'lifetime pill carries its class');
+  assert.ok(app.includes('customer-card-tenure-pill'), 'tenure pill carries its class');
+  assert.match(styles, /\.customer-card-lifetime-pill \{[^}]*border: 1px solid #a8d6ba;[^}]*background: #e8f5ed;[^}]*color: #19704e;/s, 'lifetime pill is the health-good green');
+  assert.match(styles, /\.customer-card-tenure-pill \{[^}]*border: 1px solid #adc9f1;[^}]*background: #e5efff;[^}]*color: #174b87;/s, 'tenure pill is the status-partial blue');
 });
 
 test('unpaid cards: Outstanding amount uses the Due badge style, + Additional is green with black bold text', () => {
@@ -113,15 +121,21 @@ test('unpaid cards: Outstanding amount uses the Due badge style, + Additional is
 
 // --- (1) card Clear dues button ----------------------------------------
 
-test('unpaid cards: card Clear dues button shows only under the Unpaid This Month pill, where the Due badge sits', () => {
+test('unpaid cards: card Clear dues sits in the header pill seat, where the Due badge sits', () => {
+  // Customers Cards Compact (D-B1): the Payment label is dropped, so
+  // the header pill IS the payment state — Clear dues moves into the
+  // header pill's seat, replacing the Due badge under the "Unpaid This
+  // Month" pill. It is a <span role="button">, not a <button>: a real
+  // button cannot nest inside the whole-card <button>.
   assert.ok(app.includes("customerRosterPill === 'unpaid'"), 'button is gated on the unpaid pill');
   assert.ok(app.includes("billing.value === 'pending'"), 'button is gated on the Due state');
   assert.ok(app.includes('data-clear-dues-card="${escapeHtml(customer.id)}"'), 'button carries the customer id');
-  assert.ok(app.includes('class="customer-card-clear-dues"'), 'button has its own class');
+  assert.ok(app.includes('class="customer-card-clear-dues" role="button"'), 'Clear-dues is a span with the button role, in the header seat');
   assert.ok(app.includes("t('prof_action_clear_dues')"), 'button reuses the profile Clear dues label');
   assert.match(styles, /\.customer-card-clear-dues \{[^}]*background: var\(--green\);[^}]*color: #fff;[^}]*font-weight: 800;/s, 'button is green like the profile Clear dues button');
   assert.ok(app.includes("list.querySelectorAll('[data-clear-dues-card]')"), 'renderCustomers wires the button');
   assert.ok(app.includes('event.stopPropagation(); clearCustomerDues(button.dataset.clearDuesCard, { button })'), 'tap stops propagation and clears for that customer');
+  assert.ok(app.includes("event.key !== 'Enter' && event.key !== ' '"), 'the span also takes the keyboard half of the button contract');
 });
 
 test('unpaid cards: card clear reuses the profile clearDues machinery — one collection path, two buttons', () => {

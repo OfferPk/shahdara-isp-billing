@@ -5,7 +5,7 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot, isCashPaymentMethod,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation, applyConcessionToBill, removeConcessionFromBill, removeFirstMonthWaiverFromBill,
-  calculateMethodCollectionTotals, findDuplicatePaymentReference, findIdentityConflicts, findPhoneConflicts, paymentSenderLabel,
+  calculateMethodCollectionTotals, calculateMethodTotalsForRows, findDuplicatePaymentReference, findIdentityConflicts, findPhoneConflicts, paymentSenderLabel,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
   autoPackageFromPayment,
   autoPackageRollbackOf, // Plan 562: recover the follow fee from the rollback stamp for draft inputs.
@@ -7023,7 +7023,12 @@ function renderMonthlyReport() {
   if (balEl) balEl.textContent = formatAmount(totalBalance);
   if (creditEl) creditEl.textContent = formatAmount(totalCredit);
 
-  const methodTotals = calculateMethodCollectionTotals(state, month);
+  // Sharafat 38: the chips derive from the same filtered rows as the summary
+  // bar (status × search × area, after the drill-down at :6997), summed
+  // bill-based per row — so they sum to the Collected figure beside them on
+  // any filter. The old whole-month helper is payment-date-based and would
+  // still miss cross-month / dateless payments on the filtered rows.
+  const methodTotals = calculateMethodTotalsForRows(rows, state);
   const methodBreakdownEl = $('#monthlyReportMethodBreakdown');
   if (methodBreakdownEl) {
     const chips = [];

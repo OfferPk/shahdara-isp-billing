@@ -890,9 +890,15 @@ const fieldModeMonthLabel = month => new Intl.DateTimeFormat(undefined, { month:
 export function applyFieldModeWaadaChip(customer, chip, todayStr, customDate = null) {
   const date = computeWaadaChipDate(chip, todayStr, customDate);
   if (!date) throw new Error('Pick a valid date first.');
+  // Sharafat 69: a stored non-positive amount (legacy Rs 0) is re-stamped
+  // as amount-less — a date-only change must never throw.
+  const storedAmount = customer.promiseAmount ?? null;
+  const amountToKeep = storedAmount !== null && storedAmount !== '' && Number.isFinite(Number(storedAmount)) && Number(storedAmount) <= 0
+    ? null
+    : storedAmount;
   return setCustomerWaada(customer, {
     promiseDate: date,
-    promiseAmount: customer.promiseAmount ?? null,
+    promiseAmount: amountToKeep,
     promiseNote: customer.promiseNote ?? ''
   });
 }

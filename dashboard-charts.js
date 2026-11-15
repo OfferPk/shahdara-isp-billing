@@ -513,7 +513,14 @@ export function renderMonthlyTrendSvg(trends, { targetRevenue = null } = {}) {
   for (let s = 0; s <= gridSteps; s++) {
     const val = Math.round((yCeil / gridSteps) * s);
     const yPos = plotY + plotH - (s / gridSteps) * plotH;
-    const label = val >= 1000 ? `${Math.round(val / 1000)}k` : String(val);
+    // Sharafat 46: the y-axis label is the tick value itself, with en-PK
+    // grouping — never a rounded whole-k. The old form read "2k" for a 1,500
+    // tick (+33%) and collapsed distinct gridlines to the same label (max
+    // 1,500 gave two "2k" lines). Tick values are exact multiples of 250,
+    // so toLocaleString('en-PK') is exact at every magnitude; "288,000"
+    // (~39px at font-size 10) still fits the 56px gutter, and the zero
+    // tick stays "0". No formatPKR prefix: the axis is a scale, not a bill.
+    const label = val.toLocaleString('en-PK');
     gridLinesSvg += `
       <line x1="${plotX}" y1="${yPos}" x2="${plotX + plotW}" y2="${yPos}" stroke="var(--line, #e2ece7)" stroke-width="1" stroke-dasharray="${s > 0 ? '4 3' : 'none'}" />
       <text x="${plotX - 8}" y="${yPos + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${label}</text>

@@ -197,8 +197,12 @@ test('wiring: render + export share getMonthlyReportScreenRows; stale import dro
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   // Exactly three mentions: the definition, the render call, the export call.
   assert.equal(app.match(/getMonthlyReportScreenRows/g).length, 3);
-  // The builder is called exactly once in app.js — inside the helper.
-  assert.equal(app.match(/buildMonthlyReport\(/g).length, 1);
+  // The builder is called exactly twice in app.js — once inside the helper
+  // (the single report path) and once in Sharafat 45's empty-state probe,
+  // which reuses the same builder with includeArchived: true to decide
+  // whether the 0-row result is caused by the toggle. The probe renders no
+  // rows and is not a second report path; a third call would fail this pin.
+  assert.equal(app.match(/buildMonthlyReport\(/g).length, 2);
   // The export handler maps + names the file through the new helpers…
   assert.match(app, /monthlyReportCsvRows\(rows, state\.customers/);
   assert.match(app, /monthlyReportCsvFilename\(month, Boolean\(reportAreaFilter\)\)/);

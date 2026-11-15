@@ -254,25 +254,36 @@ export function calculateInboxTotals(items = [], referenceDate = new Date()) {
 }
 
 /**
- * Matches customer by phone number (sender phone for received transfers).
+ * Matches customers by phone number (sender phone for received transfers).
+ *
+ * Sharafat 56: returns ALL matches — two customers sharing one phone is
+ * ambiguous, never a silent first-match pick. Both the primary `phone`
+ * and the legacy `customerPhone` alias count as holders (house precedent:
+ * `findPhoneConflicts` core.js:795); a phone-vs-alias pair sharing one
+ * number IS ambiguous, while one customer matching via both fields counts
+ * once (dedupe by customer id).
  *
  * @param {string} phone
  * @param {Object[]} customers
- * @returns {Object|null}
+ * @returns {{ match: Object|null, matches: Object[], ambiguous: boolean }}
  */
 export function matchCustomerByPhone(phone, customers = []) {
-  if (!phone || !Array.isArray(customers)) return null;
+  const none = { match: null, matches: [], ambiguous: false };
+  if (!phone || !Array.isArray(customers)) return none;
   const normPhone = normalizeEasypaisaPhone(phone);
-  if (!normPhone) return null;
+  if (!normPhone) return none;
 
+  const matches = [];
+  const seenIds = new Set();
   for (const c of customers) {
     if (!c || c.archived) continue;
-    const cPhone = normalizeEasypaisaPhone(c.phone);
-    if (cPhone && cPhone === normPhone) {
-      return c;
+    const heldPhones = [normalizeEasypaisaPhone(c.phone), normalizeEasypaisaPhone(c.customerPhone)];
+    if (heldPhones.includes(normPhone) && !seenIds.has(c.id)) {
+      seenIds.add(c.id);
+      matches.push(c);
     }
   }
-  return null;
+  return { match: matches.length === 1 ? matches[0] : null, matches, ambiguous: matches.length > 1 };
 }
 
 /**
@@ -922,6 +933,7 @@ export class PaymentsInboxController {
 
     // Resolve matching customer: either overridden in UI, auto-matched by phone, or matched via existing recorded payment
     let matchedCustomer = null;
+    let isSharedNumber = false;
     const overriddenId = this.selectedCustomerMatches.get(item.txnId);
     if (overriddenId) {
       matchedCustomer = customers.find(c => c.id === overriddenId);
@@ -930,7 +942,10 @@ export class PaymentsInboxController {
     } else if (item.recordedCustomerId) {
       matchedCustomer = customers.find(c => c.id === item.recordedCustomerId);
     } else if (isReceived && item.senderNumber) {
-      matchedCustomer = matchCustomerByPhone(item.senderNumber, customers);
+      // Sharafat 56: a shared number never auto-matches — the operator picks.
+      const autoMatch = matchCustomerByPhone(item.senderNumber, customers);
+      matchedCustomer = autoMatch.match;
+      isSharedNumber = autoMatch.ambiguous;
     }
 
     const directionBadge = isReceived
@@ -979,7 +994,7 @@ export class PaymentsInboxController {
             ? `<div class="matched-cust-badge">✓ #${escapeHtml(matchedCustomer?.customerNumber || '')} ${escapeHtml(matchedCustomer?.name || 'Customer')} (${escapeHtml(item.recordedMonth || candidateMonth)})</div>`
             : isReceived
               ? `<select class="easypaisa-customer-select" data-select-match="${escapeHtml(item.txnId)}" aria-label="Match Customer">
-                  <option value="">${matchedCustomer ? `✓ Matched: #${matchedCustomer.customerNumber} ${matchedCustomer.name}` : '-- Link to Customer --'}</option>
+                  <option value="">${matchedCustomer ? `✓ Matched: #${matchedCustomer.customerNumber} ${matchedCustomer.name}` : isSharedNumber ? 'needs review — shared number' : '-- Link to Customer --'}</option>
                   ${customers.map(c => `<option value="${escapeHtml(c.id)}" ${matchedCustomer?.id === c.id ? 'selected' : ''}>#${escapeHtml(c.customerNumber)} ${escapeHtml(c.name)} (${escapeHtml(c.area || 'No Area')})</option>`).join('')}
                 </select>`
               : '<span class="text-muted">—</span>'}
@@ -1125,8 +1140,9 @@ export class PaymentsInboxController {
       // Determine customer: user-selected or auto-matched
       let customerId = this.selectedCustomerMatches.get(txnId);
       if (!customerId && txn.senderNumber) {
-        const matched = matchCustomerByPhone(txn.senderNumber, customers);
-        if (matched) customerId = matched.id;
+        // Sharafat 56: an ambiguous auto-match is no match — the operator picks.
+        const autoMatch = matchCustomerByPhone(txn.senderNumber, customers);
+        if (autoMatch.match) customerId = autoMatch.match.id;
       }
 
       if (!customerId) {

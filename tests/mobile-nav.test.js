@@ -14858,8 +14858,14 @@ test('Pending Actions Center & Collection Promises Suite (agent2 - Backlog Item 
     { id: 'off-1', action: 'record_payment', summary: 'Offline Rs. 1,000 for #3', status: 'pending' }
   ]));
 
+  // NOTE (Sharafat 66): the receipt lookback in getPendingActionsSummary
+  // is driven by options.referenceDate (real now), NOT by todayString —
+  // so pin the reference date to the same pretended day, or the 30-day
+  // cutoff slides past the fixed 2026-10-16 fixture payment and the
+  // counts below start failing once the real date moves past 2026-11-15.
   const summary = getPendingActionsSummary(mockState, {
     storage: mockStorage,
+    referenceDate: new Date('2026-10-17T07:00:00Z'), // 12:00 PKT, 2026-10-17
     todayString: '2026-10-17'
   });
 
@@ -14873,6 +14879,7 @@ test('Pending Actions Center & Collection Promises Suite (agent2 - Backlog Item 
   markReceiptShared('pay-001', { method: 'whatsapp' }, mockStorage);
   const summaryAfterOneShared = getPendingActionsSummary(mockState, {
     storage: mockStorage,
+    referenceDate: new Date('2026-10-17T07:00:00Z'), // see note above
     todayString: '2026-10-17'
   });
   assert.equal(summaryAfterOneShared.counts.unsharedReceipts, 1);
@@ -14884,6 +14891,7 @@ test('Pending Actions Center & Collection Promises Suite (agent2 - Backlog Item 
 
   const summaryAfterAllShared = getPendingActionsSummary(mockState, {
     storage: mockStorage,
+    referenceDate: new Date('2026-10-17T07:00:00Z'), // see note above
     todayString: '2026-10-17'
   });
   assert.equal(summaryAfterAllShared.counts.unsharedReceipts, 0);

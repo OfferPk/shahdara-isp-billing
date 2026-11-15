@@ -404,9 +404,43 @@ export function setTicketStatus(list, id, status) {
     status,
     // Reopening clears the resolution stamp; materials + charges stay on
     // the record so nothing about the field visit is silently lost.
-    resolvedAt: status === 'Open' ? '' : ticket.resolvedAt
+    // Sharafat 66: on ANY move out of Resolved — Open and In Progress
+    // alike. The old code kept the stamp for In Progress, so a reopened
+    // ticket carried a resolution time it no longer had.
+    resolvedAt: ''
   };
   return clean;
+}
+
+/**
+ * Sharafat 66 D2(b) — covered-only stock preserve: is every one of the
+ * new staged deduction lines covered by the old staged lines? Coverage is
+ * per itemId, summed over duplicate lines, old qty >= new qty; the
+ * resolution date is excluded (the new lines carry the new resolution
+ * date) and the stock source is ignored (R10 — the bag bridge keys on
+ * its own record, not the staged list). An empty new list is covered by
+ * definition: re-resolving with no materials keeps the old deduction
+ * record, which the bridge still needs as its reversal record.
+ */
+function stockDeductionsCovered(oldLines, newLines) {
+  const oldQtyByItem = new Map();
+  for (const line of Array.isArray(oldLines) ? oldLines : []) {
+    if (!line || typeof line.itemId !== 'string' || !line.itemId) continue;
+    const qty = Number(line.qty);
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    oldQtyByItem.set(line.itemId, (oldQtyByItem.get(line.itemId) || 0) + qty);
+  }
+  const newQtyByItem = new Map();
+  for (const line of Array.isArray(newLines) ? newLines : []) {
+    if (!line || typeof line.itemId !== 'string' || !line.itemId) continue;
+    const qty = Number(line.qty);
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    newQtyByItem.set(line.itemId, (newQtyByItem.get(line.itemId) || 0) + qty);
+  }
+  for (const [itemId, qty] of newQtyByItem) {
+    if ((oldQtyByItem.get(itemId) || 0) < qty) return false;
+  }
+  return true;
 }
 
 /**
@@ -423,6 +457,20 @@ export function resolveTicket(list, id, options = {}) {
   if (ticket.status === 'Resolved') throw new Error('Ticket is already resolved.');
   const materialsUsed = sanitizeTicketMaterials(options.materialsUsed);
   const billingType = options.billingType === 'billed' ? 'billed' : 'free';
+  const newBilledAmount = billingType === 'billed'
+    ? round2(materialsUsed.reduce((sum, line) => sum + line.amount, 0))
+    : 0;
+  // Sharafat 66 D1(a): a settled charge survives a re-resolve when the
+  // billed amount did not change — compared in cents, so round2 float
+  // dust (0.1 + 0.2) never decides a preserve/reset. A changed amount,
+  // including a billed→free flip to 0, resets the charge so the new
+  // amount is billable again instead of reading paid for money never
+  // collected. The old amount is the sanitized ticket's derived
+  // billedAmount (from the old materials); the manual mark-paid toggle
+  // (chargePaymentId '') is preserved exactly like a receipt
+  // settlement — it is a paid charge either way.
+  const amountUnchanged = Math.round(Number(ticket.billedAmount || 0) * 100)
+    === Math.round(newBilledAmount * 100);
   // SISP-127: the resolver picks where the consumed materials come
   // from — the field bag ('bag') or the Main Store (anything else,
   // including absent: the SISP-42 behaviour). A re-resolve re-picks,
@@ -441,12 +489,10 @@ export function resolveTicket(list, id, options = {}) {
       : pakistanTicketDateTimeNow(options.referenceDate),
     materialsUsed,
     billingType,
-    billedAmount: billingType === 'billed'
-      ? round2(materialsUsed.reduce((sum, line) => sum + line.amount, 0))
-      : 0,
-    chargePaid: false,
-    chargePaidAt: '',
-    chargePaymentId: '',
+    billedAmount: newBilledAmount,
+    chargePaid: amountUnchanged ? ticket.chargePaid : false,
+    chargePaidAt: amountUnchanged ? ticket.chargePaidAt : '',
+    chargePaymentId: amountUnchanged ? ticket.chargePaymentId : '',
     // A direct field resolution is a human decision, not a synced one:
     // clear the SISP-44 provenance stamp (the sync layer stamps it
     // again immediately after its own resolveTicket calls).
@@ -461,8 +507,20 @@ export function resolveTicket(list, id, options = {}) {
       ? checkTicketSignalDbm(options.signalAfterDbm)
       : (ticket.signalAfterDbm ?? null)
   };
-  resolved.stockDeductions = ticketStockDeductions(resolved);
-  resolved.stockDeducted = false;
+  // Sharafat 66 D2(b): covered-only stock preserve. When the new
+  // materials are fully covered by the old staged lines, keep the old
+  // staged lines and the deducted flag, so the bridge never deducts the
+  // same materials twice in the no-bridge window (R2). Otherwise stage
+  // the new materials fresh, exactly as today — the changed-materials
+  // case is deducted, guarded in the live flow by the reopen reversal.
+  const newStockDeductions = ticketStockDeductions(resolved);
+  if (stockDeductionsCovered(ticket.stockDeductions, newStockDeductions)) {
+    resolved.stockDeductions = ticket.stockDeductions;
+    resolved.stockDeducted = ticket.stockDeducted;
+  } else {
+    resolved.stockDeductions = newStockDeductions;
+    resolved.stockDeducted = false;
+  }
   clean[idx] = resolved;
   return clean;
 }

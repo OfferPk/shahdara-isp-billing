@@ -407,7 +407,14 @@ export function setComplaintStatus(list, id, status, options = {}) {
       const computed = computeDowntimeHours(entry.reportedAt, entry.resolvedAt);
       if (computed !== null) entry.downtimeHours = computed;
     }
-  } else if (status === 'Open') {
+  } else {
+    // Sharafat 66: ANY move out of Resolved clears the resolution
+    // record — Open and In Progress alike. The old code cleared it
+    // only for Open, so a complaint moved to In Progress kept its
+    // resolvedAt, downtime and resolver, and a later re-resolve (no
+    // explicit time) kept the stale stamp instead of stamping fresh.
+    // Clearing downtimeManual too means the next real resolution
+    // recomputes downtime from the new interval (D4).
     entry.resolvedAt = '';
     entry.downtimeHours = null;
     entry.downtimeManual = false;

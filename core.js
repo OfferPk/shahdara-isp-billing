@@ -3103,6 +3103,17 @@ export function deletePayment(state, customerId, month, paymentId, referenceDate
   if (!bill?.payments.some(payment => payment.id === paymentId)) throw new Error('Payment not found.');
   // SISP-34: deleting a voided row would erase the void audit trail.
   if (bill.payments.find(payment => payment.id === paymentId)?.voided === true) throw new Error('Cannot delete a voided payment. Voided receipts are kept as history.');
+  // Sharafat 61: deleting a payment whose cash was already handed over from
+  // a shop would leave the shop settlement's allocations pointing at a
+  // payment that no longer exists — the same refusal voidPayment enforces
+  // (payment-void-audit.js), with the verb fitted to the delete action.
+  // Any settled amount, even partial, refuses; settlementIds alone with a
+  // zero settled amount does not block (parity with void). There is no
+  // bypass option: unlike ticket/addon/waiver there is no handover-reversal
+  // step the quick-collect undo could run first.
+  if (shopSettledAmountOf(bill.payments.find(payment => payment.id === paymentId)) > 0) {
+    throw new Error('This payment was already handed over from the shop and cannot be deleted. Reverse the shop handover first, then delete.');
+  }
   // SISP-43: deleting a payment that settled ticket charges would leave
   // the tickets marked paid with no cash behind them. The quick-collect
   // undo reopens the charges first and passes ticketChargesReverted;

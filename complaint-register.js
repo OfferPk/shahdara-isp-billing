@@ -115,6 +115,19 @@ import { getWaTemplates } from './whatsapp-templates.js';
 export const COMPLAINTS_KEY = 'sisp_complaints_ledger_v1';
 
 /**
+ * Sharafat 68 — quarantine for rows the loader dropped. The first save
+ * after a load permanently deletes dropped rows from the complaint
+ * store (every caller persists an already-sanitized list), so the
+ * preserved copy lives in its own key, written at load time:
+ * { corrupt, dropped: [{ raw, reason }] }. It is the source of truth
+ * for the dropped-rows view and is cleared only by an explicit
+ * operator action from that view — never by a load or a save.
+ * Separate from the Sharafat 67 counter key; it never touches the id
+ * counter.
+ */
+export const COMPLAINTS_DROPPED_KEY = 'sisp_complaints_dropped_v1';
+
+/**
  * Sharafat 67 — monotonic complaint-id counter. The next number to issue
  * lives in its own key so an id is never re-issued after its record
  * drops out of the sanitized lists (malformed-row drop) or an older
@@ -325,19 +338,27 @@ export function seedComplaintCounter(storage, complaints, tickets, followups, re
 /**
  * Drops malformed complaint entries; keeps only known fields with safe
  * defaults so old records (missing new fields) never break the register.
+ * Sharafat 68: the reporting twin — `dropped` holds the RAW rows the
+ * sanitizer skipped, each with the rule that dropped it, so the owner
+ * can still see what was lost. Rows only: repairs (unknown status /
+ * category / dates) are the sanitizer working as designed, not drops.
+ * ASYMMETRY with tickets: the register keeps ANY non-empty id — a
+ * legacy id loads here where the same id is dropped by the ticket
+ * sanitizer, so the view must show WHY each row dropped.
  */
-export function sanitizeComplaints(value) {
-  if (!Array.isArray(value)) return [];
-  const out = [];
+export function sanitizeComplaintsWithReport(value) {
+  if (!Array.isArray(value)) return { list: [], dropped: [] };
+  const list = [];
+  const dropped = [];
   for (const entry of value) {
-    if (!entry || typeof entry !== 'object') continue;
+    if (!entry || typeof entry !== 'object') { dropped.push({ raw: entry === undefined ? null : entry, reason: 'not a record' }); continue; }
     const id = cleanText(entry.id);
-    if (!id) continue;
+    if (!id) { dropped.push({ raw: entry, reason: 'missing complaint id' }); continue; }
     const status = COMPLAINT_STATUSES.includes(entry.status) ? entry.status : 'Open';
     const reportedAt = DATE_TIME_RE.test(String(entry.reportedAt || '')) ? String(entry.reportedAt) : '';
     const resolvedAt = DATE_TIME_RE.test(String(entry.resolvedAt || '')) ? String(entry.resolvedAt) : '';
     const downtime = Number(entry.downtimeHours);
-    out.push({
+    list.push({
       id,
       customerId: entry.customerId === AREA_OUTAGE_CUSTOMER_ID ? AREA_OUTAGE_CUSTOMER_ID : (entry.customerId ?? null),
       customerName: cleanText(entry.customerName),
@@ -371,7 +392,11 @@ export function sanitizeComplaints(value) {
       createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
     });
   }
-  return out;
+  return { list, dropped };
+}
+
+export function sanitizeComplaints(value) {
+  return sanitizeComplaintsWithReport(value).list;
 }
 
 /** Reads complaint records; [] on missing/corrupt storage. */
@@ -384,6 +409,86 @@ export function loadComplaints(storage) {
     return sanitizeComplaints(JSON.parse(raw));
   } catch {
     return [];
+  }
+}
+
+/**
+ * Sharafat 68 — the reporting load: the sanitized list, the raw rows
+ * the sanitizer skipped (with the rule that dropped each), and whether
+ * the whole store failed to parse. An empty store and a corrupt store
+ * are no longer indistinguishable: corrupt JSON and non-array JSON
+ * both report corrupt: true instead of silently returning []. The
+ * existing loadComplaints keeps its signature and behaviour — only
+ * the modal (and tests) use this variant.
+ */
+export function loadComplaintsWithReport(storage) {
+  try {
+    const store = storage || (typeof globalThis !== 'undefined' ? globalThis.localStorage : null);
+    if (!store) return { list: [], dropped: [], corrupt: false };
+    const raw = store.getItem(COMPLAINTS_KEY);
+    if (!raw) return { list: [], dropped: [], corrupt: false };
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return { list: [], dropped: [], corrupt: true };
+    const { list, dropped } = sanitizeComplaintsWithReport(parsed);
+    return { list, dropped, corrupt: false };
+  } catch {
+    return { list: [], dropped: [], corrupt: true };
+  }
+}
+
+/** The preserved copy of dropped complaint rows ({ corrupt, dropped } | null). Never throws. */
+export function readComplaintQuarantine(storage) {
+  try {
+    const store = defaultComplaintStorage(storage);
+    if (!store) return null;
+    const raw = store.getItem(COMPLAINTS_DROPPED_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.dropped)) return null;
+    return { corrupt: parsed.corrupt === true, dropped: parsed.dropped };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sharafat 68 — write the quarantine, but only when the preserved set
+ * changed: renderList loads (and reports) several times per render, and
+ * an unconditional write would rewrite the key on every open. A fresh
+ * load that finds drops (or a corrupt store) OVERWRITES the quarantine
+ * with the new set, so a second corruption never hides behind the
+ * first. Returns the stored quarantine, or null without storage.
+ * Never throws.
+ */
+export function writeComplaintQuarantine(storage, report) {
+  try {
+    const store = defaultComplaintStorage(storage);
+    if (!store) return null;
+    const next = { corrupt: report?.corrupt === true, dropped: Array.isArray(report?.dropped) ? report.dropped : [] };
+    const serialized = JSON.stringify(next);
+    if (store.getItem(COMPLAINTS_DROPPED_KEY) === serialized) return readComplaintQuarantine(store);
+    store.setItem(COMPLAINTS_DROPPED_KEY, serialized);
+    return next;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sharafat 68 — clear the preserved copy. The ONLY way the quarantine
+ * goes away: an explicit operator action from the dropped-rows view.
+ * The rows are already gone from the live store, so clearing drops
+ * only the preserved copy. Returns false without storage. Never throws.
+ */
+export function clearComplaintQuarantine(storage) {
+  try {
+    const store = defaultComplaintStorage(storage);
+    if (!store) return false;
+    if (typeof store.removeItem === 'function') store.removeItem(COMPLAINTS_DROPPED_KEY);
+    else store.setItem(COMPLAINTS_DROPPED_KEY, '');
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -639,6 +744,93 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
   const filters = { month: '', status: '', customer: '', zone: '', category: '' };
+  // Sharafat 68 — whether the dropped-rows view is expanded. Closure
+  // state: renderList re-renders the banner on every call, so the open
+  // state has to live here, not in the banner element.
+  let droppedViewOpen = false;
+
+  /** A raw dropped row as display text (capped — a hand-edited row can be huge). */
+  function droppedRawText(raw) {
+    let text;
+    try {
+      text = JSON.stringify(raw) ?? 'null';
+    } catch {
+      text = String(raw);
+    }
+    return text.length > 500 ? `${text.slice(0, 500)}…` : text;
+  }
+
+  /**
+   * Sharafat 68 — the dropped-records banner element, built dynamically
+   * (the 63 precedent) so index.html stays untouched. It lives OUTSIDE
+   * the list element, before it, because renderList rewrites the list
+   * innerHTML on every call. Created once; the click listener survives
+   * the innerHTML rewrites below (delegation on the container).
+   */
+  function droppedBannerEl() {
+    let el = $('complaintRegisterDroppedBanner');
+    if (el) return el;
+    const listEl = $('complaintRegisterList');
+    if (!listEl || !listEl.parentNode || typeof document === 'undefined') return null;
+    el = document.createElement('div');
+    el.id = 'complaintRegisterDroppedBanner';
+    listEl.parentNode.insertBefore(el, listEl);
+    el.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-dropped-action]');
+      if (!btn) return;
+      if (btn.dataset.droppedAction === 'view') {
+        droppedViewOpen = !droppedViewOpen;
+        renderList();
+      } else if (btn.dataset.droppedAction === 'clear') {
+        // The ONLY way the quarantine goes away: the operator clears
+        // the preserved copy from this view. The rows are already gone
+        // from the live store — clearing drops only the saved copy.
+        clearComplaintQuarantine();
+        droppedViewOpen = false;
+        renderList();
+      }
+    });
+    return el;
+  }
+
+  /**
+   * Sharafat 68 — render the banner for a dropped-records report
+   * ({ corrupt, dropped } | null). No report → the banner is hidden.
+   * A corrupt store gets the whole-store failure banner (no rows to
+   * show, nothing to clear — the store is still broken, so the banner
+   * returns on the next load until the store itself is fixed). Per-row
+   * drops get the count + the view path; the view lists the RAW rows
+   * with the rule that dropped each, every field escaped.
+   */
+  function renderDroppedBanner(droppedReport) {
+    const banner = droppedBannerEl();
+    if (!banner) return;
+    if (!droppedReport || (!droppedReport.corrupt && droppedReport.dropped.length === 0)) {
+      banner.innerHTML = '';
+      banner.style.display = 'none';
+      return;
+    }
+    banner.style.display = '';
+    if (droppedReport.corrupt) {
+      banner.innerHTML = `<div class="complaint-upchain-banner complaint-upchain-banner-warn" role="alert">
+        <div class="complaint-upchain-title">⚠️ The complaint store could not be read</div>
+        <p class="complaint-upchain-body">The saved complaint data is damaged, so no complaints are shown. Restore a backup to recover them.</p>
+      </div>`;
+      return;
+    }
+    const count = droppedReport.dropped.length;
+    const rowsHtml = droppedViewOpen
+      ? `<ul class="complaint-chain-list">${droppedReport.dropped.map((entry) => `<li><strong>${escapeHtml(entry.reason || 'could not be read')}</strong><span>${escapeHtml(droppedRawText(entry.raw))}</span></li>`).join('')}</ul>
+        <p class="complaint-upchain-body">These records are already gone from the complaint list — clearing removes only this saved copy.</p>
+        <button type="button" class="secondary-button" data-dropped-action="clear">Clear saved copy</button>`
+      : '';
+    banner.innerHTML = `<div class="complaint-upchain-banner complaint-upchain-banner-warn" role="alert">
+      <div class="complaint-upchain-title">⚠️ ${count} record${count === 1 ? '' : 's'} could not be read</div>
+      <p class="complaint-upchain-body">Some saved complaints were damaged and are not shown in the list. The damaged rows are kept here so they can still be checked.</p>
+      <button type="button" class="secondary-button" data-dropped-action="view">${droppedViewOpen ? 'Hide dropped rows' : 'View dropped rows'}</button>
+      ${rowsHtml}
+    </div>`;
+  }
 
   function customerOptions() {
     const state = getState() || { customers: [] };
@@ -775,17 +967,40 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
     const listEl = $('complaintRegisterList');
     if (!listEl) return;
     renderBulkBar();
-    const allComplaints = loadComplaints();
+    // Sharafat 68 — the load report drives the dropped-records banner.
+    // A fresh load that finds dropped rows (or a corrupt store) writes
+    // the quarantine AT LOAD TIME, before any save inside the modal can
+    // delete the evidence; the banner then shows the quarantine's count
+    // when one exists, else the fresh-load count — so the evidence
+    // survives the first save and the reload after it.
+    const report = loadComplaintsWithReport();
+    if (report.dropped.length > 0 || report.corrupt) writeComplaintQuarantine(undefined, report);
+    const quarantine = readComplaintQuarantine();
+    const droppedReport = quarantine
+      ?? (report.dropped.length > 0 || report.corrupt ? { corrupt: report.corrupt, dropped: report.dropped } : null);
+    const allComplaints = report.list;
     const allTickets = typeof getTickets === 'function' ? (getTickets() || []) : [];
     const rows = filterComplaints(allComplaints, filters);
     const summaryEl = $('complaintRegisterSummaryLine');
     if (summaryEl) {
+      const droppedSuffix = droppedReport && droppedReport.dropped.length > 0
+        ? ` · ${droppedReport.dropped.length} record${droppedReport.dropped.length === 1 ? '' : 's'} could not be read`
+        : '';
+      const corruptSuffix = droppedReport && droppedReport.corrupt ? ' · complaint store could not be read' : '';
       summaryEl.textContent = rows.length === 0
-        ? 'No complaints match these filters.'
-        : `${rows.length} complaint${rows.length === 1 ? '' : 's'} · ${rows.filter((c) => c.status === 'Open').length} open · ${rows.filter((c) => c.status === 'In Progress').length} in progress · ${rows.filter((c) => c.status === 'Resolved').length} resolved`;
+        ? `No complaints match these filters.${droppedSuffix}${corruptSuffix}`
+        : `${rows.length} complaint${rows.length === 1 ? '' : 's'} · ${rows.filter((c) => c.status === 'Open').length} open · ${rows.filter((c) => c.status === 'In Progress').length} in progress · ${rows.filter((c) => c.status === 'Resolved').length} resolved${droppedSuffix}${corruptSuffix}`;
     }
+    renderDroppedBanner(droppedReport);
     if (rows.length === 0) {
-      listEl.innerHTML = '<p class="complaint-register-empty">No complaints recorded yet. Add the first one above.</p>';
+      // Sharafat 68 — the empty state used to LIE: a corrupt store
+      // showed "No complaints recorded yet". The failure banner
+      // REPLACES the empty state, and an all-dropped store says so.
+      listEl.innerHTML = droppedReport && droppedReport.corrupt
+        ? '<p class="complaint-register-empty">The complaint store could not be read. Restore a backup to recover the complaints.</p>'
+        : droppedReport && droppedReport.dropped.length > 0
+          ? '<p class="complaint-register-empty">No readable complaints. Some records could not be read — see the notice above.</p>'
+          : '<p class="complaint-register-empty">No complaints recorded yet. Add the first one above.</p>';
       return;
     }
     const state = getState() || { customers: [] };

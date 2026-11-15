@@ -237,7 +237,7 @@ import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadg
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
 import { computeWaadaChipDate, setupWaadaChipDialog, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada, getWaadaTodayString, isValidWaadaDate } from './waada-queue.js';
-import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
+import { VOIDED_PAYMENTS_KEY, voidPayment, describeVoidUndo, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
@@ -12664,11 +12664,36 @@ function openVoidPaymentDialogUnlocked(customerId, month, paymentId) {
   const dialog = document.getElementById('voidPaymentDialog');
   if (!dialog) { toast('Void dialog is not available.'); return; }
   pendingVoidTarget = { customerId, month, paymentId };
+  const bill = customer.bills.find(item => item.month === month);
+  // Sharafat 63: name the receipt + TID in the summary, so two
+  // same-amount same-day rows are distinguishable before Confirm.
+  // Stored RCPT- number first, derived REC- fallback second — the
+  // same order as receiptNumberOfRow; TID only when one was recorded.
+  const receiptNo = receiptNumberOfRow({ ...payment, customerNumber: customer.customerNumber, paymentId: payment.id, month }, generateReceiptNumber);
+  const tid = typeof payment.transactionId === 'string' && payment.transactionId
+    ? payment.transactionId
+    : (typeof payment.reference === 'string' && payment.reference ? payment.reference : '');
   const summary = document.getElementById('voidPaymentSummary');
   // Sharafat 62: Void stays available on archived rows (the correction
   // path), so the operator still gets the context at the moment of
   // action — the badge is one tap away behind the collapsed row.
-  if (summary) summary.textContent = `#${customer.customerNumber} ${customer.name} · ${formatAmount(payment.amount)} · ${humanDate(payment.date)} · ${payment.method} · bill month ${monthName(month)}${customer.archived === true ? ` · ${t('bill_row_archived')}` : ''}`;
+  if (summary) summary.textContent = `#${customer.customerNumber} ${customer.name} · ${formatAmount(payment.amount)} · ${humanDate(payment.date)} · ${payment.method} · bill month ${monthName(month)}${customer.archived === true ? ` · ${t('bill_row_archived')}` : ''}${receiptNo ? ` · Receipt ${receiptNo}` : ''}${tid ? ` · TID ${tid}` : ''}`;
+  // Sharafat 63: list what voiding this payment will undo, above the
+  // field-help. A plain payment gets no list element at all, so its
+  // dialog is exactly as before. Any stale list from a previous open
+  // is removed first; a throwing ticket store never breaks dialog open.
+  const oldEffects = dialog.querySelector('#voidPaymentEffects');
+  if (oldEffects) oldEffects.remove();
+  let tickets = [];
+  try { tickets = loadTickets(); } catch { tickets = []; }
+  const effects = describeVoidUndo(customer, bill, payment, { tickets });
+  if (summary && effects.length > 0) {
+    const list = document.createElement('ul');
+    list.id = 'voidPaymentEffects';
+    list.className = 'void-payment-effects';
+    list.innerHTML = effects.map(effect => `<li>${escapeHtml(effect.text)}</li>`).join('');
+    summary.after(list);
+  }
   const reasonInput = document.getElementById('voidPaymentReasonInput');
   if (reasonInput) reasonInput.value = '';
   if (dialog.showModal) dialog.showModal();

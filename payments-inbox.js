@@ -24,12 +24,17 @@ import {
 
 import {
   addPayment,
-  deletePayment,
   findDuplicatePaymentReference,
   formatPKR,
   calculatePaymentAllocations,
   setPaymentWalletVerified
 } from './core.js';
+
+import {
+  voidPayment,
+  loadVoidPayments,
+  saveVoidPayments
+} from './payment-void-audit.js';
 
 import { buildWalletReconciliation } from './wallet-reconciliation.js';
 
@@ -1195,13 +1200,40 @@ export class PaymentsInboxController {
             try {
               const liveState = this.getState();
               if (!liveState) return;
-              const undoneState = deletePayment(liveState, customerId, targetMonth, res.payment.id);
+              // Sharafat 57 (D2(b)): refuse when the payment settled a
+              // ticket/addon charge — voidPayment never reopens those
+              // charges, and the reopen machinery is not built for a
+              // path a fresh inbox payment cannot produce (a fresh
+              // inbox payment carries no ticket/addon stamps).
+              const liveCustomer = (liveState.customers || []).find(c => c && c.id === customerId);
+              const liveBill = (liveCustomer?.bills || []).find(b => b && b.month === targetMonth);
+              const livePayment = (liveBill?.payments || []).find(p => p && p.id === res.payment.id);
+              if (livePayment && ((Array.isArray(livePayment.ticketCharges) && livePayment.ticketCharges.length > 0) ||
+                  (Array.isArray(livePayment.addonCharges) && livePayment.addonCharges.length > 0))) {
+                this.notify('This payment settled a ticket charge — void it from the profile instead.', { type: 'error' });
+                return;
+              }
+              // Sharafat 57 (D1(a)): undo via voidPayment, so an
+              // auto-cleared waada (and a waived late fee) is restored
+              // and the TID stays re-recordable (CP-01).
+              const previousLog = loadVoidPayments();
+              const { state: undoneState, voidRecord } = voidPayment(liveState, customerId, targetMonth, res.payment.id, { voidReason: 'Inbox recording undone' });
               this.commitState(undoneState);
+              // Sharafat 57 (D3(a)): persist the void record; on save
+              // failure restore the previous state AND the previous
+              // log, change nothing.
+              if (!saveVoidPayments([...previousLog, voidRecord])) {
+                this.commitState(liveState);
+                saveVoidPayments(previousLog);
+                this.notify('Void log could not be saved — nothing was changed. Check storage and try again.', { type: 'error' });
+                return;
+              }
 
-              this.items = this.items.map(i => i.txnId === txnId ? { ...i, recorded: false, recordedPaymentId: null } : i);
+              // Sharafat 57 (D4(a)): clear ALL FOUR recorded fields.
+              this.items = this.items.map(i => i.txnId === txnId ? { ...i, recorded: false, recordedPaymentId: null, recordedMonth: null, recordedCustomerId: null } : i);
               saveInboxItems(this.items);
               this.render();
-              this.notify('Payment undone. Ledger restored.', { type: 'info' });
+              this.notify('Payment voided. Ledger restored.', { type: 'info' });
             } catch (err) {
               this.notify(`Undo failed: ${err.message}`, { type: 'error' });
             }

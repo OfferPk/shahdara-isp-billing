@@ -276,7 +276,8 @@ export function matchCustomerByPhone(phone, customers = []) {
 }
 
 /**
- * Finds best candidate bill month for recording payment (earliest unpaid month, or current month).
+ * Finds best candidate bill month for recording payment (earliest month with
+ * a real balance per the allocation engine, or current month).
  *
  * @param {Object} customer
  * @param {string} dateStr 'YYYY-MM-DD'
@@ -289,11 +290,32 @@ export function findCandidateBillMonth(customer, dateStr, referenceDate = new Da
 
   // Look for unpaid / pending bills, sorted earliest first
   const sortedBills = [...customer.bills].sort((a, b) => a.month.localeCompare(b.month));
+
+  // Sharafat 55: the earliest month with a real balance comes from the
+  // allocation engine (the figure Quick Collect already uses) — the old
+  // dueAmount-vs-payments comparison cannot see late fees, concessions,
+  // referral/feeder credits or FIFO credit. The engine throws on dateless
+  // payments (order-dependently), so on throw fall back to the old
+  // comparison instead of breaking the record.
+  let allocations = null;
+  try {
+    allocations = calculatePaymentAllocations({ customers: [customer] });
+  } catch {
+    allocations = null;
+  }
   for (const b of sortedBills) {
-    const due = Number(b.dueAmount || 0);
-    const paid = (b.payments ?? []).filter((p) => p?.voided !== true).reduce((sum, p) => sum + Number(p.amount || 0), 0);
-    if (due > paid || b.status === 'pending') {
-      return b.month;
+    if (allocations) {
+      // QC pattern: balanceDueCents > 0; null (unpriced bill) is skipped.
+      const balance = allocations.forMonth(customer.id, b.month)?.balanceDueCents;
+      if (typeof balance === 'number' && balance > 0) {
+        return b.month;
+      }
+    } else {
+      const due = Number(b.dueAmount || 0);
+      const paid = (b.payments ?? []).filter((p) => p?.voided !== true).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      if (due > paid || b.status === 'pending') {
+        return b.month;
+      }
     }
   }
 

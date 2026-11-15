@@ -32113,7 +32113,7 @@ function renderCollectionPromises() {
   const countsEl = $('#cpCountsBody');
   if (countsEl && customerQuery) {
     const counts = collectionPromiseCountsForCustomer(loadCollectionPromises(), customerQuery, today);
-    countsEl.textContent = `${customerQuery}: ${counts.kept} kept, ${counts.unkept} unkept, ${counts.open} still open, ${counts.total} total.`;
+    countsEl.textContent = `${customerQuery}: ${counts.kept} kept, ${counts.keptLate} kept late, ${counts.partial} partial, ${counts.unkept} unkept, ${counts.open} still open, ${counts.total} total.`;
   } else if (countsEl) {
     countsEl.textContent = 'Filter by a customer to see that customer\'s kept and unkept counts.';
   }

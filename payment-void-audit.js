@@ -387,6 +387,248 @@ export function voidPayment(state, customerId, month, paymentId, options = {}) {
   return { state: next, voidRecord };
 }
 
+/**
+ * Sharafat 63: predict what voiding one payment would undo, WITHOUT
+ * voiding it — the void confirmation dialog shows this list before the
+ * operator confirms. Pure and never throws: the dialog calls it for
+ * every payment (including shop-settled ones, which voidPayment
+ * refuses), so a throwing helper would break dialog open. It mirrors
+ * voidPayment's predicates clause for clause (cleared-waada restore,
+ * remainder-waada revert, waived late-fee restore) and the two unsettle
+ * filters (ticket / boost reopen counts, through the same sanitized
+ * views the real rollback reads). If any predicate here drifted from
+ * voidPayment, the dialog would promise something the void will not
+ * do (or hide something it will). Returns [] for a voided payment
+ * and for any malformed input.
+ *
+ * @param {object} customer
+ * @param {object} bill the bill the payment belongs to (late-fee month check)
+ * @param {object} payment
+ * @param {object} options { tickets } the ticket list (loadTickets())
+ * @returns {Array<{ kind: string, text: string }>} effect descriptors, in void order
+ */
+export function describeVoidUndo(customer, bill, payment, options = {}) {
+  try {
+    if (!payment || typeof payment !== 'object') return [];
+    if (payment.voided === true) return [];
+    const effects = [];
+    const safeCustomer = customer && typeof customer === 'object' ? customer : null;
+
+    // 1. Cleared-waada restore — mirrors voidPayment's restorePromise
+    // predicate exactly: a stamped date in YYYY-MM-DD shape, and no
+    // newer promise on the customer now.
+    const stamp = payment.clearedWaada && typeof payment.clearedWaada === 'object'
+      ? payment.clearedWaada
+      : null;
+    const hasCurrentPromise = !!safeCustomer
+      && typeof safeCustomer.promiseDate === 'string' && safeCustomer.promiseDate.trim() !== '';
+    const restorePromise = !!stamp
+      && typeof stamp.promiseDate === 'string' && DATE_RE.test(stamp.promiseDate.trim())
+      && !hasCurrentPromise;
+    if (restorePromise) {
+      const date = stamp.promiseDate.trim();
+      const amount = Number(stamp.promiseAmount);
+      effects.push({
+        kind: 'waada-restore',
+        promiseDate: date,
+        promiseAmount: Number.isFinite(amount) ? amount : null,
+        text: Number.isFinite(amount)
+          ? `Will restore the waada of ${date} (PKR ${amount})`
+          : `Will restore the waada of ${date}`
+      });
+    }
+
+    // 2. Remainder-waada revert (SISP-126) — mirrors voidPayment's
+    // remainderWaadaLive predicate exactly, including the !restorePromise
+    // guard (a payment cannot restore both a cleared waada and revert
+    // a remainder waada).
+    const remStamp = payment.remainderWaada && typeof payment.remainderWaada === 'object'
+      ? payment.remainderWaada
+      : null;
+    const remDate = remStamp && typeof remStamp.promiseDate === 'string' ? remStamp.promiseDate.trim() : '';
+    const remAmount = remStamp ? Number(remStamp.promiseAmount) : NaN;
+    const remainderWaadaLive = !!remStamp
+      && DATE_RE.test(remDate)
+      && Number.isFinite(remAmount) && remAmount > 0
+      && !restorePromise
+      && !!safeCustomer
+      && safeCustomer.promiseDate === remDate
+      && Number(safeCustomer.promiseAmount) === remAmount
+      && String(safeCustomer.promiseNote ?? '') === REMAINDER_WAADA_NOTE_TEXT;
+    if (remainderWaadaLive) {
+      const remPrevious = remStamp.previousWaada && typeof remStamp.previousWaada === 'object'
+        ? remStamp.previousWaada
+        : null;
+      const remPreviousDate = remPrevious && typeof remPrevious.promiseDate === 'string'
+        ? remPrevious.promiseDate.trim()
+        : '';
+      if (remPrevious && DATE_RE.test(remPreviousDate)) {
+        effects.push({
+          kind: 'remainder-waada-revert',
+          promiseDate: remDate,
+          previousPromiseDate: remPreviousDate,
+          text: `Will restore the previous waada of ${remPreviousDate}`
+        });
+      } else {
+        effects.push({
+          kind: 'remainder-waada-revert',
+          promiseDate: remDate,
+          previousPromiseDate: '',
+          text: `Will clear the remainder waada of ${remDate}`
+        });
+      }
+    }
+
+    // 3. Waived late-fee restore (SISP-101) — mirrors voidPayment's
+    // restoreLateFee predicate exactly: the stamp must name this bill
+    // and the bill must carry no late fee now.
+    const waiverStamp = payment.lateFeeWaived === true
+      ? sanitizeWaivedLateFeeStampLocal(payment.waivedLateFee)
+      : null;
+    const restoreLateFee = !!waiverStamp
+      && !!bill && typeof bill === 'object'
+      && waiverStamp.month === bill.month
+      && !(Number(bill.lateFee || 0) > 0);
+    if (restoreLateFee) {
+      effects.push({
+        kind: 'late-fee-restore',
+        amount: waiverStamp.lateFee,
+        text: `Will restore the waived late fee of PKR ${waiverStamp.lateFee}`
+      });
+    }
+
+    // 4. Ticket charges the void would reopen — the
+    // unsettleTicketChargesForPayment filter shape, counted through
+    // the same sanitized ticket view the real rollback reads.
+    const ticketCount = countReopenableTicketCharges(options.tickets, payment);
+    if (ticketCount > 0) {
+      effects.push({
+        kind: 'ticket-reopen',
+        count: ticketCount,
+        text: `Will reopen ${ticketCount} ticket charge${ticketCount === 1 ? '' : 's'}`
+      });
+    }
+
+    // 5. Speed-boost charges the void would reopen — the
+    // unsettleAddonChargesForPayment filter shape, counted through
+    // the same sanitized boost view the real rollback reads.
+    const addonCount = countReopenableAddonCharges(safeCustomer, payment);
+    if (addonCount > 0) {
+      effects.push({
+        kind: 'addon-reopen',
+        count: addonCount,
+        text: `Will reopen ${addonCount} speed boost charge${addonCount === 1 ? '' : 's'}`
+      });
+    }
+
+    return effects;
+  } catch {
+    return [];
+  }
+}
+
+// Local mirror of complaint-tickets.js sanitizeTickets for the three
+// fields the reopen filter reads (id / chargePaid / chargePaymentId):
+// a ticket with a malformed id or no customer is dropped by the real
+// sanitizer, so it can never be reopened by a void either. Kept local
+// so this module stays import-free.
+const TICKET_ID_RE = /^TKT-(\d+)$/;
+function sanitizeTicketReopenView(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+    if (!TICKET_ID_RE.test(id)) continue;
+    const customerId = typeof entry.customerId === 'string' ? entry.customerId.trim() : '';
+    if (!customerId) continue;
+    out.push({
+      id,
+      chargePaid: entry.chargePaid === true,
+      chargePaymentId: entry.chargePaid === true && typeof entry.chargePaymentId === 'string'
+        ? entry.chargePaymentId.slice(0, 80)
+        : ''
+    });
+  }
+  return out;
+}
+
+/**
+ * How many ticket charges voiding this payment would reopen — the
+ * unsettleTicketChargesForPayment filter, counted not applied: only
+ * charges still paid, whose settlement still belongs to this payment.
+ */
+function countReopenableTicketCharges(tickets, payment) {
+  const lines = Array.isArray(payment?.ticketCharges) ? payment.ticketCharges : [];
+  const ids = new Set(lines.map((line) => String(line?.ticketId || '')).filter(Boolean));
+  if (ids.size === 0) return 0;
+  const paymentId = typeof payment?.id === 'string' ? payment.id : '';
+  let count = 0;
+  for (const ticket of sanitizeTicketReopenView(tickets)) {
+    if (!ids.has(ticket.id) || !ticket.chargePaid) continue;
+    if (paymentId && ticket.chargePaymentId && ticket.chargePaymentId !== paymentId) continue;
+    count += 1;
+  }
+  return count;
+}
+
+// Local mirror of core.js validBoostDate (strict YYYY-MM-DD calendar
+// date) — kept local so this module stays import-free.
+function validBoostDateLocal(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value ? null : value;
+}
+
+// Local mirror of core.js sanitizeSpeedBoosts for the fields the
+// reopen filter reads (boostId / chargePaid / chargePaymentId): a boost
+// that fails sanitization (bad id, fee, dates, or a duplicate id)
+// never reopens, so it must never be counted either.
+const BOOST_ID_RE_LOCAL = /^BST-\d+$/;
+function sanitizeBoostReopenView(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const entry of value) {
+    const boostId = typeof entry?.boostId === 'string' ? entry.boostId.trim() : '';
+    if (!BOOST_ID_RE_LOCAL.test(boostId) || seen.has(boostId)) continue;
+    const boostMbps = Number(entry?.boostMbps);
+    const durationDays = Number(entry?.durationDays);
+    const addonFeePKR = Number(entry?.addonFeePKR);
+    const startDate = validBoostDateLocal(entry?.startDate);
+    const expiryDate = validBoostDateLocal(entry?.expiryDate);
+    if (!Number.isFinite(boostMbps) || boostMbps <= 0 || boostMbps > 10000) continue;
+    if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 365) continue;
+    if (!Number.isFinite(addonFeePKR) || addonFeePKR <= 0) continue;
+    if (!startDate || !expiryDate || expiryDate < startDate) continue;
+    seen.add(boostId);
+    out.push({
+      boostId,
+      chargePaid: entry?.chargePaid === true,
+      chargePaymentId: typeof entry?.chargePaymentId === 'string' ? entry.chargePaymentId.slice(0, 100) : ''
+    });
+  }
+  return out;
+}
+
+/**
+ * How many boost charges voiding this payment would reopen — the
+ * unsettleAddonChargesForPayment filter, counted not applied.
+ */
+function countReopenableAddonCharges(customer, payment) {
+  const lines = Array.isArray(payment?.addonCharges) ? payment.addonCharges : [];
+  const ids = new Set(lines.map((line) => String(line?.boostId || '')).filter(Boolean));
+  if (ids.size === 0) return 0;
+  const paymentId = typeof payment?.id === 'string' ? payment.id : '';
+  let count = 0;
+  for (const boost of sanitizeBoostReopenView(customer?.speedBoosts)) {
+    if (!ids.has(boost.boostId) || !boost.chargePaid) continue;
+    if (paymentId && boost.chargePaymentId && boost.chargePaymentId !== paymentId) continue;
+    count += 1;
+  }
+  return count;
+}
+
 /** HTML for the VOID badge + reason shown on a voided payment row. */
 export function voidBadgeMarkup(payment) {
   if (!isVoidedPayment(payment)) return '';

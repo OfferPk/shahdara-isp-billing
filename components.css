@@ -1720,6 +1720,12 @@ body.field-mode-open { overflow: hidden; }
 .prepay-section legend { font-weight: 700; padding: 0 6px; }
 .void-payment { border: 1px solid var(--line); background: var(--color-neutral-0); color: var(--color-overdue); border-radius: 7px; padding: 7px 10px; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .void-payment:hover { text-decoration: underline; }
+/* Sharafat 63: the void dialog's undo preview list (what voiding this
+   payment will restore / reopen). Token-only, same muted pair as the
+   wallet-ledger note lists; no new hex. The list is created only when
+   there is something to show, so a plain payment's dialog is unchanged. */
+.void-payment-effects { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 5px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.void-payment-effects li { overflow-wrap: anywhere; }
 .wallet-ledger-dup { border-color: var(--color-overdue); }
 .wallet-ledger-dup ul { margin: 6px 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
 .wallet-ledger-note, .wallet-ledger-empty, .wallet-ledger-summary-line { color: var(--muted); font-size: 13px; }

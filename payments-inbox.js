@@ -162,9 +162,25 @@ export function calculateInboxTotals(items = [], referenceDate = new Date()) {
   let totalSent = 0;
   let unrecordedCount = 0;
   let needsReviewCount = 0;
+  let unreadableCount = 0;
 
   for (const item of items) {
     const amt = Number(item.amount || 0);
+    // Sharafat 54: a stored amount Number() cannot parse ("abc",
+    // "1,000") is NaN, and adding it would poison every total it
+    // touches to NaN. Skip such amounts from the money sums only —
+    // the counts below still move for the row. Unreadable is
+    // present-but-not-finite via Number(): item.amount is not
+    // null/undefined/'' AND Number(item.amount) is not finite — so
+    // "abc", "1,000" and an in-memory NaN count, null/undefined/''
+    // stay 0, and true still counts as PKR 1 (Number(true) is 1,
+    // finite). The test is on Number(item.amount), not on amt: amt
+    // has already been through `|| 0`, which would mask an
+    // in-memory NaN to 0.
+    const unreadable = item.amount !== null && item.amount !== undefined && item.amount !== '' && !Number.isFinite(Number(item.amount));
+    if (unreadable) {
+      unreadableCount++;
+    }
     const date = item.date || (item.datetimeIso ? item.datetimeIso.slice(0, 10) : '');
     const isToday = date === todayDateStr;
     const isThisMonth = date.slice(0, 7) === currentMonthStr;
@@ -174,26 +190,38 @@ export function calculateInboxTotals(items = [], referenceDate = new Date()) {
     }
 
     if (item.direction === 'Received') {
-      totalReceived += amt;
+      if (!unreadable) {
+        totalReceived += amt;
+        if (isToday) {
+          todayReceived += amt;
+        }
+        if (isThisMonth) {
+          monthReceived += amt;
+        }
+      }
       if (isToday) {
-        todayReceived += amt;
         todayReceivedCount++;
       }
       if (isThisMonth) {
-        monthReceived += amt;
         monthReceivedCount++;
       }
       if (!item.recorded) {
         unrecordedCount++;
       }
     } else if (item.direction === 'Sent') {
-      totalSent += amt;
+      if (!unreadable) {
+        totalSent += amt;
+        if (isToday) {
+          todaySent += amt;
+        }
+        if (isThisMonth) {
+          monthSent += amt;
+        }
+      }
       if (isToday) {
-        todaySent += amt;
         todaySentCount++;
       }
       if (isThisMonth) {
-        monthSent += amt;
         monthSentCount++;
       }
     }
@@ -219,6 +247,7 @@ export function calculateInboxTotals(items = [], referenceDate = new Date()) {
       sent: Math.round(totalSent * 100) / 100,
       unrecordedCount,
       needsReviewCount,
+      unreadableCount,
       totalCount: items.length
     }
   };
@@ -645,7 +674,7 @@ export class PaymentsInboxController {
           <div class="easypaisa-kpi-card highlight-blue">
             <div class="kpi-label">Inbox Status</div>
             <div class="kpi-value">${totals.total.unrecordedCount} Pending</div>
-            <div class="kpi-sub">${totals.total.totalCount} total (${totals.total.needsReviewCount} review)</div>
+            <div class="kpi-sub">${totals.total.totalCount} total (${totals.total.needsReviewCount} review)${totals.total.unreadableCount > 0 ? ` · ${totals.total.unreadableCount} unreadable amount${totals.total.unreadableCount === 1 ? '' : 's'}` : ''}</div>
           </div>
         </div>
 

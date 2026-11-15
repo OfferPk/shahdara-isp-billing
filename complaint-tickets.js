@@ -101,6 +101,16 @@ import { effectiveQueuePriority, isSlaPinned, priorityForNewQueueItem, sortQueue
 
 export const TICKETS_KEY = 'sisp_tickets_v1';
 
+/**
+ * Sharafat 67 — monotonic ticket-id counter. The next number to issue
+ * lives in its own key so an id is never re-issued after its record
+ * drops out of the sanitized lists (malformed-row drop) or an older
+ * backup is restored. The value is the NEXT number to issue (101 when
+ * nothing was ever issued). It is never rewound: reads self-heal to
+ * max(stored, max-over-list) and writes keep max(stored, written).
+ */
+export const TICKETS_NEXT_ID_KEY = 'sisp_tickets_next_id_v1';
+
 /** 1-tap fault presets (spec verbatim). */
 export const TICKET_PRESETS = [
   'Media Converter Power/Charger',
@@ -221,6 +231,105 @@ export function nextTicketId(existing) {
     if (match) max = Math.max(max, Number(match[1]));
   }
   return `TKT-${max + 1}`;
+}
+
+function ticketNumberOf(value) {
+  const match = String(value || '').match(ID_RE);
+  return match ? Number(match[1]) : 0;
+}
+
+function maxTicketNumber(list) {
+  let max = 0;
+  for (const entry of (Array.isArray(list) ? list : [])) {
+    if (!entry || typeof entry !== 'object') continue;
+    max = Math.max(max, ticketNumberOf(entry.id));
+  }
+  return max;
+}
+
+function defaultTicketStorage(storage) {
+  if (storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function') return storage;
+  if (typeof localStorage !== 'undefined' && localStorage) return localStorage;
+  return null;
+}
+
+/** Stored next ticket number, or null when the key is absent/unreadable. Never throws. */
+export function readTicketCounter(storage) {
+  try {
+    const store = defaultTicketStorage(storage);
+    if (!store) return null;
+    const n = Number(store.getItem(TICKETS_NEXT_ID_KEY));
+    return Number.isInteger(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Store the next ticket number, never rewinding: the stored value stays
+ * max(stored, nextNumber). Returns the stored value, or null without
+ * storage. Never throws.
+ */
+export function writeTicketCounter(storage, nextNumber) {
+  try {
+    const store = defaultTicketStorage(storage);
+    if (!store) return null;
+    const n = Math.floor(Number(nextNumber));
+    if (!Number.isFinite(n) || n <= 0) return readTicketCounter(store);
+    const kept = Math.max(readTicketCounter(store) ?? 0, n);
+    store.setItem(TICKETS_NEXT_ID_KEY, String(kept));
+    return kept;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Next ticket number for a create: max(stored counter, max-over-list + 1, 101).
+ * The list is the floor, so a lost counter save can never re-issue an id
+ * that is still on a record (R11). Does not write.
+ */
+export function nextTicketNumber(storage, existing) {
+  return Math.max(readTicketCounter(storage) ?? 0, maxTicketNumber(existing) + 1, 101);
+}
+
+/**
+ * Sharafat 67 D5(b) — one-time seed from the ledgers AND the reference
+ * stores: resolvedViaTicketId + the ticket part of syncReopenGuard on
+ * complaints, and payment ticketCharges ticket ids. Reference values are
+ * upper-cased before matching, so a hand-edited lowercase ref still
+ * counts (the generator only ever issues uppercase ids). Pure: returns
+ * the next number to issue, never below 101.
+ */
+export function computeTicketSeed(tickets, complaints, payments) {
+  let max = Math.max(maxTicketNumber(tickets), 100);
+  for (const complaint of (Array.isArray(complaints) ? complaints : [])) {
+    if (!complaint || typeof complaint !== 'object') continue;
+    max = Math.max(max, ticketNumberOf(String(complaint.resolvedViaTicketId || '').toUpperCase()));
+    const guardTicket = String(complaint.syncReopenGuard || '').split('@')[0].toUpperCase();
+    max = Math.max(max, ticketNumberOf(guardTicket));
+  }
+  for (const payment of (Array.isArray(payments) ? payments : [])) {
+    if (!payment || typeof payment !== 'object') continue;
+    for (const line of (Array.isArray(payment.ticketCharges) ? payment.ticketCharges : [])) {
+      max = Math.max(max, ticketNumberOf(String(line?.ticketId || '').toUpperCase()));
+    }
+  }
+  return max + 1;
+}
+
+/**
+ * Seed the counter once, when the key is absent. Later calls are no-ops
+ * (the counter only moves forward via creates/restores). Returns the
+ * seeded (or already stored) next number, or the list-derived value
+ * without storage. Never throws.
+ */
+export function seedTicketCounter(storage, tickets, complaints, payments) {
+  const existing = readTicketCounter(storage);
+  if (existing !== null) return existing;
+  const next = computeTicketSeed(tickets, complaints, payments);
+  writeTicketCounter(storage, next);
+  return next;
 }
 
 function round2(n) {
@@ -344,7 +453,7 @@ export function ticketCustomerLabel(ticket) {
 }
 
 /** Create a ticket. Technician is required; preset or a custom fault is required. */
-export function createTicket(input, existing, referenceDate = new Date()) {
+export function createTicket(input, existing, referenceDate = new Date(), storage) {
   const list = Array.isArray(existing) ? existing : [];
   const customerId = cleanText(input?.customerId);
   if (!customerId) throw new Error('Select a customer first.');
@@ -362,8 +471,18 @@ export function createTicket(input, existing, referenceDate = new Date()) {
   // OWNER-SIGNAL: the "signal right now" reading is optional; when one
   // is supplied it must satisfy the SISP-24 range (throws otherwise).
   const signalBeforeDbm = checkTicketSignalDbm(input?.signalBeforeDbm);
+  // Sharafat 67: the id comes from the monotonic counter, not from
+  // max-over-list — so a deleted (or sanitize-dropped) max id is never
+  // re-issued. The counter is bumped here, at create time, before the
+  // caller persists the record: a lost record save only skips a number,
+  // and a lost counter save is healed by the list floor on the next
+  // create (R11). Without storage (pure/test use) this is exactly
+  // nextTicketId(list) — the counter is invisible.
+  const store = defaultTicketStorage(storage);
+  const next = nextTicketNumber(store, list);
+  if (store) writeTicketCounter(store, next + 1);
   return {
-    id: nextTicketId(list),
+    id: `TKT-${next}`,
     customerId,
     customerName: cleanText(input?.customerName),
     complaintId,

@@ -178,9 +178,17 @@ test('Sharafat 40: archived customer is included in the card and in the chips', 
   };
   const card = buildMohallaAnalytics(state, MONTH, REF);
   const rows = buildMonthlyReport(state, { month: MONTH }, REF);
+  // Sharafat 40 stands: the mohalla CARD still includes archived customers.
   assert.equal(cardCollected(card), 1000);
-  assert.equal(chipsTotal(rows, state), 1000);
-  assert.equal(summaryCollected(rows), 1000);
+  // Sharafat 45 changed the REPORT side: the monthly report excludes
+  // archived customers by default, so its rows / chips / summary are 0
+  // here — the chips and the summary bar follow the same filtered rows
+  // (Sharafat 38). The toggle-ON path keeps the old inclusion.
+  assert.equal(chipsTotal(rows, state), 0);
+  assert.equal(summaryCollected(rows), 0);
+  const included = buildMonthlyReport(state, { month: MONTH, includeArchived: true }, REF);
+  assert.equal(chipsTotal(included, state), 1000);
+  assert.equal(summaryCollected(included), 1000);
 });
 
 test('Sharafat 40: over-100% shows the note in text + aria-label, never the raw number', () => {

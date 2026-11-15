@@ -1242,6 +1242,9 @@ let selectedProfileTab = 'info';
 let routerCredRevealed = { wifi: false, admin: false };
 let routerCredRevealedFor = null;
 let selectedReportFilter = 'all';
+// Sharafat 45: the monthly report excludes archived customers by default;
+// the Archived checkbox beside the status pills flips this on.
+let includeArchivedInReport = false;
 let reportAreaFilter = null;
 let recentPaymentsFilter = RECENT_PAYMENTS_ALL_FILTER;
 let selectedServiceFilter = 'all';
@@ -7005,7 +7008,7 @@ function renderMohallaAnalytics(month) {
 function getMonthlyReportScreenRows() {
   const month = selectedBillingMonth;
   const query = reportSearchQuery.trim() || searchQuery();
-  const rows = buildMonthlyReport(state, { month, statusFilter: selectedReportFilter, customerQuery: query });
+  const rows = buildMonthlyReport(state, { month, statusFilter: selectedReportFilter, customerQuery: query, includeArchived: includeArchivedInReport });
   const totalRows = rows.length;
   // Part 4A drill-down: an Area card filters this list to that area's
   // customers (status stays 'outstanding' from the card, or whatever
@@ -7033,7 +7036,27 @@ function renderMonthlyReport() {
   }
   renderMohallaAnalytics(month);
   $('#monthlyReportCount').textContent = t(rows.length === 1 ? 'bill_count_sing' : 'bill_count_plur', null, { count: rows.length, month: displayMonthName(month) });
-  $('#monthlyReportEmpty').hidden = rows.length > 0;
+  const emptyEl = $('#monthlyReportEmpty');
+  emptyEl.hidden = rows.length > 0;
+  if (rows.length === 0) {
+    // Sharafat 45: an archived-only area drill-down shows 0 rows with the
+    // toggle off — say so, instead of leaving the operator wondering why a
+    // card that showed customers drills to nothing. The probe runs only on
+    // the empty path, so the live book costs no second builder call, and it
+    // mirrors the shared helper's own month / status / search / area
+    // pipeline, so the hint fires only when archived rows really match this
+    // exact view. (The query line mirrors the helper above.)
+    if (!includeArchivedInReport) {
+      const probeQuery = reportSearchQuery.trim() || searchQuery();
+      const probeRows = buildMonthlyReport(state, { month, statusFilter: selectedReportFilter, customerQuery: probeQuery, includeArchived: true });
+      const hiddenByToggle = reportAreaFilter
+        ? probeRows.some(row => (canonicalMohalla(row.area)?.key ?? 'unassigned') === reportAreaFilter.key)
+        : probeRows.length > 0;
+      emptyEl.textContent = hiddenByToggle ? t('bill_empty_archived_hint') : t('bill_empty');
+    } else {
+      emptyEl.textContent = t('bill_empty');
+    }
+  }
 
   const totalBilled = rows.reduce((s, r) => s + (r.billAmount || 0), 0);
   const totalCollected = rows.reduce((s, r) => s + (r.amountReceived || 0), 0);
@@ -7110,6 +7133,10 @@ function renderMonthlyReport() {
     return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ` · ${t('bill_row_archived')}` : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-tags"><span class="report-tag">${t('bill_row_service')}: ${serviceLabel}</span><span class="report-tag">${t('bill_row_package')}: ${escapeHtml(speed)}</span><span class="report-tag">${t('bill_row_provider')}: ${escapeHtml(provider)}</span></span></div>${monthlySaleCell}<div class="report-cell"><span class="report-cell-label">${escapeHtml(t('bill_row_month_bill', null, { month: displayMonthName(row.month) }))}</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_due_date')}</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_received')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_balance')}</span><span class="report-cell-value">${escapeHtml(due)}</span></div>${creditCell}<div class="report-cell report-status-cell"><span class="report-cell-label">${t('bill_row_status')}</span><span class="report-status report-status-${row.status}">${billStatusLabel(row.status)}</span></div>${actionsCell}</li>`;
   }).join('');
   document.querySelectorAll('[data-report-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.reportFilter === selectedReportFilter ? 'true' : 'false'));
+  // Sharafat 45: keep the Archived checkbox in sync with the module state
+  // on every render, the same way the pills' aria-pressed is synced above.
+  const archivedToggle = $('#reportIncludeArchived');
+  if (archivedToggle) archivedToggle.checked = includeArchivedInReport;
   renderBillingRegister();
   // Polish #11 (Req 4): the sales-tax dashboard rides with the monthly
   // billing report and follows its month (current month by default).
@@ -13503,6 +13530,9 @@ $('#customerFilterMonth').addEventListener('change', event => setBillingMonth(ev
 document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.addEventListener('click', () => { selectedServiceFilter = button.dataset.customerServiceFilter; customerCurrentPage = 1; renderCustomers(); }));
 document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.addEventListener('click', () => { selectedBillingFilter = button.dataset.customerBillingFilter; customerCurrentPage = 1; renderCustomers(); }));
 document.querySelectorAll('[data-report-filter]').forEach(button => button.addEventListener('click', () => { selectedReportFilter = button.dataset.reportFilter; reportCurrentPage = 1; renderMonthlyReport(); }));
+// Sharafat 45: the Archived toggle is a separate boolean, not a status —
+// it flips the builder's includeArchived option and re-renders the report.
+$('#reportIncludeArchived')?.addEventListener('change', event => { includeArchivedInReport = event.target.checked; reportCurrentPage = 1; renderMonthlyReport(); });
 // Part 4A drill-down: an Area card filters the report list to that
 // area's Pending/Partial customers; the chip clears the area only.
 $('#mohallaAnalyticsList')?.addEventListener('click', (event) => {

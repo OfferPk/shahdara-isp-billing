@@ -1031,11 +1031,11 @@ PKR 3,000 \u0627\u0648\u0631 \u0627\u0633 \u0633\u06D2 \u0632\u06CC\u0627\u062F\
     ${e.creditTransferInAmount>0?`<div class="receipt-field"><dt>Advance Credit Transfer / \u0627\u06CC\u0688\u0648\u0627\u0646\u0633 \u06A9\u0631\u06CC\u0688\u0679 \u0679\u0631\u0627\u0646\u0633\u0641\u0631:</dt><dd>-${p(e.creditTransferInAmount)}</dd></div>`:""}
     ${e.feederHostCreditAmount>0?`<div class="receipt-field"><dt>Feeder Host Credit / \u0641\u06CC\u0688\u0631 \u06C1\u0648\u0633\u0679 \u06A9\u0631\u06CC\u0688\u0679:</dt><dd>-${p(e.feederHostCreditAmount)}${e.feederHostCreditReason?` (${nt(e.feederHostCreditReason)})`:""}</dd></div>`:""}
     ${e.firstMonthWaivedAmount>0?`<div class="receipt-field"><dt>First month included / \u067E\u06C1\u0644\u0627 \u0645\u06C1\u06CC\u0646\u06C1 \u0634\u0627\u0645\u0644 \u06C1\u06D2:</dt><dd>-${p(e.firstMonthWaivedAmount)}${e.firstMonthWaivedReason?` (${nt(e.firstMonthWaivedReason)})`:""}</dd></div>`:""}
-    ${S?`<div class="receipt-field"><dt>Total Gross Payable / \u06A9\u0644 \u0648\u0627\u062C\u0628 \u0627\u0644\u0627\u062F\u0627 (gross):</dt><dd>${p(C)}</dd></div>`:""}
-    ${_>0?`<div class="receipt-field"><dt>Total Payable / \u06A9\u0644 \u0648\u0627\u062C\u0628 \u0627\u0644\u0627\u062F\u0627:</dt><dd>${p($)}</dd></div>`:""}
     ${wVe(e,p)}
     ${EVe(e,p)}
     ${RVe(e,p)}
+    ${S?`<div class="receipt-field"><dt>Total Gross Payable / \u06A9\u0644 \u0648\u0627\u062C\u0628 \u0627\u0644\u0627\u062F\u0627 (gross):</dt><dd>${p(C)}</dd></div>`:""}
+    ${_>0?`<div class="receipt-field"><dt>Total Payable / \u06A9\u0644 \u0648\u0627\u062C\u0628 \u0627\u0644\u0627\u062F\u0627:</dt><dd>${p($)}</dd></div>`:""}
 
     ${e.arrearsBreakdown?`<div class="receipt-field"><dt>Mahana Package:</dt><dd>${p(e.arrearsBreakdown.packageAmount)}</dd></div>${DVe(e.arrearsBreakdown,p,"Kist")}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${p(e.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${p(e.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${p(e.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${p(rD(e))}</dd></div>`:""}
     ${IVe(e,p)}

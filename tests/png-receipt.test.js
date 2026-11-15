@@ -132,13 +132,17 @@ test('SISP-2 arrears + SISP-4 kist lines flow into the PNG financial box (no par
   assert.equal(model.seal.kind, 'PAID');
 });
 
-test('layout is 1600x2000, seal present, all commands in bounds, footer inside the canvas', () => {
+test('kist layout fits the grown canvas, seal present, all commands in bounds, footer inside', () => {
   const { customer, bill, payment } = kistFixture();
   const model = buildPngReceiptModel(buildPaymentReceipt(customer, bill, payment), customer);
   const layout = computePngReceiptLayout(model);
   assert.equal(layout.width, PNG_RECEIPT_WIDTH);
-  assert.equal(layout.height, PNG_RECEIPT_HEIGHT);
-  assert.ok(layout.footerY > 0 && layout.footerY <= PNG_RECEIPT_HEIGHT, `footerY ${layout.footerY} inside canvas`);
+  // Sharafat 53: the kist fixture's footer ends exactly at the old 2000
+  // foot (footerY 2000), so the history rule (Math.max(H, y + 24)) now
+  // grows the canvas by its 24px of bottom padding — 2024, not 2000.
+  // Nothing clips: the footer still sits inside the grown canvas.
+  assert.equal(layout.height, 2024);
+  assert.ok(layout.footerY > 0 && layout.footerY <= layout.height, `footerY ${layout.footerY} inside canvas`);
   const seal = layout.commands.find((cmd) => cmd.type === 'seal');
   assert.ok(seal, 'seal command present');
   assert.equal(seal.label, 'PAID');

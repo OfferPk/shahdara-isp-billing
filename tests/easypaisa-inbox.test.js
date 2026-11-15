@@ -125,19 +125,19 @@ test('issue #305 (Inbox): matchCustomerByPhone matches customers across phone fo
     { id: 'c3', customerNumber: '103', name: 'Archived User', phone: '03001122334', archived: true }
   ];
 
-  // Standard match
-  assert.equal(matchCustomerByPhone('03055669955', customers)?.id, 'c1');
+  // Standard match (Sharafat 56: the matcher returns { match, matches, ambiguous })
+  assert.equal(matchCustomerByPhone('03055669955', customers).match?.id, 'c1');
 
   // Country code +92 match
-  assert.equal(matchCustomerByPhone('+92 312 3456789', customers)?.id, 'c2');
-  assert.equal(matchCustomerByPhone('923123456789', customers)?.id, 'c2');
+  assert.equal(matchCustomerByPhone('+92 312 3456789', customers).match?.id, 'c2');
+  assert.equal(matchCustomerByPhone('923123456789', customers).match?.id, 'c2');
 
   // Urdu numerals match
-  assert.equal(matchCustomerByPhone('۰۳۰۵۵۶۶۹۹۵۵', customers)?.id, 'c1');
+  assert.equal(matchCustomerByPhone('۰۳۰۵۵۶۶۹۹۵۵', customers).match?.id, 'c1');
 
   // Unmatched & archived
-  assert.equal(matchCustomerByPhone('03009999999', customers), null);
-  assert.equal(matchCustomerByPhone('03001122334', customers), null); // archived
+  assert.equal(matchCustomerByPhone('03009999999', customers).match, null);
+  assert.equal(matchCustomerByPhone('03001122334', customers).match, null); // archived
 });
 
 test('issue #305 (Inbox): findCandidateBillMonth selects earliest unpaid bill month', () => {

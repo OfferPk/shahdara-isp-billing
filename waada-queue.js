@@ -142,9 +142,14 @@ export function computeWaadaChipDate(chip, todayStr, customDate = null) {
 export function setCustomerWaada(customer, { promiseDate, promiseAmount = null, promiseNote = '' } = {}) {
   if (!customer || typeof customer !== 'object') throw new Error('Customer required');
   if (!isValidWaadaDate(promiseDate)) throw new Error('Promise date must be YYYY-MM-DD');
-  const amount = promiseAmount === null || promiseAmount === undefined || promiseAmount === ''
+  // Sharafat 69: a non-positive amount is refused, never silently clamped
+  // to Rs 0. Only FINITE numbers <= 0 throw; null / undefined / '' stay
+  // amount-less and non-numeric input stays null, exactly as before.
+  const rawAmount = promiseAmount === null || promiseAmount === undefined || promiseAmount === ''
     ? null
-    : Math.max(0, Number(promiseAmount));
+    : Number(promiseAmount);
+  if (rawAmount !== null && Number.isFinite(rawAmount) && rawAmount <= 0) throw new Error('Promise amount must be more than Rs 0');
+  const amount = rawAmount;
   return {
     ...customer,
     promiseDate: promiseDate.trim(),
@@ -255,9 +260,13 @@ export function remainderWaadaPreviousOf(payment) {
   const amount = prev.promiseAmount === null || prev.promiseAmount === undefined || prev.promiseAmount === ''
     ? null
     : Number(prev.promiseAmount);
+  // Sharafat 69: a stamped non-positive amount (legacy Rs 0) restores as
+  // amount-less, so both undo paths can restore the previous waada
+  // instead of failing on the setter's refusal.
+  const cleanAmount = Number.isFinite(amount) ? amount : null;
   return {
     promiseDate,
-    promiseAmount: Number.isFinite(amount) ? amount : null,
+    promiseAmount: cleanAmount !== null && cleanAmount <= 0 ? null : cleanAmount,
     promiseNote: String(prev.promiseNote ?? '')
   };
 }
@@ -665,9 +674,16 @@ export function setupWaadaChipDialog({ getCustomer, getToday, onApply, onToast }
       return;
     }
     try {
+      // Sharafat 69: a stored non-positive amount (legacy Rs 0) is
+      // re-stamped as amount-less — a date-only change must never
+      // throw, and the stored 0 heals instead of staying snoozed.
+      const storedAmount = customer.promiseAmount ?? null;
+      const amountToKeep = storedAmount !== null && storedAmount !== '' && Number.isFinite(Number(storedAmount)) && Number(storedAmount) <= 0
+        ? null
+        : storedAmount;
       const updated = setCustomerWaada(customer, {
         promiseDate: date,
-        promiseAmount: customer.promiseAmount ?? null,
+        promiseAmount: amountToKeep,
         promiseNote: customer.promiseNote ?? ''
       });
       apply(updated, `Waada set: ${date}.`);

@@ -1,8 +1,10 @@
 // Quick Collect receipt preview (Plan 433): the receipt exactly as it
 // will print — customer, amount in digits and words, method, receipt
-// number, date — shown on the confirm step before anything is saved,
-// so a wrong name or a wrong amount is caught while the customer is
-// still standing at the counter, not when they read the receipt.
+// number, date, bill month, and the remaining balance after this
+// payment — shown on the confirm step before anything is saved,
+// so a wrong name, a wrong amount, or a wrong month is caught while
+// the customer is still standing at the counter, not when they read
+// the receipt.
 //
 // This module previews ONLY. It issues no receipt number, reserves no
 // number, records no payment, and changes no bill, payment, or receipt
@@ -29,6 +31,16 @@
 //   - Date: the payment date field, read the same way the save reads
 //     it. A date that is not a strict calendar day is refused, never
 //     guessed.
+//   - Bill month: the bill month the entry settles — the caller
+//     passes the month the receipt number is counted under (the
+//     month field or the target month). A preview without a strict
+//     bill month is refused, never guessed: a month-less preview
+//     would still match a receipt for the wrong month.
+//   - Remaining balance: the caller's overall remaining after this
+//     payment (all open balances plus pending charges, minus this
+//     amount, never below zero) — a display figure only. The receipt
+//     carries its own bill-only balance, which is a different figure
+//     whenever pending charges exist, so the two are never compared.
 // A split payment has no single receipt to preview — the customer
 // leaves with the combined card instead — so a split entry previews
 // nothing rather than a wrong receipt. The same rule hides the
@@ -37,14 +49,19 @@
 // The match check is the acceptance, stated as a function: given the
 // preview and the receipt built from the saved payment on the same
 // fixture, every field the receipt prints must agree — customer name
-// and number, amount, method, receipt number, and date. The words
-// line is not one of the printed fields, so it takes no part in the
-// match; it follows the amount it was derived from.
+// and number, amount, method, receipt number, date, and bill month.
+// The receipt's month is read from its service period start. The
+// words line is not one of the printed fields, so it takes no part
+// in the match; it follows the amount it was derived from. The
+// remaining balance takes no part in the match either: it is the
+// caller's overall remaining, and the receipt's own balance is a
+// bill-only figure, so the two are never equal by construction.
 //
 // The module is standalone: it reads no storage, no clock, and no
 // page, takes no other module, and never mutates an input.
 
 const RECEIPT_PREVIEW_DATE_RE = /^(\d{4})-(0[1-9]|1[0-2])-(\d{2})$/;
+const RECEIPT_PREVIEW_MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 function text(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -63,6 +80,12 @@ function escapeHtml(value) {
 function daysInMonth(year, month) {
   if (month === 2) return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0 ? 29 : 28;
   return [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+}
+
+// A strict bill month (YYYY-MM). Anything else has no usable month,
+// so there is no preview.
+export function receiptPreviewIsStrictMonth(value) {
+  return RECEIPT_PREVIEW_MONTH_RE.test(text(value));
 }
 
 // A strict calendar day (YYYY-MM-DD, leap-aware). Anything else has no
@@ -107,7 +130,8 @@ export function formatReceiptPreviewAmount(cents) {
 
 // The preview for one entry, or null when there is nothing worth
 // previewing: no usable name, no positive amount, no receipt number,
-// no strict date, or a split entry (no single receipt to preview).
+// no strict date, no strict bill month, or a split entry (no single
+// receipt to preview).
 export function normalizeReceiptPreview(input) {
   const source = input && typeof input === 'object' ? input : {};
   if (source.split) return null;
@@ -117,8 +141,17 @@ export function normalizeReceiptPreview(input) {
   if (!receiptNumber) return null;
   const date = text(source.date);
   if (!receiptPreviewIsStrictDate(date)) return null;
+  const billMonth = text(source.billMonth);
+  if (!receiptPreviewIsStrictMonth(billMonth)) return null;
   const amountCents = receiptPreviewFigureCents(source.amount);
   if (amountCents === null || amountCents <= 0) return null;
+  // The caller's overall remaining after this payment, in cents — a
+  // display figure only. Null when the caller passes none (or a
+  // non-integer), never zero: a missing figure must never read as a
+  // fully-paid customer.
+  const remainingBalanceCents = Number.isSafeInteger(source.remainingBalanceCents) && source.remainingBalanceCents >= 0
+    ? source.remainingBalanceCents
+    : null;
   return {
     customerName,
     customerNumber: customerNumberText(source.customerNumber),
@@ -128,6 +161,9 @@ export function normalizeReceiptPreview(input) {
     method: text(source.method) || 'Cash',
     receiptNumber,
     date,
+    billMonth,
+    remainingBalanceCents,
+    remainingBalanceText: remainingBalanceCents === null ? '' : formatReceiptPreviewAmount(remainingBalanceCents),
   };
 }
 
@@ -145,6 +181,8 @@ export function receiptPreviewFor(input) {
     method: source.method,
     receiptNumber: source.receiptNumber,
     date: source.date,
+    billMonth: source.billMonth,
+    remainingBalanceCents: source.remainingBalanceCents,
     split: source.split,
   });
 }
@@ -156,10 +194,14 @@ export function receiptPreviewLineText(preview) {
   const lines = [
     `Receipt: ${preview.receiptNumber}`,
     `Date: ${preview.date}`,
-    `Customer: ${preview.customerName}${preview.customerNumber ? ` (#${preview.customerNumber})` : ''}`,
-    `Amount: ${preview.amountText}`,
   ];
+  if (receiptPreviewIsStrictMonth(preview.billMonth)) lines.push(`Bill month: ${preview.billMonth}`);
+  lines.push(`Customer: ${preview.customerName}${preview.customerNumber ? ` (#${preview.customerNumber})` : ''}`);
+  lines.push(`Amount: ${preview.amountText}`);
   if (preview.amountWords) lines.push(`Amount in words: ${preview.amountWords}`);
+  if (Number.isSafeInteger(preview.remainingBalanceCents) && preview.remainingBalanceCents >= 0) {
+    lines.push(`Remaining balance: ${preview.remainingBalanceText || formatReceiptPreviewAmount(preview.remainingBalanceCents)}`);
+  }
   lines.push(`Method: ${preview.method}`);
   return lines.join('\n');
 }
@@ -171,10 +213,14 @@ export function receiptPreviewHtml(preview) {
   const rows = [
     ['Receipt', preview.receiptNumber],
     ['Date', preview.date],
-    ['Customer', `${preview.customerName}${preview.customerNumber ? ` (#${preview.customerNumber})` : ''}`],
-    ['Amount', preview.amountText],
   ];
+  if (receiptPreviewIsStrictMonth(preview.billMonth)) rows.push(['Bill month', preview.billMonth]);
+  rows.push(['Customer', `${preview.customerName}${preview.customerNumber ? ` (#${preview.customerNumber})` : ''}`]);
+  rows.push(['Amount', preview.amountText]);
   if (preview.amountWords) rows.push(['Amount in words', preview.amountWords]);
+  if (Number.isSafeInteger(preview.remainingBalanceCents) && preview.remainingBalanceCents >= 0) {
+    rows.push(['Remaining balance', preview.remainingBalanceText || formatReceiptPreviewAmount(preview.remainingBalanceCents)]);
+  }
   rows.push(['Method', preview.method]);
   const fields = rows
     .map(([label, value]) => `<div class="receipt-field"><dt>${escapeHtml(label)}:</dt><dd>${escapeHtml(value)}</dd></div>`)
@@ -185,8 +231,12 @@ export function receiptPreviewHtml(preview) {
 // The acceptance, as a function: the preview and the receipt built
 // from the saved payment on the same fixture must agree on every
 // field the receipt prints — customer name and number, amount,
-// method, receipt number, and date. False whenever either side is
-// missing or any field differs.
+// method, receipt number, date, and bill month. The receipt's month
+// is read from its service period start. False whenever either side
+// is missing or any field differs. The remaining balance takes no
+// part in the match: it is the caller's overall remaining, and the
+// receipt's own balance is a bill-only figure, so the two are never
+// equal by construction.
 export function receiptPreviewMatchesReceipt(preview, receipt) {
   if (!preview || typeof preview !== 'object') return false;
   if (!receipt || typeof receipt !== 'object') return false;
@@ -197,5 +247,6 @@ export function receiptPreviewMatchesReceipt(preview, receipt) {
   if (preview.method !== text(receipt.paymentMethod)) return false;
   if (preview.receiptNumber !== text(receipt.receiptNumber)) return false;
   if (preview.date !== text(receipt.paymentDate)) return false;
+  if (preview.billMonth !== text(receipt.servicePeriodStart).slice(0, 7)) return false;
   return true;
 }

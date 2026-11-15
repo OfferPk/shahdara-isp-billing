@@ -19,7 +19,8 @@ import {
   parseEasypaisaCsv,
   normalizeEasypaisaPhone,
   parseEasypaisaAmount,
-  parsePakistanDateTime
+  parsePakistanDateTime,
+  inboxContentHash
 } from './easypaisa-parser.js';
 
 import {
@@ -344,6 +345,185 @@ export function findCandidateBillMonth(customer, dateStr, referenceDate = new Da
 }
 
 /**
+ * Sharafat 58 (D1): the stable identity of an inbox row. Rows with a
+ * transaction id key on it; rows without one (the parser's Needs-review
+ * fallback) key on a content-derived `mergeKey` minted at merge time,
+ * so they survive in the same list instead of being dropped — and so
+ * two TID-less rows never share the empty-string key in the render
+ * (`data-txn-id`, the match select, the Record button) or in the
+ * operator's match-override map.
+ *
+ * @param {Object} item Inbox row.
+ * @returns {string} `mergeKey` for a TID-less row, else `txnId`, else ''.
+ */
+export function inboxRowKey(item) {
+  if (!item || typeof item !== 'object') return '';
+  return item.mergeKey || item.txnId || '';
+}
+
+/**
+ * Sharafat 58 (D1): the content-derived bucket key for a TID-less row —
+ * a hash of date + amount + sender + raw text, so the same transfer
+ * re-imported mints the same key and dedupes, while a different
+ * transfer mints a different key. Shares the hash rule with the
+ * parser's `EP-CSV-` / `REVIEW-CSV-` keys (one rule, both sides).
+ *
+ * @param {Object} item Inbox row without a transaction id.
+ * @returns {string} `INBOX-REVIEW-<8 hex chars>`.
+ */
+export function inboxContentKey(item) {
+  const canonical = [
+    item?.date || item?.datetimeIso || '',
+    String(item?.amount ?? ''),
+    item?.senderName || '',
+    item?.senderNumber || '',
+    item?.rawText || ''
+  ].join('|');
+  return `INBOX-REVIEW-${inboxContentHash(canonical)}`;
+}
+
+// Copy a row into merge shape: a TID-less row gets its stable bucket key
+// and is forced to 'Needs review' (D1) — it can be reviewed, never
+// recorded, until a re-import supplies a real transaction id.
+function keyedInboxItem(item) {
+  const copy = { ...item };
+  if (!copy.txnId && !copy.mergeKey) {
+    copy.mergeKey = inboxContentKey(copy);
+  }
+  if (!copy.txnId) {
+    copy.status = 'Needs review';
+  }
+  return copy;
+}
+
+/**
+ * Sharafat 58 (D2/D3): what a re-import disagreed about on a recorded
+ * row, or null when it agrees. The stored row keeps its money/party
+ * fields (the ledger payment it represents is untouched by the
+ * re-import); the disagreement is surfaced on the row instead of
+ * silently overwriting it.
+ *
+ * @param {Object} prev Stored (recorded) row.
+ * @param {Object} fresh Fresh parse of the same transaction.
+ * @returns {string|null} e.g. 'Re-import changed amount 3000 → 2500'.
+ */
+function describeImportConflict(prev, fresh) {
+  const parts = [];
+  const show = v => (v === null || v === undefined || v === '' ? '—' : String(v));
+  const numOrBlank = v => (v === null || v === undefined || v === '' ? '' : Number(v));
+  if (numOrBlank(prev.amount) !== numOrBlank(fresh.amount)) {
+    parts.push(`amount ${show(prev.amount)} → ${show(fresh.amount)}`);
+  }
+  if ((prev.senderName || '') !== (fresh.senderName || '')) {
+    parts.push(`sender '${prev.senderName || ''}' → '${fresh.senderName || ''}'`);
+  }
+  if ((prev.senderNumber || '') !== (fresh.senderNumber || '')) {
+    parts.push(`sender number '${prev.senderNumber || ''}' → '${fresh.senderNumber || ''}'`);
+  }
+  if ((prev.date || '') !== (fresh.date || '')) {
+    parts.push(`date ${prev.date || ''} → ${fresh.date || ''}`);
+  }
+  return parts.length ? `Re-import changed ${parts.join('; ')}` : null;
+}
+
+/**
+ * Sharafat 58 (D5): one shared rendering for the import counts every
+ * import toast reports, so a dropped row is counted, not silent.
+ *
+ * @param {{ kept: number, dropped: number, duplicates: number }} report
+ * @returns {string} e.g. 'kept 2 · dropped 1 (no TID) · 0 duplicates'.
+ */
+export function formatImportCounts(report) {
+  const kept = report?.kept ?? 0;
+  const dropped = report?.dropped ?? 0;
+  const duplicates = report?.duplicates ?? 0;
+  return `kept ${kept} · dropped ${dropped} (no TID) · ${duplicates} duplicates`;
+}
+
+/**
+ * Merges new items into existing list, de-duplicating by transaction ID.
+ * Preserves existing 'recorded' status on previous items.
+ *
+ * Sharafat 58: TID-less rows are kept in a Needs-review bucket under a
+ * stable content-derived key instead of being dropped (both the stored
+ * rows and the incoming rows); on a recorded row the re-import preserves
+ * the money/party fields and flags the disagreement, while an
+ * unrecorded row takes the fresh parse whole.
+ *
+ * @param {Object[]} existingItems
+ * @param {Object[]} newItems
+ * @returns {{ items: Object[], kept: number, dropped: number, duplicates: number }}
+ *   `items` is the merged list (newest first); `kept` counts incoming
+ *   rows newly added, `dropped` counts incoming entries that could not
+ *   be kept at all, `duplicates` counts incoming rows that overlaid an
+ *   already-stored row.
+ */
+export function mergeInboxItemsWithReport(existingItems = [], newItems = []) {
+  const map = new Map();
+  let kept = 0;
+  let dropped = 0;
+  let duplicates = 0;
+
+  // Existing items first (TID-less stored rows get their bucket key here).
+  for (const item of existingItems) {
+    if (!item || typeof item !== 'object') continue;
+    const keyed = keyedInboxItem(item);
+    map.set(inboxRowKey(keyed), keyed);
+  }
+
+  // Overlay new items (preserving recorded flag if already recorded).
+  for (const item of newItems) {
+    if (!item || typeof item !== 'object') {
+      dropped++;
+      continue;
+    }
+    const fresh = keyedInboxItem(item);
+    const key = inboxRowKey(fresh);
+    const prev = map.get(key);
+    if (prev) {
+      duplicates++;
+      const merged = {
+        ...fresh,
+        recorded: prev.recorded || false,
+        recordedPaymentId: prev.recordedPaymentId || null,
+        recordedMonth: prev.recordedMonth || null,
+        recordedCustomerId: prev.recordedCustomerId || null
+      };
+      if (prev.recorded) {
+        // D2: a recorded row represents a ledger payment — the re-import
+        // must not move its money or party. (There is no in-app
+        // hand-edit of inbox rows, so the "operator correction" being
+        // protected here is the ledger agreement itself; the fresh
+        // parse IS the correction channel for unrecorded rows, which
+        // take it whole below.) The date's timestamp companions ride
+        // along so the row stays internally consistent.
+        merged.amount = prev.amount;
+        merged.senderName = prev.senderName;
+        merged.senderNumber = prev.senderNumber;
+        merged.date = prev.date;
+        merged.datetime = prev.datetime;
+        merged.datetimeIso = prev.datetimeIso;
+        merged.importConflict = describeImportConflict(prev, fresh);
+      } else {
+        merged.importConflict = null;
+      }
+      map.set(key, merged);
+    } else {
+      kept++;
+      map.set(key, { ...fresh, importConflict: fresh.importConflict ?? null });
+    }
+  }
+
+  // Return sorted newest first
+  const items = Array.from(map.values()).sort((a, b) => {
+    const da = a.datetimeIso || a.date || '';
+    const db = b.datetimeIso || b.date || '';
+    return db.localeCompare(da) || inboxRowKey(b).localeCompare(inboxRowKey(a));
+  });
+  return { items, kept, dropped, duplicates };
+}
+
+/**
  * Merges new items into existing list, de-duplicating by transaction ID.
  * Preserves existing 'recorded' status on previous items.
  *
@@ -352,37 +532,7 @@ export function findCandidateBillMonth(customer, dateStr, referenceDate = new Da
  * @returns {Object[]}
  */
 export function mergeInboxItems(existingItems = [], newItems = []) {
-  const map = new Map();
-  // Existing items first
-  for (const item of existingItems) {
-    if (item && item.txnId) {
-      map.set(item.txnId, { ...item });
-    }
-  }
-
-  // Overlay new items (preserving recorded flag if already recorded)
-  for (const item of newItems) {
-    if (!item || !item.txnId) continue;
-    const prev = map.get(item.txnId);
-    if (prev) {
-      map.set(item.txnId, {
-        ...item,
-        recorded: prev.recorded || false,
-        recordedPaymentId: prev.recordedPaymentId || null,
-        recordedMonth: prev.recordedMonth || null,
-        recordedCustomerId: prev.recordedCustomerId || null
-      });
-    } else {
-      map.set(item.txnId, { ...item });
-    }
-  }
-
-  // Return sorted newest first
-  return Array.from(map.values()).sort((a, b) => {
-    const da = a.datetimeIso || a.date || '';
-    const db = b.datetimeIso || b.date || '';
-    return db.localeCompare(da) || (b.txnId || '').localeCompare(a.txnId || '');
-  });
+  return mergeInboxItemsWithReport(existingItems, newItems).items;
 }
 
 /**
@@ -647,13 +797,14 @@ export class PaymentsInboxController {
         return;
       }
 
-      const merged = mergeInboxItems(this.items, parsedRows);
-      const addedCount = merged.length - this.items.length;
-      this.items = merged;
+      // Sharafat 58 (D5): the toast reports the merge counts, not the
+      // parse count — a row the merge drops is counted, not silent.
+      const report = mergeInboxItemsWithReport(this.items, parsedRows);
+      this.items = report.items;
       saveInboxItems(this.items);
       this.render();
 
-      this.notify(`Synced ${parsedRows.length} transactions from Google Sheet (${addedCount} new).`, {
+      this.notify(`Synced ${parsedRows.length} transactions from Google Sheet — ${formatImportCounts(report)}.`, {
         type: 'success',
         title: 'Sheet Synced'
       });
@@ -939,7 +1090,9 @@ export class PaymentsInboxController {
     // Resolve matching customer: either overridden in UI, auto-matched by phone, or matched via existing recorded payment
     let matchedCustomer = null;
     let isSharedNumber = false;
-    const overriddenId = this.selectedCustomerMatches.get(item.txnId);
+    // Sharafat 58: the override map is keyed by the row key, not the
+    // raw txnId — two TID-less rows must not share one override.
+    const overriddenId = this.selectedCustomerMatches.get(inboxRowKey(item));
     if (overriddenId) {
       matchedCustomer = customers.find(c => c.id === overriddenId);
     } else if (isRecorded && typeof isRecorded === 'object' && isRecorded.customerId) {
@@ -972,15 +1125,16 @@ export class PaymentsInboxController {
       : '';
 
     return `
-      <tr class="easypaisa-row ${isRecorded ? 'row-recorded' : ''}" data-txn-id="${escapeHtml(item.txnId)}">
+      <tr class="easypaisa-row ${isRecorded ? 'row-recorded' : ''}" data-txn-id="${escapeHtml(inboxRowKey(item))}">
         <td class="col-date">
           <div class="date-primary">${escapeHtml(item.date || item.datetime?.slice(0, 11) || '')}</div>
           <div class="date-secondary">${escapeHtml(item.datetime || '')}</div>
           <div class="row-status-mobile">${statusBadge}</div>
         </td>
         <td class="col-txnid">
-          <code class="txnid-badge">${escapeHtml(item.txnId)}</code>
+          <code class="txnid-badge">${escapeHtml(item.txnId || item.mergeKey || '')}</code>
           <div class="txnid-type">${escapeHtml(item.type || '')}</div>
+          ${item.importConflict ? `<div class="import-conflict text-muted">${escapeHtml(item.importConflict)}</div>` : ''}
         </td>
         <td class="col-direction">
           ${directionBadge}
@@ -998,7 +1152,7 @@ export class PaymentsInboxController {
           ${isRecorded
             ? `<div class="matched-cust-badge">✓ #${escapeHtml(matchedCustomer?.customerNumber || '')} ${escapeHtml(matchedCustomer?.name || 'Customer')} (${escapeHtml(item.recordedMonth || candidateMonth)})</div>`
             : isReceived
-              ? `<select class="easypaisa-customer-select" data-select-match="${escapeHtml(item.txnId)}" aria-label="Match Customer">
+              ? `<select class="easypaisa-customer-select" data-select-match="${escapeHtml(inboxRowKey(item))}" aria-label="Match Customer">
                   <option value="">${matchedCustomer ? `✓ Matched: #${matchedCustomer.customerNumber} ${matchedCustomer.name}` : isSharedNumber ? 'needs review — shared number' : '-- Link to Customer --'}</option>
                   ${customers.map(c => `<option value="${escapeHtml(c.id)}" ${matchedCustomer?.id === c.id ? 'selected' : ''}>#${escapeHtml(c.customerNumber)} ${escapeHtml(c.name)} (${escapeHtml(c.area || 'No Area')})</option>`).join('')}
                 </select>`
@@ -1007,8 +1161,8 @@ export class PaymentsInboxController {
         <td class="col-actions">
           ${isRecorded
             ? `<span class="text-success-label">Ledger Updated</span>`
-            : isReceived && !isNeedsReview
-              ? `<button type="button" class="primary-button btn-record-payment" data-record-txn="${escapeHtml(item.txnId)}">
+            : isReceived && !isNeedsReview && item.txnId
+              ? `<button type="button" class="primary-button btn-record-payment" data-record-txn="${escapeHtml(inboxRowKey(item))}">
                   Record Payment
                 </button>`
               : isNeedsReview
@@ -1116,13 +1270,16 @@ export class PaymentsInboxController {
           this.notify('Could not detect any valid Easypaisa transactions.', { type: 'error' });
           return;
         }
-        this.items = mergeInboxItems(this.items, parsed);
+        // Sharafat 58 (D5): the toast reports the merge counts — the
+        // parse count alone over-counted whenever the merge dropped a row.
+        const report = mergeInboxItemsWithReport(this.items, parsed);
+        this.items = report.items;
         saveInboxItems(this.items);
         const input = this.container.querySelector('#manualPasteInput');
         if (input) input.value = '';
         this.container.querySelector('#easypaisaImportModal')?.close();
         this.render();
-        this.notify(`Parsed and added ${parsed.length} transaction(s).`, { type: 'success' });
+        this.notify(`Parsed ${parsed.length} transaction(s) — ${formatImportCounts(report)}.`, { type: 'success' });
         return;
       }
 
@@ -1130,8 +1287,10 @@ export class PaymentsInboxController {
       const btn = e.target.closest('[data-record-txn]');
       if (!btn) return;
 
+      // Sharafat 58: the button carries the row key (a TID-less row
+      // never gets a button — the render gates on a non-empty txnId).
       const txnId = btn.dataset.recordTxn;
-      const txn = this.items.find(i => i.txnId === txnId);
+      const txn = this.items.find(i => inboxRowKey(i) === txnId);
       if (!txn) return;
 
       const state = this.getState();
@@ -1190,7 +1349,7 @@ export class PaymentsInboxController {
         this.commitState(res.nextState);
 
         // Update local inbox cache
-        this.items = this.items.map(i => i.txnId === txnId ? res.txn : i);
+        this.items = this.items.map(i => inboxRowKey(i) === txnId ? res.txn : i);
         saveInboxItems(this.items);
 
         // Provide undo action in toast
@@ -1230,7 +1389,7 @@ export class PaymentsInboxController {
               }
 
               // Sharafat 57 (D4(a)): clear ALL FOUR recorded fields.
-              this.items = this.items.map(i => i.txnId === txnId ? { ...i, recorded: false, recordedPaymentId: null, recordedMonth: null, recordedCustomerId: null } : i);
+              this.items = this.items.map(i => inboxRowKey(i) === txnId ? { ...i, recorded: false, recordedPaymentId: null, recordedMonth: null, recordedCustomerId: null } : i);
               saveInboxItems(this.items);
               this.render();
               this.notify('Payment voided. Ledger restored.', { type: 'info' });
@@ -1270,11 +1429,13 @@ export class PaymentsInboxController {
               this.notify('No valid transaction rows found in CSV.', { type: 'warning' });
               return;
             }
-            this.items = mergeInboxItems(this.items, parsed);
+            // Sharafat 58 (D5): the toast reports the merge counts.
+            const report = mergeInboxItemsWithReport(this.items, parsed);
+            this.items = report.items;
             saveInboxItems(this.items);
             this.container.querySelector('#easypaisaImportModal')?.close();
             this.render();
-            this.notify(`Imported ${parsed.length} transaction(s) from CSV.`, { type: 'success' });
+            this.notify(`Imported ${parsed.length} transaction(s) from CSV — ${formatImportCounts(report)}.`, { type: 'success' });
           } catch (err) {
             this.notify(`CSV import failed: ${err.message}`, { type: 'error' });
           }
@@ -1296,11 +1457,13 @@ export class PaymentsInboxController {
             this.notify('No recognizable transactions in PDF.', { type: 'warning' });
             return;
           }
-          this.items = mergeInboxItems(this.items, parsed);
+          // Sharafat 58 (D5): the toast reports the merge counts.
+          const report = mergeInboxItemsWithReport(this.items, parsed);
+          this.items = report.items;
           saveInboxItems(this.items);
           this.container.querySelector('#easypaisaImportModal')?.close();
           this.render();
-          this.notify(`Imported ${parsed.length} transaction(s) from statement.`, { type: 'success' });
+          this.notify(`Imported ${parsed.length} transaction(s) from statement — ${formatImportCounts(report)}.`, { type: 'success' });
         } catch (err) {
           this.notify(`PDF import error: ${err.message}`, { type: 'error' });
         }

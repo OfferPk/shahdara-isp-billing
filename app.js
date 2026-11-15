@@ -2884,7 +2884,7 @@ _Shahdara Fiber Net & Cable Network_`,A=Ai(gr(u),$);c.push({id:u.id,customerNumb
         <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No billing or collection activity</text>
         <text y="42" class="chart-empty-sub" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Past months show zero recorded entries</text>
       </g>
-    </svg>`;let a=64,s=38,l=466,c=152,d=Math.max(n,Number(t)||0),u=Math.ceil(d*1.15/1e3)*1e3||1e3,p=4,m="";for(let _=0;_<=p;_++){let S=Math.round(u/p*_),C=s+c-_/p*c,$=S>=1e3?`${Math.round(S/1e3)}k`:String(S);m+=`
+    </svg>`;let a=64,s=38,l=466,c=152,d=Math.max(n,Number(t)||0),u=Math.ceil(d*1.15/1e3)*1e3||1e3,p=4,m="";for(let _=0;_<=p;_++){let S=Math.round(u/p*_),C=s+c-_/p*c,$=S.toLocaleString("en-PK");m+=`
       <line x1="${a}" y1="${C}" x2="${a+l}" y2="${C}" stroke="var(--line, #e2ece7)" stroke-width="1" stroke-dasharray="${_>0?"4 3":"none"}" />
       <text x="${a-8}" y="${C+4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${$}</text>
     `}let f="";if(t&&Number(t)>0){let _=Number(t),S=s+c-_/u*c;f=`

@@ -26,7 +26,8 @@ const stylesSrc = readFileSync(new URL('../styles.css', import.meta.url), 'utf8'
 const pageSrc = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 // The same fixture the acceptance uses: Customer One (#41) pays
-// PKR 3,000 in cash for November 2026, on 2026-11-07.
+// PKR 3,000 in cash for November 2026, on 2026-11-07 — settling the
+// November bill in full, so the remaining balance is PKR 0.
 const goodInput = () => ({
   customerName: 'Customer One',
   customerNumber: 41,
@@ -35,6 +36,8 @@ const goodInput = () => ({
   method: 'Cash',
   receiptNumber: 'RCPT-41-202611-01',
   date: '2026-11-07',
+  billMonth: '2026-11',
+  remainingBalanceCents: 0,
 });
 
 const preSaveCustomer = () => ({
@@ -55,6 +58,19 @@ const savedPayment = () => ({
   receiptNumber: 'RCPT-41-202611-01',
 });
 
+// The December twin of the fixture: the same customer, the December
+// bill — used to prove a November preview never matches a December
+// receipt, and that an advance entry carries its target month.
+const decCustomer = () => ({
+  id: 'c1',
+  customerNumber: 41,
+  name: 'Customer One',
+  packageSpeed: '5 Mbps',
+  monthlyPriceSchedule: [],
+  bills: [{ id: 'bill-2026-12', month: '2026-12', dueAmount: 3000, status: 'pending', payments: [], amountHistory: [] }],
+  incidents: [],
+});
+
 test('normalize: a full entry previews every receipt field', () => {
   const preview = normalizeReceiptPreview(goodInput());
   assert.deepEqual(preview, {
@@ -66,7 +82,27 @@ test('normalize: a full entry previews every receipt field', () => {
     method: 'Cash',
     receiptNumber: 'RCPT-41-202611-01',
     date: '2026-11-07',
+    billMonth: '2026-11',
+    remainingBalanceCents: 0,
+    remainingBalanceText: 'PKR 0',
   });
+});
+
+test('normalize: a missing or invalid bill month is no preview', () => {
+  for (const billMonth of [undefined, '', '2026-13', '2026-1', '11-2026', '2026/11']) {
+    assert.equal(normalizeReceiptPreview({ ...goodInput(), billMonth }), null, `billMonth ${String(billMonth)}`);
+  }
+  assert.equal(normalizeReceiptPreview({ ...goodInput(), billMonth: '2026-11' }).billMonth, '2026-11');
+  assert.equal(normalizeReceiptPreview({ ...goodInput(), billMonth: ' 2026-11 ' }).billMonth, '2026-11');
+});
+
+test('normalize: the remaining balance is carried, never guessed as zero', () => {
+  assert.equal(normalizeReceiptPreview({ ...goodInput(), remainingBalanceCents: 50000 }).remainingBalanceCents, 50000);
+  assert.equal(normalizeReceiptPreview({ ...goodInput(), remainingBalanceCents: 50000 }).remainingBalanceText, 'PKR 500');
+  assert.equal(normalizeReceiptPreview({ ...goodInput(), remainingBalanceCents: undefined }).remainingBalanceCents, null);
+  assert.equal(normalizeReceiptPreview({ ...goodInput(), remainingBalanceCents: undefined }).remainingBalanceText, '');
+  assert.equal(normalizeReceiptPreview({ ...goodInput(), remainingBalanceCents: -1 }).remainingBalanceCents, null);
+  assert.equal(normalizeReceiptPreview({ ...goodInput(), remainingBalanceCents: 500.5 }).remainingBalanceCents, null);
 });
 
 test('normalize: the amount parses commas, spaces, and paisa', () => {
@@ -138,10 +174,14 @@ test('previewFor: built from a customer record, or from plain fields when there 
     method: 'Cash',
     receiptNumber: 'RCPT-41-202611-01',
     date: '2026-11-07',
+    billMonth: '2026-11',
+    remainingBalanceCents: 0,
     split: false,
   });
   assert.equal(fromRecord.customerName, 'Customer One');
   assert.equal(fromRecord.customerNumber, '41');
+  assert.equal(fromRecord.billMonth, '2026-11');
+  assert.equal(fromRecord.remainingBalanceCents, 0);
   const fromFields = receiptPreviewFor({ ...goodInput(), customer: null });
   assert.equal(fromFields.customerName, 'Customer One');
   assert.equal(receiptPreviewFor(null), null);
@@ -161,10 +201,14 @@ test('format: money in the app min-0 style', () => {
 test('line text: the preview reads in the order the receipt prints it', () => {
   assert.equal(
     receiptPreviewLineText(normalizeReceiptPreview(goodInput())),
-    'Receipt: RCPT-41-202611-01\nDate: 2026-11-07\nCustomer: Customer One (#41)\nAmount: PKR 3,000\nAmount in words: Three thousand\nMethod: Cash',
+    'Receipt: RCPT-41-202611-01\nDate: 2026-11-07\nBill month: 2026-11\nCustomer: Customer One (#41)\nAmount: PKR 3,000\nAmount in words: Three thousand\nRemaining balance: PKR 0\nMethod: Cash',
   );
   const noWords = normalizeReceiptPreview({ ...goodInput(), amountWords: '' });
   assert.ok(!receiptPreviewLineText(noWords).includes('Amount in words'));
+  const partial = normalizeReceiptPreview({ ...goodInput(), amount: 2500, remainingBalanceCents: 50000 });
+  assert.match(receiptPreviewLineText(partial), /Remaining balance: PKR 500/);
+  const noRemaining = normalizeReceiptPreview({ ...goodInput(), remainingBalanceCents: undefined });
+  assert.ok(!receiptPreviewLineText(noRemaining).includes('Remaining balance'));
   assert.equal(receiptPreviewLineText(null), '');
 });
 
@@ -173,12 +217,21 @@ test('html: every field shows, user text is escaped, nothing when there is no pr
   assert.match(html, /Receipt preview/);
   assert.match(html, /RCPT-41-202611-01/);
   assert.match(html, /2026-11-07/);
+  assert.match(html, /Bill month/);
+  assert.match(html, /2026-11/);
   assert.match(html, /Customer One \(#41\)/);
   assert.match(html, /PKR 3,000/);
   assert.match(html, /Three thousand/);
+  assert.match(html, /Remaining balance/);
+  assert.match(html, /PKR 0/);
   assert.match(html, /Cash/);
   assert.match(html, /nothing is saved yet/);
   assert.equal(receiptPreviewHtml(null), '');
+  const partial = receiptPreviewHtml(normalizeReceiptPreview({ ...goodInput(), amount: 2500, remainingBalanceCents: 50000 }));
+  assert.match(partial, /Remaining balance/);
+  assert.match(partial, /PKR 500/);
+  const noRemaining = receiptPreviewHtml(normalizeReceiptPreview({ ...goodInput(), remainingBalanceCents: undefined }));
+  assert.ok(!noRemaining.includes('Remaining balance'));
   const tricky = receiptPreviewHtml(normalizeReceiptPreview({ ...goodInput(), customerName: '<script>alert(1)</script>' }));
   assert.ok(!tricky.includes('<script>'), 'no raw script tag');
   assert.match(tricky, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
@@ -194,6 +247,8 @@ test('acceptance: the previewed receipt matches the issued receipt on the same f
     method: 'Cash',
     receiptNumber,
     date: '2026-11-07',
+    billMonth: '2026-11',
+    remainingBalanceCents: 0,
     split: false,
   });
   assert.equal(preview.amountWords, 'Three thousand');
@@ -219,11 +274,67 @@ test('match: any field differing breaks the match', () => {
   assert.equal(receiptPreviewMatchesReceipt({ ...preview, method: 'JazzCash' }, receipt), false);
   assert.equal(receiptPreviewMatchesReceipt({ ...preview, receiptNumber: 'RCPT-41-202611-02' }, receipt), false);
   assert.equal(receiptPreviewMatchesReceipt({ ...preview, date: '2026-11-08' }, receipt), false);
+  assert.equal(receiptPreviewMatchesReceipt({ ...preview, billMonth: '2026-12' }, receipt), false);
   assert.equal(receiptPreviewMatchesReceipt({ ...preview, customerName: 'Customer Two' }, receipt), false);
   assert.equal(receiptPreviewMatchesReceipt({ ...preview, customerNumber: '42' }, receipt), false);
   assert.equal(receiptPreviewMatchesReceipt(null, receipt), false);
   assert.equal(receiptPreviewMatchesReceipt(preview, null), false);
   assert.equal(receiptPreviewMatchesReceipt(preview, { ...receipt, paidAmount: null }), false);
+});
+
+test('match: a November preview never matches a December receipt', () => {
+  // Same number, same date, same amount — only the bill month differs.
+  // Before this item the match was true here; the month is the only
+  // comparison that can tell the two receipts apart.
+  const preview = normalizeReceiptPreview(goodInput());
+  const dec = decCustomer();
+  dec.bills[0].payments = [savedPayment()];
+  const decReceipt = buildPaymentReceipt(dec, dec.bills[0], savedPayment());
+  assert.equal(decReceipt.servicePeriodStart, '2026-12-01');
+  assert.equal(receiptPreviewMatchesReceipt(preview, decReceipt), false);
+  // Control: the same preview against its own November receipt matches.
+  const nov = preSaveCustomer();
+  nov.bills[0].payments = [savedPayment()];
+  const novReceipt = buildPaymentReceipt(nov, nov.bills[0], savedPayment());
+  assert.equal(novReceipt.servicePeriodStart, '2026-11-01');
+  assert.equal(receiptPreviewMatchesReceipt(preview, novReceipt), true);
+});
+
+test('match: the balance is display-only — a pending charge never breaks the match', () => {
+  // The discriminating fixture: a pending ticket charge of PKR 500
+  // with the bill fully paid. The caller's overall remaining is 500
+  // (payableTotal 3,500 − 3,000); the receipt's bill-only balance is
+  // 0. The two figures disagree by construction, so the match must
+  // not compare them — it passes on the month alone.
+  const preview = normalizeReceiptPreview({ ...goodInput(), remainingBalanceCents: 50000 });
+  assert.equal(preview.remainingBalanceCents, 50000);
+  const postSave = preSaveCustomer();
+  postSave.bills[0].payments = [savedPayment()];
+  const receipt = buildPaymentReceipt(postSave, postSave.bills[0], savedPayment());
+  assert.equal(receipt.balanceDueCents, 0);
+  assert.equal(receiptPreviewMatchesReceipt(preview, receipt), true);
+});
+
+test('match: an advance entry carries its target month', () => {
+  // An advance-tagged payment is stored on its target month's bill,
+  // so the receipt built from that bill carries the target month —
+  // the preview's month (the target month) matches it.
+  const preview = receiptPreviewFor({
+    customer: decCustomer(),
+    amount: 3000,
+    amountWords: 'Three thousand',
+    method: 'Cash',
+    receiptNumber: 'RCPT-41-202612-01',
+    date: '2026-11-07',
+    billMonth: '2026-12',
+    remainingBalanceCents: 0,
+    split: false,
+  });
+  const postSave = decCustomer();
+  postSave.bills[0].payments = [{ ...savedPayment(), kind: 'advance', targetMonth: '2026-12', receiptNumber: 'RCPT-41-202612-01' }];
+  const receipt = buildPaymentReceipt(postSave, postSave.bills[0], postSave.bills[0].payments[0]);
+  assert.equal(receipt.servicePeriodStart, '2026-12-01');
+  assert.equal(receiptPreviewMatchesReceipt(preview, receipt), true);
 });
 
 test('purity: the module is pure and standalone, with no store and no live handles', () => {

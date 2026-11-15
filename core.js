@@ -4017,7 +4017,7 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     .sort((a, b) => b.date.localeCompare(a.date) || a.customerName.localeCompare(b.customerName) || b.month.localeCompare(a.month) || a.paymentId.localeCompare(b.paymentId));
 }
 
-export function buildMonthlyReport(state, { month = monthsForHistory()[0], statusFilter = 'all', customerQuery = '' } = {}, referenceDate = new Date()) {
+export function buildMonthlyReport(state, { month = monthsForHistory()[0], statusFilter = 'all', customerQuery = '', includeArchived = false } = {}, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
   if (statusFilter === 'unpaid') statusFilter = 'pending';
   if (!['all', 'paid', 'pending', 'partial', 'not-set', 'outstanding'].includes(statusFilter)) throw new Error('Choose All, Paid, Pending, Partial, Outstanding, or Not set.');
@@ -4068,7 +4068,14 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
       pendingCreditSources,
       status
     };
-  }).filter(row => statusFilter === 'all' || (statusFilter === 'outstanding' ? row.status === 'pending' || row.status === 'partial' : row.status === statusFilter));
+  }).filter(row => {
+    // Sharafat 45: the monthly report is the live book by default — an
+    // archived customer's bill no longer inflates the rows, the count or
+    // the totals. The Archived toggle passes includeArchived: true; the row
+    // keeps its `archived` flag so the tag still marks it on that path.
+    if (!includeArchived && row.archived) return false;
+    return statusFilter === 'all' || (statusFilter === 'outstanding' ? row.status === 'pending' || row.status === 'partial' : row.status === statusFilter);
+  });
 }
 
 function monthlyClosingMetrics(state, month, allocations = calculatePaymentAllocations(state)) {

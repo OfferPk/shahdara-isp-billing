@@ -785,11 +785,11 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.creditTransferInAmount > 0 ? `<div class="receipt-field"><dt>Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر:</dt><dd>-${formatAmount(receipt.creditTransferInAmount)}</dd></div>` : ''}
     ${receipt.feederHostCreditAmount > 0 ? `<div class="receipt-field"><dt>Feeder Host Credit / فیڈر ہوسٹ کریڈٹ:</dt><dd>-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${escapeHtml(receipt.feederHostCreditReason)})` : ''}</dd></div>` : ''}
     ${receipt.firstMonthWaivedAmount > 0 ? `<div class="receipt-field"><dt>First month included / پہلا مہینہ شامل ہے:</dt><dd>-${formatAmount(receipt.firstMonthWaivedAmount)}${receipt.firstMonthWaivedReason ? ` (${escapeHtml(receipt.firstMonthWaivedReason)})` : ''}</dd></div>` : ''}
-    ${hasReceiptTotalAdjustments ? `<div class="receipt-field"><dt>Total Gross Payable / کل واجب الادا (gross):</dt><dd>${formatAmount(grossBilled)}</dd></div>` : ''}
-    ${receiptDeductions > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(netPayable)}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${addonChargeReceiptRows(receipt, formatAmount)}
     ${manualBaqayaReceiptRows(receipt, formatAmount)}
+    ${hasReceiptTotalAdjustments ? `<div class="receipt-field"><dt>Total Gross Payable / کل واجب الادا (gross):</dt><dd>${formatAmount(grossBilled)}</dd></div>` : ''}
+    ${receiptDeductions > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(netPayable)}</dd></div>` : ''}
 
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(netArrearsBalanceRupees(receipt))}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}

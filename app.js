@@ -363,7 +363,7 @@ import { normalizeDuplicateWarningSettings, findNearDuplicates, checkNewPayment,
 import { UNUSUAL_FLAG_REASONS, UNUSUAL_FLAG_REASON_LABELS, normalizeUnusualFlagSettings, buildUnusualFlags, flagsFiltered, buildFlagSummary, flagSummaryText, normalizeClearedList, clearFlag, removeCleared, flagsHtml, clearedHtml, flagsCsv, flagsFilename } from './unusual-payment-flags.js';
 import { PATTERN_DIMENSIONS, PATTERN_DEFAULTS, normalizePatternEvents, groupPatternCounts, normalizePatternSettings, buildReviewItems, filterReviewItems, buildPatternSummary, patternSummaryText, normalizeReviewList, markReviewed, removeReviewed, reviewHtml, reviewedHtml, patternCsv, patternFilename } from './pattern-watch.js';
 import { formatCashCents, normalizeCashLimitSettings, buildCashInHandStatus, cashInHandSummaryText, cashInHandPromptHtml, cashInHandReceiptsHtml, cashInHandCsv, cashInHandFilename } from './cash-in-hand.js';
-import { receiptNumberFromReference, isReceiptDeliveryStatus, buildGapAudit, filterGaps, gapSummaryText, explainGap, removeExplanation, normalizeExplanations, gapAuditHtml, issuedReceiptsHtml, gapAuditCsv, gapAuditFilename } from './receipt-gap-audit.js';
+import { receiptNumberFromReference, parseReceiptReference, isReceiptDeliveryStatus, buildGapAudit, filterGaps, gapSummaryText, explainGap, removeExplanation, normalizeExplanations, gapAuditHtml, issuedReceiptsHtml, gapAuditCsv, gapAuditFilename } from './receipt-gap-audit.js';
 import { buildStatusBoard, filterBoardRows, boardSummaryText, boardHtml, boardCsv, boardFilename } from './status-board.js';
 import { normalizeOutageCreditList, upsertOutageCredit, removeOutageCredit, markCreditApplied, reopenCredit, filterOutageCredits, buildOutageCreditSummary, outageCreditSummaryText, outageCreditHtml, outageCreditCsv, outageCreditFilename } from './outage-credits.js';
 import { normalizePriceNoticeList, upsertPriceNotice, removePriceNotice, buildNoticeDrafts, buildNoticeText, priceNoticeSummaryText, priceNoticeHtml, priceNoticeDraftHtml, priceNoticeCsv, priceNoticeFilename, normalizePriceNoticeSendList, logPriceNoticeSent } from './price-notices.js';
@@ -24561,46 +24561,75 @@ function loadReceiptGapExplanations() {
 function saveReceiptGapExplanations(list) {
   try { localStorage.setItem(RECEIPT_GAP_EXPLANATIONS_KEY, JSON.stringify(normalizeExplanations(list))); } catch { /* audit-only: a failed save leaves the previous explanations in place */ }
 }
-// Plan 91: issued numbers come from payments whose stored receipt
-// reference is a plain integer (operator-typed field receipt
-// numbers); generated REC- references never parse as a number, so
-// they are never mistaken for a sequence. A voided payment still
+// Plan 91 + Sharafat 48: issued numbers come from payments whose
+// stored receipt reference is a plain integer (operator-typed field
+// receipt numbers) or a stored REC- reference (audited in its own
+// month-and-customer run). A GENERATED REC- reference is derived
+// from a payment id, so its tail is not a sequence: it is never
+// fed into the audit — feeding it in would invent gaps between two
+// real receipts. Payments with no stored reference that parses are
+// counted as generated receipts, so the REC- run is visible even
+// though it cannot be gap-checked. A voided payment still
 // carrying its receipt number becomes the void record for that
-// number. Delivery status is passed only where the payment carries
-// a Plan 5 status; otherwise the audit shows 'not recorded'.
+// number (plain or REC-). Delivery status is passed only where the
+// payment carries a Plan 5 status; otherwise the audit shows
+// 'not recorded'.
 function receiptGapSource() {
   const receipts = [];
   const voids = [];
+  let generatedCount = 0;
   for (const customer of state.customers ?? []) {
     const name = customer.name || customer.customerName || customer.id;
     for (const bill of customer.bills ?? []) {
       for (const payment of bill.payments ?? []) {
-        const number = receiptNumberFromReference(payment.receiptNumber || payment.permanentReceiptNumber);
-        if (number === null) continue;
-        if (payment.voided) {
-          voids.push({ number, reason: payment.voidReason || 'voided', date: payment.voidedAt || payment.date || '' });
-        } else {
-          receipts.push({ number, customer: name, date: payment.date || '', deliveryStatus: isReceiptDeliveryStatus(payment.receiptDeliveryStatus) ? payment.receiptDeliveryStatus : null });
+        const storedRef = payment.receiptNumber || payment.permanentReceiptNumber;
+        const number = receiptNumberFromReference(storedRef);
+        if (number !== null) {
+          if (payment.voided) {
+            voids.push({ number, reason: payment.voidReason || 'voided', date: payment.voidedAt || payment.date || '' });
+          } else {
+            receipts.push({ number, customer: name, date: payment.date || '', deliveryStatus: isReceiptDeliveryStatus(payment.receiptDeliveryStatus) ? payment.receiptDeliveryStatus : null });
+          }
+          continue;
         }
+        const parsed = parseReceiptReference(storedRef);
+        if (parsed) {
+          if (payment.voided) {
+            voids.push({ ref: parsed.ref, reason: payment.voidReason || 'voided', date: payment.voidedAt || payment.date || '' });
+          } else {
+            receipts.push({ ref: parsed.ref, customer: name, date: payment.date || '', deliveryStatus: isReceiptDeliveryStatus(payment.receiptDeliveryStatus) ? payment.receiptDeliveryStatus : null });
+          }
+          continue;
+        }
+        generatedCount += 1;
       }
     }
   }
-  return { receipts, voids };
+  return { receipts, voids, generatedCount };
 }
 let receiptGapBound = false;
 function renderReceiptGapAudit() {
   const bodyEl = $('#receiptGapBody');
   if (!bodyEl) return;
-  const { receipts, voids } = receiptGapSource();
+  const { receipts, voids, generatedCount } = receiptGapSource();
   const explanations = loadReceiptGapExplanations();
   const audit = buildGapAudit({ receipts, voids, explanations });
   const status = $('#receiptGapStatus')?.value ?? '';
   const shown = filterGaps(audit.gaps, status);
   const summaryEl = $('#receiptGapSummary');
-  if (summaryEl) summaryEl.textContent = gapSummaryText(audit);
-  bodyEl.innerHTML = gapAuditHtml({ ...audit, gaps: shown });
+  if (summaryEl) {
+    // Sharafat 48: the plain run first, then one summary line per
+    // stored-REC- run, then the generated-receipts count so the REC-
+    // run is visible even where no integer run exists.
+    const parts = [gapSummaryText(audit), ...audit.runs.map((run) => gapSummaryText(run))];
+    if (generatedCount > 0) parts.push(`${generatedCount} generated REC- receipt${generatedCount === 1 ? '' : 's'} (derived from payment ids — tails are not a sequence, so they are never gap-checked)`);
+    summaryEl.textContent = parts.join(' · ');
+  }
+  bodyEl.innerHTML = gapAuditHtml({ ...audit, gaps: shown })
+    + audit.runs.map((run) => gapAuditHtml({ ...run, gaps: filterGaps(run.gaps, status) })).join('');
   const issuedEl = $('#receiptGapIssuedBody');
-  if (issuedEl) issuedEl.innerHTML = issuedReceiptsHtml(audit);
+  if (issuedEl) issuedEl.innerHTML = issuedReceiptsHtml(audit)
+    + audit.runs.map((run) => issuedReceiptsHtml(run)).join('');
   if (!receiptGapBound) {
     receiptGapBound = true;
     $('#receiptGapStatus')?.addEventListener('change', () => renderReceiptGapAudit());
@@ -24608,15 +24637,18 @@ function renderReceiptGapAudit() {
       const rawNumber = ($('#receiptGapNumber')?.value ?? '').trim();
       const note = ($('#receiptGapNote')?.value ?? '').trim();
       const number = receiptNumberFromReference(rawNumber);
-      if (number === null || !note) { toast('A plain receipt number and a note are both needed to explain a gap.'); return; }
-      saveReceiptGapExplanations(explainGap(loadReceiptGapExplanations(), { number, note }));
+      const parsed = number === null ? parseReceiptReference(rawNumber) : null;
+      if ((number === null && !parsed) || !note) { toast('A plain receipt number or a REC- reference, and a note, are both needed to explain a gap.'); return; }
+      saveReceiptGapExplanations(explainGap(loadReceiptGapExplanations(), number !== null ? { number, note } : { ref: parsed.ref, note }));
       toast('Gap explanation recorded. The number now shows as explained.');
       renderReceiptGapAudit();
     });
     $('#receiptGapUnexplainBtn')?.addEventListener('click', () => {
-      const number = receiptNumberFromReference(($('#receiptGapNumber')?.value ?? '').trim());
-      if (number === null) { toast('A plain receipt number is needed to remove an explanation.'); return; }
-      saveReceiptGapExplanations(removeExplanation(loadReceiptGapExplanations(), number));
+      const rawNumber = ($('#receiptGapNumber')?.value ?? '').trim();
+      const number = receiptNumberFromReference(rawNumber);
+      const parsed = number === null ? parseReceiptReference(rawNumber) : null;
+      if (number === null && !parsed) { toast('A plain receipt number or a REC- reference is needed to remove an explanation.'); return; }
+      saveReceiptGapExplanations(removeExplanation(loadReceiptGapExplanations(), number !== null ? number : parsed.ref));
       toast('Explanation removed. The number shows as unexplained again unless it has a void record.');
       renderReceiptGapAudit();
     });

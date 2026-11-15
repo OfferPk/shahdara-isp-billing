@@ -109,13 +109,17 @@ test('status: paid, unkept once the date passes, open otherwise', () => {
   assert.equal(collectionPromiseStatus(promiseA, '2026-11-06'), 'open');
   assert.equal(collectionPromiseStatus(promiseA, '2026-11-07'), 'unkept');
   assert.equal(collectionPromiseStatus(promiseC, '2026-11-07'), 'open');
-  assert.equal(collectionPromiseStatus({ ...promiseB, paidDate: '2026-11-04' }, '2026-11-05'), 'paid');
+  // Sharafat 65: a full payment paid late is 'paidLate', its own bucket —
+  // still kept, shown separately, so it no longer reads as plain kept.
+  assert.equal(collectionPromiseStatus({ ...promiseB, paidDate: '2026-11-04' }, '2026-11-05'), 'paidLate');
 });
 
 test('kept and unkept counts per customer', () => {
-  assert.deepEqual(collectionPromiseCountsForCustomer([promiseA, promiseB, promiseC], 'Ahmed', '2026-11-07'), { kept: 1, unkept: 1, open: 0, total: 2 });
-  assert.deepEqual(collectionPromiseCountsForCustomer([promiseA, promiseB, promiseC], 'Bilal', '2026-11-07'), { kept: 0, unkept: 0, open: 1, total: 1 });
-  assert.deepEqual(collectionPromiseCountsForCustomer([promiseA, promiseB, promiseC], 'Nobody', '2026-11-07'), { kept: 0, unkept: 0, open: 0, total: 0 });
+  // Sharafat 65: the counts shape gains keptLate + partial buckets (both
+  // zero here — promiseB is a full on-time payment, promiseA is unkept).
+  assert.deepEqual(collectionPromiseCountsForCustomer([promiseA, promiseB, promiseC], 'Ahmed', '2026-11-07'), { kept: 1, keptLate: 0, partial: 0, unkept: 1, open: 0, total: 2 });
+  assert.deepEqual(collectionPromiseCountsForCustomer([promiseA, promiseB, promiseC], 'Bilal', '2026-11-07'), { kept: 0, keptLate: 0, partial: 0, unkept: 0, open: 1, total: 1 });
+  assert.deepEqual(collectionPromiseCountsForCustomer([promiseA, promiseB, promiseC], 'Nobody', '2026-11-07'), { kept: 0, keptLate: 0, partial: 0, unkept: 0, open: 0, total: 0 });
 });
 
 test('promise text shows promised against actual, or plainly as unkept', () => {
@@ -129,7 +133,8 @@ test('promise text shows promised against actual, or plainly as unkept', () => {
 
 test('summary text counts kept, unkept, and open across all promises', () => {
   assert.equal(collectionPromiseSummaryText([], '2026-11-07'), 'No collection promises recorded.');
-  assert.equal(collectionPromiseSummaryText([promiseA, promiseB, promiseC], '2026-11-07'), '3 collection promise(s): 1 kept, 1 unkept, 1 still open.');
+  // Sharafat 65: the summary names the kept-late and partial buckets too.
+  assert.equal(collectionPromiseSummaryText([promiseA, promiseB, promiseC], '2026-11-07'), '3 collection promise(s): 1 kept, 0 kept late, 0 partial, 1 unkept, 1 still open.');
 });
 
 test('html escapes customer and collector names', () => {

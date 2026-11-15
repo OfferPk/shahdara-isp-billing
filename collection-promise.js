@@ -184,7 +184,16 @@ export function collectionPromisesForCustomer(list, customerId) {
 export function collectionPromiseStatus(record, today) {
   const normalized = normalizeCollectionPromise(record);
   if (!normalized) return '';
-  if (normalized.paidDate) return 'paid';
+  if (normalized.paidDate) {
+    // Sharafat 65: a paid date alone no longer means kept — the amount
+    // decides. A null amount (a legacy record with no amount recorded)
+    // or a short payment reads as 'partial', never kept; a full payment
+    // reads 'paid' on time and 'paidLate' when the paid date falls
+    // after the promised date. Direct Number comparison, no rounding:
+    // paisa is real, and rounding would forgive a 1-paisa shortfall.
+    if (normalized.amountPaid === null || normalized.amountPaid < normalized.amountPromised) return 'partial';
+    return normalized.paidDate > normalized.promisedDate ? 'paidLate' : 'paid';
+  }
   const day = cleanText(today);
   if (isStrictDate(day) && day > normalized.promisedDate) return 'unkept';
   return 'open';
@@ -193,15 +202,19 @@ export function collectionPromiseStatus(record, today) {
 export function collectionPromiseCountsForCustomer(list, customerId, today) {
   const promises = collectionPromisesForCustomer(list, customerId);
   let kept = 0;
+  let keptLate = 0;
+  let partial = 0;
   let unkept = 0;
   let open = 0;
   for (const promise of promises) {
     const status = collectionPromiseStatus(promise, today);
     if (status === 'paid') kept += 1;
+    else if (status === 'paidLate') keptLate += 1;
+    else if (status === 'partial') partial += 1;
     else if (status === 'unkept') unkept += 1;
     else open += 1;
   }
-  return { kept, unkept, open, total: promises.length };
+  return { kept, keptLate, partial, unkept, open, total: promises.length };
 }
 
 export function collectionPromiseText(record, today) {
@@ -209,10 +222,22 @@ export function collectionPromiseText(record, today) {
   if (!normalized) return '';
   const promised = `Rs ${normalized.amountPromised} promised by ${normalized.promisedDate}`;
   const status = collectionPromiseStatus(normalized, today);
-  if (status === 'paid') {
+  if (status === 'paid' || status === 'paidLate') {
     const amountPart = normalized.amountPaid !== null ? `Rs ${normalized.amountPaid}` : 'amount not recorded';
     const late = normalized.paidDate > normalized.promisedDate ? ' (paid late)' : '';
     return `${normalized.customer}: ${promised} — paid on ${normalized.paidDate} (${amountPart})${late}.`;
+  }
+  if (status === 'partial') {
+    // Sharafat 65: a short payment names its shortfall, computed from
+    // the promise's own amountPaid only; a paid date with no recorded
+    // amount keeps "amount not recorded" and no shortfall figure — one
+    // cannot be computed, and "short by Rs NaN" must never print.
+    const late = normalized.paidDate > normalized.promisedDate ? ' (paid late)' : '';
+    if (normalized.amountPaid === null) {
+      return `${normalized.customer}: ${promised} — paid on ${normalized.paidDate} (amount not recorded)${late}.`;
+    }
+    const shortfall = normalized.amountPromised - normalized.amountPaid;
+    return `${normalized.customer}: ${promised} — paid on ${normalized.paidDate} (paid Rs ${normalized.amountPaid} of Rs ${normalized.amountPromised} (short by Rs ${shortfall}))${late}.`;
   }
   if (status === 'unkept') {
     return `${normalized.customer}: ${promised} — unkept, still unpaid.`;
@@ -224,24 +249,38 @@ export function collectionPromiseSummaryText(list, today) {
   const promises = normalizeCollectionPromiseList(list);
   if (!promises.length) return 'No collection promises recorded.';
   let kept = 0;
+  let keptLate = 0;
+  let partial = 0;
   let unkept = 0;
   let open = 0;
   for (const promise of promises) {
     const status = collectionPromiseStatus(promise, today);
     if (status === 'paid') kept += 1;
+    else if (status === 'paidLate') keptLate += 1;
+    else if (status === 'partial') partial += 1;
     else if (status === 'unkept') unkept += 1;
     else open += 1;
   }
-  return `${promises.length} collection promise(s): ${kept} kept, ${unkept} unkept, ${open} still open.`;
+  return `${promises.length} collection promise(s): ${kept} kept, ${keptLate} kept late, ${partial} partial, ${unkept} unkept, ${open} still open.`;
 }
 
 export function collectionPromiseHtml(record, today) {
   const normalized = normalizeCollectionPromise(record);
   if (!normalized) return '';
   const status = collectionPromiseStatus(normalized, today);
-  const paid = normalized.paidDate
-    ? `${escapeHtml(normalized.paidDate)} (${normalized.amountPaid !== null ? `Rs ${normalized.amountPaid}` : 'amount not recorded'})`
-    : 'Still unpaid';
+  // Sharafat 65: the row names a shortfall exactly like the text twin,
+  // and notes a late payment the same way — the two surfaces must never
+  // disagree about the same promise.
+  let paid = 'Still unpaid';
+  if (normalized.paidDate) {
+    const late = normalized.paidDate > normalized.promisedDate ? ' (paid late)' : '';
+    if (status === 'partial' && normalized.amountPaid !== null) {
+      const shortfall = normalized.amountPromised - normalized.amountPaid;
+      paid = `${escapeHtml(normalized.paidDate)} (paid Rs ${normalized.amountPaid} of Rs ${normalized.amountPromised} (short by Rs ${shortfall}))${late}`;
+    } else {
+      paid = `${escapeHtml(normalized.paidDate)} (${normalized.amountPaid !== null ? `Rs ${normalized.amountPaid}` : 'amount not recorded'})${late}`;
+    }
+  }
   return `<p><strong>${escapeHtml(normalized.customer)}</strong> — promised Rs ${normalized.amountPromised} by ${escapeHtml(normalized.promisedDate)}; actual: ${paid}; status: ${status}; recorded by ${normalized.collector ? escapeHtml(normalized.collector) : 'No collector noted.'}</p>`;
 }
 

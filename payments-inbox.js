@@ -66,6 +66,12 @@ export function dateKey(date = new Date()) {
 export const INBOX_STORAGE_KEY = 'easypaisaInbox.items';
 export const INBOX_SETTINGS_KEY = 'easypaisaInbox.settings';
 
+// Sharafat 59 (D1(c)): the inbox keeps at most this many rows in
+// localStorage. 2,000 typical rows ≈ 397 KB, under 8% of the ~5 MB
+// budget the ledger shares. The cap is enforced by planInboxCap, which
+// drops the oldest RECORDED rows first — never an unrecorded one.
+export const INBOX_MAX_ROWS = 2000;
+
 export const DEFAULT_SETTINGS = {
   sheetUrl: '',
   ownerNumber: '',
@@ -129,18 +135,78 @@ export function loadInboxItems() {
 }
 
 /**
+ * Plans the inbox cap for a list without writing anything.
+ *
+ * Sharafat 59 (D1(c)): the cap drops the oldest RECORDED rows first —
+ * a recorded row is already safe in the ledger, while an unrecorded row
+ * is a live transfer with nowhere else to go. The surviving rows keep
+ * their input order (the cap never re-sorts the list); only the drop
+ * set is chosen by recorded-first order, newest-first inside each
+ * partition (date desc, row-key tiebreak, same as the merge sort).
+ * When the unrecorded rows alone exceed the cap, no row can be dropped
+ * safely — the plan refuses (`wouldDropUnrecorded: true`) and the
+ * caller must not save the new list (D4(a)).
+ *
+ * @param {Object[]} [items=[]]
+ * @returns {{ saved: Object[], dropped: number, droppedUnrecorded: number, droppedRecorded: number, wouldDropUnrecorded: boolean }}
+ */
+export function planInboxCap(items = []) {
+  const list = Array.isArray(items) ? items : [];
+  const unrecorded = list.filter(item => !item?.recorded);
+  const recorded = list.filter(item => item?.recorded);
+  if (unrecorded.length > INBOX_MAX_ROWS) {
+    return { saved: list, dropped: 0, droppedUnrecorded: 0, droppedRecorded: 0, wouldDropUnrecorded: true };
+  }
+  const keepRecordedCount = INBOX_MAX_ROWS - unrecorded.length;
+  const recordedNewest = [...recorded].sort((a, b) => {
+    const da = a.datetimeIso || a.date || '';
+    const db = b.datetimeIso || b.date || '';
+    return db.localeCompare(da) || inboxRowKey(b).localeCompare(inboxRowKey(a));
+  });
+  const keptRecorded = new Set(recordedNewest.slice(0, keepRecordedCount));
+  const saved = list.filter(item => !item?.recorded || keptRecorded.has(item));
+  const droppedRecorded = recorded.length - keptRecorded.size;
+  return { saved, dropped: droppedRecorded, droppedUnrecorded: 0, droppedRecorded, wouldDropUnrecorded: false };
+}
+
+/**
  * Saves inbox items array to localStorage.
  *
+ * Sharafat 59 (D2(a)): returns a result object instead of the bare
+ * array — `{ saved, dropped, droppedUnrecorded, droppedRecorded,
+ * wouldDropUnrecorded, ok, refused }`. `ok: false` on a `setItem`
+ * throw (the old catch returned the UNSLICED input, so a caller could
+ * not tell a quota failure from a save); `refused: true` when the cap
+ * cannot be met without dropping an unrecorded row — nothing is
+ * written then (D4(a)).
+ *
  * @param {Object[]} items
+ * @returns {{ saved: Object[], dropped: number, droppedUnrecorded: number, droppedRecorded: number, wouldDropUnrecorded: boolean, ok: boolean, refused: boolean }}
  */
 export function saveInboxItems(items) {
-  try {
-    const clean = Array.isArray(items) ? items.slice(0, 1000) : [];
-    localStorage.setItem(INBOX_STORAGE_KEY, JSON.stringify(clean));
-    return clean;
-  } catch {
-    return items;
+  const plan = planInboxCap(items);
+  if (plan.wouldDropUnrecorded) {
+    return { ...plan, ok: false, refused: true };
   }
+  try {
+    localStorage.setItem(INBOX_STORAGE_KEY, JSON.stringify(plan.saved));
+    return { ...plan, ok: true, refused: false };
+  } catch {
+    return { saved: [], dropped: 0, droppedUnrecorded: 0, droppedRecorded: 0, wouldDropUnrecorded: false, ok: false, refused: false };
+  }
+}
+
+/**
+ * Sharafat 59 (D2(a)): the cap-drop tail for an import toast, composing
+ * with Sharafat 58's kept/dropped/duplicate counts instead of replacing
+ * them. Empty when nothing was dropped at the cap.
+ *
+ * @param {{ dropped: number }} capResult
+ * @returns {string}
+ */
+export function formatCapDrop(capResult) {
+  const dropped = capResult?.dropped || 0;
+  return dropped > 0 ? ` · ${dropped} dropped at cap` : '';
 }
 
 /**
@@ -711,6 +777,10 @@ export class PaymentsInboxController {
       dateRange: 'all'
     };
     this.selectedCustomerMatches = new Map(); // txnId -> customerId override
+    // Sharafat 59 (D2(a)): rows dropped at the cap this session, for the
+    // durable Inbox Status note. Session-scoped — a reload starts at 0,
+    // because the stored list is already trimmed by then.
+    this.capDroppedTotal = 0;
   }
 
   init() {
@@ -757,6 +827,19 @@ export class PaymentsInboxController {
     }
   }
 
+  // Sharafat 59 (D3(a)): keep memory == storage after a save — assign
+  // the saved list the cap returned, and accumulate the session's
+  // cap-drop count for the durable Inbox Status note. On a failed save
+  // memory keeps its previous list; the caller branches on the returned
+  // result (ok / refused) for its own message.
+  applySaveResult(result) {
+    if (result?.ok) {
+      this.items = result.saved;
+      if (result.dropped > 0) this.capDroppedTotal += result.dropped;
+    }
+    return result;
+  }
+
   async confirm(opts) {
     if (typeof window.appConfirm === 'function') {
       return await window.appConfirm(opts);
@@ -800,11 +883,25 @@ export class PaymentsInboxController {
       // Sharafat 58 (D5): the toast reports the merge counts, not the
       // parse count — a row the merge drops is counted, not silent.
       const report = mergeInboxItemsWithReport(this.items, parsedRows);
-      this.items = report.items;
-      saveInboxItems(this.items);
+      // Sharafat 59 (D4(a)): at an all-unrecorded cap the import is
+      // refused outright — saving it would drop a live transfer.
+      const cap = this.applySaveResult(saveInboxItems(report.items));
+      if (!cap.ok && cap.refused) {
+        this.notify('Inbox full — record or clear older transfers first.', { type: 'warning' });
+        return;
+      }
+      if (!cap.ok) {
+        // Quota failure: nothing was written. Keep the merged list in
+        // memory (today's behaviour) so the rows stay visible, and say
+        // plainly that they are not stored.
+        this.items = report.items;
+        this.render();
+        this.notify('Inbox could not be saved — storage may be full. The new rows are shown but not stored; free space and re-sync.', { type: 'error' });
+        return;
+      }
       this.render();
 
-      this.notify(`Synced ${parsedRows.length} transactions from Google Sheet — ${formatImportCounts(report)}.`, {
+      this.notify(`Synced ${parsedRows.length} transactions from Google Sheet — ${formatImportCounts(report)}${formatCapDrop(cap)}.`, {
         type: 'success',
         title: 'Sheet Synced'
       });
@@ -863,7 +960,7 @@ export class PaymentsInboxController {
           <div class="easypaisa-kpi-card highlight-blue">
             <div class="kpi-label">Inbox Status</div>
             <div class="kpi-value">${totals.total.unrecordedCount} Pending</div>
-            <div class="kpi-sub">${totals.total.totalCount} total (${totals.total.needsReviewCount} review)${totals.total.unreadableCount > 0 ? ` · ${totals.total.unreadableCount} unreadable amount${totals.total.unreadableCount === 1 ? '' : 's'}` : ''}</div>
+            <div class="kpi-sub">${totals.total.totalCount} total (${totals.total.needsReviewCount} review)${totals.total.unreadableCount > 0 ? ` · ${totals.total.unreadableCount} unreadable amount${totals.total.unreadableCount === 1 ? '' : 's'}` : ''}${this.capDroppedTotal > 0 ? ` · ${this.capDroppedTotal} dropped at cap` : ''}</div>
           </div>
         </div>
 
@@ -1273,13 +1370,25 @@ export class PaymentsInboxController {
         // Sharafat 58 (D5): the toast reports the merge counts — the
         // parse count alone over-counted whenever the merge dropped a row.
         const report = mergeInboxItemsWithReport(this.items, parsed);
-        this.items = report.items;
-        saveInboxItems(this.items);
+        // Sharafat 59 (D4(a)): at an all-unrecorded cap the import is
+        // refused outright — the pasted source stays in the box so the
+        // operator can record or clear older transfers and retry.
+        const cap = this.applySaveResult(saveInboxItems(report.items));
+        if (!cap.ok && cap.refused) {
+          this.notify('Inbox full — record or clear older transfers first.', { type: 'warning' });
+          return;
+        }
+        if (!cap.ok) {
+          this.items = report.items;
+          this.render();
+          this.notify('Inbox could not be saved — storage may be full. The new rows are shown but not stored; free space and re-import.', { type: 'error' });
+          return;
+        }
         const input = this.container.querySelector('#manualPasteInput');
         if (input) input.value = '';
         this.container.querySelector('#easypaisaImportModal')?.close();
         this.render();
-        this.notify(`Parsed ${parsed.length} transaction(s) — ${formatImportCounts(report)}.`, { type: 'success' });
+        this.notify(`Parsed ${parsed.length} transaction(s) — ${formatImportCounts(report)}${formatCapDrop(cap)}.`, { type: 'success' });
         return;
       }
 
@@ -1350,7 +1459,8 @@ export class PaymentsInboxController {
 
         // Update local inbox cache
         this.items = this.items.map(i => inboxRowKey(i) === txnId ? res.txn : i);
-        saveInboxItems(this.items);
+        // Sharafat 59 (D3(a)): assign the capped list so memory == storage.
+        this.applySaveResult(saveInboxItems(this.items));
 
         // Provide undo action in toast
         const undoAction = {
@@ -1390,7 +1500,8 @@ export class PaymentsInboxController {
 
               // Sharafat 57 (D4(a)): clear ALL FOUR recorded fields.
               this.items = this.items.map(i => inboxRowKey(i) === txnId ? { ...i, recorded: false, recordedPaymentId: null, recordedMonth: null, recordedCustomerId: null } : i);
-              saveInboxItems(this.items);
+              // Sharafat 59 (D3(a)): assign the capped list so memory == storage.
+              this.applySaveResult(saveInboxItems(this.items));
               this.render();
               this.notify('Payment voided. Ledger restored.', { type: 'info' });
             } catch (err) {
@@ -1431,11 +1542,23 @@ export class PaymentsInboxController {
             }
             // Sharafat 58 (D5): the toast reports the merge counts.
             const report = mergeInboxItemsWithReport(this.items, parsed);
-            this.items = report.items;
-            saveInboxItems(this.items);
+            // Sharafat 59 (D4(a)): at an all-unrecorded cap the import is
+            // refused outright — the modal stays open so the operator can
+            // record or clear older transfers and retry.
+            const cap = this.applySaveResult(saveInboxItems(report.items));
+            if (!cap.ok && cap.refused) {
+              this.notify('Inbox full — record or clear older transfers first.', { type: 'warning' });
+              return;
+            }
+            if (!cap.ok) {
+              this.items = report.items;
+              this.render();
+              this.notify('Inbox could not be saved — storage may be full. The new rows are shown but not stored; free space and re-import.', { type: 'error' });
+              return;
+            }
             this.container.querySelector('#easypaisaImportModal')?.close();
             this.render();
-            this.notify(`Imported ${parsed.length} transaction(s) from CSV — ${formatImportCounts(report)}.`, { type: 'success' });
+            this.notify(`Imported ${parsed.length} transaction(s) from CSV — ${formatImportCounts(report)}${formatCapDrop(cap)}.`, { type: 'success' });
           } catch (err) {
             this.notify(`CSV import failed: ${err.message}`, { type: 'error' });
           }
@@ -1459,11 +1582,23 @@ export class PaymentsInboxController {
           }
           // Sharafat 58 (D5): the toast reports the merge counts.
           const report = mergeInboxItemsWithReport(this.items, parsed);
-          this.items = report.items;
-          saveInboxItems(this.items);
+          // Sharafat 59 (D4(a)): at an all-unrecorded cap the import is
+          // refused outright — the modal stays open so the operator can
+          // record or clear older transfers and retry.
+          const cap = this.applySaveResult(saveInboxItems(report.items));
+          if (!cap.ok && cap.refused) {
+            this.notify('Inbox full — record or clear older transfers first.', { type: 'warning' });
+            return;
+          }
+          if (!cap.ok) {
+            this.items = report.items;
+            this.render();
+            this.notify('Inbox could not be saved — storage may be full. The new rows are shown but not stored; free space and re-import.', { type: 'error' });
+            return;
+          }
           this.container.querySelector('#easypaisaImportModal')?.close();
           this.render();
-          this.notify(`Imported ${parsed.length} transaction(s) from statement — ${formatImportCounts(report)}.`, { type: 'success' });
+          this.notify(`Imported ${parsed.length} transaction(s) from statement — ${formatImportCounts(report)}${formatCapDrop(cap)}.`, { type: 'success' });
         } catch (err) {
           this.notify(`PDF import error: ${err.message}`, { type: 'error' });
         }

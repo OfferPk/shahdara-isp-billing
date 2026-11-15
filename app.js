@@ -246,9 +246,9 @@ import { billClarityBreakdown, customerBillClarityBreakdowns } from './billing-c
 import { sanitizeSubContributors } from './shared-router-contributors.js?v=1.11.0';
 import { setupMonthEndWizard } from './month-end-wizard.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
-import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, saveComplaints, setComplaintStatus, setupComplaintRegisterModal } from './complaint-register.js';
+import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, computeComplaintSeed, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, readComplaintCounter, saveComplaints, seedComplaintCounter, setComplaintStatus, setupComplaintRegisterModal, writeComplaintCounter } from './complaint-register.js';
 import { rootCauseAdviceForCustomer, rootCauseBannerHtml } from './root-cause-advisor.js';
-import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, buildVisitPrefillFromTicket, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment } from './complaint-tickets.js';
+import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, buildVisitPrefillFromTicket, computeTicketSeed, hasRecurringFaultWarning, loadTickets, readTicketCounter, saveTickets, seedTicketCounter, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment, writeTicketCounter } from './complaint-tickets.js';
 import { assignTicketForComplaint, bulkAssignTicketsForComplaints, collectTechnicianNames, linkedTicketSummary, openUnlinkedComplaints, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
@@ -10585,8 +10585,28 @@ function nextBranchGuardStamp() {
   if (stamp) saveBranchGuard(recordBranchGuardExport(guard, stamp), localStorage);
   return stamp;
 }
+// Sharafat 67: the id counters never rewind on a backup restore. A
+// snapshot that carries counter keys contributes max(stored, snapshot);
+// a snapshot that predates the counter keys is re-seeded from the
+// restored lists + references instead of resetting to 101. Runs after
+// the restored lists are saved (state is already the restored state
+// here, so its payments are the restored payments). Never throws — a
+// failed restore leaves max-over-list behaviour.
+function restoreIdCounters(preview) {
+  try {
+    const payments = (state.customers ?? []).flatMap((customer) => (customer?.bills ?? []).flatMap((bill) => Array.isArray(bill?.payments) ? bill.payments : []));
+    const storedTkt = readTicketCounter(localStorage);
+    const snapTkt = typeof preview?.ticketsNextId === 'number' && Number.isFinite(preview.ticketsNextId) ? Math.floor(preview.ticketsNextId) : null;
+    const seedTkt = computeTicketSeed(loadTickets(), loadComplaints(), payments);
+    writeTicketCounter(localStorage, Math.max(storedTkt ?? 101, snapTkt ?? 101, seedTkt));
+    const storedCmp = readComplaintCounter(localStorage);
+    const snapCmp = typeof preview?.complaintsNextId === 'number' && Number.isFinite(preview.complaintsNextId) ? Math.floor(preview.complaintsNextId) : null;
+    const seedCmp = computeComplaintSeed(loadComplaints(), loadTickets(), loadComplaintFollowups(), loadComplaintReopens(), loadComplaintEscalationOwnerNotes());
+    writeComplaintCounter(localStorage, Math.max(storedCmp ?? 101, snapCmp ?? 101, seedCmp));
+  } catch { /* id counters only: a failed restore leaves max-over-list behaviour */ }
+}
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), converterSides: loadConverterSides(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), splitterPolish: loadSplitterPolish(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), complaintsNextId: readComplaintCounter(localStorage), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), ticketsNextId: readTicketCounter(localStorage), inventory: loadInventory(), converterSides: loadConverterSides(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), splitterPolish: loadSplitterPolish(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -11898,6 +11918,8 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
         resultingState: state
       }), localStorage);
     }
+    // Sharafat 67: restore the id counters after the lists (never rewind).
+    restoreIdCounters(pendingBackupPreview);
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
   } catch (error) { toast(`Restore could not be saved: ${error.message}`); }
@@ -15005,6 +15027,17 @@ window.setInterval(tickLiveSessionCounters, 60_000);
 
 populateReportMonths();
 renderStorageWarning();
+// Sharafat 67: one-time id-counter seed (writes only when the counter
+// keys are absent; later boots are no-ops). The counter guarantees a
+// ticket/complaint id is never re-issued after its record drops out of
+// the sanitized lists or an older backup is restored.
+if (storageAvailable) {
+  try {
+    const bootPayments = (state.customers ?? []).flatMap((customer) => (customer?.bills ?? []).flatMap((bill) => Array.isArray(bill?.payments) ? bill.payments : []));
+    seedTicketCounter(localStorage, loadTickets(), loadComplaints(), bootPayments);
+    seedComplaintCounter(localStorage, loadComplaints(), loadTickets(), loadComplaintFollowups(), loadComplaintReopens(), loadComplaintEscalationOwnerNotes());
+  } catch { /* id counters only: a failed seed leaves max-over-list behaviour */ }
+}
 renderDashboard();
 renderGlobalSearch();
 renderCustomers();

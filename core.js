@@ -3943,6 +3943,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     customerNumber: customer.customerNumber,
     customerName: customer.name,
     customerServiceStatus: customer.serviceStatus ?? 'not-set',
+    // Sharafat 62: the archived flag rides the row (like buildMonthlyReport)
+    // so the Transactions list can mark an archived customer's payments
+    // without a roster scan per row. No filter: the list MARKS, it does
+    // not exclude — the ledger's audit surface keeps every row.
+    archived: customer.archived === true,
     customerPhone: customer.phone,
     customerAddress: customer.address,
     month: bill.month,

@@ -34,6 +34,10 @@
    variant starved the name column into an ellipsis). As a grid item it must
    hug its content, not stretch the full column width. */
 .tx-main > .advance-badge { justify-self: start; }
+.tx-main > .archived-badge { justify-self: start; }
+/* Sharafat 62: archived rows keep full readability (no opacity cut) —
+   the tint is the only difference; the badge does the talking. */
+#transactionsList .transaction-card.archived-transaction { background: var(--surface-2); }
 .tx-sub { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--color-muted-soft); min-width: 0; }
 /* Transactions Screen Overhaul: the recorded time (or mohalla) never
    clips — it keeps its width while the method chip shrinks. */

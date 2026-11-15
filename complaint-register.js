@@ -114,6 +114,16 @@ import { getWaTemplates } from './whatsapp-templates.js';
 
 export const COMPLAINTS_KEY = 'sisp_complaints_ledger_v1';
 
+/**
+ * Sharafat 67 — monotonic complaint-id counter. The next number to issue
+ * lives in its own key so an id is never re-issued after its record
+ * drops out of the sanitized lists (malformed-row drop) or an older
+ * backup is restored. The value is the NEXT number to issue (101 when
+ * nothing was ever issued). It is never rewound: reads self-heal to
+ * max(stored, max-over-list) and writes keep max(stored, written).
+ */
+export const COMPLAINTS_NEXT_ID_KEY = 'sisp_complaints_next_id_v1';
+
 /** Sentinel customer id for main-line / zone-wide faults (no single customer). */
 export const AREA_OUTAGE_CUSTOMER_ID = 'AREA_OUTAGE';
 
@@ -213,6 +223,105 @@ export function nextComplaintId(existing) {
   return `CMP-${max + 1}`;
 }
 
+function complaintNumberOf(value) {
+  const match = String(value || '').match(ID_RE);
+  return match ? Number(match[1]) : 0;
+}
+
+function maxComplaintNumber(list) {
+  let max = 0;
+  for (const entry of (Array.isArray(list) ? list : [])) {
+    if (!entry || typeof entry !== 'object') continue;
+    max = Math.max(max, complaintNumberOf(entry.id));
+  }
+  return max;
+}
+
+function defaultComplaintStorage(storage) {
+  if (storage && typeof storage.getItem === 'function' && typeof storage.setItem === 'function') return storage;
+  if (typeof globalThis !== 'undefined' && globalThis.localStorage) return globalThis.localStorage;
+  return null;
+}
+
+/** Stored next complaint number, or null when the key is absent/unreadable. Never throws. */
+export function readComplaintCounter(storage) {
+  try {
+    const store = defaultComplaintStorage(storage);
+    if (!store) return null;
+    const n = Number(store.getItem(COMPLAINTS_NEXT_ID_KEY));
+    return Number.isInteger(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Store the next complaint number, never rewinding: the stored value
+ * stays max(stored, nextNumber). Returns the stored value, or null
+ * without storage. Never throws.
+ */
+export function writeComplaintCounter(storage, nextNumber) {
+  try {
+    const store = defaultComplaintStorage(storage);
+    if (!store) return null;
+    const n = Math.floor(Number(nextNumber));
+    if (!Number.isFinite(n) || n <= 0) return readComplaintCounter(store);
+    const kept = Math.max(readComplaintCounter(store) ?? 0, n);
+    store.setItem(COMPLAINTS_NEXT_ID_KEY, String(kept));
+    return kept;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Next complaint number for a create: max(stored counter, max-over-list + 1, 101).
+ * The list is the floor, so a lost counter save can never re-issue an id
+ * that is still on a record (R11). Does not write.
+ */
+export function nextComplaintNumber(storage, existing) {
+  return Math.max(readComplaintCounter(storage) ?? 0, maxComplaintNumber(existing) + 1, 101);
+}
+
+/**
+ * Sharafat 67 D5(b) — one-time seed from the ledgers AND the reference
+ * stores: ticket.complaintId + the ticket-side sync stamp
+ * resolvedViaComplaintId, and complaintRef on follow-up / reopen /
+ * escalation notes. Reference values are upper-cased before matching,
+ * so a hand-edited lowercase ref still counts (the generator only ever
+ * issues uppercase ids). A legacy id shaped like CMP-999 counts toward
+ * max (R7). Pure: returns the next number to issue, never below 101.
+ */
+export function computeComplaintSeed(complaints, tickets, followups, reopenNotes, escalationNotes) {
+  let max = Math.max(maxComplaintNumber(complaints), 100);
+  for (const ticket of (Array.isArray(tickets) ? tickets : [])) {
+    if (!ticket || typeof ticket !== 'object') continue;
+    max = Math.max(max, complaintNumberOf(String(ticket.complaintId || '').toUpperCase()));
+    max = Math.max(max, complaintNumberOf(String(ticket.resolvedViaComplaintId || '').toUpperCase()));
+  }
+  for (const notes of [followups, reopenNotes, escalationNotes]) {
+    for (const note of (Array.isArray(notes) ? notes : [])) {
+      if (!note || typeof note !== 'object') continue;
+      max = Math.max(max, complaintNumberOf(String(note.complaintRef || '').toUpperCase()));
+    }
+  }
+  return max + 1;
+}
+
+/**
+ * Seed the counter once, when the key is absent. Later calls are no-ops
+ * (the counter only moves forward via creates/restores). Returns the
+ * seeded (or already stored) next number, or the list-derived value
+ * without storage. Never throws.
+ */
+export function seedComplaintCounter(storage, complaints, tickets, followups, reopenNotes, escalationNotes) {
+  const existing = readComplaintCounter(storage);
+  if (existing !== null) return existing;
+  const next = computeComplaintSeed(complaints, tickets, followups, reopenNotes, escalationNotes);
+  writeComplaintCounter(storage, next);
+  return next;
+}
+
 /**
  * Drops malformed complaint entries; keeps only known fields with safe
  * defaults so old records (missing new fields) never break the register.
@@ -296,7 +405,7 @@ export function saveComplaints(complaints, storage) {
  * "Area outage"). reportedAt defaults to now and is editable afterwards.
  * Throws on a missing category or an area outage without a zone.
  */
-export function createComplaint(input, existing, referenceDate = new Date()) {
+export function createComplaint(input, existing, referenceDate = new Date(), storage) {
   const category = COMPLAINT_CATEGORIES.includes(input?.issueCategory) ? input.issueCategory : null;
   if (!category) throw new Error('Pick an issue category for the complaint.');
   const isAreaOutage = input?.customerId === AREA_OUTAGE_CUSTOMER_ID || input?.areaOutage === true;
@@ -305,8 +414,18 @@ export function createComplaint(input, existing, referenceDate = new Date()) {
   const reportedAt = DATE_TIME_RE.test(String(input?.reportedAt || ''))
     ? String(input.reportedAt)
     : pakistanDateTimeNow(referenceDate);
+  // Sharafat 67: the id comes from the monotonic counter, not from
+  // max-over-list — so a deleted (or sanitize-dropped) max id is never
+  // re-issued. The counter is bumped here, at create time, before the
+  // caller persists the record: a lost record save only skips a number,
+  // and a lost counter save is healed by the list floor on the next
+  // create (R11). Without storage (pure/test use) this is exactly
+  // nextComplaintId(existing) — the counter is invisible.
+  const store = defaultComplaintStorage(storage);
+  const next = nextComplaintNumber(store, existing);
+  if (store) writeComplaintCounter(store, next + 1);
   return {
-    id: nextComplaintId(existing),
+    id: `CMP-${next}`,
     customerId: isAreaOutage ? AREA_OUTAGE_CUSTOMER_ID : (input?.customerId ?? null),
     customerName: isAreaOutage ? AREA_OUTAGE_CUSTOMER_ID : cleanText(input?.customerName),
     zone,

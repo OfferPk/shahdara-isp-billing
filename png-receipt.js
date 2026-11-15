@@ -389,17 +389,67 @@ export function computePngReceiptLayout(model, measureFn) {
 
   // Financial box.
   const finPitch = 74;
-  const finH = 56 + model.financial.length * finPitch + 20;
+  // Sharafat 53: a financial row is label (left) + value (right) on one
+  // line, drawn with no measure at all — a long method value (Txn +
+  // sender + payer) ran 1,644px off the left edge, and a long label
+  // collided with its own value. Pre-pass every row: when label + gap +
+  // value fit the row width the row stays exactly one line (so ordinary
+  // receipts keep their byte-identical commands); otherwise the long
+  // side wraps — the value when the label is short, the label when the
+  // value is short, both when both are long — and the row grows by
+  // finPitch per wrapped line.
+  const finGap = 24;
+  const wrapToWidth = (text, maxWidth) => {
+    const lines = wrapText({ measureText: (t) => ({ width: measure(t) }) }, text, maxWidth);
+    const out = [];
+    for (const line of lines) {
+      if (measure(line) <= maxWidth) { out.push(line); continue; }
+      // wrapText never splits a single word; split an over-wide line by
+      // characters so the text always stays inside the canvas.
+      let rest = line;
+      while (rest && measure(rest) > maxWidth) {
+        let lo = 1;
+        let hi = rest.length;
+        while (lo < hi) {
+          const mid = Math.ceil((lo + hi) / 2);
+          if (measure(rest.slice(0, mid)) <= maxWidth) lo = mid;
+          else hi = mid - 1;
+        }
+        out.push(rest.slice(0, lo));
+        rest = rest.slice(lo);
+      }
+      if (rest) out.push(rest);
+    }
+    return out.length ? out : [''];
+  };
+  const wrapFinancialRow = (row) => {
+    const labelX = M + 44 + (row.indent ? 56 : 0);
+    const rowW = (W - M - 44) - labelX;
+    const labelW = measure(row.label);
+    const valueW = measure(row.value);
+    if (labelW + finGap + valueW <= rowW) return { labelLines: [row.label], valueLines: [row.value] };
+    if (labelW <= rowW / 2) return { labelLines: [row.label], valueLines: wrapToWidth(row.value, rowW - labelW - finGap) };
+    if (valueW <= rowW / 2) return { labelLines: wrapToWidth(row.label, rowW - valueW - finGap), valueLines: [row.value] };
+    return { labelLines: wrapToWidth(row.label, rowW / 2), valueLines: wrapToWidth(row.value, rowW / 2 - finGap) };
+  };
+  const finRows = model.financial.map((row) => ({ ...row, ...wrapFinancialRow(row) }));
+  const finLines = finRows.reduce((n, row) => n + Math.max(row.labelLines.length, row.valueLines.length), 0);
+  const finH = 56 + finLines * finPitch + 20;
   const finY = y;
   rect(M, finY, contentW, finH, PAPER, HAIRLINE);
   txt(model.detailsTitle ?? 'Amount Details / رقم کی تفصیل', M + 44, finY + 52, `700 40px ${FONT_LATIN}`, 'left', INK);
   let fy = finY + 56;
-  for (const row of model.financial) {
+  for (const row of finRows) {
     const x = M + 44 + (row.indent ? 56 : 0);
-    txt(row.label, x, fy + 52, `${row.strong ? '700' : '500'} 42px ${FONT_LATIN}`, 'left', row.strong ? INK : MUTED);
-    txt(row.value, W - M - 44, fy + 52, `${row.strong ? '700' : '500'} 46px ${FONT_LATIN}`, 'right', INK);
-    fy += finPitch;
-    if (row !== model.financial.at(-1)) line(M + 44, fy - 8, W - M - 44, fy - 8, HAIRLINE, 1);
+    const lines = Math.max(row.labelLines.length, row.valueLines.length);
+    row.labelLines.forEach((lineText, i) => {
+      txt(lineText, x, fy + 52 + i * finPitch, `${row.strong ? '700' : '500'} 42px ${FONT_LATIN}`, 'left', row.strong ? INK : MUTED);
+    });
+    row.valueLines.forEach((lineText, i) => {
+      txt(lineText, W - M - 44, fy + 52 + i * finPitch, `${row.strong ? '700' : '500'} 46px ${FONT_LATIN}`, 'right', INK);
+    });
+    fy += lines * finPitch;
+    if (row !== finRows.at(-1)) line(M + 44, fy - 8, W - M - 44, fy - 8, HAIRLINE, 1);
   }
   y = finY + finH;
 
@@ -465,9 +515,12 @@ export function computePngReceiptLayout(model, measureFn) {
     W / 2, y, `500 34px ${FONT_LATIN}`, 'center', MUTED);
   y += 60;
 
-  // SISP-128: the canvas grows ONLY when a history block was drawn —
-  // no-history receipts keep the exact 1600x2000 canvas (pinned).
-  const height = Array.isArray(model.history) && model.history.length ? Math.max(H, y + 24) : H;
+  // Sharafat 53: the canvas grows when content needs it — a history
+  // block OR wrapped financial rows — so the footer never clips. The
+  // layout height is authoritative (generateReceiptPNG resizes the
+  // canvas to it); the model height stays 2000 for ordinary receipts,
+  // whose rows do not wrap and keep the exact 1600x2000 canvas.
+  const height = Math.max(H, y + 24);
   return { width: W, height, commands, footerY: y };
 }
 

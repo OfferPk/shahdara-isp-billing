@@ -690,6 +690,11 @@ export function recordInboxPayment({ state, txn, customerId, month, referenceDat
   if (!customer) {
     throw new Error('Selected customer not found in CRM');
   }
+  // Sharafat 60 (D1(a)): an archived customer can never be recorded —
+  // mirrors claimSuspensePayment (suspense-payments.js), same wording.
+  if (customer.archived) {
+    throw new Error('Archived customers cannot receive payments. Unarchive the customer first.');
+  }
 
   const targetDate = txn.date || dateKey(referenceDate);
   const targetMonth = month || findCandidateBillMonth(customer, targetDate, referenceDate);
@@ -922,6 +927,7 @@ export class PaymentsInboxController {
     const totals = calculateInboxTotals(this.items);
     const filteredItems = filterInboxItems(this.items, this.filters, state);
     const customers = state?.customers?.filter(c => !c.archived) || [];
+    this.pruneStaleCustomerMatches(customers);
 
     this.container.innerHTML = `
       <div class="easypaisa-inbox-shell">
@@ -1203,6 +1209,21 @@ export class PaymentsInboxController {
       isSharedNumber = autoMatch.ambiguous;
     }
 
+    // Sharafat 60 (D3(a)): a recorded row keeps showing who the payment
+    // belongs to even if the customer was archived afterwards — resolve
+    // the badge against the full roster (display-only; the dropdown
+    // below stays filtered). Sharafat 60 (D4(a)): the dropdown options
+    // filter archived customers at their map site too, so this row
+    // function is safe even when fed the raw roster.
+    if (isRecorded && !matchedCustomer) {
+      const recordedId = overriddenId
+        || (isRecorded && typeof isRecorded === 'object' && isRecorded.customerId)
+        || item.recordedCustomerId;
+      if (recordedId) {
+        matchedCustomer = (state?.customers || []).find(c => c.id === recordedId) || null;
+      }
+    }
+
     const directionBadge = isReceived
       ? '<span class="badge badge-received">Received</span>'
       : item.direction === 'Sent'
@@ -1251,7 +1272,7 @@ export class PaymentsInboxController {
             : isReceived
               ? `<select class="easypaisa-customer-select" data-select-match="${escapeHtml(inboxRowKey(item))}" aria-label="Match Customer">
                   <option value="">${matchedCustomer ? `✓ Matched: #${matchedCustomer.customerNumber} ${matchedCustomer.name}` : isSharedNumber ? 'needs review — shared number' : '-- Link to Customer --'}</option>
-                  ${customers.map(c => `<option value="${escapeHtml(c.id)}" ${matchedCustomer?.id === c.id ? 'selected' : ''}>#${escapeHtml(c.customerNumber)} ${escapeHtml(c.name)} (${escapeHtml(c.area || 'No Area')})</option>`).join('')}
+                  ${customers.filter(c => !c.archived).map(c => `<option value="${escapeHtml(c.id)}" ${matchedCustomer?.id === c.id ? 'selected' : ''}>#${escapeHtml(c.customerNumber)} ${escapeHtml(c.name)} (${escapeHtml(c.area || 'No Area')})</option>`).join('')}
                 </select>`
               : '<span class="text-muted">—</span>'}
         </td>
@@ -1427,6 +1448,13 @@ export class PaymentsInboxController {
 
       const customer = customers.find(c => c.id === customerId);
       if (!customer) {
+        // Sharafat 60 (D1(a)): a stale pick of a customer archived after
+        // the pick — name the archived case instead of the generic error.
+        const pickedCustomer = (state.customers || []).find(c => c.id === customerId);
+        if (pickedCustomer?.archived) {
+          this.notify('Archived customers cannot receive payments. Unarchive the customer first.', { type: 'error' });
+          return;
+        }
         this.notify('Selected customer not found.', { type: 'error' });
         return;
       }
@@ -1672,9 +1700,19 @@ export class PaymentsInboxController {
     }
   }
 
+  // Sharafat 60 (D2(a)): drop stale operator picks of customers archived
+  // after the pick (or removed from the roster), so the row falls back
+  // to auto-match instead of erroring at record time.
+  pruneStaleCustomerMatches(customers) {
+    for (const [rowKey, pickedId] of this.selectedCustomerMatches) {
+      if (!customers.some(c => c.id === pickedId)) this.selectedCustomerMatches.delete(rowKey);
+    }
+  }
+
   updateListOnly() {
     const state = this.getState();
     const customers = state?.customers?.filter(c => !c.archived) || [];
+    this.pruneStaleCustomerMatches(customers);
     const filteredItems = filterInboxItems(this.items, this.filters, state);
     const listContainer = this.container?.querySelector('.easypaisa-list-container');
     if (!listContainer) return;

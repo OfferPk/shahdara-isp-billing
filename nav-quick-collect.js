@@ -3045,6 +3045,10 @@ export function setupQuickCollectModal({
     const amountVal = Number(amountInput?.value);
     const month = monthSelect?.value || activeDefaults.targetMonth;
     const customer = activeDefaults.customer ?? null;
+    // The caller's overall remaining after this payment (open bills
+    // plus pending charges, minus this amount, never below zero) —
+    // computed above the call so the wiring slice stays green.
+    const remainingBalanceCents = Math.max(0, Math.round((activeDefaults.payableTotal ?? 0) * 100) - Math.round(amountVal * 100));
     return receiptPreviewFor({
       customer,
       amount: amountVal,
@@ -3052,6 +3056,8 @@ export function setupQuickCollectModal({
       method: methodSelect?.value || 'Cash',
       receiptNumber: customer && month ? nextReceiptNumberFor(customer, month) : '',
       date: dateInput?.value || getPakistanLocalDate(),
+      billMonth: month,
+      remainingBalanceCents,
       split: !!splitToggle?.checked,
     });
   }

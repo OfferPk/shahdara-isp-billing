@@ -8,9 +8,11 @@
 // fiberMeters): those describe what was installed once; a plan describes
 // money still owed in monthly slices.
 //
-// INTEGRATION — this module is pure and standalone (it imports nothing,
-// so core.js can import it without a cycle). The billing integration lives
-// in billing-cycle.js: when the SISP-2 monthly cycle runs, any active plan
+// INTEGRATION — this module imports only addMonths from phase3.js
+// (phase3.js itself imports only payment-void-audit.js, which imports
+// nothing), so core.js can import it without a cycle. The billing
+// integration lives in billing-cycle.js: when the SISP-2 monthly cycle
+// runs, any active plan
 // with monthsBilled < totalMonths appends one line item to that month's
 // bill ("Kist [N]/[Total]: [ItemTitle]") and monthsBilled increments by
 // one; when monthsBilled reaches totalMonths the plan marks itself
@@ -40,6 +42,10 @@
 // billing (monthlyKist per installment) for receipts; any rounding
 // remainder is reconciled by the payoff formula at settlement, and the
 // cycle's per-month math is never changed by this module.
+
+// Sharafat 47: the due month of each schedule row comes from phase3.js
+// addMonths (plan start month + installment offset); see kistSchedule.
+import { addMonths } from './phase3.js';
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -357,7 +363,11 @@ export function settlePlanEarly(plans, planId, { date = null, method = null, rea
 
 /**
  * Receipt schedule for one plan: one row per installment at the cycle's
- * monthlyKist, marked billed/remaining by monthsBilled. The rows mirror
+ * monthlyKist, marked billed/remaining by monthsBilled. Each row also
+ * names the month it falls due — the plan start month plus the
+ * installment offset (installment i is due in startMonth + (i - 1),
+ * per the cycle's own rule in dueKistLines); a plan with no startDate
+ * has no anchor, so its rows carry month: null. The rows mirror
  * what the SISP-2 cycle bills each month; they are not a second billing
  * path, and the payoff formula (not this schedule) reconciles any
  * rounding remainder when a plan is settled early.
@@ -365,11 +375,13 @@ export function settlePlanEarly(plans, planId, { date = null, method = null, rea
 export function kistSchedule(plan) {
   const sanitized = sanitizeInstallmentPlan(plan);
   if (!sanitized) return [];
+  const startMonth = planStartMonth(sanitized);
   const rows = [];
   for (let i = 1; i <= sanitized.totalMonths; i++) {
     rows.push({
       installmentNumber: i,
       totalMonths: sanitized.totalMonths,
+      month: startMonth ? addMonths(startMonth, i - 1) : null,
       amount: sanitized.monthlyKist,
       status: i <= sanitized.monthsBilled ? 'billed' : 'remaining'
     });

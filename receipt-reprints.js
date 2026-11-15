@@ -24,6 +24,12 @@
 //     whole record instead of being guessed.
 //   - Inputs are never mutated, and the module never reads
 //     storage, the clock, the network, or the page.
+//   - The one exception to "no imports": the shared money formatter
+//     (formatReceiptMoney, receipt-money.js) — a pure function, no
+//     storage, clock, network, or page. Nothing else is imported;
+//     the plan121 purity fence asserts exactly this one import.
+
+import { formatReceiptMoney } from './receipt-money.js';
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -77,13 +83,6 @@ function escapeHtml(value) {
 function csvCell(value) {
   const s = String(value ?? '');
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function formatRs(cents) {
-  if (!Number.isInteger(cents)) return 'not recorded';
-  const sign = cents < 0 ? '-' : '';
-  const abs = Math.abs(cents);
-  return `${sign}Rs. ${(abs / 100).toFixed(2)}`;
 }
 
 // Normalise one reprint record, or null when half-formed. Unknown
@@ -226,7 +225,7 @@ export function receiptReprintHtml(reprint) {
   const clean = normalizeReceiptReprint(reprint);
   if (!clean) return '';
   return `<div class="receipt-reprint-row"><strong>REPRINT</strong> — receipt ` +
-    `${escapeHtml(clean.receiptNumber)} — ${formatRs(clean.amountCents)} — ` +
+    `${escapeHtml(clean.receiptNumber)} — ${formatReceiptMoney(clean.amountCents / 100)} — ` +
     `reprinted ${escapeHtml(clean.reprintDate)}` +
     `${clean.operator ? ` by ${escapeHtml(clean.operator)}` : ''}` +
     `${clean.note ? ` — ${escapeHtml(clean.note)}` : ''}</div>`;
@@ -236,7 +235,7 @@ export function originalReceiptHtml(view) {
   if (!view) return '';
   const rows = view.reprints.map((item) => receiptReprintHtml(item)).join('');
   return `<div class="receipt-original-row">Original receipt ` +
-    `${escapeHtml(view.receiptNumber)} — ${formatRs(view.amountCents)} — ` +
+    `${escapeHtml(view.receiptNumber)} — ${formatReceiptMoney(view.amountCents / 100)} — ` +
     `${view.reprintCount} reprint(s)` +
     `${view.lastReprintDate ? `, last reprinted ${escapeHtml(view.lastReprintDate)}` : ', never reprinted'}</div>${rows}`;
 }

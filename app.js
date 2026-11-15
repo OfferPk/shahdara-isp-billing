@@ -69,6 +69,7 @@ import { initHelpGuides, helpButtonMarkup } from './help-guide.js?v=1.11.0';
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits, queuedReferralTotalFor } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly, validatePayoffChoice } from './installment-plan.js?v=1.11.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, generateReceiptNumber, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml, buildReceiptPaymentReceivedMessage, buildReceiptBillNoticeMessage, buildDepositOffsetReceipt, generateDepositOffsetReceiptHtml } from './receipt.js?v=1.11.0';
+import { formatReceiptMoney } from './receipt-money.js';
 import { setupReceiptVerifyModal } from './receipt-verifier.js';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
@@ -27346,7 +27347,7 @@ function renderReceiptReprints() {
       const amount = Number($('#receiptReprintAmount')?.value ?? '');
       const copy = Number.isFinite(amount) && amount > 0 ? reprintCopy({ receiptNumber: number, amount }, all) : null;
       copyEl.textContent = copy
-        ? `REPRINT copy — receipt ${copy.receiptNumber} — Rs. ${(copy.amountCents / 100).toFixed(2)} — ${copy.reprintCount} reprint(s)${copy.lastReprintDate ? `, last reprinted ${copy.lastReprintDate}` : ', never reprinted'}. This copy issues no new receipt number and creates no payment.`
+        ? `REPRINT copy — receipt ${copy.receiptNumber} — ${formatReceiptMoney(copy.amountCents / 100)} — ${copy.reprintCount} reprint(s)${copy.lastReprintDate ? `, last reprinted ${copy.lastReprintDate}` : ', never reprinted'}. This copy issues no new receipt number and creates no payment.`
         : 'Type a receipt number and its original amount to preview its REPRINT copy.';
     } else {
       copyEl.textContent = 'Type a receipt number and its original amount to preview its REPRINT copy.';

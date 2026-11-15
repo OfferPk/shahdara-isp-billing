@@ -91,6 +91,22 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   if (fields.businessName) for (const l of wrapText(fields.businessName, width)) push(center(l, width));
   if (fields.businessPhone) push(center(fields.businessPhone, width));
   push(divider);
+  // Sharafat 51: a voided slip gets a prominent VOID stamp at the top
+  // of the receipt body (HTML/PNG parity — Plan K stamps the header
+  // and the PNG seals VOID). It keys on fields.statusLabel because the
+  // receipt model carries no `voided` field, only status 'VOID'; the
+  // adapter already passes statusLabel, and the QC hand-built path
+  // passes split.status, so both production paths stamp with no adapter
+  // or QC change. ASCII two lines, not the doc-literal one-liner: the
+  // literal is 38 chars on a 32-char roll with a non-PC437 em dash.
+  // Placed after the first divider, never at line 0: the byte stream
+  // prints the business name separately and takes the body as
+  // lines.slice(headerLines).
+  if (fields.statusLabel === 'VOID') {
+    push(center('*** VOID ***', width));
+    push(center('THIS PAYMENT WAS VOIDED', width));
+    push(divider);
+  }
   push(center('PAYMENT RECEIPT', width));
   if (fields.receiptNumber) push(rowLine('Receipt', fields.receiptNumber, width));
   if (fields.dateTimeLabel) push(rowLine('Date', fields.dateTimeLabel, width));

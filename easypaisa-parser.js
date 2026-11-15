@@ -49,6 +49,29 @@ export function normalizeEasypaisaPhone(value) {
 }
 
 /**
+ * Sharafat 58 (D1/D4): one shared content hash for synthetic inbox keys.
+ * FNV-1a 32-bit over the text, rendered as 8 lowercase hex chars —
+ * deterministic in the browser and in Node, so the same content mints
+ * the same key on every import and re-imports dedupe instead of
+ * duplicating (the old `Date.now()` keys) or collapsing (the old
+ * row-index keys). The merge in payments-inbox.js builds its
+ * `INBOX-REVIEW-<hash>` bucket keys from this same function.
+ *
+ * @param {string} text Content to hash (a CSV line, or a canonical
+ *   date|amount|sender|rawText string).
+ * @returns {string} 8-char hex hash.
+ */
+export function inboxContentHash(text) {
+  const str = String(text ?? '');
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
  * Parses numeric currency amount from formatted strings (e.g. "Rs. 5000.0", "PKR 12,500.50", "5000").
  * Returns a finite number or null if invalid.
  */
@@ -588,7 +611,11 @@ export function parseEasypaisaCsv(csvText, options = {}) {
       return idx >= 0 && row[idx] ? row[idx] : '';
     };
 
-    let txnId = cell(txnCol, 0, 0) || `EP-CSV-${Date.now()}-${i}`;
+    // Sharafat 58 (D4): a blank TID cell mints a content-derived key
+    // from the raw CSV line — the same transfer re-imported mints the
+    // same key and dedupes. (The old `Date.now()` key changed on every
+    // import, so re-imports duplicated the row.)
+    let txnId = cell(txnCol, 0, 0) || `EP-CSV-${inboxContentHash(lines[i])}`;
     const rawDate = cell(dateCol, 1, 1);
     const type = cell(typeCol, 3, 2) || 'Money Transfer to Easypaisa';
     const senderName = cell(senderNameCol, 8, 3);
@@ -621,8 +648,11 @@ export function parseEasypaisaCsv(csvText, options = {}) {
     if (phoneShaped(rawTotal) || total > MAX_PLAUSIBLE_PKR) forceReview = true;
     // A date is not a transaction id: using one as the dedupe key would
     // collapse unrelated rows and hide real duplicates.
+    // Sharafat 58 (D4): the review key is content-derived from the raw
+    // CSV line, not the row index — two different sheets whose rows land
+    // on the same index no longer collapse into one row.
     if (/[-/ ]/.test(txnId) && parsePakistanDateTime(txnId).date) {
-      txnId = `REVIEW-CSV-${i}`;
+      txnId = `REVIEW-CSV-${inboxContentHash(lines[i])}`;
       forceReview = true;
     }
 
@@ -663,6 +693,7 @@ if (typeof window !== 'undefined') {
     normalizeEasypaisaPhone,
     parseEasypaisaAmount,
     parsePakistanDateTime,
+    inboxContentHash,
     TEMPLATES
   };
 }

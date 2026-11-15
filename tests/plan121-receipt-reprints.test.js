@@ -160,15 +160,30 @@ test('HTML escapes input, CSV quotes, filename', () => {
   const viewHtml = originalReceiptHtml(originalReceiptView({ receiptNumber: 'REC-<1>', amount: 100 }, [evil]));
   assert.ok(viewHtml.includes('Original receipt'));
   assert.ok(viewHtml.includes('1 reprint(s)'));
+  // Sharafat 49: reprint amounts render through the shared formatter
+  // (min-0 decimals, PKR prefix, grouped) — never "Rs. 3000.00".
+  const whole = receiptReprintHtml({ id: 'R2', receiptNumber: 'REC-1', amount: 3000, reprintDate: '2026-11-04' });
+  assert.ok(whole.includes('PKR 3,000'));
+  assert.ok(!whole.includes('Rs.'));
+  const frac = receiptReprintHtml({ id: 'R3', receiptNumber: 'REC-1', amount: 2925.5, reprintDate: '2026-11-04' });
+  assert.ok(frac.includes('PKR 2,925.50'));
+  assert.ok(!frac.includes('Rs.'));
+  const wholeView = originalReceiptHtml(originalReceiptView({ receiptNumber: 'REC-1', amount: 3000 }, [{ id: 'R2', receiptNumber: 'REC-1', amount: 3000, reprintDate: '2026-11-04' }]));
+  assert.ok(wholeView.includes('PKR 3,000'));
+  assert.ok(!wholeView.includes('Rs.'));
   const csv = receiptReprintCsv([evil]);
   assert.ok(csv.startsWith('id,receipt_number,amount_cents,reprint_date,operator,note'));
   assert.ok(csv.includes('"x,y"'));
   assert.equal(receiptReprintFilename(), 'receipt-reprints.csv');
 });
 
-test('purity fence: no imports, storage, DOM, network, or other-module identifiers', () => {
+test('purity fence: exactly one import (the shared money formatter), no storage, DOM, network, or other-module identifiers', () => {
   const src = readFileSync(join(dir, '..', 'receipt-reprints.js'), 'utf8');
-  assert.ok(!src.includes('import '));
+  // Sharafat 49: the module may import exactly one thing — the pure
+  // money formatter from receipt-money.js (no storage, clock,
+  // network, or page). A second import still fails the fence.
+  const imports = [...src.matchAll(/^import\s+\{[^}]*\}\s+from\s+'([^']+)';/gm)].map((m) => m[1]);
+  assert.deepEqual(imports, ['./receipt-money.js']);
   assert.ok(!src.includes('localStorage'));
   assert.ok(!src.includes('document.'));
   assert.ok(!src.includes('fetch('));

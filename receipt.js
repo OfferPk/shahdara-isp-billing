@@ -997,7 +997,10 @@ export function generatePaymentReceiptHtml(receipt, {
 // current month's bill, so this snapshot only describes that payment plus
 // the plan it belongs to — it never creates a second ledger entry. The
 // schedule mirrors cycle billing (monthlyKist per installment); the
-// remaining figure is the plan's stated remainder (total - down payment).
+// remaining figure is total minus the down payment ACTUALLY received
+// (total - paid, clamped at zero — not the planned down payment), and
+// each schedule row names the month it falls due (plan start month +
+// offset; no month when the plan has no startDate).
 export function buildDownPaymentKistReceipt(customer, plan, payment) {
   if (!customer || !plan || !payment) throw new Error('A saved customer, installment plan and down payment are required.');
   const sane = sanitizeInstallmentPlan(plan);
@@ -1030,7 +1033,10 @@ export function buildDownPaymentKistReceipt(customer, plan, payment) {
     paidDownPayment: paid,
     monthlyKist: sane.monthlyKist,
     totalMonths: sane.totalMonths,
-    remainingAfterDownPayment: Math.max(0, Number((sane.totalAmount - sane.downPayment).toFixed(2))),
+    // Sharafat 47: the remaining is total minus the amount ACTUALLY paid,
+    // not the planned down payment — an overpaid down payment lowers the
+    // remainder (and an underpaid one raises it). Clamped at zero.
+    remainingAfterDownPayment: Math.max(0, Number((sane.totalAmount - paid).toFixed(2))),
     schedule: kistSchedule(sane),
     urduNote: RECEIPT_URDU_NOTE
   };
@@ -1049,7 +1055,18 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
   // Plan 555: the ONE shared receipt money format (receipt-money.js).
   const formatAmount = (val) => formatReceiptMoney(val);
   const rows = (Array.isArray(receipt.schedule) ? receipt.schedule : [])
-    .map((row) => `<div class="receipt-field"><dt>Kist ${row.installmentNumber}/${row.totalMonths}:</dt><dd>${formatAmount(row.amount)} (${row.status === 'billed' ? 'billed' : 'remaining'})</dd></div>`).join('');
+    .map((row) => `<div class="receipt-field"><dt>Kist ${row.installmentNumber}/${row.totalMonths}${row.month ? ` · ${escapeHtml(row.month)}` : ''}:</dt><dd>${formatAmount(row.amount)} (${row.status === 'billed' ? 'billed' : 'remaining'})</dd></div>`).join('');
+  // Sharafat 47: when the amount actually paid differs from the planned
+  // down payment, say so next to the paid row — otherwise the remaining
+  // looks wrong. Shown only when they differ; on a fresh print paid
+  // always equals planned, so the common receipt is unchanged. Hand-built
+  // receipts without a planned figure (downPayment) render no line.
+  const plannedPaidDiff = Number.isFinite(receipt.downPayment) && Number.isFinite(receipt.paidDownPayment)
+    ? Number((receipt.paidDownPayment - receipt.downPayment).toFixed(2))
+    : 0;
+  const plannedVsPaid = plannedPaidDiff !== 0
+    ? `<div class="receipt-field"><dt>Planned Down Payment / منصوبہ شدہ پیشگی:</dt><dd>${formatAmount(receipt.downPayment)} · Paid / ادا شدہ ${formatAmount(receipt.paidDownPayment)} (${formatAmount(Math.abs(plannedPaidDiff))} ${plannedPaidDiff > 0 ? 'extra / اضافی' : 'short / کم'})</dd></div>`
+    : '';
   // Plan Q: shared A4 header (same title/meta data source as every
   // other receipt) and shared footer (thank-you + studio footer, so a
   // configured owner footer now also prints on this receipt).
@@ -1070,6 +1087,7 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Total Amount / کل رقم:</dt><dd>${formatAmount(receipt.totalAmount)}</dd></div>
     <div class="receipt-field receipt-paid-field"><dt><strong>Down Payment Received / موصولہ پیشگی:</strong></dt><dd><strong>${formatAmount(receipt.paidDownPayment)}</strong></dd></div>
+    ${plannedVsPaid}
     <div class="receipt-field"><dt>Monthly Kist / ماہانہ قسط:</dt><dd>${formatAmount(receipt.monthlyKist)} × ${receipt.totalMonths} months</dd></div>
     <div class="receipt-field"><dt>Remaining After Down Payment / بقایا:</dt><dd>${formatAmount(receipt.remainingAfterDownPayment)}</dd></div>
     ${receipt.verificationCode ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>VER: ${escapeHtml(receipt.verificationCode)}</strong></dd></div>` : ''}

@@ -236,7 +236,7 @@ import { archivedRosterPage, buildRetentionView, retentionViewHtml, retentionYea
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal, resolveShopCollector } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
-import { computeWaadaChipDate, setupWaadaChipDialog, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada, getWaadaTodayString, isValidWaadaDate } from './waada-queue.js';
+import { computeWaadaChipDate, setupWaadaChipDialog, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada, getWaadaTodayString, isValidWaadaDate, REMAINDER_WAADA_NOTE } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, describeVoidUndo, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
@@ -665,7 +665,8 @@ import { HISTORY_JUMP_TO_BILL_NO_BILL_TEXT, HISTORY_JUMP_TO_BILL_HIGHLIGHT_CLASS
 import { HISTORY_JUMP_TO_RECEIPT_NO_RECEIPT_TEXT, HISTORY_JUMP_TO_RECEIPT_BUTTON_CLASS, historyJumpToReceiptIsPaymentEntry, historyJumpToReceiptShownEntry, historyJumpToReceiptTarget, historyJumpToReceiptButtonText } from './history-jump-to-receipt.js';
 import { HISTORY_SHARE_SUMMARY_DO_NOT_MESSAGE_TEXT, HISTORY_SHARE_SUMMARY_NO_NUMBER_TEXT, historyShareSummaryText, historyShareSummaryButtonMarkup, historyShareSummaryDraftHtml } from './history-share-summary.js';
 import { historyDataQualityViewHtml } from './history-data-quality-flags.js';
-import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
+import { normalizeWadaRecordList, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, findWadaRecord, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
+import { setLiveWaada, clearLiveWaadaIfMatched } from './waada-write.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -8908,26 +8909,32 @@ function renderCustomerProfileView(customer) {
   });
   // Profile polish #5: wire the top-of-profile Wada banner — quick-add
   // form, Poora hua / Wada toota / Remove buttons. Closing a wada
-  // changes only that wada's own status; recording one never touches
-  // any bill, payment, or customer record.
+  // changes only that wada's own status. Sharafat 64: recording one
+  // also sets the live promise on the customer record (one write path),
+  // so the banner, the dashboard and the queues finally agree.
   const wadaBanner = $('#customerProfileView').querySelector('.profile-wada-banner');
   if (wadaBanner) {
     wadaBanner.querySelector('#wadaQuickForm')?.addEventListener('submit', (event) => {
       event.preventDefault();
       const before = loadWadaRecords();
-      const next = recordWadaRecord(before, {
-        id: `WD-${Date.now()}`,
-        customer: customer.id,
-        promisedDate: wadaBanner.querySelector('#wadaQuickDate')?.value ?? '',
-        amountPromised: wadaBanner.querySelector('#wadaQuickAmount')?.value ?? '',
-        note: wadaBanner.querySelector('#wadaQuickNote')?.value ?? '',
-        status: 'pending',
-        closedDate: ''
-      });
-      if (next.length === before.length) { toast('Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.'); return; }
-      saveWadaRecords(next);
+      let written;
+      try {
+        written = setLiveWaada(customer, before, {
+          promiseDate: wadaBanner.querySelector('#wadaQuickDate')?.value ?? '',
+          promiseAmount: wadaBanner.querySelector('#wadaQuickAmount')?.value ?? '',
+          promiseNote: wadaBanner.querySelector('#wadaQuickNote')?.value ?? ''
+        });
+      } catch {
+        toast('Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.');
+        return;
+      }
+      if (written.mirrorStatus === 'refused') { toast('Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.'); return; }
+      const idx = state.customers.findIndex((c) => c.id === written.customer.id);
+      if (idx >= 0) state.customers[idx] = written.customer;
+      if (written.mirrorWritten) saveWadaRecords(written.records);
+      save();
       renderDetail();
-      toast('Wada recorded.');
+      toast(written.mirrorStatus === 'duplicate' ? 'Wada already recorded — live promise set.' : 'Wada recorded.');
     });
     // Plan 507 — the lower section's chips now live in the banner's
     // quick-add form: a chip fills the promised-date input (the date
@@ -8940,7 +8947,21 @@ function renderCustomerProfileView(customer) {
       if (dateInput) dateInput.value = date;
     }));
     wadaBanner.querySelectorAll('[data-wada-kept]').forEach(btn => btn.addEventListener('click', () => {
-      saveWadaRecords(markWadaRecordKept(loadWadaRecords(), btn.getAttribute('data-wada-kept'), getWaadaTodayString()));
+      const keptId = btn.getAttribute('data-wada-kept');
+      const before = loadWadaRecords();
+      const record = findWadaRecord(before, keptId);
+      saveWadaRecords(markWadaRecordKept(before, keptId, getWaadaTodayString()));
+      // Sharafat 64: marking kept clears the live promise when the
+      // record matches it (same customer, date and amount); a newer
+      // live promise, or an already-closed record, leaves it alone.
+      if (record && record.status === 'pending') {
+        const cleared = clearLiveWaadaIfMatched(customer, record);
+        if (cleared !== customer) {
+          const idx = state.customers.findIndex((c) => c.id === customer.id);
+          if (idx >= 0) state.customers[idx] = cleared;
+          save();
+        }
+      }
       renderDetail();
       toast('Wada marked kept.');
     }));
@@ -12396,7 +12417,14 @@ async function onPaymentSubmit(event) {
         }, 0);
         if (outstandingCents > 0) {
           const stamped = stampRemainderWaada(afterCustomer, payMonth, fifoAdded.id, { promiseDate: pickedDate, promiseAmount: outstandingCents / 100 });
-          if (stamped) state = { ...state, customers: state.customers.map(c => c.id === customerId ? stamped : c) };
+          if (stamped) {
+            state = { ...state, customers: state.customers.map(c => c.id === customerId ? stamped : c) };
+            // Sharafat 64: mirror the remainder waada into the
+            // wada-record store through the single writer, so a
+            // profile-form remainder waada reaches the dashboard too.
+            const written = setLiveWaada(stamped, loadWadaRecords(), { promiseDate: pickedDate, promiseAmount: outstandingCents / 100, promiseNote: REMAINDER_WAADA_NOTE });
+            if (written.mirrorWritten) saveWadaRecords(written.records);
+          }
         }
       }
     } catch { /* payment still saves below */ }
@@ -15862,6 +15890,12 @@ window.quickCollectModalController = setupQuickCollectModal({
   // still-unpaid promises, so the operator can link the payment
   // to the promise it fulfils at entry time.
   loadCollectionPromises: () => loadCollectionPromises(),
+  // Sharafat 64: a remainder waada stamped by Quick Collect is
+  // mirrored into the wada-record store through the single writer —
+  // the host reads/saves the record store; the modal never writes
+  // localStorage for it itself.
+  getWadaRecords: () => loadWadaRecords(),
+  onWadaRecords: (next) => saveWadaRecords(next),
   // Plan 449: the success screen reads the customer's active
   // billing link after a save, so the other connection can be
   // offered with its dues in the same pass.
@@ -15901,6 +15935,11 @@ window.fieldModeController = setupFieldMode({
     updateNavigationBadges(state);
   },
   onToast: (msg, opts) => toast(msg, opts),
+  // Sharafat 64: Field Mode waadas (chip + advance remainder) mirror
+  // into the wada-record store through the single writer — the host
+  // reads/saves the record store.
+  getWadaRecords: () => loadWadaRecords(),
+  onWadaRecords: (next) => saveWadaRecords(next),
   // SISP-141: Field Mode 1-tap collects offer the same floating 10s
   // undo toast as Quick Collect (advance collections never do).
   onCollected: offerCollectedUndo,
@@ -43121,8 +43160,13 @@ function openGroupWaadaDialog(customerId) {
     groupWaadaDialog = setupWaadaChipDialog({
       getCustomer: (id) => (state.customers || []).find((c) => c.id === id) || null,
       onApply: (updated) => {
-        const idx = state.customers.findIndex((c) => c.id === updated.id);
-        if (idx >= 0) state.customers[idx] = updated;
+        // Sharafat 64: the chip-set waada goes through the single
+        // writer, so it is mirrored into the wada-record store (the
+        // dashboard/history) as well as the live promise.
+        const written = setLiveWaada(updated, loadWadaRecords(), { promiseDate: updated.promiseDate, promiseAmount: updated.promiseAmount, promiseNote: updated.promiseNote });
+        const idx = state.customers.findIndex((c) => c.id === written.customer.id);
+        if (idx >= 0) state.customers[idx] = written.customer;
+        if (written.mirrorWritten) saveWadaRecords(written.records);
         save();
         // Plan 31: a Waada set from the group dialog is logged like
         // a profile Waada set.
@@ -45548,6 +45592,10 @@ if (typeof document !== 'undefined') {
     },
     onToast: (msg, opts) => toast(msg, opts),
     onWaadaChange: () => { try { persistState(state, localStorage); } catch {} },
+    // Sharafat 64: the top-defaulters Waada dialog mirrors through
+    // the single writer — the host reads/saves the record store.
+    getWadaRecords: () => loadWadaRecords(),
+    onWadaRecords: (next) => saveWadaRecords(next),
     onContactStamp: () => { try { persistState(state, localStorage); } catch {} }
   });
   zoneSheetDialogController = setupZoneSheetDialog(() => state, {
@@ -47322,6 +47370,10 @@ if (typeof document !== 'undefined') {
       },
       onToast: (msg, opts) => toast(msg, opts),
       onWaadaChange: () => { try { persistState(state, localStorage); } catch {} },
+      // Sharafat 64: the top-defaulters Waada dialog mirrors through
+      // the single writer — the host reads/saves the record store.
+      getWadaRecords: () => loadWadaRecords(),
+      onWadaRecords: (next) => saveWadaRecords(next),
       onContactStamp: () => { try { persistState(state, localStorage); } catch {} }
     });
   }

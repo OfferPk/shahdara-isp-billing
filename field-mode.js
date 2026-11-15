@@ -182,6 +182,7 @@ import {
   clearCustomerWaada,
   waadaBadgeLabel
 } from './waada-queue.js';
+import { setLiveWaada } from './waada-write.js';
 import {
   CONTACT_CHANNELS,
   contactBadgeHtml,
@@ -783,13 +784,16 @@ export function speakCustomerDue(state, customerId, { allocations = null, lang =
  * credit (the engine's real FIFO semantics). Throws on a bad amount or
  * an invalid method (executeQuickCollection validates both).
  */
-export function collectFieldModeAdvance(state, entry, { amount, method, targetMonth, remainderWaadaDate } = {}, referenceDate = new Date()) {
+export function collectFieldModeAdvance(state, entry, { amount, method, targetMonth, remainderWaadaDate, wadaRecords } = {}, referenceDate = new Date()) {
   const numAmount = Number(amount);
   if (!entry || !Number.isFinite(numAmount) || numAmount <= 0) {
     throw new Error('Enter a valid advance amount greater than zero.');
   }
   const today = getPakistanLocalDate(referenceDate);
-  const { nextState, receipt } = executeQuickCollection(
+  // Sharafat 64: the wada-record list travels in and the mirrored list
+  // travels back (the caller saves it) — the recorder itself never
+  // writes localStorage for the mirror.
+  const { nextState, receipt, wadaRecords: nextWadaRecords, wadaMirrorStatus } = executeQuickCollection(
     state,
     {
       customerId: entry.id,
@@ -805,14 +809,15 @@ export function collectFieldModeAdvance(state, entry, { amount, method, targetMo
       // Baqi row (the sheet's only custom-amount path — a partial
       // collection against dues). Forwarded untouched: the recorder
       // writes the promise only when money remains due after recording.
-      remainderWaadaDate
+      remainderWaadaDate,
+      wadaRecords
     },
     referenceDate
   );
   // SISP-118: same WhatsApp-number preference as the full-payment path.
   // SISP-91: same saved-language rule as the full-payment path above.
   const customer = nextState.customers.find(c => c.id === entry.id);
-  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { whatsappPhone: customer ? whatsappPhoneFor(customer) : '', lang: receiptLangPreference(customer) }) };
+  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { whatsappPhone: customer ? whatsappPhoneFor(customer) : '', lang: receiptLangPreference(customer) }), wadaRecords: nextWadaRecords, wadaMirrorStatus };
 }
 
 /**
@@ -956,7 +961,10 @@ export function fieldModeReceiptActionMarkup({ hasPrint58 = false, hasPngReceipt
     : `${print58Button}${pngReceiptButton}`;
 }
 
-export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, onPngReceipt, onSmsSlipUrl, onCollected } = {}) {
+export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, onPngReceipt, onSmsSlipUrl, onCollected,
+  // Sharafat 64: Field Mode waadas mirror through the single writer —
+  // the host reads the record store and saves the mirrored list.
+  getWadaRecords = null, onWadaRecords = null } = {}) {
   if (typeof document === 'undefined') return nullFieldModeController();
   const view = document.getElementById('fieldModeView');
   const toggleBtn = document.getElementById('fieldModeToggleBtn');
@@ -1742,8 +1750,12 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     busy = true;
     renderPanel();
     try {
-      const { nextState, receipt, whatsapp } = collectFieldModeAdvance(state, entry, { amount, method, targetMonth, remainderWaadaDate });
+      const { nextState, receipt, whatsapp, wadaRecords: nextWadaRecords, wadaMirrorStatus } = collectFieldModeAdvance(state, entry, { amount, method, targetMonth, remainderWaadaDate, wadaRecords: typeof getWadaRecords === 'function' ? getWadaRecords() : undefined });
       if (typeof onSaveState === 'function') onSaveState(nextState);
+      // Sharafat 64: a remainder waada stamped by this advance is
+      // mirrored into the wada-record store — the caller saves the
+      // returned list; the recorder never writes it itself.
+      if (wadaMirrorStatus === 'written' && typeof onWadaRecords === 'function') onWadaRecords(nextWadaRecords);
       // QC-1: a real collection supersedes a stale not-available
       // mark for this stop (the visit DID end in money).
       markFieldVisitPaid(receipt.customerId);
@@ -1888,12 +1900,22 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const updated = chip === 'clear'
         ? clearFieldModeWaada(customer)
         : applyFieldModeWaadaChip(customer, chip, todayStr(), customInput ? customInput.value : null);
+      // Sharafat 64: a chip-set waada goes through the single writer,
+      // so it is mirrored into the wada-record store (the
+      // dashboard/history) as well as the live promise. Clearing writes
+      // no record — a cleared promise is not a new promise.
+      let waadaed = updated;
+      if (chip !== 'clear') {
+        const written = setLiveWaada(updated, typeof getWadaRecords === 'function' ? getWadaRecords() : [], { promiseDate: updated.promiseDate, promiseAmount: updated.promiseAmount, promiseNote: updated.promiseNote });
+        waadaed = written.customer;
+        if (written.mirrorWritten && typeof onWadaRecords === 'function') onWadaRecords(written.records);
+      }
       const nextState = {
         ...state,
-        customers: state.customers.map(c => (c.id === customer.id ? updated : c))
+        customers: state.customers.map(c => (c.id === customer.id ? waadaed : c))
       };
       if (typeof onSaveState === 'function') onSaveState(nextState);
-      toast(chip === 'clear' ? 'Waada promise cleared.' : `Waada set: ${updated.promiseDate}.`);
+      toast(chip === 'clear' ? 'Waada promise cleared.' : `Waada set: ${waadaed.promiseDate}.`);
     } catch (err) {
       toast(err?.message || 'Could not set promise.');
     }

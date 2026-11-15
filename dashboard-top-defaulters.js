@@ -30,6 +30,7 @@ import {
   computeWaadaScore,
   setupWaadaChipDialog
 } from './waada-queue.js';
+import { setLiveWaada } from './waada-write.js';
 import { t } from './nav-language.js';
 import {
   buildDefaulterLockScript,
@@ -846,6 +847,10 @@ export function setupTopDefaultersModal(state, {
   onToast = null,
   onWaadaChange = null,
   onContactStamp = null,
+  // Sharafat 64: the Waada dialog mirrors through the single writer —
+  // the host reads the record store and saves the mirrored list.
+  getWadaRecords = null,
+  onWadaRecords = null,
   clipboard = null
 } = {}) {
   if (typeof document === 'undefined') return null;
@@ -910,10 +915,15 @@ export function setupTopDefaultersModal(state, {
       waadaDialog = setupWaadaChipDialog({
         getCustomer: (id) => (getState().customers || []).find(c => c.id === id) || null,
         onApply: (updated) => {
+          // Sharafat 64: the chip-set waada goes through the single
+          // writer, so it is mirrored into the wada-record store (the
+          // dashboard/history) as well as the live promise.
+          const written = setLiveWaada(updated, typeof getWadaRecords === 'function' ? getWadaRecords() : [], { promiseDate: updated.promiseDate, promiseAmount: updated.promiseAmount, promiseNote: updated.promiseNote });
           const list = getState().customers || [];
-          const idx = list.findIndex(c => c.id === updated.id);
-          if (idx >= 0) list[idx] = updated;
-          if (typeof onWaadaChange === 'function') onWaadaChange(updated);
+          const idx = list.findIndex(c => c.id === written.customer.id);
+          if (idx >= 0) list[idx] = written.customer;
+          if (written.mirrorWritten && typeof onWadaRecords === 'function') onWadaRecords(written.records);
+          if (typeof onWaadaChange === 'function') onWaadaChange(written.customer);
           renderContent();
         },
         onToast

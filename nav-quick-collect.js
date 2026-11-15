@@ -150,6 +150,7 @@ import {
   restoreClearedWaada,
   REMAINDER_WAADA_NOTE
 } from './waada-queue.js';
+import { setLiveWaada } from './waada-write.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
 import { ensureUrduFont, t } from './nav-language.js';
 import { buildReceiptPaymentHistory, historyRowLabel, shortReceiptNumber } from './receipt.js';
@@ -1006,6 +1007,11 @@ export function executeQuickCollection(state, {
   advanceTargetMonth,
   paidByContributorId,
   remainderWaadaDate,
+  // Sharafat 64: the wada-record list the remainder waada mirrors
+  // into (undefined = no mirror requested). The mirrored list travels
+  // back in the result for the caller to save — never written to
+  // localStorage inside this function.
+  wadaRecords,
   waiveLateFee,
   // Plan 449: the connection this payment is recorded against — the
   // second connection of a two-connection customer, named on the
@@ -1334,6 +1340,11 @@ export function executeQuickCollection(state, {
   // exist without its payment; with no chip date (or nothing left due)
   // nothing is written — the promise is strictly opt-in per chip tap.
   let remainderWaada = null;
+  // Sharafat 64: the mirrored wada-record list travels back in the
+  // result for the caller to save (never written to localStorage
+  // here). null when no remainder waada was stamped.
+  let wadaRecordsOut = null;
+  let wadaMirrorStatus = null;
   const cleanRemainderWaadaDate = typeof remainderWaadaDate === 'string' && isValidWaadaDate(remainderWaadaDate.trim())
     ? remainderWaadaDate.trim()
     : null;
@@ -1366,6 +1377,15 @@ export function executeQuickCollection(state, {
       };
       nextState = { ...nextState, customers: nextState.customers.map(c => c.id === customerId ? waadaed : c) };
       remainderWaada = { promiseDate: cleanRemainderWaadaDate, promiseAmount: payableRemaining };
+      // Sharafat 64: mirror the remainder waada into the wada-record
+      // store through the single writer — but only when the caller
+      // supplied the list; without it there is nothing to mirror into
+      // and the live promise above is all that is written.
+      if (wadaRecords !== undefined) {
+        const written = setLiveWaada(waadaed, wadaRecords, { promiseDate: cleanRemainderWaadaDate, promiseAmount: payableRemaining, promiseNote: REMAINDER_WAADA_NOTE });
+        wadaRecordsOut = written.records;
+        wadaMirrorStatus = written.mirrorStatus;
+      }
     }
   }
 
@@ -1453,7 +1473,7 @@ export function executeQuickCollection(state, {
     // Ignore storage issues
   }
 
-  return { nextState, receipt, nextTickets };
+  return { nextState, receipt, nextTickets, wadaRecords: wadaRecordsOut, wadaMirrorStatus };
 }
 
 /**
@@ -2512,7 +2532,12 @@ export function setupQuickCollectModal({
   // cycle, read fresh when the success screen renders. The
   // option is optional: without it the success screen keeps its
   // old "not recorded" line when nothing is owed.
-  nextDueDateFallback
+  nextDueDateFallback,
+  // Sharafat 64: the remainder-waada mirror goes through the single
+  // writer — the host reads the record store and saves the mirrored
+  // list; the modal never writes localStorage for it itself.
+  getWadaRecords,
+  onWadaRecords
 }) {
   const modal = document.getElementById('quickCollectModal');
   if (!modal) {
@@ -7526,7 +7551,7 @@ export function setupQuickCollectModal({
       // Sharafat 1: the overpayment choice and the excess-cash note
       // are read BEFORE the split branch above (both paths share
       // them) — the single submit below reads the same variables.
-      const { nextState, receipt, nextTickets } = executeQuickCollection(state, {
+      const { nextState, receipt, nextTickets, wadaRecords, wadaMirrorStatus } = executeQuickCollection(state, {
         customerId: activeCustomerId,
         month: monthVal,
         amount: amountVal,
@@ -7563,10 +7588,19 @@ export function setupQuickCollectModal({
         // SISP-126: the armed remainder-waada chip date (null unless the
         // collector tapped a date chip — Skip / untouched writes nothing).
         remainderWaadaDate: selectedRemainderWaadaDate || undefined,
+        // Sharafat 64: the remainder waada mirrors into the wada-record
+        // store through the single writer — the list travels in, the
+        // mirrored list travels back for the host to save.
+        wadaRecords: typeof getWadaRecords === 'function' ? getWadaRecords() : undefined,
         // SISP-43: the live ticket list, so billed ticket charges can
         // settle inside this same collection (see executeQuickCollection).
         tickets: loadTickets()
       });
+
+      // Sharafat 64: a remainder waada stamped by this collection is
+      // mirrored into the wada-record store — the host saves the
+      // returned list; this modal never writes it itself.
+      if (wadaMirrorStatus === 'written' && typeof onWadaRecords === 'function') onWadaRecords(wadaRecords);
 
       // SISP-43: persist the settled tickets BEFORE the ledger state —
       // if this write fails, the whole submit aborts and nothing is

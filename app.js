@@ -12,6 +12,8 @@ import {
   addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining, manualBaqayaOutstandingCents, setManualBaqayaOutstanding,
   whatsappPhoneFor
 } from './core.js?v=1.11.0';
+// Sharafat 87: the Bluetooth test slip's timestamp renders in the app language.
+import { formatHumanDateTime } from './nav-language.js';
 // Polish #23: first-month tag helpers (badge data + bill waiver read).
 import { taggedFirstMonths, firstMonthWaiverOf } from './new-customer-tag.js';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
@@ -5222,7 +5224,7 @@ function setupBluetoothPrinterUi() {
         businessName: state.settings?.businessName || 'Shahdara ISP',
         businessPhone: state.settings?.businessPhone || '',
         receiptNumber: 'TEST',
-        dateTimeLabel: new Date().toLocaleString('en-PK'),
+        dateTimeLabel: formatHumanDateTime(new Date()),
         amount: 'PKR 0',
         statusLabel: 'TEST SLIP',
         footerNote: 'Bluetooth printer test — connection OK.'

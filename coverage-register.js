@@ -186,7 +186,10 @@ export function findCoverageEstimate(estimates, mohalla) {
 // When the mohalla already has an estimate and the new figure differs,
 // the old figure — with its date and basis — is appended to history
 // before replacement, so the previous survey stays visible. Re-saving
-// the identical figure is a no-op: no duplicate history entry is made.
+// the identical figure, date and basis is a no-op: no duplicate history
+// entry is made. A date or basis correction with the same figure saves
+// the new date/basis and leaves history untouched; only a figure change
+// appends the old figure — with its date and basis — to history.
 // Inputs are never mutated.
 export function upsertCoverageEstimate(estimates, entry, compareAreas = null) {
   const next = normalizeCoverageEstimate(entry);
@@ -197,11 +200,13 @@ export function upsertCoverageEstimate(estimates, entry, compareAreas = null) {
     return [...list, next].sort(estimateCompare(compareAreas));
   }
   const current = list[index];
-  if (current.premises === next.premises) return list;
-  const replaced = {
-    ...next,
-    history: [...current.history, { premises: current.premises, date: current.date, basis: current.basis }],
-  };
+  if (current.premises === next.premises && current.date === next.date && current.basis === next.basis) return list;
+  const replaced = current.premises === next.premises
+    ? { ...next, history: current.history }
+    : {
+      ...next,
+      history: [...current.history, { premises: current.premises, date: current.date, basis: current.basis }],
+    };
   const out = [...list];
   out[index] = replaced;
   return out;

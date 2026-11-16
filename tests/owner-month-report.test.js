@@ -10,7 +10,8 @@ import {
   buildOwnerMonthReportPrintHtml,
   setupOwnerMonthReport
 } from '../owner-month-report.js';
-import { buildOwnerKhataReport, formatPKR } from '../owner-khata.js';
+import { buildOwnerKhataReport } from '../owner-khata.js';
+import { formatPKR } from '../core.js';
 import { buildPartnerShareReport, outstandingAtMonthEnd } from '../phase3.js';
 import { calculateDashboardKpis } from '../dashboard.js';
 import { TRANSLATIONS, t } from '../nav-language.js';

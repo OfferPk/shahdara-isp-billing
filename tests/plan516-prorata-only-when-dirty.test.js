@@ -33,6 +33,7 @@ import { dirname, join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
 import { dirtyProfileFieldKeys } from '../profile-field-save.js';
+import { formatPKR } from '../core.js';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
@@ -90,6 +91,10 @@ function runPreview({ customer, inputs, snapshot }) {
     }),
     dateKey: () => '2026-11-15',
     t: (key, _ctx, params) => (params ? `${key}(${JSON.stringify(params)})` : key),
+    // Sharafat 85: the extracted preview formats its money lines through
+    // the canonical formatPKR (core.js) — the harness must provide it,
+    // like the production app.js does via its core.js import.
+    formatPKR,
     roundToNearest50: (n) => n,
     dirtyProfileFieldKeys,
     profileCancelOpenValues: snapshot,
@@ -127,8 +132,12 @@ test('Plan 516: the pro-rata maths branch is untouched', () => {
   assert.ok(src.includes('calculatePlanMigrationProration(currentRate, newRate, todayStr)'), 'preview must still compute from the stored and typed rates');
   assert.ok(src.includes("badge.textContent = t('prof_prorata_badge'"), 'badge must still render');
   assert.ok(src.includes("breakdown.innerHTML = `"), 'days breakdown must still render');
-  assert.ok(src.includes('calcBill.textContent = `PKR ${proration.proRatedCurrentBill.toLocaleString()}`'), 'calculated bill must still render in PKR');
-  assert.ok(src.includes('netAdj.textContent = `${sign}PKR ${effectiveAdjustment.toLocaleString()}'), 'net adjustment must still render in PKR');
+  // Sharafat 85: both money lines now format through the single canonical
+  // formatPKR (core.js) instead of a bare `PKR ${...toLocaleString()}`.
+  // The pinned intent — "must still render in PKR" — is preserved by
+  // formatPKR itself, which always prefixes 'PKR '.
+  assert.ok(src.includes('calcBill.textContent = formatPKR(proration.proRatedCurrentBill)'), 'calculated bill must still render in PKR');
+  assert.ok(src.includes('netAdj.textContent = `${sign}${formatPKR(effectiveAdjustment)}'), 'net adjustment must still render in PKR');
   assert.ok(src.includes('roundToNearest50(Math.abs(proration.netAdjustment), roundMode)'), 'the SISP-131 round-to-Rs-50 credit path must stay');
 });
 

@@ -2084,7 +2084,7 @@ function renderAreaModuleCards() {
   mohallaCardsEl.innerHTML = visible.map((row) => {
     const paidText = row.paidPct === null ? '—' : `${row.paidPct}%`;
     const freeLine = row.freeCount > 0 ? `<span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_free'))}</span><strong>${row.freeCount}</strong></span>` : '';
-    return `<div class="mohalla-card" data-area-key="${escapeHtml(row.key)}"><button type="button" class="mohalla-card-main" data-mohalla-card="${escapeHtml(row.stored)}" aria-label="${escapeHtml(`${row.stored}: ${row.count} ${t('dash_mohalla_users')}, ${t('dash_mohalla_unpaid')} ${formatPKR(row.unpaidPKR)}, ${t('dash_mohalla_paid')} ${paidText}`)}"><span class="mohalla-card-name">${escapeHtml(row.stored)}</span><span class="mohalla-card-headline"><strong class="mohalla-card-count">${row.count}</strong><span class="mohalla-card-users">${escapeHtml(t('dash_mohalla_users'))}</span><span class="mohalla-card-headline-sep">·</span><span class="mohalla-card-paid"><strong>${paidText}</strong> ${escapeHtml(t('dash_mohalla_paid'))}</span></span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_unpaid'))}</span><strong>${escapeHtml(formatPKR(row.unpaidPKR))}</strong></span>${freeLine}</button><div class="mohalla-card-actions"><button type="button" class="mohalla-card-collect mohalla-card-collect--primary" data-mohalla-collect="${escapeHtml(row.stored)}">${dsIcon('Bike', 16)}<span>${escapeHtml(t('dash_mohalla_collect'))}</span></button><button type="button" class="mohalla-card-collect mohalla-card-collect--compact" data-mohalla-area-view="${escapeHtml(row.stored)}">Area view</button></div></div>`;
+    return `<div class="mohalla-card" data-area-key="${escapeHtml(row.key)}"><button type="button" class="mohalla-card-main" data-mohalla-card="${escapeHtml(row.stored)}" aria-label="${escapeHtml(`${row.stored}: ${row.count} ${t('dash_mohalla_users')}, ${t('dash_mohalla_unpaid')} ${formatPKR(row.unpaidPKR)}, ${t('dash_mohalla_paid')} ${paidText}`)}"><span class="mohalla-card-name">${escapeHtml(row.stored)}</span><span class="mohalla-card-headline"><strong class="mohalla-card-count">${row.count}</strong><span class="mohalla-card-users">${escapeHtml(t('dash_mohalla_users'))}</span><span class="mohalla-card-headline-sep">·</span><span class="mohalla-card-paid"><strong>${paidText}</strong> ${escapeHtml(t('dash_mohalla_paid'))}</span></span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_unpaid'))}</span><strong>${escapeHtml(formatPKR(row.unpaidPKR))}</strong></span>${freeLine}</button><div class="mohalla-card-actions"><button type="button" class="mohalla-card-collect mohalla-card-collect--primary" data-mohalla-collect="${escapeHtml(row.stored)}">${dsIcon('Bike', 16)}<span>${escapeHtml(t('dash_mohalla_collect'))}</span></button><button type="button" class="mohalla-card-collect mohalla-card-collect--compact" data-mohalla-area-view="${escapeHtml(row.stored)}">${escapeHtml(t('dash_area_view'))}</button></div></div>`;
   }).join('');
   mohallaCardsEl.querySelectorAll('[data-mohalla-card]').forEach((button) => button.addEventListener('click', () => {
     customerSearchField = 'area';
@@ -2135,7 +2135,7 @@ function renderAreaModuleCards() {
     const bodyEl = $('#areaOperationsBody');
     if (bodyEl) bodyEl.innerHTML = areaOperationsViewHtml(view);
     const titleEl = $('#areaOperationsTitle');
-    if (titleEl) titleEl.textContent = view.validArea ? `Area view — ${view.area.stored}` : 'Area view';
+    if (titleEl) titleEl.textContent = view.validArea ? t('dash_area_view_named', null, { area: view.area.stored }) : t('dash_area_view');
     const customersBtn = $('#areaOperationsCustomersBtn');
     if (customersBtn) customersBtn.onclick = () => {
       customerSearchField = 'area';
@@ -9842,18 +9842,18 @@ function renderCustomerProfileView(customer) {
           const waived = await appConfirm({ tone:'warning', title:'Waive remaining kist?', subject:`${plan.itemTitle} · ${formatAmount(presentation.payoffAmount)} waived`, message:'No payment will be recorded. The reason below is stored on the plan.', confirmLabel:'Waive with this reason', cancelLabel:'Cancel', input:{ label:'Waiver reason (required)', placeholder:'e.g. Owner concession, device returned', maxLength:200 } });
           if (!waived) return;
           const reason = (document.getElementById('appConfirmInput')?.value || '').trim();
-          if (validatePayoffChoice({ method:'waiver', reason }) !== null) { toast('A waived payoff needs a reason on record.', { type:'error', title:'Not settled' }); return; }
+          if (validatePayoffChoice({ method:'waiver', reason }) !== null) { toast('A waived payoff needs a reason on record.', { type:'error', title: t('prof_kist_not_settled_title') }); return; }
           const plans = settlePlanEarly(customer.installmentPlans, planId, { date: pakistanToday(), method:'waiver', reason });
           applyProfileKist({ ...customer, installmentPlans: plans }, `Kist settled early (waived): ${plan.itemTitle} — ${formatAmount(presentation.payoffAmount)} waived (${reason}). No future cycle will bill it.`);
           return;
         }
         // Payment path: amount first, settle second. A zero remainder
         // cannot be recorded as a payment, so it cannot take this path.
-        if (!(presentation.payoffAmount > 0)) { toast('Nothing left to pay on this plan — waive the remainder with a reason instead.', { type:'error', title:'Not settled' }); return; }
+        if (!(presentation.payoffAmount > 0)) { toast('Nothing left to pay on this plan — waive the remainder with a reason instead.', { type:'error', title: t('prof_kist_not_settled_title') }); return; }
         const methodAsk = await appConfirm({ tone:'warning', title:'Record payoff payment', subject:`${plan.itemTitle} · ${formatAmount(presentation.payoffAmount)}`, message:`Payment method — type one of: ${PAYMENT_METHODS.join(', ')}. The payment is recorded on this month's bill first; the plan settles only after it records.`, confirmLabel:'Record payment', cancelLabel:'Cancel', input:{ label:'Payment method', placeholder:'Cash', maxLength:64 } });
         if (!methodAsk) return;
         const method = (document.getElementById('appConfirmInput')?.value || '').trim();
-        if (!PAYMENT_METHODS.includes(method)) { toast(`Unknown payment method: ${method || '(blank)'}. The plan was not settled.`, { type:'error', title:'Not settled' }); return; }
+        if (!PAYMENT_METHODS.includes(method)) { toast(t('prof_kist_unknown_method', null, { method: method || '(blank)' }), { type:'error', title: t('prof_kist_not_settled_title') }); return; }
         try {
           const month = pakistanMonthNow();
           const idx = state.customers.findIndex((row) => row.id === customer.id);
@@ -9866,7 +9866,7 @@ function renderCustomerProfileView(customer) {
           if (!added) throw new Error('Payoff payment did not record.');
           const plans = settlePlanEarly(paidCustomer.installmentPlans, planId, { date: pakistanToday(), method:'payment', paymentId: added.id });
           applyProfileKist({ ...paidCustomer, installmentPlans: plans }, `Kist settled early: ${plan.itemTitle} — ${formatAmount(presentation.payoffAmount)} paid (${method}). No future cycle will bill it.`);
-        } catch (err) { toast(err?.message || 'Payoff payment could not be recorded. The plan was not settled.', { type:'error', title:'Not settled' }); }
+        } catch (err) { toast(err?.message || 'Payoff payment could not be recorded. The plan was not settled.', { type:'error', title: t('prof_kist_not_settled_title') }); }
       });
     });
   }
@@ -14795,7 +14795,7 @@ function updateProfileCompletionCounter() {
   const el = $('#profileCompletionCounter');
   if (!form || !el) return;
   const completion = countProfileCompletionFromControls(profileFieldControls());
-  el.textContent = completion.text;
+  el.textContent = t('prof_completion_counter', null, { filled: completion.filled, total: completion.total });
   // Profile redesign — the visual bar directly above the counter mirrors
   // the same count (same filled/total, same callers).
   const fill = document.querySelector('.profile-completion-fill');
@@ -16293,6 +16293,7 @@ window.addEventListener('shahdara:language-change', () => {
   renderCustomers();
   renderDashboard();
   renderMonthlyReport();
+  updateProfileCompletionCounter();
 });
 
 // Setup Pending Actions Center & Collection Promises Suite (agent2 - shahdara-mobile-nav)
@@ -44242,7 +44243,7 @@ if (shareStatementWhatsAppBtn) {
           document.execCommand('copy');
           ta.remove();
         }
-        toast('No phone number saved for this customer. The statement summary was copied to the clipboard instead.', { type: 'warning', title: 'No phone number' });
+        toast(t('stmt_no_phone_clipboard'), { type: 'warning', title: t('qc_toast_no_phone_title') });
       } catch {
         toast('Unable to copy statement to clipboard.');
       }

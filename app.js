@@ -46493,7 +46493,7 @@ if (typeof document !== 'undefined') {
     onConfirm: (opts) => appConfirm(opts),
     // Mohalla Numbering: the zones list reads in the numbered order
     // first, then the complaint zones recorded on the ledger.
-    getZones: () => [...sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS), ...collectComplaintZones(state)],
+    getZones: () => [...sortMohallaNamesByNumberedOrder(DEFAULT_MOHALLAS), ...collectComplaintZones(state, loadComplaints())],
     logAreaOutage: logPowerDepletionComplaint
   });
   runPowerBackupDepletionCheck();

@@ -203,12 +203,26 @@ test('dashboard summary counts and downtime totals', () => {
   assert.equal(summary.totalDowntime, 3);
 });
 
-test('zones combine customer zones with known Shahdara zones', () => {
-  const zones = collectComplaintZones({ customers: [{ zone: 'Custom Zone' }, { zone: '' }, { zone: 'Barrian' }] });
+test('zones are the canonical 12 plus zones actually in use (Sharafat 72)', () => {
+  // Sharafat 72 rewrote this pin: the old contract was "the dropdown is
+  // the 5-entry seed list plus customer zones" — the seed offered zones
+  // that match nothing (Chandall, Palaliya, Shahdara Town) and complaint
+  // zones were never collected at all. The list is now the 12 numbered
+  // mohallas always, plus zones actually in use on a customer or a
+  // complaint; variants collapse to one canonical entry.
+  const zones = collectComplaintZones(
+    { customers: [{ zone: 'Custom Zone' }, { zone: '' }, { zone: 'Barrian' }] },
+    [{ zone: 'Palaliya' }],
+  );
   assert.ok(zones.includes('Custom Zone'));
-  assert.ok(zones.includes('Shahdara Town'));
+  assert.ok(!zones.includes('Shahdara Town'));
+  assert.ok(!zones.includes('Chandall'));
+  assert.ok(!zones.includes('Palaliya'));
+  assert.ok(zones.includes('Palaliyaa'));
+  assert.ok(zones.includes('Charyaa'));
   assert.ok(zones.includes('Barrian'));
   assert.equal(zones.filter((z) => z === 'Barrian').length, 1);
+  assert.equal(zones.filter((z) => z === 'Palaliyaa').length, 1);
 });
 
 test('backup round-trip: complaints travel in settings.complaints under safe-merge rules', () => {

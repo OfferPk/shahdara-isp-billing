@@ -129,9 +129,11 @@ test('csv: a null amount_paid stays empty, and the status column stays raw', () 
 });
 
 test('guards: formatPKR is imported from core.js, never owner-khata.js', () => {
-  // Sharafat 74 R2: owner-khata.js exports a DIFFERENT formatPKR
-  // ("Rs. " prefix, rounds to whole rupees, null -> 'Rs. 0') — an
-  // import from there would silently lose paisa.
+  // Sharafat 74 R2 (updated by Sharafat 85): owner-khata.js used to export
+  // a DIFFERENT formatPKR ("Rs. " prefix, rounds to whole rupees, null ->
+  // 'Rs. 0') — an import from there would silently lose paisa. Sharafat 85
+  // deleted that copy outright, so an import from owner-khata.js would now
+  // fail at load; this guard pins the only remaining source, core.js.
   assert.ok(moduleSrc.includes("from './core.js'"));
   assert.doesNotMatch(moduleSrc, /from '\.\/owner-khata\.js'/);
 });

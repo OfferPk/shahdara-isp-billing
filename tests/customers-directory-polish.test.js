@@ -330,7 +330,11 @@ test('archived panel: table mode renders archived rows, cards mode renders cards
   const archivedBlock = appSrc.slice(blockAt, blockEnd);
   assert.ok(archivedBlock.includes("customerViewMode === 'table'"), 'archived block must branch on the view mode');
   assert.ok(archivedBlock.includes('renderCustomerTableRowMarkup(customer, { selectedCustomerId, selectedBillingMonth, allocations: healthAllocations, archived: true })'), 'table mode must render archived rows with archived: true');
-  assert.ok(archivedBlock.includes('archivedTableBody.innerHTML = archivedPaged.items.map'), 'table mode must render into the archived tbody');
+  // Sharafat 84: the archived .map now runs over `shownArchived` — the
+  // capped slice of archivedPaged.items (the first 100 rows under page
+  // size 'all', archivedPaged.items itself for numeric sizes). The tbody
+  // target and the archived: true markup are unchanged.
+  assert.ok(archivedBlock.includes('archivedTableBody.innerHTML = shownArchived.map'), 'table mode must render into the archived tbody');
   assert.ok(archivedBlock.includes('customerCardMarkup(customer, true, healthAllocations)'), 'cards mode must keep rendering archived cards');
   assert.ok(archivedBlock.includes('archivedList.hidden = true'), 'table mode must hide the archived <ul>');
   assert.ok(archivedBlock.includes('archivedTableWrap.hidden = archivedPaged.items.length === 0'), 'an empty archived pool must hide the table wrap instead of rendering the empty markup (its reset button id would duplicate the active table\'s)');

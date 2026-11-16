@@ -2053,6 +2053,11 @@ function renderAreaModuleCards() {
     if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
     if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
     if ($('#customerListSearch')) $('#customerListSearch').value = button.dataset.mohallaCard;
+    // Sharafat 81: the field changed to 'area' with the query, so the
+    // stored list query alone no longer describes the rendered state
+    // — invalidate it, so the next same-text list keystroke
+    // re-renders once (R5 pin).
+    lastRenderedListQuery = null;
     customerCurrentPage = 1;
     switchView('customers');
     renderCustomers();
@@ -2095,6 +2100,10 @@ function renderAreaModuleCards() {
       if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
       if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
       if ($('#customerListSearch')) $('#customerListSearch').value = stored;
+      // Sharafat 81: the field changed to 'area' with the query — see
+      // the mohalla-card setter above; invalidate the stored list
+      // query so the next same-text keystroke re-renders once (R5).
+      lastRenderedListQuery = null;
       customerCurrentPage = 1;
       if (typeof dialog.close === 'function' && dialog.open) dialog.close();
       switchView('customers');
@@ -4113,6 +4122,11 @@ function renderRosterPillBar(summary) {
 function resetCustomerRosterFilters() {
   if ($('#customerListSearch')) $('#customerListSearch').value = '';
   if ($('#globalCustomerSearch')) $('#globalCustomerSearch').value = '';
+  // Sharafat 81: both boxes are empty and renderCustomers below shows
+  // the unfiltered roster — record the empty queries, or retyping
+  // the previous query afterwards is wrongly skipped (R5).
+  lastRenderedGlobalQuery = '';
+  lastRenderedListQuery = '';
   customerSearchField = UNIFIED_IDENTIFIER_FIELD_ID;
   if ($('#customerSearchField')) $('#customerSearchField').value = UNIFIED_IDENTIFIER_FIELD_ID;
   customerRosterPill = 'all';
@@ -13206,13 +13220,55 @@ async function requestDeleteIncident(customerId, incidentId) {
   catch (error) { toast(error.message); }
 }
 
-$('#customerListSearch').addEventListener('input', renderCustomers);
+// Sharafat 81: debounce the two search boxes (trailing edge, 150 ms)
+// and skip re-renders when the normalised query did not change.
+// One global keystroke used to re-render four screens (8 full-ledger
+// allocation passes); a 10-character burst is now exactly 1 pass.
+// The guard runs at KEYSTROKE time: when the normalised query is
+// already the last-rendered one, the handler returns WITHOUT
+// clearing a pending timer — a burst that ends back on an
+// already-rendered query (type 'ahmedx', delete the 'x') still fires
+// once for the query the timer was armed for, which is the behaviour
+// the repro's G1 case pins; clearing the timer there would wrongly
+// skip it. The timer callback reads the CURRENT query at fire time
+// (never a captured one, so a Clear clicked inside the 150 ms
+// window cannot resurrect the old query) and records it before
+// rendering. The last-rendered queries are also written by every
+// direct path (Clear, reset, mohalla card, ...) that renders, so
+// clear-then-retype is never wrongly skipped (R5). The values are
+// the NORMALISED effective queries (NFKC + trim + lowercase, the
+// customerMatchesQuery expression), never the raw box values. State
+// lives here, as plain `let`s, so the test harness can extract the
+// wirings with it (R11).
+let listSearchDebounceTimer = null;
+let lastRenderedListQuery = null;
+let globalSearchDebounceTimer = null;
+let lastRenderedGlobalQuery = null;
+
+$('#customerListSearch').addEventListener('input', () => {
+  const effectiveListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+  if (effectiveListQuery === lastRenderedListQuery) return;
+  clearTimeout(listSearchDebounceTimer);
+  listSearchDebounceTimer = setTimeout(() => {
+    lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+    renderCustomers();
+  }, 150);
+});
 $('#customerSearchField')?.addEventListener('change', (event) => {
   // Plan 456: the unified "Any identifier" field is not one of the
   // field-scoped options, so it is accepted as-is; every other
   // picked value still goes through the field normalizer.
   const picked = event.currentTarget.value;
   customerSearchField = picked === UNIFIED_IDENTIFIER_FIELD_ID ? UNIFIED_IDENTIFIER_FIELD_ID : normalizeCustomerSearchField(picked);
+  // Sharafat 81: the FIELD changed, so the stored list query alone
+  // no longer describes what renderCustomers is about to show —
+  // invalidate it, so the next same-text keystroke re-renders once
+  // (R5 pin). The guard key is the query alone: the field cannot be
+  // part of it, because the harness that extracts these wirings has
+  // no customerSearchField in scope — the prep's alternative (record
+  // at every direct render) is used everywhere else, and invalidation
+  // is the equivalent here, where the field itself moved.
+  lastRenderedListQuery = null;
   customerCurrentPage = 1; renderCustomers();
 });
 $('#clearCustomerListSearch').addEventListener('click', () => {
@@ -13226,8 +13282,16 @@ $('#clearCustomerListSearch').addEventListener('click', () => {
   $('#customerListSearch').value = '';
   if (globalIsActiveFilter) {
     $('#globalCustomerSearch').value = '';
+    // Sharafat 81: both boxes are now empty and the four renders
+    // below show the unfiltered screens — record the empty queries,
+    // or retyping the previous query afterwards is wrongly skipped.
+    lastRenderedGlobalQuery = '';
+    lastRenderedListQuery = '';
     renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport();
   } else {
+    // Sharafat 81: the list box is empty; the roster now shows the
+    // global fallback (if any) — record the effective query.
+    lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
     renderCustomers();
   }
   $('#customerListSearch').focus();
@@ -13235,16 +13299,28 @@ $('#clearCustomerListSearch').addEventListener('click', () => {
 // Sharafat 31: the chip's × clears the global query exactly like
 // #clearGlobalSearch — the full four-call mirror, not just the box —
 // and returns focus to the list box.
-$('#clearGlobalSearchChip')?.addEventListener('click', () => { $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#customerListSearch').focus(); });
+$('#clearGlobalSearchChip')?.addEventListener('click', () => { $('#globalCustomerSearch').value = ''; lastRenderedGlobalQuery = ''; lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#customerListSearch').focus(); });
 // Sharafat 35: the cards-mode reset button is static markup (a sibling of
 // #noSearchResults — never inside it, see the toggle in renderCustomers),
 // so it is wired ONCE here at module setup, never inside renderCustomers()
 // (which would double-bind a listener on every render, unlike the table
 // button, which innerHTML rebuilds fresh each time).
 $('#resetCustomerCardsFiltersBtn')?.addEventListener('click', resetCustomerRosterFilters);
-$('#globalCustomerSearch').addEventListener('input', () => { renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
+$('#globalCustomerSearch').addEventListener('input', () => {
+  const effectiveGlobalQuery = String(searchQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+  if (effectiveGlobalQuery === lastRenderedGlobalQuery) return;
+  clearTimeout(globalSearchDebounceTimer);
+  globalSearchDebounceTimer = setTimeout(() => {
+    lastRenderedGlobalQuery = String(searchQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+    // The four renders below include renderCustomers, so the roster
+    // now shows this effective list query — record it too, or the
+    // next same-text list keystroke is wrongly skipped (R5).
+    lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+    renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport();
+  }, 150);
+});
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });
-$('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });
+$('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; lastRenderedGlobalQuery = ''; lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });
 $('#showCustomersButton').addEventListener('click', () => switchView('customers'));
 // Plan 33: the header mode button stays reachable in both modes, so the
 // mode can be switched back even while owner screens are blocked.
@@ -13488,6 +13564,11 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   receiptFinderQuery = '';
   receiptFinderShown = 25;
   $('#globalCustomerSearch').value = '';
+  // Sharafat 81: the global query is now empty and the four renders
+  // below show the unfiltered screens — record the empty global
+  // query and the effective list query the roster now shows.
+  lastRenderedGlobalQuery = '';
+  lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   const reportSearch = $('#reportCustomerSearch');
   if (reportSearch) reportSearch.value = '';
   reportSearchQuery = '';
@@ -13825,6 +13906,11 @@ function saveNewCustomer(allowDuplicateName = false) {
       state.customers[state.customers.length - 1] = appendSignalReading(justAdded, { dbm: justAdded.lastRxDbm, source: 'install' });
     }
     $('#globalCustomerSearch').value = '';
+    // Sharafat 81: the global query is now empty and save() below
+    // re-renders the screens — record the empty global query and
+    // the effective list query the roster now shows.
+    lastRenderedGlobalQuery = '';
+    lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
     save();
     const addedCustomer = state.customers.at(-1);
     customerDraftController?.clear();

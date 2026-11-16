@@ -99,8 +99,19 @@ test('log: chronological order, area outage labelled, notes carried', () => {
   );
   assert.equal(report.log[4].customer, 'Area outage · Barrian');
   assert.equal(report.log[0].resolutionNote, 'Splice repaired');
-  assert.equal(report.log[3].status, 'Pending');
+  // Sharafat 73: the old pin asserted 'Pending' for CMP-104, whose stored
+  // status is 'Open' — the log collapsed every non-Resolved status to
+  // 'Pending'. The log now prints the real status.
+  assert.equal(report.log[3].status, 'Open');
   assert.equal(report.log[3].downtimeHours, 0);
+});
+
+test('log: an In Progress complaint reads "In Progress", not "Pending" (Sharafat 73)', () => {
+  const report = buildMonthlyComplaintReport(
+    [complaint({ id: 'CMP-106', customerId: 'c3', customerName: 'Test Customer 55', status: 'In Progress', resolvedAt: '' })],
+    '2026-10'
+  );
+  assert.equal(report.log[0].status, 'In Progress');
 });
 
 test('invalid month yields a zeroed report', () => {

@@ -7,6 +7,7 @@
 // are generated client-side (print window, CSV blob, clipboard copy).
 import {
   AREA_OUTAGE_CUSTOMER_ID,
+  COMPLAINT_STATUSES,
   complaintCustomerLabel,
   loadComplaints,
   pakistanMonthNow
@@ -74,6 +75,9 @@ export function buildMonthlyComplaintReport(list, month) {
   const totalDowntime = analytics.totalDowntime;
 
   const customerMap = new Map();
+  // Sharafat 73: distinct zones per customer, in first-seen order — a
+  // customer whose complaints span zones shows them all, not just the first.
+  const customerZones = new Map();
   for (const complaint of rows) {
     if (isAreaOutage(complaint)) continue;
     const key = complaint.customerId !== null && complaint.customerId !== undefined && String(complaint.customerId) !== ''
@@ -91,11 +95,13 @@ export function buildMonthlyComplaintReport(list, month) {
         lastResolvedAt: ''
       };
       customerMap.set(key, entry);
+      customerZones.set(key, []);
     }
     entry.complaintCount += 1;
     entry.totalDowntime = round2(entry.totalDowntime + downtimeOf(complaint));
     const zone = cleanText(complaint.zone);
-    if (zone && !entry.areaZone) entry.areaZone = zone;
+    const zones = customerZones.get(key);
+    if (zone && !zones.includes(zone)) zones.push(zone);
     if (complaint.status === 'Resolved') {
       const resolvedAt = String(complaint.resolvedAt || '');
       if (resolvedAt && (!entry.lastResolvedAt || resolvedAt > entry.lastResolvedAt)) {
@@ -106,8 +112,9 @@ export function buildMonthlyComplaintReport(list, month) {
     }
   }
 
-  const perCustomer = [...customerMap.values()].map((entry) => ({
+  const perCustomer = [...customerMap.entries()].map(([key, entry]) => ({
     ...entry,
+    areaZone: (customerZones.get(key) || []).join(', '),
     status: entry.pendingCount > 0 ? `Pending (${entry.pendingCount})` : 'Resolved'
   })).sort((a, b) =>
     (b.complaintCount - a.complaintCount) ||
@@ -133,7 +140,9 @@ export function buildMonthlyComplaintReport(list, month) {
     resolvedAt: String(c.resolvedAt || ''),
     downtimeHours: downtimeOf(c),
     resolutionNote: cleanText(c.resolutionNote),
-    status: c.status === 'Resolved' ? 'Resolved' : 'Pending'
+    // Sharafat 73: the log prints the real status — unknown statuses
+    // degrade to 'Pending', never a raw string in an executive CSV.
+    status: COMPLAINT_STATUSES.includes(c.status) ? c.status : 'Pending'
   }));
 
   return {
@@ -208,7 +217,9 @@ export function buildReportCsv(report) {
   for (const row of report.log) {
     lines.push(csvRow([row.id, row.customer, row.issueCategory, row.reportedAt, row.resolvedAt, row.downtimeHours, row.resolutionNote, row.status]));
   }
-  return lines.join('\n');
+  // Sharafat 73: UTF-8 BOM + CRLF, the house CSV convention (ageing and
+  // history CSVs) — so Urdu/customer names open correctly in Excel.
+  return '\uFEFF' + lines.join('\r\n');
 }
 
 /**

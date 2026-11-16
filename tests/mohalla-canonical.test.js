@@ -31,6 +31,9 @@ test('spelling variants fold into the same canonical mohalla', () => {
   assert.equal(canonicalMohalla('MOHALLA KISHTI').stored, 'KISHTII');
   assert.equal(canonicalMohalla('Chamyaa').stored, 'CHAMYAAA');
   assert.equal(canonicalMohalla('MOHALLA CHAMYAA').stored, 'CHAMYAAA');
+  // Sharafat 72: Palaliya is the stored single-i spelling of PALALIYAA.
+  assert.equal(canonicalMohalla('Palaliya').stored, 'PALALIYAA');
+  assert.equal(canonicalMohalla('MOHALLA PALALIYA').stored, 'PALALIYAA');
 });
 
 test('case, prefix and spacing differences do not split a mohalla', () => {

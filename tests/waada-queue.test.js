@@ -259,7 +259,12 @@ test('SISP-126 chip dates: +3/+7 days and 10th/15th with the passed-day rollover
   assert.equal(remainderWaadaChipDates('not-a-date'), null);
   assert.equal(dayOfMonthWaadaDate('2026-10-16', 15), '2026-11-15');
   assert.equal(fifteenthOfMonthWaadaDate('2026-02-28'), '2026-03-15');
-  assert.equal(dayOfMonthWaadaDate('2026-10-05', 31), null);
+  // Sharafat 70 rewrote this pin: the old contract was
+  // "dayOfMonthWaadaDate('2026-10-05', 31) is null" — the 28-cap is
+  // lifted, so the 31st is a real chip date now (same month when today
+  // is on or before it, clamped to the month's last day when shorter).
+  assert.equal(dayOfMonthWaadaDate('2026-10-05', 31), '2026-10-31');
+  assert.equal(dayOfMonthWaadaDate('2026-11-12', 31), '2026-11-30');
 });
 
 test('SISP-126 remainder: only a true partial (0 < paid < due) yields a remainder', () => {

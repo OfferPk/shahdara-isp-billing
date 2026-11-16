@@ -1,7 +1,7 @@
 /*
  * Plan 518 — zone suggestions for the profile edit form.
  *
- * Area has a datalist of its 15 mohallas, but Zone was a bare
+ * Area has a datalist of its 16 mohallas, but Zone was a bare
  * free-text input, so operators typed zone names freehand and the
  * same zone got spelled several ways. This module derives the
  * suggestions from the zones already used under the chosen area:

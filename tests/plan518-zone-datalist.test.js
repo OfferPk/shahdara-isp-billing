@@ -65,7 +65,12 @@ test('Plan 518: Area datalist is untouched', () => {
   assert.match(tag, /list="mohallaOptions"/, 'Area still points at its own datalist');
   const options = formHtml().match(/<datalist id="mohallaOptions">([\s\S]*?)<\/datalist>/);
   assert.ok(options, 'Area datalist still exists');
-  assert.equal((options[1].match(/<option/g) || []).length, 15, 'Area still offers its 15 mohallas');
+  // Sharafat 76: the Area datalist now offers all 16 mohallas — END POINT
+  // (the 16th mohalla, already in every JS DEFAULT_MOHALLAS list since
+  // Mohalla Numbering #1364) was missing from this hardcoded datalist,
+  // so it never appeared in the Area suggestions on the profile,
+  // new-customer, wizard and quick-add forms. 15 pinned the bug.
+  assert.equal((options[1].match(/<option/g) || []).length, 16, 'Area still offers its 16 mohallas');
 });
 
 test('Plan 518: zonesUnderArea returns the distinct zones under the chosen area, sorted', () => {

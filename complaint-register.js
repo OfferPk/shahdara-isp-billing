@@ -111,6 +111,7 @@ import { buildDaisyChainAlert, buildOutageQueueText, buildOutageQueue, buildUpst
 import { complaintFaultGroup, rootCauseBannerHtml } from './root-cause-advisor.js';
 import { effectiveQueuePriority, isSlaPinned, priorityForNewQueueItem, sortQueueBySla } from './commercial-sla.js';
 import { getWaTemplates } from './whatsapp-templates.js';
+import { canonicalMohalla, recoveryMohallaRank, RECOVERY_MOHALLA_ORDER, compareMohallaAreas } from './phase3.js';
 
 export const COMPLAINTS_KEY = 'sisp_complaints_ledger_v1';
 
@@ -685,9 +686,24 @@ export function updateComplaint(list, id, patch) {
 
 /**
  * Register filters. Month matches the reported month (YYYY-MM); customer
- * matches customer id or name substring; zone/category match exactly.
- * Empty filter values mean "no filter".
+ * matches customer id or name substring; category matches exactly; zone
+ * matches through the canonical mohalla (Sharafat 72: rank-or-key, so
+ * spelling variants fold together — THALI/THALII, Haweli/End Point,
+ * Palaliya/PALALIYAA). Empty filter values mean "no filter".
  */
+/**
+ * Sharafat 72 — zone match key: two zone spellings match iff they are the
+ * same mohalla. A ranked mohalla matches by its number in the fixed
+ * numbered order (so THALI/THALII share #7 and Haweli/End Point share
+ * #12); anything else matches by its canonical key (case/prefix/spacing
+ * folded by canonicalMohalla). Null when the zone is blank.
+ */
+function zoneMatchKey(value) {
+  const canon = canonicalMohalla(value);
+  if (!canon) return null;
+  return recoveryMohallaRank(value)?.number ?? canon.key;
+}
+
 export function filterComplaints(list, filters = {}) {
   const month = MONTH_RE.test(String(filters.month || '')) ? String(filters.month) : '';
   const status = COMPLAINT_STATUSES.includes(filters.status) ? filters.status : '';
@@ -699,7 +715,7 @@ export function filterComplaints(list, filters = {}) {
     if (month && String(c.reportedAt || '').slice(0, 7) !== month) return false;
     if (status && c.status !== status) return false;
     if (customer && String(c.customerId ?? '') !== customer && !String(c.customerName || '').toLowerCase().includes(customer.toLowerCase())) return false;
-    if (zone && c.zone !== zone) return false;
+    if (zone && zoneMatchKey(c.zone) !== zoneMatchKey(zone)) return false;
     if (category && c.issueCategory !== category) return false;
     return true;
   });
@@ -724,14 +740,33 @@ export function buildComplaintSummary(list, referenceDate = new Date()) {
 }
 
 /** Zones for the register filters: customer zones + known Shahdara zones, deduped. */
-export function collectComplaintZones(state) {
-  const known = ['Shahdara Town', 'Barrian', 'Palaliya', 'Chandall', 'Banii'];
-  const zones = new Set(known);
-  for (const customer of (state && Array.isArray(state.customers) ? state.customers : [])) {
-    const zone = cleanText(customer?.zone);
-    if (zone) zones.add(zone);
+/**
+ * Sharafat 72 — zones offered by the complaint filter (and the add-form
+ * zone datalist, which shares this list): the 12 numbered mohallas
+ * always, plus zones actually in use on a customer or a complaint,
+ * deduped by zone match key and shown by canonical label when the zone
+ * has a canonical home, raw spelling otherwise. The old 5-entry seed
+ * list is gone: it offered zones that match nothing (Chandall appears
+ * nowhere in the seeded lists; Palaliya is a misspelling of PALALIYAA;
+ * Shahdara Town is generic). A stored zone that is actually in use
+ * still appears — even Chandall or Shahdara Town — because the rule
+ * is "in use", not "canonical only". Complaints live in the ledger,
+ * not app state, so callers pass them as the second argument.
+ */
+export function collectComplaintZones(state, complaints = []) {
+  const byKey = new Map();
+  for (const row of RECOVERY_MOHALLA_ORDER) {
+    byKey.set(row.number, canonicalMohalla(row.label)?.label ?? row.label);
   }
-  return [...zones].sort((a, b) => a.localeCompare(b));
+  const addZone = (raw) => {
+    const zone = cleanText(raw);
+    if (!zone) return;
+    const key = zoneMatchKey(zone);
+    if (!byKey.has(key)) byKey.set(key, canonicalMohalla(zone)?.label ?? zone);
+  };
+  for (const customer of (state && Array.isArray(state.customers) ? state.customers : [])) addZone(customer?.zone);
+  for (const complaint of (Array.isArray(complaints) ? complaints : [])) addZone(complaint?.zone);
+  return [...byKey.values()].sort(compareMohallaAreas);
 }
 
 /**
@@ -841,7 +876,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
 
   function refreshFilterSelects() {
     const state = getState() || { customers: [] };
-    const zones = collectComplaintZones(state);
+    const zones = collectComplaintZones(state, loadComplaints());
     const zoneFilter = $('complaintFilterZone');
     if (zoneFilter) {
       const prev = filters.zone;

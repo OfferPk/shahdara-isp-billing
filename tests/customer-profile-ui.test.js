@@ -141,6 +141,37 @@ test('help disclosures and profile tabs have accessible names, relationships, an
   assert.match(app, /event\.key === 'End'/);
 });
 
+test('profile tabs mirror ArrowLeft/ArrowRight in RTL and keep Home/End first/last', () => {
+  // Sharafat 78 — the keydown handler reads the document direction live
+  // and swaps the arrow deltas under RTL; Home/End are NOT mirrored
+  // (first/last in the logical tab order in both directions, per the
+  // WAI-ARIA APG Tabs pattern). The flex row follows `dir`, so in Urdu
+  // mode ArrowRight is visually the previous tab and ArrowLeft the next.
+  const start = app.indexOf("$('.profile-tabs').addEventListener('keydown'");
+  assert.ok(start >= 0, 'the profile-tabs keydown handler must exist');
+  const bodyStart = app.indexOf('{', app.indexOf('event =>', start));
+  let depth = 0; let end = -1;
+  for (let i = bodyStart; i < app.length; i++) {
+    if (app[i] === '{') depth++;
+    else if (app[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  assert.ok(end > bodyStart, 'the keydown callback body must close');
+  const body = app.slice(bodyStart, end + 1);
+  assert.match(body, /const isRtl = document\.documentElement\.dir === 'rtl';/, 'the handler must read the document direction at keydown time');
+  // ArrowRight moves +1 in LTR and −1 (names.length − 1) in RTL; ArrowLeft the reverse.
+  assert.match(body, /if \(event\.key === 'ArrowRight'\) next = \(current \+ \(isRtl \? names\.length - 1 : 1\)\) % names\.length;/, 'ArrowRight must move forward in LTR and backward in RTL');
+  assert.match(body, /else if \(event\.key === 'ArrowLeft'\) next = \(current \+ \(isRtl \? 1 : names\.length - 1\)\) % names\.length;/, 'ArrowLeft must move backward in LTR and forward in RTL');
+  // Home/End are first/last in the logical order in BOTH directions — no isRtl on those lines.
+  const homeLine = body.split('\n').find(line => line.includes("event.key === 'Home'"));
+  const endLine = body.split('\n').find(line => line.includes("event.key === 'End'"));
+  assert.ok(homeLine && homeLine.includes('next = 0') && !homeLine.includes('isRtl'), 'Home must stay the first tab in both directions');
+  assert.ok(endLine && endLine.includes('next = names.length - 1') && !endLine.includes('isRtl'), 'End must stay the last tab in both directions');
+  // The wrap still holds under RTL: ArrowRight on the first tab lands on
+  // the last (current + names.length − 1) and ArrowLeft on the last wraps
+  // to the first (current + 1) — the modulo math above covers both.
+  assert.match(body, /activateProfileTab\(names\[next\], true\)/, 'arrows keep moving focus and activation together');
+});
+
 test('complaints tab mounts existing incident records and empty state without a new storage model', () => {
   assert.match(index, /id="incidentList" class="incident-list"/);
   assert.match(index, /id="incidentEmptyNote" class="incident-empty"/);

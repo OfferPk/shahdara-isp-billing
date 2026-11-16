@@ -262,8 +262,13 @@ test('renderTransactions builds its rows from paged.items only', () => {
 
 test('renderCustomers builds active cards from paged.items only', () => {
   const fn = extractFunction(app, 'renderCustomers');
-  assert.match(fn, /paged\.items\.map\(customer\s*=>\s*customerCardMarkup/);
-  assert.match(fn, /paged\.items\.map\(customer\s*=>\s*renderCustomerTableRowMarkup/);
+  // Sharafat 84: the .map passes now run over `shownActive` — the capped
+  // slice of paged.items (the first 100 rows under page size 'all',
+  // paged.items itself for numeric sizes). The pin's intent survives:
+  // cards are built from the paged list only, never the full unpaged
+  // roster; the slice is the render-layer cap, not a second paging.
+  assert.match(fn, /shownActive\.map\(customer\s*=>\s*customerCardMarkup/);
+  assert.match(fn, /shownActive\.map\(customer\s*=>\s*renderCustomerTableRowMarkup/);
 });
 
 test('app.js imports the list-rendering helpers', () => {

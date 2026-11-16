@@ -2098,6 +2098,10 @@ function renderAreaModuleCards() {
     // re-renders once (R5 pin).
     lastRenderedListQuery = null;
     customerCurrentPage = 1;
+    // Sharafat 84: the click-through sets a new area search — both
+    // panels re-filter, so both shown counts restart at 100 (D4).
+    customerRosterShown = 100;
+    archivedRosterShown = 100;
     switchView('customers');
     renderCustomers();
   }));
@@ -2144,6 +2148,10 @@ function renderAreaModuleCards() {
       // query so the next same-text keystroke re-renders once (R5).
       lastRenderedListQuery = null;
       customerCurrentPage = 1;
+      // Sharafat 84: same click-through class as the mohalla card —
+      // both shown counts restart at 100 (D4).
+      customerRosterShown = 100;
+      archivedRosterShown = 100;
       if (typeof dialog.close === 'function' && dialog.open) dialog.close();
       switchView('customers');
       renderCustomers();
@@ -3994,6 +4002,15 @@ let customerPageSize = 15;
 // with the same page size. It never moves the active page, and the
 // active page never moves it; both clamp through their page helpers.
 let archivedCurrentPage = 1;
+// Sharafat 84: page size 'all' renders the whole roster in one pass —
+// cap the RENDERED rows at the render layer only (first 100, Show More
+// +100 per click). paginateRows / archivedRosterPage keep their
+// 'all'-means-everything contract (forms-qa + Plan Y pins). The two
+// counts are independent (Plan Y) and reset to 100 whenever the
+// filtered list can change; a view-mode switch (cards ↔ table) does
+// NOT reset them — the shown count is about rows, not mode.
+let customerRosterShown = 100;
+let archivedRosterShown = 100;
 // Mohalla Numbering: the roster opens grouped mohalla-wise in the
 // fixed numbered order (1 CHARYAA … 12 HAWELI OR END POINT) — the
 // sort control still offers number/name/balance, and a search still
@@ -4143,6 +4160,9 @@ function renderRosterPillBar(summary) {
   bar.querySelectorAll('[data-roster-pill]').forEach((button) => button.addEventListener('click', () => {
     customerRosterPill = normalizeRosterPill(button.dataset.rosterPill);
     customerCurrentPage = 1;
+    // Sharafat 84: the pill narrows the ACTIVE list only, so only the
+    // active shown count resets — the archived count never moves with it (R9).
+    customerRosterShown = 100;
     renderCustomers();
   }));
 }
@@ -4174,6 +4194,10 @@ function resetCustomerRosterFilters() {
   selectedServiceFilter = 'all';
   selectedBillingFilter = 'all';
   customerCurrentPage = 1;
+  // Sharafat 84: reset-filters widens both panels back to the full
+  // roster — both shown counts restart at 100 (D4).
+  customerRosterShown = 100;
+  archivedRosterShown = 100;
   renderCustomers();
 }
 function renderCustomers() {
@@ -4198,6 +4222,10 @@ function renderCustomers() {
     areaSelect.innerHTML = `<option value="all">${t('cust_all_areas')}</option>` + allAreaOptions.map(option => `<option value="${escapeHtml(option.value)}"${option.value === currentVal ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
     if (!allAreaOptions.some(option => option.value === currentVal) && currentVal !== 'all') {
       customerAreaFilter = 'all';
+      // Sharafat 84: the filter just changed mid-render, so the shown
+      // counts reset with it (D4) — the widened list re-renders from 100.
+      customerRosterShown = 100;
+      archivedRosterShown = 100;
       areaSelect.value = 'all';
     } else {
       areaSelect.value = customerAreaFilter;
@@ -4303,6 +4331,10 @@ function renderCustomers() {
   // Pagination for Active Roster
   const paged = paginateRows(active, customerCurrentPage, customerPageSize);
   customerCurrentPage = paged.page;
+  // Sharafat 84: the cap applies only under page size 'all' — numeric
+  // sizes keep their exact paging through paginateRows, and the slice
+  // never re-pages them (R7).
+  const shownActive = customerPageSize === 'all' ? paged.items.slice(0, customerRosterShown) : paged.items;
 
   const pagNav = $('#customerPagination');
   if (pagNav) {
@@ -4313,6 +4345,19 @@ function renderCustomers() {
     if (prevBtn) prevBtn.disabled = paged.page <= 1;
     const nextBtn = $('#customerNextPage');
     if (nextBtn) nextBtn.disabled = paged.page >= paged.totalPages;
+    // Sharafat 84: the page info reads the full filtered total ("1 / 1
+    // (250)") even when only 100 rows render — the shown line names the
+    // capped count, and the Show More button is the only way forward
+    // (Prev/Next stay disabled under 'all': totalPages === 1). Both
+    // derive from shown >= total on every render, never from a stored
+    // flag (R4).
+    const rosterShowingEl = $('#customerRosterShowing');
+    if (rosterShowingEl) {
+      rosterShowingEl.hidden = !(customerPageSize === 'all' && shownActive.length < active.length);
+      if (!rosterShowingEl.hidden) rosterShowingEl.textContent = t('cust_roster_showing', null, { shown: shownActive.length, total: active.length });
+    }
+    const rosterShowMoreBtn = $('#customerRosterShowMore');
+    if (rosterShowMoreBtn) rosterShowMoreBtn.hidden = !(customerPageSize === 'all' && shownActive.length < active.length);
   }
 
   const tableWrap = $('#customerTableWrap');
@@ -4337,7 +4382,7 @@ function renderCustomers() {
         // above); its behaviour is unchanged.
         $('#resetCustomerTableFiltersBtn')?.addEventListener('click', resetCustomerRosterFilters);
       } else {
-        tableBody.innerHTML = paged.items.map(customer => renderCustomerTableRowMarkup(customer, { selectedCustomerId, selectedBillingMonth, allocations: healthAllocations })).join('');
+        tableBody.innerHTML = shownActive.map(customer => renderCustomerTableRowMarkup(customer, { selectedCustomerId, selectedBillingMonth, allocations: healthAllocations })).join('');
         tableBody.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
       }
     }
@@ -4373,7 +4418,7 @@ function renderCustomers() {
   } else {
     if (customerList) {
       customerList.hidden = false;
-      customerList.innerHTML = paged.items.map(customer => customerCardMarkup(customer, false, healthAllocations)).join('');
+      customerList.innerHTML = shownActive.map(customer => customerCardMarkup(customer, false, healthAllocations)).join('');
     }
     if (tableWrap) tableWrap.hidden = true;
     if (expandBtn) expandBtn.hidden = true;
@@ -4388,6 +4433,9 @@ function renderCustomers() {
   // count badge above now shows the full archived total (Sharafat 30).
   const archivedPaged = archivedRosterPage(archived, archivedCurrentPage, customerPageSize);
   archivedCurrentPage = archivedPaged.page;
+  // Sharafat 84: the archived panel caps the same way, on its own
+  // independent shown count (R9) — numeric sizes keep their exact paging.
+  const shownArchived = customerPageSize === 'all' ? archivedPaged.items.slice(0, archivedRosterShown) : archivedPaged.items;
   // Sharafat 33: the archived panel follows the view mode — table rows
   // in table mode, cards in cards mode. The rows reuse
   // renderCustomerTableRowMarkup with archived: true, so they carry the
@@ -4406,14 +4454,14 @@ function renderCustomers() {
     if (archivedList) { archivedList.hidden = true; archivedList.innerHTML = ''; }
     if (archivedTableWrap) archivedTableWrap.hidden = archivedPaged.items.length === 0;
     if (archivedTableBody) {
-      archivedTableBody.innerHTML = archivedPaged.items.map(customer => renderCustomerTableRowMarkup(customer, { selectedCustomerId, selectedBillingMonth, allocations: healthAllocations, archived: true })).join('');
+      archivedTableBody.innerHTML = shownArchived.map(customer => renderCustomerTableRowMarkup(customer, { selectedCustomerId, selectedBillingMonth, allocations: healthAllocations, archived: true })).join('');
       archivedTableBody.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
       archivedTableBody.querySelectorAll('[data-unarchive-customer]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); restoreCustomer(button.dataset.unarchiveCustomer); }));
     }
   } else {
     if (archivedList) {
       archivedList.hidden = false;
-      archivedList.innerHTML = archivedPaged.items.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
+      archivedList.innerHTML = shownArchived.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
     }
     if (archivedTableWrap) archivedTableWrap.hidden = true;
   }
@@ -4426,6 +4474,15 @@ function renderCustomers() {
     if (archivedPrevBtn) archivedPrevBtn.disabled = archivedPaged.page <= 1;
     const archivedNextBtn = $('#archivedNextPage');
     if (archivedNextBtn) archivedNextBtn.disabled = archivedPaged.page >= archivedPaged.totalPages;
+    // Sharafat 84: same shown line + Show More as the active roster,
+    // driven by the archived panel's own shown count (R9).
+    const archivedShowingEl = $('#archivedRosterShowing');
+    if (archivedShowingEl) {
+      archivedShowingEl.hidden = !(customerPageSize === 'all' && shownArchived.length < archived.length);
+      if (!archivedShowingEl.hidden) archivedShowingEl.textContent = t('cust_roster_showing', null, { shown: shownArchived.length, total: archived.length });
+    }
+    const archivedShowMoreBtn = $('#archivedRosterShowMore');
+    if (archivedShowMoreBtn) archivedShowMoreBtn.hidden = !(customerPageSize === 'all' && shownArchived.length < archived.length);
   }
   // Plan Y: retention view over the whole ledger (not the filtered
   // roster — data age is a property of the ledger). Read-only: it
@@ -13290,6 +13347,9 @@ $('#customerListSearch').addEventListener('input', () => {
   clearTimeout(listSearchDebounceTimer);
   listSearchDebounceTimer = setTimeout(() => {
     lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+    // Sharafat 84: the query changed, so the filtered list can change — both shown counts restart at 100 (D4).
+    customerRosterShown = 100;
+    archivedRosterShown = 100;
     renderCustomers();
   }, 150);
 });
@@ -13308,7 +13368,11 @@ $('#customerSearchField')?.addEventListener('change', (event) => {
   // at every direct render) is used everywhere else, and invalidation
   // is the equivalent here, where the field itself moved.
   lastRenderedListQuery = null;
-  customerCurrentPage = 1; renderCustomers();
+  customerCurrentPage = 1;
+  // Sharafat 84: the field changed, so the filtered list can change — both shown counts restart at 100 (D4).
+  customerRosterShown = 100;
+  archivedRosterShown = 100;
+  renderCustomers();
 });
 $('#clearCustomerListSearch').addEventListener('click', () => {
   // Sharafat 31: Clear must also clear the global query when (and only when)
@@ -13319,6 +13383,9 @@ $('#clearCustomerListSearch').addEventListener('click', () => {
   // report, clearing only the list box must leave that filter alone.
   const globalIsActiveFilter = $('#customerListSearch').value.trim() === '' && searchQuery().trim() !== '';
   $('#customerListSearch').value = '';
+  // Sharafat 84: clearing the box widens the roster again — both shown counts restart at 100 (D4).
+  customerRosterShown = 100;
+  archivedRosterShown = 100;
   if (globalIsActiveFilter) {
     $('#globalCustomerSearch').value = '';
     // Sharafat 81: both boxes are now empty and the four renders
@@ -13338,7 +13405,7 @@ $('#clearCustomerListSearch').addEventListener('click', () => {
 // Sharafat 31: the chip's × clears the global query exactly like
 // #clearGlobalSearch — the full four-call mirror, not just the box —
 // and returns focus to the list box.
-$('#clearGlobalSearchChip')?.addEventListener('click', () => { $('#globalCustomerSearch').value = ''; lastRenderedGlobalQuery = ''; lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#customerListSearch').focus(); });
+$('#clearGlobalSearchChip')?.addEventListener('click', () => { $('#globalCustomerSearch').value = ''; lastRenderedGlobalQuery = ''; lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase(); customerRosterShown = 100; archivedRosterShown = 100; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#customerListSearch').focus(); });
 // Sharafat 35: the cards-mode reset button is static markup (a sibling of
 // #noSearchResults — never inside it, see the toggle in renderCustomers),
 // so it is wired ONCE here at module setup, never inside renderCustomers()
@@ -13355,11 +13422,14 @@ $('#globalCustomerSearch').addEventListener('input', () => {
     // now shows this effective list query — record it too, or the
     // next same-text list keystroke is wrongly skipped (R5).
     lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+    // Sharafat 84: the query changed, so the filtered list can change — both shown counts restart at 100 (D4).
+    customerRosterShown = 100;
+    archivedRosterShown = 100;
     renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport();
   }, 150);
 });
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });
-$('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; lastRenderedGlobalQuery = ''; lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });
+$('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; lastRenderedGlobalQuery = ''; lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase(); customerRosterShown = 100; archivedRosterShown = 100; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });
 $('#showCustomersButton').addEventListener('click', () => switchView('customers'));
 // Plan 33: the header mode button stays reachable in both modes, so the
 // mode can be switched back even while owner screens are blocked.
@@ -13486,6 +13556,13 @@ $('#transactionAmountMax').addEventListener('input', event => { transactionAmoun
 // a new query resets the finder to its first 25 rows.
 $('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; receiptFinderQuery = event.currentTarget.value; receiptFinderShown = 25; transactionCurrentPage = 1; renderTransactions(); });
 $('#receiptFinderShowMore')?.addEventListener('click', () => { receiptFinderShown += 25; renderTransactions(); });
+// Sharafat 84: Show More adds 100 rows per click (D2(a)) — the receipt
+// finder's shape at roster scale. The buttons are static markup (wired
+// once here, never inside renderCustomers, which would double-bind on
+// every render); the hidden state is derived in renderCustomers from
+// shown >= total on every render (R4).
+$('#customerRosterShowMore')?.addEventListener('click', () => { customerRosterShown += 100; renderCustomers(); });
+$('#archivedRosterShowMore')?.addEventListener('click', () => { archivedRosterShown += 100; renderCustomers(); });
 // Plan 465: the refine box — narrowing only the already-found list
 // on every keystroke; clearing the box (or dropping below three
 // characters) restores the full first list.
@@ -13626,11 +13703,17 @@ $('#reportPageSize').addEventListener('change', event => { reportPageSize = even
 $('#customerFilterArea')?.addEventListener('change', event => {
   customerAreaFilter = event.currentTarget.value;
   customerCurrentPage = 1;
+  // Sharafat 84: the area narrows the filtered list — both shown counts restart at 100 (D4).
+  customerRosterShown = 100;
+  archivedRosterShown = 100;
   renderCustomers();
 });
 $('#customerSortSelect')?.addEventListener('change', event => {
   customerSortBy = event.currentTarget.value;
   customerCurrentPage = 1;
+  // Sharafat 84: the sort re-orders the list, so the first-100 slice is a new set — both shown counts restart at 100 (D4).
+  customerRosterShown = 100;
+  archivedRosterShown = 100;
   renderCustomers();
 });
 $('#customerViewCardsBtn')?.addEventListener('click', () => {
@@ -13708,6 +13791,9 @@ $('#customerPageSize')?.addEventListener('change', event => {
   customerPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value);
   customerCurrentPage = 1;
   archivedCurrentPage = 1;
+  // Sharafat 84: the page size changed — both shown counts restart at 100 (D4).
+  customerRosterShown = 100;
+  archivedRosterShown = 100;
   renderCustomers();
 });
 // Plan Y: archived pagination is independent — these buttons move only
@@ -13744,6 +13830,9 @@ document.querySelectorAll('[data-sort-cust]').forEach(th => {
     const select = $('#customerSortSelect');
     if (select) select.value = customerSortBy;
     customerCurrentPage = 1;
+    // Sharafat 84: the sort re-orders the list, so the first-100 slice is a new set — both shown counts restart at 100 (D4).
+    customerRosterShown = 100;
+    archivedRosterShown = 100;
     renderCustomers();
   });
 });
@@ -13754,13 +13843,16 @@ function setBillingMonth(month) {
   reportAreaFilter = null;
   $('#reportMonth').value = month;
   $('#customerFilterMonth').value = month;
+  // Sharafat 84: the month changes the balances the roster sorts/filters on — both shown counts restart at 100 (D4).
+  customerRosterShown = 100;
+  archivedRosterShown = 100;
   renderCustomers();
   renderMonthlyReport();
 }
 $('#reportMonth').addEventListener('change', event => setBillingMonth(event.currentTarget.value));
 $('#customerFilterMonth').addEventListener('change', event => setBillingMonth(event.currentTarget.value));
-document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.addEventListener('click', () => { selectedServiceFilter = button.dataset.customerServiceFilter; customerCurrentPage = 1; renderCustomers(); }));
-document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.addEventListener('click', () => { selectedBillingFilter = button.dataset.customerBillingFilter; customerCurrentPage = 1; renderCustomers(); }));
+document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.addEventListener('click', () => { selectedServiceFilter = button.dataset.customerServiceFilter; customerCurrentPage = 1; customerRosterShown = 100; archivedRosterShown = 100; renderCustomers(); }));
+document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.addEventListener('click', () => { selectedBillingFilter = button.dataset.customerBillingFilter; customerCurrentPage = 1; customerRosterShown = 100; archivedRosterShown = 100; renderCustomers(); }));
 document.querySelectorAll('[data-report-filter]').forEach(button => button.addEventListener('click', () => { selectedReportFilter = button.dataset.reportFilter; reportCurrentPage = 1; renderMonthlyReport(); }));
 // Sharafat 45: the Archived toggle is a separate boolean, not a status —
 // it flips the builder's includeArchived option and re-renders the report.

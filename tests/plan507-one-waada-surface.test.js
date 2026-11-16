@@ -119,7 +119,7 @@ test('Plan 507: the removed keys are gone from both dictionaries, the chip keys 
     assert.ok(!(key in TRANSLATIONS.en), `${key} must be gone from EN`);
     assert.ok(!(key in TRANSLATIONS.ur), `${key} must be gone from UR`);
   }
-  for (const key of ['prof_waada_chips_aria', 'prof_waada_chip_2', 'prof_waada_chip_5', 'prof_waada_chip_10th']) {
+  for (const key of ['prof_waada_chips_aria', 'prof_waada_chip_2', 'prof_waada_chip_5', 'prof_waada_chip_5th', 'prof_waada_chip_10th']) {
     assert.ok(key in TRANSLATIONS.en, `${key} must stay in EN`);
     assert.ok(key in TRANSLATIONS.ur, `${key} must stay in UR`);
   }

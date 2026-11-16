@@ -1914,7 +1914,7 @@ function save() {
   // (buildGlobalLedgerSearch), renderCustomers
   // (calculatePaymentAllocations over the ledger), renderTransactions
   // (listTransactions), renderMonthlyReport
-  // (getMonthlyReportScreenRows -> buildMonthlyReport),
+  // (the screen-rows helper -> the report builder),
   // refreshOwnerCenter (ledger-derived command/closings/health/
   // insights/areas/rankings), renderPhase3 (renderAnalytics reads
   // bills/payments via buildPhase3Analytics; its inventory/expenses/

@@ -399,7 +399,11 @@ test('validation: bad amounts, missing and future dates are refused', () => {
 test('i18n: every baqaya_* key used in the UI exists in both dictionaries', () => {
   const sources = ['../manual-baqaya.js', '../app.js', '../nav-quick-collect.js', '../index.html']
     .map(path => readFileSync(new URL(path, import.meta.url), 'utf8')).join('\n');
-  const keys = new Set([...sources.matchAll(/baqaya_[a-z_]+/g)].map(m => m[0]));
+  // Sharafat 79: the new prof_tab_baqaya_count key contains "baqaya_count"
+  // as a substring, but that is not a key — only match baqaya_* tokens
+  // that start a key (not preceded by a word character or underscore),
+  // so a longer prof_tab_* key never invents a phantom baqaya_* key.
+  const keys = new Set([...sources.matchAll(/(?<![A-Za-z0-9_])baqaya_[a-z_]+/g)].map(m => m[0]));
   assert.ok(keys.size >= 20, `expected a real key set, found ${keys.size}`);
   for (const key of keys) {
     assert.equal(typeof TRANSLATIONS.en[key], 'string', `missing en key ${key}`);

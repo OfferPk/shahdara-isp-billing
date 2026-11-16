@@ -68,8 +68,28 @@ test('duplicate ids and duplicate complaints are never rewritten', () => {
   const list = recordComplaintFollowup([], first);
   assert.deepEqual(recordComplaintFollowup(list, { ...first, note: 'Changed.' }), list);
   assert.deepEqual(recordComplaintFollowup(list, { id: 'CF-9', complaintRef: 'c-101', dueDate: '2026-11-12', note: 'Second check.' }), list);
+});
+
+test('a completed follow-up no longer blocks a second check (Sharafat 71)', () => {
+  // Sharafat 71 rewrote this pin: the old contract was "one follow-up
+  // per complaint, forever" — recording a second follow-up for C-102
+  // was refused even after the first was completed (stillSatisfied:
+  // true), so a re-resolved complaint could never be checked again.
+  // The rule is now one OPEN follow-up per complaint: a completed
+  // record stays as history and a new one may be recorded.
   const done = recordComplaintFollowup([], second);
-  assert.deepEqual(recordComplaintFollowup(done, { id: 'CF-8', complaintRef: 'C-102', dueDate: '2026-11-20', note: 'Another.' }), done);
+  const again = recordComplaintFollowup(done, { id: 'CF-8', complaintRef: 'C-102', dueDate: '2026-11-20', note: 'Another.' });
+  assert.equal(again.length, 2);
+  assert.equal(again[0].id, 'CF-2');
+  assert.equal(again[0].stillSatisfied, true);
+  assert.equal(again[1].id, 'CF-8');
+  assert.equal(again[1].stillSatisfied, null);
+  // A not-satisfied completion opens the door the same way.
+  const unhappy = recordComplaintFollowup([], third);
+  const recheck = recordComplaintFollowup(unhappy, { id: 'CF-9', complaintRef: 'C-103', dueDate: '2026-11-21', note: 'Check again after the second fix.' });
+  assert.equal(recheck.length, 2);
+  assert.equal(recheck[1].id, 'CF-9');
+  assert.equal(recheck[1].stillSatisfied, null);
 });
 
 test('find and remove work by id', () => {

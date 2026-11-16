@@ -3112,8 +3112,8 @@ export function setupQuickCollectModal({
     if (!looseChangeBox) return;
     const owed = advanceCheckbox?.checked ? 0 : Number(activeDefaults?.payableTotal ?? 0);
     const markup = looseChangeChipsMarkup(owed, (tendered, change) => t('khula_chip', null, {
-      tendered: tendered.toLocaleString('en-PK'),
-      change: change.toLocaleString('en-PK')
+      tendered: formatPKR(tendered),
+      change: formatPKR(change)
     }));
     looseChangeBox.innerHTML = markup;
     looseChangeBox.hidden = markup === '';
@@ -4345,7 +4345,7 @@ export function setupQuickCollectModal({
         // button. Default off — the raw suggestion is stamped, exactly
         // as before SISP-131.
         const roundControls = balance !== null && balance > 0 ? ` <label class="round50-toggle-label"><input type="checkbox" data-qc-round50-toggle> ${escapeHtml(t('round50_toggle'))}</label> <select data-qc-round50-mode aria-label="${escapeHtml(t('round50_toggle'))}"><option value="nearest">${escapeHtml(t('round50_mode_nearest'))}</option><option value="down">${escapeHtml(t('round50_mode_down'))}</option><option value="exact">${escapeHtml(t('round50_mode_exact'))}</option></select> <small data-qc-round50-hint hidden></small>` : '';
-        concessionBox.innerHTML = `<span class="discount-badge-applied">${escapeHtml(concessionBadgeText(suggestion))}</span>${balance !== null && balance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-qc-apply-concession>Apply Rs. ${suggestion.suggestedAmount} Outage Concession</button>${roundControls}` : ''}`;
+        concessionBox.innerHTML = `<span class="discount-badge-applied">${escapeHtml(concessionBadgeText(suggestion))}</span>${balance !== null && balance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-qc-apply-concession>Apply ${formatPKR(suggestion.suggestedAmount)} Outage Concession</button>${roundControls}` : ''}`;
       } else {
         return;
       }
@@ -4416,12 +4416,12 @@ export function setupQuickCollectModal({
           enabled: concessionBox.querySelector('[data-qc-round50-toggle]')?.checked === true,
           mode: concessionBox.querySelector('[data-qc-round50-mode]')?.value || 'nearest'
         });
-        button.textContent = `Apply Rs. ${effective.suggestedAmount} Outage Concession`;
+        button.textContent = `Apply ${formatPKR(effective.suggestedAmount)} Outage Concession`;
         button.disabled = effective.suggestedAmount <= 0;
         const hint = concessionBox.querySelector('[data-qc-round50-hint]');
         if (hint) {
           hint.hidden = !effective.rounding;
-          hint.textContent = effective.rounding ? `(${t('round50_rounded_from', null, { amount: effective.rawSuggestedAmount })})` : '';
+          hint.textContent = effective.rounding ? `(${t('round50_rounded_from', null, { amount: formatPKR(effective.rawSuggestedAmount) })})` : '';
         }
       }));
       concessionBox.querySelector('[data-qc-remove-concession]')?.addEventListener('click', () => {

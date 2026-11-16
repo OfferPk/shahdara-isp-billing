@@ -203,12 +203,15 @@ test('WhatsApp summary and print HTML carry the key figures and the note', () =>
   const report = build();
   const text = buildOwnerKhataWhatsAppText(report);
   assert.match(text, /Owner Khata Closing/);
-  assert.match(text, /Rs\. 5,000/);
-  assert.match(text, /Rs\. 3,000/);
+  // Sharafat 85: the closing text/HTML now formats through the single
+  // canonical formatPKR (core.js) — 'PKR 5,000', not the deleted khata
+  // copy's 'Rs. 5,000'. The pinned figures are unchanged.
+  assert.match(text, /PKR 5,000/);
+  assert.match(text, /PKR 3,000/);
   assert.match(text, /Test closing note/);
   const html = buildOwnerKhataPrintHtml(report);
   assert.match(html, /Monthly Business &amp; Network Health Report/);
-  assert.match(html, /Rs\. 5,000/);
+  assert.match(html, /PKR 5,000/);
   assert.match(html, /Test closing note/);
   assert.match(html, /Waseem/);
 });
@@ -335,8 +338,10 @@ test('SISP-176: pending ticket charges are a month-end receivable, never income'
 test('SISP-176: WhatsApp text and print HTML carry the ticket lines', () => {
   const report = buildOwnerKhataReport(ticketState(), '2026-10', { referenceDate: REF, tickets: ticketRecords() });
   const text = buildOwnerKhataWhatsAppText(report);
-  assert.match(text, /Ticket Charges Collected: Rs\. 500/);
-  assert.match(text, /Ticket Charges Pending: Rs\. 1,100/);
+  // Sharafat 85: canonical formatPKR — 'PKR 500' / 'PKR 1,100', not the
+  // deleted khata copy's 'Rs. 500' / 'Rs. 1,100'. Figures unchanged.
+  assert.match(text, /Ticket Charges Collected: PKR 500/);
+  assert.match(text, /Ticket Charges Pending: PKR 1,100/);
   const html = buildOwnerKhataPrintHtml(report);
   assert.match(html, /Ticket Charges Collected/);
   assert.match(html, /Ticket Charges Pending \(month end, 2 tickets\)/);
@@ -481,13 +486,15 @@ test('SISP-196: invalid month carries the zeroed block; surfaces show it only wh
     feederHostCreditsTotal: 0
   });
   const stamped = build(stampedState());
+  // Sharafat 85: canonical formatPKR — 'PKR 500' / 'PKR 1,000', not the
+  // deleted khata copy's 'Rs. 500' / 'Rs. 1,000'. Figures unchanged.
   assert.match(
     buildOwnerKhataWhatsAppText(stamped),
-    /Non-Cash Adjustments: Concessions Rs\. 500 · Referral Credits Rs\. 500 · Deposit Offsets Rs\. 1,000/
+    /Non-Cash Adjustments: Concessions PKR 500 · Referral Credits PKR 500 · Deposit Offsets PKR 1,000/
   );
   const html = buildOwnerKhataPrintHtml(stamped);
   assert.match(html, /Non-cash adjustments/);
-  assert.match(html, /Security deposit offsets<\/span><strong>Rs\. 1,000<\/strong>/);
+  assert.match(html, /Security deposit offsets<\/span><strong>PKR 1,000<\/strong>/);
   const plain = build();
   assert.doesNotMatch(buildOwnerKhataWhatsAppText(plain), /Non-Cash Adjustments/);
   assert.doesNotMatch(buildOwnerKhataPrintHtml(plain), /Non-cash adjustments/);

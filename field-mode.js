@@ -1358,7 +1358,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     // SISP-116: khula-paisa chips — tender round notes, the change
     // stays as advance credit (derived by the engine, never stamped).
     const looseChips = looseChangeSuggestions(entry.totalDues).map(s =>
-      `<button type="button" class="field-mode-loose-chip" data-field-action="loose-change" data-field-tender="${s.tendered}" ${busy ? 'disabled' : ''}>🪙 ${escapeHtml(t('khula_chip', null, { tendered: s.tendered.toLocaleString('en-PK'), change: s.change.toLocaleString('en-PK') }))}</button>`
+      `<button type="button" class="field-mode-loose-chip" data-field-action="loose-change" data-field-tender="${s.tendered}" ${busy ? 'disabled' : ''}>🪙 ${escapeHtml(t('khula_chip', null, { tendered: formatPKR(s.tendered), change: formatPKR(s.change) }))}</button>`
     ).join('');
     panelEl.innerHTML = `<section class="field-mode-actions" aria-label="Collection actions">
       <h3>${escapeHtml(entry.name)} <small>#${escapeHtml(entry.customerNumber)}</small></h3>

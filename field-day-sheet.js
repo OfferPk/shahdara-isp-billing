@@ -44,7 +44,8 @@ import { buildMorningBriefing, morningBriefingDateStr } from './morning-briefing
 import { AREA_OUTAGE_CUSTOMER_ID, complaintCustomerLabel, loadComplaints } from './complaint-register.js';
 import { loadInstallRequests, requestNameLabel, requestStatus } from './install-tracker.js';
 import { buildExpiredVacationHoldQueue } from './pause-billing.js';
-import { escapeHtml, formatPKR } from './owner-khata.js';
+import { escapeHtml } from './owner-khata.js';
+import { formatPKR } from './core.js';
 import { displayCustomerName } from './urdu-names.js';
 import { t } from './nav-language.js';
 

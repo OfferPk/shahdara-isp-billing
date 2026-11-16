@@ -142,7 +142,7 @@ import {
   isDigitalWalletMethod
 } from './wallet-reconciliation.js';
 import { buildMonthEndCashInHand, loadRoznamchaDays } from './roznamcha.js';
-import { paymentTicketChargeCents } from './core.js';
+import { formatPKR, paymentTicketChargeCents } from './core.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 import { loadTickets, sanitizeTickets } from './complaint-tickets.js';
 import { buildShopScorecard, renderShopScorecardHtml } from './shop-performance-analytics.js';
@@ -348,12 +348,6 @@ export function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-export function formatPKR(value) {
-  const n = Number(value || 0);
-  if (!Number.isFinite(n)) return 'Rs. 0';
-  return `Rs. ${Math.round(n).toLocaleString('en-PK')}`;
 }
 
 function wholeRupees(value) {

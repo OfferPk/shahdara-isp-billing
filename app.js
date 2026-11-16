@@ -1845,7 +1845,7 @@ function appConfirm(options) {
   return Promise.resolve(window.confirm([options.title, options.subject, options.message].filter(Boolean).join('\n\n')) ? 'confirm' : false);
 }
 function duplicateTxnConfirm(txnId, dup) {
-  return appConfirm({ tone:'warning', title:'Duplicate Transaction ID', subject:`Transaction ID "${txnId}"`, message:`Already recorded on ${dup.date} for ${dup.customerName} (#${dup.customerNumber}) in month ${dup.month} (PKR ${Number(dup.amount || 0).toLocaleString()}). Save this payment with the same reference anyway?`, confirmLabel:'Save anyway', cancelLabel:'Cancel' });
+  return appConfirm({ tone:'warning', title:'Duplicate Transaction ID', subject:`Transaction ID "${txnId}"`, message:`Already recorded on ${dup.date} for ${dup.customerName} (#${dup.customerNumber}) in month ${dup.month} (${formatPKR(Number(dup.amount || 0))}). Save this payment with the same reference anyway?`, confirmLabel:'Save anyway', cancelLabel:'Cancel' });
 }
 function searchQuery() { return $('#globalCustomerSearch').value; }
 function customerListQuery() { return $('#customerListSearch').value.trim() || searchQuery(); }
@@ -3889,7 +3889,7 @@ function profileReceiptSummaryMarkup(customer) {
   });
   const profileDisputed = splitBillList(profileDisputedBills, openDisputeCases(loadDisputeCases()));
   const profileDisputedStat = profileDisputed.rows.length > 0
-    ? `<article class="profile-summary-stat"><span>Disputed balance</span><strong>${escapeHtml(formatAmount(profileDisputed.summary.undisputed))} undisputed still due</strong><small>${escapeHtml(`Of Rs. ${profileDisputed.summary.total} on disputed bills, Rs. ${profileDisputed.summary.disputed} is under an open dispute — only the undisputed part is chased.`)}</small></article>`
+    ? `<article class="profile-summary-stat"><span>Disputed balance</span><strong>${escapeHtml(formatAmount(profileDisputed.summary.undisputed))} undisputed still due</strong><small>${escapeHtml(`Of ${formatAmount(profileDisputed.summary.total)} on disputed bills, ${formatAmount(profileDisputed.summary.disputed)} is under an open dispute — only the undisputed part is chased.`)}</small></article>`
     : '';
   const profileOutstandingStat = outstandingFigures.manualBaqayaCents > 0
     ? `<article class="profile-summary-stat"><span>${t('prof_receipts_outstanding')}</span><strong>${escapeHtml(formatAmount(outstandingFigures.total))}</strong><small>${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(outstandingFigures.billDues), additional: formatPKR(outstandingFigures.manualBaqaya) }))}</small></article>`
@@ -3919,7 +3919,7 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
   const billWord = t(CUST_BILL_WORDS[billing.value] || 'cust_not_set');
   const isFeeSet = customer.monthlySellingAmount !== null && customer.monthlySellingAmount !== undefined && Number(customer.monthlySellingAmount) > 0;
   const chipText = isFeeSet
-    ? `${billWord} · ${t('cust_card_chip_fee', null, { amount: customer.monthlySellingAmount })}`
+    ? `${billWord} · ${t('cust_card_chip_fee', null, { amount: formatAmount(customer.monthlySellingAmount) })}`
     : (billing.value === 'not-set' ? t('cust_bill_not_set') : billWord);
   const CUST_SERVICE_WORDS = { active: 'cust_service_active', offline: 'cust_service_offline', 'not-set': 'cust_not_set' };
   // Read-only service badge: the STORED serviceStatus only, never the
@@ -6055,7 +6055,7 @@ function renderHistory(customer) {
     // button (only where an apply is possible). Default off — the stamped
     // concession stays the raw computed figure, exactly as before.
     const concessionRoundControls = concessionBalance !== null && concessionBalance > 0 ? ` <label class="round50-toggle-label"><input type="checkbox" data-round50-toggle> ${escapeHtml(t('round50_toggle'))}</label> <select data-round50-mode aria-label="${escapeHtml(t('round50_toggle'))}"><option value="nearest">${escapeHtml(t('round50_mode_nearest'))}</option><option value="down">${escapeHtml(t('round50_mode_down'))}</option><option value="exact">${escapeHtml(t('round50_mode_exact'))}</option></select> <small data-round50-hint hidden></small>` : '';
-    const concessionSuggestMarkup = concessionSuggestion && !concessionSuggestion.alreadyApplied && concessionSuggestion.eligible ? `<span class="month-summary-wide"><span class="discount-badge-applied">${escapeHtml(t('prof_hist_concession_suggest', null, { hours: concessionSuggestion.downtimeHours, amount: concessionSuggestion.suggestedAmount }))}</span>${concessionBalance !== null && concessionBalance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-apply-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_concession_apply_title')}">${t('prof_hist_concession_apply', null, { amount: concessionSuggestion.suggestedAmount })}</button>${concessionRoundControls}` : ''}</span>` : '';
+    const concessionSuggestMarkup = concessionSuggestion && !concessionSuggestion.alreadyApplied && concessionSuggestion.eligible ? `<span class="month-summary-wide"><span class="discount-badge-applied">${escapeHtml(t('prof_hist_concession_suggest', null, { hours: concessionSuggestion.downtimeHours, amount: formatPKR(concessionSuggestion.suggestedAmount) }))}</span>${concessionBalance !== null && concessionBalance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-apply-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_concession_apply_title')}">${t('prof_hist_concession_apply', null, { amount: formatPKR(concessionSuggestion.suggestedAmount) })}</button>${concessionRoundControls}` : ''}</span>` : '';
     const concessionNetMarkup = concessionNetDue !== null ? `<span class="month-summary-stat">${t('prof_hist_net_after_concession')}: <strong>${formatAmount(concessionNetDue)}</strong></span>` : '';
     // Profile Inner Tabs Overhaul (§4) — the bill-clarity strip is gone
     // from the month summary (it duplicated the dues breakdown); the
@@ -6302,12 +6302,12 @@ function renderHistory(customer) {
       enabled: wrap.querySelector('[data-round50-toggle]')?.checked === true,
       mode: wrap.querySelector('[data-round50-mode]')?.value || 'nearest'
     });
-    button.textContent = t('prof_hist_concession_apply', null, { amount: effective.suggestedAmount });
+    button.textContent = t('prof_hist_concession_apply', null, { amount: formatPKR(effective.suggestedAmount) });
     button.disabled = effective.suggestedAmount <= 0;
     const hint = wrap.querySelector('[data-round50-hint]');
     if (hint) {
       hint.hidden = !effective.rounding;
-      hint.textContent = effective.rounding ? `→ ${formatAmount(effective.suggestedAmount)} (${t('round50_rounded_from', null, { amount: effective.rawSuggestedAmount })})` : '';
+      hint.textContent = effective.rounding ? `→ ${formatAmount(effective.suggestedAmount)} (${t('round50_rounded_from', null, { amount: formatPKR(effective.rawSuggestedAmount) })})` : '';
     }
   }));
   historyContainer.querySelectorAll('[data-remove-concession]').forEach(button => button.addEventListener('click', async () => {
@@ -7449,13 +7449,14 @@ function customerLifetimeValueMarkup(lifetime) {
   // Phase 3: the CLV bases are rebuilt at the profile site from the counts
   // the engine already returns (observationMonths, receiptMonths, asOf),
   // so the engine's English basis sentences are never rendered. The
-  // future-basis average replicates pkr() exactly (PKR + en-PK grouping).
+  // future-basis average formats through the shared formatPKR (PKR +
+  // grouping, 0-or-2 decimals).
   const avgBasis=lifetime.observationMonths
     ? (lifetime.observationMonths===1?t('prof_clv_avg_basis_1', null, { months: 1, month: lifetime.asOf.slice(0,7) }):t('prof_clv_avg_basis_n', null, { months: lifetime.observationMonths, month: lifetime.asOf.slice(0,7) }))
     : t('prof_clv_avg_basis_none');
   const futureBasis=lifetime.estimatedFutureValue===null
     ? (lifetime.receiptMonths===0?t('prof_clv_future_none_0'):t('prof_clv_future_none_2'))
-    : t(`prof_clv_future_basis_${lifetime.receiptMonths===1?'1':'n'}${lifetime.observationMonths===1?'1':'n'}`, null, { avg: `PKR ${Number(lifetime.averageMonthlyRevenue).toLocaleString('en-PK')}`, receipts: lifetime.receiptMonths, months: lifetime.observationMonths, month: lifetime.asOf.slice(0,7) });
+    : t(`prof_clv_future_basis_${lifetime.receiptMonths===1?'1':'n'}${lifetime.observationMonths===1?'1':'n'}`, null, { avg: formatPKR(lifetime.averageMonthlyRevenue), receipts: lifetime.receiptMonths, months: lifetime.observationMonths, month: lifetime.asOf.slice(0,7) });
   const revenueBasis=lifetime.receiptCount===1?t('prof_clv_rev_basis_1', null, { count: 1 }):t('prof_clv_rev_basis_n', null, { count: lifetime.receiptCount });
   return `<section class="customer-lifetime-value" aria-labelledby="customerLifetimeValueHeading"><h4 id="customerLifetimeValueHeading">${t('prof_clv_heading')}</h4><dl class="customer-lifetime-grid"><div><dt>${t('prof_clv_revenue')}</dt><dd>${escapeHtml(formatAmount(lifetime.totalHistoricalRevenue))}</dd><dd class="customer-lifetime-basis">${escapeHtml(revenueBasis)}</dd></div><div><dt>${t('prof_clv_tenure')}</dt><dd>${escapeHtml(tenureLabel)}</dd><dd class="customer-lifetime-basis">${escapeHtml(tenureBasis)}</dd></div><div><dt>${t('prof_clv_avg_revenue')}</dt><dd>${escapeHtml(monthlyRevenue)}</dd><dd class="customer-lifetime-basis">${escapeHtml(avgBasis)}</dd></div><div><dt>${t('prof_clv_delay')}</dt><dd>${escapeHtml(delay)}</dd><dd class="customer-lifetime-basis">${escapeHtml(delayBasis)}</dd></div><div class="customer-lifetime-estimate"><dt>${t('prof_clv_future_value')}</dt><dd>${escapeHtml(future)}</dd><dd class="customer-lifetime-basis">${escapeHtml(futureBasis)}</dd></div></dl><p class="customer-lifetime-note">${t('prof_clv_note')}</p></section>`;
 }
@@ -11398,7 +11399,7 @@ async function clearAllExecuteWipe() {
   writePaymentRecordStores(localStorage, beforeStores, nextStores);
   recordAudit('payment_records_cleared', {
     recordRef: 'clear-all-record',
-    detail: `${result.payments} payments · PKR ${Math.round(result.totalCents / 100).toLocaleString('en-PK')} · ${result.billsBecomingUnpaid} bills now unpaid`
+    detail: `${result.payments} payments · ${formatPKR(Math.round(result.totalCents / 100))} · ${result.billsBecomingUnpaid} bills now unpaid`
   });
   if (resultEl) {
     resultEl.textContent = t('clr_result', null, {
@@ -14306,7 +14307,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
           customer: currentCustomer,
           category: 'prorated_package_change',
           amount: Math.abs(proRataAdjustment),
-          reason: `Mid-cycle package transition: ${oldPlan} (PKR ${oldRate}) → ${newPlan} (PKR ${newRate}). Pro-rated current-bill: PKR ${proration.proRatedCurrentBill.toLocaleString()} (Day ${proration.effectiveDay}/${proration.daysInMonth}).`,
+          reason: `Mid-cycle package transition: ${oldPlan} (${formatPKR(oldRate)}) → ${newPlan} (${formatPKR(newRate)}). Pro-rated current-bill: ${formatPKR(proration.proRatedCurrentBill)} (Day ${proration.effectiveDay}/${proration.daysInMonth}).`,
           authorizedBy: $('#packageChangeStaffNameInput').value || 'Staff Operator',
           date: todayStr
         });
@@ -14453,7 +14454,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     save(); renderDetail();
     if (splitterMapModalController) splitterMapModalController.refresh();
     if (proRataAdjustment !== null) {
-      toast(`Customer profile and mid-month pro-rata adjustment (PKR ${proRataAdjustment >= 0 ? '+' : ''}${proRataAdjustment.toLocaleString()}) saved.`);
+      toast(`Customer profile and mid-month pro-rata adjustment (${proRataAdjustment >= 0 ? formatPKR(proRataAdjustment).replace('PKR ', 'PKR +') : formatPKR(proRataAdjustment)}) saved.`);
     } else {
       toast('Customer profile saved on this device.');
     }
@@ -15034,23 +15035,23 @@ function renderProfileProrataPreview() {
     const badge = $('#prorataPreviewDeltaBadge');
     if (badge) {
       const isUp = proration.netAdjustment > 0;
-      badge.textContent = t('prof_prorata_badge', null, { adj: `${effectiveAdjustment > 0 ? '+' : ''}PKR ${effectiveAdjustment.toLocaleString()}`, direction: isUp ? t('prof_prorata_up') : (proration.netAdjustment < 0 ? t('prof_prorata_down') : t('prof_prorata_lateral')) });
+      badge.textContent = t('prof_prorata_badge', null, { adj: `${effectiveAdjustment > 0 ? '+' : ''}${formatPKR(effectiveAdjustment)}`, direction: isUp ? t('prof_prorata_up') : (proration.netAdjustment < 0 ? t('prof_prorata_down') : t('prof_prorata_lateral')) });
       badge.className = `sim-delta-badge ${isUp ? 'badge-success' : (proration.netAdjustment < 0 ? 'badge-warning' : 'badge-info')}`;
     }
     const breakdown = $('#prorataPreviewDaysBreakdown');
     if (breakdown) {
       breakdown.innerHTML = `
-        <span>${t('prof_prorata_days', null, { day: proration.effectiveDay, total: proration.daysInMonth, elapsed: proration.daysElapsed, oldAmount: (proration.oldPlanCostElapsed || (currentRate - proration.oldPlanCredit)).toLocaleString(), remaining: proration.daysRemaining, newAmount: proration.newPlanCharge.toLocaleString() })}</span>
+        <span>${t('prof_prorata_days', null, { day: proration.effectiveDay, total: proration.daysInMonth, elapsed: proration.daysElapsed, oldAmount: formatPKR(proration.oldPlanCostElapsed || (currentRate - proration.oldPlanCredit)), remaining: proration.daysRemaining, newAmount: formatPKR(proration.newPlanCharge) })}</span>
       `;
     }
     const calcBill = $('#prorataCalculatedBill');
     if (calcBill) {
-      calcBill.textContent = `PKR ${proration.proRatedCurrentBill.toLocaleString()}`;
+      calcBill.textContent = formatPKR(proration.proRatedCurrentBill);
     }
     const netAdj = $('#prorataNetAdjustment');
     if (netAdj) {
       const sign = effectiveAdjustment > 0 ? '+' : '';
-      netAdj.textContent = `${sign}PKR ${effectiveAdjustment.toLocaleString()}${roundCredit && effectiveAdjustment !== proration.netAdjustment ? ` (${t('round50_rounded_from', null, { amount: Math.abs(proration.netAdjustment).toLocaleString() })})` : ''}`;
+      netAdj.textContent = `${sign}${formatPKR(effectiveAdjustment)}${roundCredit && effectiveAdjustment !== proration.netAdjustment ? ` (${t('round50_rounded_from', null, { amount: formatPKR(Math.abs(proration.netAdjustment)) })})` : ''}`;
       netAdj.style.color = proration.netAdjustment > 0 ? '#b91c1c' : (proration.netAdjustment < 0 ? '#047857' : 'inherit');
     }
   } else {
@@ -15695,7 +15696,7 @@ export let fieldRouteSheetController = setupFieldRouteSheet({
       const recorded = getDailyCashHandovers(typeof localStorage !== 'undefined' ? localStorage : null, routeData?.date).length > 0;
       const flow = buildFieldDayFlow({ routeData, handover, handoverRecorded: recorded });
       const promisedEl = $('#routeMetricPromised');
-      if (promisedEl) promisedEl.textContent = `Rs. ${Math.round(flow.promised.amount).toLocaleString()} (${flow.promised.stops})`;
+      if (promisedEl) promisedEl.textContent = `${formatPKR(Math.round(flow.promised.amount))} (${flow.promised.stops})`;
       const stripEl = $('#fieldDayFlowStrip');
       if (stripEl) stripEl.innerHTML = fieldDayFlowStripHtml(flow);
       // Plan 90: plain handover prompt in Field Mode when the
@@ -16192,7 +16193,7 @@ window.quickCollectModalController = setupQuickCollectModal({
     offerCollectedUndo(info);
     qrScannerModalController?.noteCollectionSaved?.();
     // Plan 31: a Quick Collect payment is logged like a profile payment.
-    if (info?.paymentId) recordAudit('payment_recorded', { recordRef: `${info.customerId}/${info.month}/${info.paymentId}`, customerId: info.customerId, customerName: info.customerName || '', detail: info.amount != null ? `Quick collect · PKR ${Number(info.amount).toLocaleString()}` : 'Quick collect' });
+    if (info?.paymentId) recordAudit('payment_recorded', { recordRef: `${info.customerId}/${info.month}/${info.paymentId}`, customerId: info.customerId, customerName: info.customerName || '', detail: info.amount != null ? `Quick collect · ${formatPKR(info.amount)}` : 'Quick collect' });
   },
   onSelectCustomer: (customerId) => {
     selectedCustomerId = customerId;
@@ -17391,7 +17392,7 @@ function renderEscalationLadder() {
     for (const row of ladder.rows) {
       const totals = disputeTotalsByCustomer.get(row.customerId);
       if (totals && totals.disputedCents > 0) {
-        row.disputeNote = `Dispute open: Rs. ${totals.disputed} of this customer's bills is disputed — this ladder chases only the undisputed Rs. ${totals.undisputed}.`;
+        row.disputeNote = `Dispute open: ${formatPKR(totals.disputed)} of this customer's bills is disputed — this ladder chases only the undisputed ${formatPKR(totals.undisputed)}.`;
       }
     }
   }
@@ -17401,7 +17402,7 @@ function renderEscalationLadder() {
   const summaryEl = $('#escalationLadderSummary');
   if (summaryEl) summaryEl.textContent = escalationSummaryText(ladder)
     + (extensionResult.counts.paused > 0 ? ` ${extensionResult.counts.paused} bill${extensionResult.counts.paused === 1 ? '' : 's'} paused by a bill extension until the extended date passes.` : '')
-    + (ladderAdjustment.adjustedCount > 0 ? ` ${ladderAdjustment.adjustedCount} bill${ladderAdjustment.adjustedCount === 1 ? '' : 's'} chase only their undisputed portion while a dispute is open (Rs. ${ladderAdjustment.totalDisputedCents / 100} disputed held aside).` : '');
+    + (ladderAdjustment.adjustedCount > 0 ? ` ${ladderAdjustment.adjustedCount} bill${ladderAdjustment.adjustedCount === 1 ? '' : 's'} chase only their undisputed portion while a dispute is open (${formatPKR(ladderAdjustment.totalDisputedCents / 100)} disputed held aside).` : '');
   const gentleInput = $('#escalationLadderGentleDays');
   if (gentleInput) gentleInput.value = ladder.thresholds.gentleDays;
   const firmInput = $('#escalationLadderFirmDays');
@@ -18924,7 +18925,7 @@ function recordGroupCollectionAudit(result, month) {
         recordRef: `${outcome.customerId}/${month}`,
         customerId: outcome.customerId,
         customerName: outcome.name || '',
-        detail: `Group collection · PKR ${(outcome.amountCents / 100).toLocaleString()}`,
+        detail: `Group collection · ${formatPKR(outcome.amountCents / 100)}`,
       });
     }
   }
@@ -20169,7 +20170,7 @@ function renderPettyCash() {
   for (const selectEl of selectEls) {
     if (selectEl && document.activeElement !== selectEl) {
       const open = summaries.filter((s) => s.status === 'open');
-      selectEl.innerHTML = open.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.holder)} — ${escapeHtml(s.dateGiven)} — Rs. ${s.amountGiven} (left Rs. ${s.remaining})</option>`).join('')
+      selectEl.innerHTML = open.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.holder)} — ${escapeHtml(s.dateGiven)} — ${formatPKR(s.amountGiven)} (left ${formatPKR(s.remaining)})</option>`).join('')
         || '<option value="">No open advance yet</option>';
     }
   }
@@ -21557,7 +21558,7 @@ function refreshDisputeBills() {
   if (!customerEl || !billEl || document.activeElement === billEl) return;
   const customer = (state.customers ?? []).find((c) => String(c.id) === String(customerEl.value ?? ''));
   const bills = customer ? (customer.bills ?? []) : [];
-  billEl.innerHTML = bills.map((bill) => `<option value="${escapeHtml(bill.id)}">${escapeHtml(bill.month || bill.id)}${bill.dueAmount !== undefined && bill.dueAmount !== null && bill.dueAmount !== '' ? ` — Rs. ${escapeHtml(bill.dueAmount)}` : ''}</option>`).join('')
+  billEl.innerHTML = bills.map((bill) => `<option value="${escapeHtml(bill.id)}">${escapeHtml(bill.month || bill.id)}${bill.dueAmount !== undefined && bill.dueAmount !== null && bill.dueAmount !== '' ? ` — ${escapeHtml(formatPKR(bill.dueAmount))}` : ''}</option>`).join('')
     || '<option value="">No bills recorded for this customer</option>';
   const idEl = $('#disputeBillId');
   if (idEl && document.activeElement !== idEl) idEl.value = billEl.value ?? '';
@@ -21753,7 +21754,7 @@ function renderPaymentClaims() {
   }
   const claimEl = $('#claimSelect');
   if (claimEl && document.activeElement !== claimEl) {
-    claimEl.innerHTML = claims.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — Rs. ${escapeHtml(entry.amount)} (${escapeHtml(CLAIM_OUTCOME_LABELS[entry.outcome])}${entry.closed ? ', closed' : ''})</option>`).join('')
+    claimEl.innerHTML = claims.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(formatPKR(entry.amount))} (${escapeHtml(CLAIM_OUTCOME_LABELS[entry.outcome])}${entry.closed ? ', closed' : ''})</option>`).join('')
       || '<option value="">No claims yet</option>';
   }
   for (const [elId, options, labels] of [
@@ -21951,7 +21952,7 @@ function renderDisputeResolutions() {
       const value = Number(raw);
       if (!Number.isFinite(value) || value <= 0) { toast('A sign-off threshold needs a positive amount in rupees.'); return; }
       saveSignoffThreshold(value);
-      toast(`Owner sign-off threshold set to Rs. ${value}. Corrections and concessions above it need an owner sign-off note.`);
+      toast(`Owner sign-off threshold set to ${formatPKR(value)}. Corrections and concessions above it need an owner sign-off note.`);
       renderDisputeResolutions();
     });
     $('#resolutionSaveBtn')?.addEventListener('click', () => {
@@ -26205,7 +26206,7 @@ function renderCreditBalances() {
       const balance = creditBalanceForCustomer(entries, applications, c.id);
       return { in: sum.in + balance.totalInCents, applied: sum.applied + balance.totalAppliedCents, remaining: sum.remaining + balance.remainingCents };
     }, { in: 0, applied: 0, remaining: 0 });
-    summaryEl.textContent = `Credit in Rs. ${(totals.in / 100).toFixed(2)} · applied Rs. ${(totals.applied / 100).toFixed(2)} · remaining Rs. ${(totals.remaining / 100).toFixed(2)}.`;
+    summaryEl.textContent = `Credit in ${formatPKR(totals.in / 100)} · applied ${formatPKR(totals.applied / 100)} · remaining ${formatPKR(totals.remaining / 100)}.`;
   }
   if (!creditBalancesBound) {
     creditBalancesBound = true;
@@ -27287,7 +27288,7 @@ function renderWriteOffs() {
   const liveEl = $('#writeOffLiveList');
   if (liveEl) {
     const live = liveCollectionList(writeOffDeviceBills(), records);
-    liveEl.innerHTML = live.map((b) => `<div>${escapeHtml(names[b.customerId] || b.customerId)} · bill ${escapeHtml(b.billId)} · live ${escapeHtml(`Rs. ${(b.liveCents / 100).toFixed(2)}`)}${b.writtenOffCents > 0 ? ` (Rs. ${(b.writtenOffCents / 100).toFixed(2)} written off)` : ''}</div>`).join('') || '<p>No live bills on this device yet.</p>';
+    liveEl.innerHTML = live.map((b) => `<div>${escapeHtml(names[b.customerId] || b.customerId)} · bill ${escapeHtml(b.billId)} · live ${escapeHtml(formatPKR(b.liveCents / 100))}${b.writtenOffCents > 0 ? ` (${formatPKR(b.writtenOffCents / 100)} written off)` : ''}</div>`).join('') || '<p>No live bills on this device yet.</p>';
   }
   if (!writeOffsBound) {
     writeOffsBound = true;
@@ -27307,7 +27308,7 @@ function renderWriteOffs() {
         approvalId: $('#writeOffApproval')?.value ?? '',
         writeOffDate: $('#writeOffDate')?.value ?? '',
       });
-      if (next.length === loadWriteOffs().length) { toast('Write-off not recorded: it needs a customer, at least one bill line as "bill id | amount (Rs.)", a reason, an approver, an owner approval id, and a real date — and no bill already written off.'); return; }
+      if (next.length === loadWriteOffs().length) { toast('Write-off not recorded: it needs a customer, at least one bill line as "bill id | amount (PKR)", a reason, an approver, an owner approval id, and a real date — and no bill already written off.'); return; }
       saveWriteOffs(next);
       toast('Write-off recorded as a separate entry. No bill, payment, or past total was deleted or edited.');
       renderWriteOffs();
@@ -27661,8 +27662,8 @@ function renderDepositSlips() {
       if (!resultEl) return;
       if (!result) { resultEl.textContent = 'Pick a real month and a deposited total to check.'; return; }
       resultEl.textContent = result.agrees
-        ? `Agrees: ${result.slipCount} slip(s) total Rs. ${(result.slipsTotalCents / 100).toFixed(2)}, matching the deposited total.`
-        : `Mismatch: ${result.slipCount} slip(s) total Rs. ${(result.slipsTotalCents / 100).toFixed(2)} against a deposited total of Rs. ${(result.depositedCents / 100).toFixed(2)} — difference Rs. ${(result.differenceCents / 100).toFixed(2)}. Nothing was changed.`;
+        ? `Agrees: ${result.slipCount} slip(s) total ${formatPKR(result.slipsTotalCents / 100)}, matching the deposited total.`
+        : `Mismatch: ${result.slipCount} slip(s) total ${formatPKR(result.slipsTotalCents / 100)} against a deposited total of ${formatPKR(result.depositedCents / 100)} — difference ${formatPKR(result.differenceCents / 100)}. Nothing was changed.`;
     });
     $('#depositSlipExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(depositSlipFilename(), depositSlipCsv(loadDepositSlips()));
@@ -32962,7 +32963,7 @@ function renderMohallaCollectionTargets() {
       try { ledger = JSON.parse(ledgerRaw || '[]'); } catch { ledger = []; }
       const check = checkActualAgainstLedger(all, ledger, month);
       checkEl.innerHTML = check.mismatched.length
-        ? check.mismatched.map((row) => `<p>${row.mohalla} — target actual Rs. ${Math.round(row.targetActualCents / 100).toLocaleString('en-US')}, ledger Rs. ${Math.round(row.ledgerActualCents / 100).toLocaleString('en-US')}: mismatch.</p>`).join('')
+        ? check.mismatched.map((row) => `<p>${row.mohalla} — target actual ${formatPKR(Math.round(row.targetActualCents / 100))}, ledger ${formatPKR(Math.round(row.ledgerActualCents / 100))}: mismatch.</p>`).join('')
         : `<p>${check.matched.length} mohalla actual(s) match the ledger for ${month}.</p>`;
     }
   }
@@ -33266,7 +33267,7 @@ function renderBillingLinks() {
         { connectionId: link.primaryConnection, amount: Number.isFinite(primaryDues) ? primaryDues : 0 },
         { connectionId: link.linkedConnection, amount: Number.isFinite(linkedDues) ? linkedDues : 0 },
       ]);
-      outEl.textContent = `${link.customer} — ${link.primaryConnection} (Rs. ${(view.primaryCents / 100).toFixed(0)}) + ${link.linkedConnection} (Rs. ${(view.linkedCents / 100).toFixed(0)}) = Rs. ${(view.totalCents / 100).toFixed(0)} combined. This is a view only; no bill, payment, or connection record changes.`;
+      outEl.textContent = `${link.customer} — ${link.primaryConnection} (${formatPKR(view.primaryCents / 100)}) + ${link.linkedConnection} (${formatPKR(view.linkedCents / 100)}) = ${formatPKR(view.totalCents / 100)} combined. This is a view only; no bill, payment, or connection record changes.`;
     });
   }
 }
@@ -41237,8 +41238,8 @@ function renderConnectionCreditTransfers() {
       ]);
       if (!customer || rows.length !== 2) { checkEl.textContent = 'Give a customer and two different connections with credits to check.'; return; }
       const result = applyConnectionCreditTransfers(rows, connectionCreditTransfersForCustomer(loadConnectionCreditTransfers(), customer));
-      const before = rows.map((row) => `${row.id}: Rs. ${(row.creditCents / 100).toFixed(2)}`).join(' · ');
-      const after = result.connections.map((row) => `${row.id}: Rs. ${(row.creditCents / 100).toFixed(2)}`).join(' · ');
+      const before = rows.map((row) => `${row.id}: ${formatPKR(row.creditCents / 100)}`).join(' · ');
+      const after = result.connections.map((row) => `${row.id}: ${formatPKR(row.creditCents / 100)}`).join(' · ');
       const refused = result.refused.length ? ` Refused: ${result.refused.map((entry) => `${entry.transfer.id} (${entry.reason})`).join(', ')}.` : '';
       checkEl.textContent = `Before: ${before}. After recorded transfers: ${after}. Customer total unchanged.${refused}`;
     });
@@ -42659,10 +42660,10 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   const payroll=buildPayrollSummary(state,selectedPayrollMonth);
   $('#saadMonthlySalary').textContent=formatAmount(payroll.saadMonthlySalary);
   $('#saadEligibleCustomerCount').textContent=String(payroll.eligibleActivePaidCustomerCount);
-  $('#saadSalaryDetail').textContent=`PKR ${payroll.saadBaseMonthlySalary.toLocaleString('en-PK')} base + PKR 200 × ${payroll.eligibleActivePaidCustomerCount} eligible customer${payroll.eligibleActivePaidCustomerCount===1?'':'s'}. Only post-${PAYROLL_RULES_EFFECTIVE_DATE} additions with current Active status, not archived, and a fully settled ${monthName(selectedPayrollMonth)} bill count.`;
+  $('#saadSalaryDetail').textContent=`${formatPKR(payroll.saadBaseMonthlySalary)} base + PKR 200 × ${payroll.eligibleActivePaidCustomerCount} eligible customer${payroll.eligibleActivePaidCustomerCount===1?'':'s'}. Only post-${PAYROLL_RULES_EFFECTIVE_DATE} additions with current Active status, not archived, and a fully settled ${monthName(selectedPayrollMonth)} bill count.`;
   $('#saadAttendanceCount').textContent=payroll.attendanceDayCount?`${payroll.attendanceDayCount} unique day${payroll.attendanceDayCount===1?'':'s'}`:'No attendance entries';
   $('#umairWorkdayExpense').textContent=payroll.umairWorkdayCount?formatAmount(payroll.umairMonthlyExpense):'No workday entries';
-  $('#umairWorkdayDetail').textContent=payroll.umairWorkdayCount?`${payroll.umairWorkdayCount} logged date${payroll.umairWorkdayCount===1?'':'s'} × PKR ${UMAIR_PER_LOGGED_WORKDAY.toLocaleString('en-PK')}`:'No recorded workdays; no amount is assumed.';
+  $('#umairWorkdayDetail').textContent=payroll.umairWorkdayCount?`${payroll.umairWorkdayCount} logged date${payroll.umairWorkdayCount===1?'':'s'} × ${formatPKR(UMAIR_PER_LOGGED_WORKDAY)}`:'No recorded workdays; no amount is assumed.';
   $('#saadAttendanceList').innerHTML=payroll.attendanceDays.map(date=>`<li><time datetime="${date}">${date}</time><button type="button" class="delete-incident" data-remove-attendance="${date}">Remove</button></li>`).join('');
   $('#saadAttendanceEmpty').hidden=payroll.attendanceDays.length>0;
   $('#umairWorkdaysList').innerHTML=payroll.umairWorkdays.map(date=>`<li><time datetime="${date}">${date}</time><button type="button" class="delete-incident" data-remove-workday="${date}">Remove</button></li>`).join('');
@@ -43233,7 +43234,7 @@ $('#recordSaadSalaryExpenseBtn')?.addEventListener('click',()=>{
   const prefillText = $('#expensePayrollPrefillText');
   if (notice) {
     if (prefillText) {
-      prefillText.textContent = `Prefilled from ${monthName(selectedPayrollMonth)} payroll for Saad: PKR ${Number(prefill.amount).toLocaleString('en-PK')}. Click "Record actual expense" below to post into the ledger.`;
+      prefillText.textContent = `Prefilled from ${monthName(selectedPayrollMonth)} payroll for Saad: ${formatPKR(Number(prefill.amount))}. Click "Record actual expense" below to post into the ledger.`;
     }
     notice.hidden = false;
   }
@@ -43267,7 +43268,7 @@ $('#recordUmairSalaryExpenseBtn')?.addEventListener('click',()=>{
   const prefillText = $('#expensePayrollPrefillText');
   if (notice) {
     if (prefillText) {
-      prefillText.textContent = `Prefilled from ${monthName(selectedPayrollMonth)} payroll for Umair: PKR ${Number(prefill.amount).toLocaleString('en-PK')}. Click "Record actual expense" below to post into the ledger.`;
+      prefillText.textContent = `Prefilled from ${monthName(selectedPayrollMonth)} payroll for Umair: ${formatPKR(Number(prefill.amount))}. Click "Record actual expense" below to post into the ledger.`;
     }
     notice.hidden = false;
   }
@@ -43909,7 +43910,7 @@ function renderStatementView() {
   if (statementFiltersActive()) {
     const filteredCharges = visible.reduce((sum, ev) => sum + (ev.charge || 0), 0);
     const filteredCredits = visible.reduce((sum, ev) => sum + (ev.credit || 0), 0);
-    view.filterNote = `Showing ${visible.length} of ${currentStatementData.events.length} entries · Filtered charges PKR ${filteredCharges.toLocaleString()} · Filtered credits PKR ${filteredCredits.toLocaleString()} · CSV / WhatsApp exports cover only the visible entries.`;
+    view.filterNote = `Showing ${visible.length} of ${currentStatementData.events.length} entries · Filtered charges ${formatPKR(filteredCharges)} · Filtered credits ${formatPKR(filteredCredits)} · CSV / WhatsApp exports cover only the visible entries.`;
   }
   const statementBreakdowns = statementBillBreakdowns(visible);
   if (statementBreakdowns?.length) view.billBreakdowns = statementBreakdowns;
@@ -44093,8 +44094,8 @@ function openStatementEventDetail(index) {
       <div><dt>Reference</dt><dd>${escapeHtml(ev.ref || '—')}</dd></div>
       <div><dt>Method</dt><dd>${escapeHtml(ev.method || '—')}</dd></div>
       <div><dt>Billing month</dt><dd>${escapeHtml(ev.month || '—')}</dd></div>
-      <div><dt>${amountLabel}</dt><dd>PKR ${Number(amount || 0).toLocaleString()}</dd></div>
-      <div><dt>Running balance</dt><dd>PKR ${Number(ev.runningBalance || 0).toLocaleString()}</dd></div>
+      <div><dt>${amountLabel}</dt><dd>${formatPKR(Number(amount || 0))}</dd></div>
+      <div><dt>Running balance</dt><dd>${formatPKR(Number(ev.runningBalance || 0))}</dd></div>
     </dl>`;
   if (statementDetailSchedulePromiseBtn) {
     statementDetailSchedulePromiseBtn.hidden = overdueDays <= 0;
@@ -44334,7 +44335,7 @@ function renderReminderCustomerHistory(customerId) {
   }
   const itemsHtml = history.slice(0, 4).map(h => {
     const methodIcon = h.method === 'whatsapp' ? '💬 WhatsApp' : h.method === 'copied' ? '📋 Copied' : '🖨️ Slip';
-    const amountStr = h.dueAmount ? `PKR ${Number(h.dueAmount).toLocaleString()}` : '';
+    const amountStr = h.dueAmount ? formatPKR(Number(h.dueAmount)) : '';
     return `
       <div class="reminder-history-item">
         <span><strong>${escapeHtml(h.stageLabel || h.templateType || 'Reminder')}</strong> (${formatDisplayDate(h.date)})</span>
@@ -44433,7 +44434,7 @@ function renderReminderContent() {
       </div>
       <div class="reminder-cust-right">
         <span class="reminder-due-tag">Total Balance</span>
-        <strong class="reminder-due-val">PKR ${Number(balance).toLocaleString()}</strong>
+        <strong class="reminder-due-val">${formatPKR(balance)}</strong>
       </div>
     `;
   }
@@ -44729,7 +44730,7 @@ if (saveReminderPromiseBtn) {
       note
     });
 
-    toast(`Promise-to-Pay recorded for ${formatDisplayDate(promisedDate)} (PKR ${promisedAmount.toLocaleString()})`);
+    toast(`Promise-to-Pay recorded for ${formatDisplayDate(promisedDate)} (${formatPKR(promisedAmount)})`);
     if (reminderInlinePromiseFieldset) reminderInlinePromiseFieldset.hidden = true;
   });
 }
@@ -44877,7 +44878,7 @@ export function renderWadaList() {
   if (wadaTodayCountBadge) wadaTodayCountBadge.textContent = String(followup.summary.todayCount);
   if (wadaBrokenCountBadge) wadaBrokenCountBadge.textContent = String(followup.summary.brokenCount);
   if (wadaUpcomingCountBadge) wadaUpcomingCountBadge.textContent = String(followup.summary.upcomingCount);
-  if (wadaTotalPromisedAmount) wadaTotalPromisedAmount.textContent = `PKR ${followup.summary.totalPromisedAmount.toLocaleString()}`;
+  if (wadaTotalPromisedAmount) wadaTotalPromisedAmount.textContent = formatPKR(followup.summary.totalPromisedAmount);
 
   // Update tab highlights
   wadaTabs.forEach(t => {
@@ -44919,8 +44920,8 @@ export function renderWadaList() {
         </div>
         <div class="wada-card-body">
           <div>
-            <span class="wada-amount-pill">Promised: PKR ${Number(p.promisedAmount || 0).toLocaleString()}</span>
-            ${p.currentBalance > 0 ? `<span style="margin-left: 8px; font-size: 11px; color: var(--muted, #71817c);">(Outstanding Dues: PKR ${p.currentBalance.toLocaleString()})</span>` : ''}
+            <span class="wada-amount-pill">Promised: ${formatPKR(Number(p.promisedAmount || 0))}</span>
+            ${p.currentBalance > 0 ? `<span style="margin-left: 8px; font-size: 11px; color: var(--muted, #71817c);">(Outstanding Dues: ${formatPKR(p.currentBalance)})</span>` : ''}
           </div>
           ${p.note ? `<div class="wada-card-note">“${escapeHtml(p.note)}”</div>` : ''}
         </div>
@@ -45357,16 +45358,16 @@ export function renderLedgerAuditModal(customer) {
     auditStatusPill.textContent = currentAuditResult.statusLabel;
   }
   if (auditTotalBilledVal) {
-    auditTotalBilledVal.textContent = `PKR ${Number(currentAuditResult.totalBilled).toLocaleString()}`;
+    auditTotalBilledVal.textContent = formatPKR(Number(currentAuditResult.totalBilled));
   }
   if (auditTotalPaidVal) {
-    auditTotalPaidVal.textContent = `PKR ${Number(currentAuditResult.totalPaid).toLocaleString()}`;
+    auditTotalPaidVal.textContent = formatPKR(Number(currentAuditResult.totalPaid));
   }
   if (auditOutstandingVal) {
-    auditOutstandingVal.textContent = `PKR ${Number(currentAuditResult.netOutstanding).toLocaleString()}`;
+    auditOutstandingVal.textContent = formatPKR(Number(currentAuditResult.netOutstanding));
   }
   if (auditUnappliedCreditVal) {
-    auditUnappliedCreditVal.textContent = `PKR ${Number(currentAuditResult.unappliedCredit).toLocaleString()}`;
+    auditUnappliedCreditVal.textContent = formatPKR(Number(currentAuditResult.unappliedCredit));
   }
 
   if (auditDiscrepancyBox && auditDiscrepancyList && auditDiscrepancyCleanMsg) {
@@ -45394,9 +45395,9 @@ export function renderLedgerAuditModal(customer) {
         tr.innerHTML = `
           <td>${escapeHtml(r.monthLabel || r.month)}</td>
           <td>${escapeHtml(r.dueDate)}</td>
-          <td class="text-right">PKR ${Number(r.billedAmount).toLocaleString()}</td>
-          <td class="text-right">PKR ${Number(r.paidAmount).toLocaleString()}</td>
-          <td class="text-right font-bold">PKR ${Number(r.balanceAmount).toLocaleString()}</td>
+          <td class="text-right">${formatPKR(Number(r.billedAmount))}</td>
+          <td class="text-right">${formatPKR(Number(r.paidAmount))}</td>
+          <td class="text-right font-bold">${formatPKR(Number(r.balanceAmount))}</td>
           <td class="text-center"><span class="audit-status-tag ${(r.status || '').toLowerCase()}">${escapeHtml(r.status)}</span></td>
         `;
         auditTableBody.appendChild(tr);
@@ -47099,7 +47100,7 @@ if (typeof document !== 'undefined') {
                 customer: cust,
                 category: 'prorated_package_change',
                 amount: Math.abs(record.netAdjustment),
-                reason: `Mid-cycle plan migration: ${record.currentPlan} → ${record.targetPlan}. Pro-rated current-bill: PKR ${(record.proration?.proRatedCurrentBill || record.proRatedBillAmount || 0).toLocaleString()} (Net adj: ${record.netAdjustment >= 0 ? '+' : '-'}PKR ${Math.abs(record.netAdjustment).toLocaleString()}).`,
+                reason: `Mid-cycle plan migration: ${record.currentPlan} → ${record.targetPlan}. Pro-rated current-bill: ${formatPKR(record.proration?.proRatedCurrentBill || record.proRatedBillAmount || 0)} (Net adj: ${record.netAdjustment >= 0 ? '+' : '-'}${formatPKR(Math.abs(record.netAdjustment))}).`,
                 authorizedBy: record.authorizedBy || 'NOC Operator',
                 date: record.effectiveDate
               });

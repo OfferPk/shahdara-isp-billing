@@ -25,6 +25,7 @@
 // the complaint register, so Quick Collect can fill the concession box from
 // the customer's exact calendar-month offline hours.
 
+import { formatPKR } from './core.js';
 import { buildCustomerDowntimeSummary } from './downtime-analytics.js';
 import { applicablePriceForMonth } from './billing-cycle.js';
 import { buildMonthlyUptime } from './uptime-tracking.js';
@@ -183,5 +184,5 @@ export function roundedConcessionSuggestion(suggestion, { enabled = false, mode 
 export function concessionBadgeText(suggestion) {
   const hours = suggestion?.downtimeHours ?? 0;
   const amount = suggestion?.suggestedAmount ?? 0;
-  return `Monthly Downtime: ${hours} hrs • Suggested Pro-Rata Concession: Rs. ${amount}`;
+  return `Monthly Downtime: ${hours} hrs • Suggested Pro-Rata Concession: ${formatPKR(amount)}`;
 }

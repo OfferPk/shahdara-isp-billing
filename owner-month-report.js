@@ -33,7 +33,8 @@
  * window the owner explicitly opens from the dialog.
  */
 
-import { buildOwnerKhataReport, escapeHtml, formatPKR } from './owner-khata.js';
+import { buildOwnerKhataReport, escapeHtml } from './owner-khata.js';
+import { formatPKR } from './core.js';
 import { outstandingAtMonthEnd } from './phase3.js';
 import { calculateDashboardKpis } from './dashboard.js';
 import { loadComplaints, pakistanMonthNow } from './complaint-register.js';

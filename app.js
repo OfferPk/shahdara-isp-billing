@@ -4552,8 +4552,14 @@ $('.profile-tabs').addEventListener('keydown', event => {
   const names = Object.keys(profileTabMap);
   const current = names.indexOf(selectedProfileTab);
   let next = current;
-  if (event.key === 'ArrowRight') next = (current + 1) % names.length;
-  else if (event.key === 'ArrowLeft') next = (current + names.length - 1) % names.length;
+  // Sharafat 78 — the tab row is a flex row, so it follows the document
+  // direction: in Urdu mode ArrowRight is visually the previous tab and
+  // ArrowLeft the next one. Read `dir` live on every keypress (the
+  // language can switch without a reload); Home/End stay first/last in
+  // the logical tab order in both directions (WAI-ARIA APG Tabs pattern).
+  const isRtl = document.documentElement.dir === 'rtl';
+  if (event.key === 'ArrowRight') next = (current + (isRtl ? names.length - 1 : 1)) % names.length;
+  else if (event.key === 'ArrowLeft') next = (current + (isRtl ? 1 : names.length - 1)) % names.length;
   else if (event.key === 'Home') next = 0;
   else if (event.key === 'End') next = names.length - 1;
   else return;

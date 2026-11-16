@@ -23,8 +23,11 @@
 //     and this module holds no complaint status, bill, or payment
 //     field, so there is nothing here that could rewrite one.
 //   - Each closed complaint shows at most one open follow-up due
-//     date: one record per complaint, and a second record for the
-//     same complaint is refused.
+//     date: one OPEN follow-up per complaint at a time. A second
+//     record for the same complaint is refused only while an open
+//     one exists — once the previous follow-up is completed, a new
+//     one may be recorded (Sharafat 71: a re-resolved complaint can
+//     be checked again). Completed records stay as history.
 //   - A follow-up is never edited, only completed once and then
 //     annotated. There is no edit function: only record, complete,
 //     annotate, and remove. Completing records the outcome once and
@@ -98,16 +101,22 @@ function normalizeEntry(raw) {
 export function normalizeComplaintFollowupList(list) {
   if (!Array.isArray(list)) return [];
   const seenIds = new Set();
-  const seenComplaints = new Set();
+  const seenOpenComplaints = new Set();
   const out = [];
   for (const raw of list) {
     const entry = normalizeEntry(raw);
     if (!entry) continue;
     if (seenIds.has(entry.id)) continue;
     const key = entry.complaintRef.toLowerCase();
-    if (seenComplaints.has(key)) continue;
+    // Sharafat 71: one OPEN follow-up per complaint, not one EVER.
+    // Completed entries are history and all survive; among open
+    // entries only the first survives, so a re-resolved complaint's
+    // second check is kept while a second open one is still dropped.
+    if (entry.stillSatisfied === null) {
+      if (seenOpenComplaints.has(key)) continue;
+      seenOpenComplaints.add(key);
+    }
     seenIds.add(entry.id);
-    seenComplaints.add(key);
     out.push(entry);
   }
   return out;
@@ -118,7 +127,10 @@ export function recordComplaintFollowup(list, raw) {
   const entry = normalizeEntry(raw);
   if (!entry) return clean;
   if (clean.some((item) => item.id === entry.id)) return clean;
-  if (clean.some((item) => item.complaintRef.toLowerCase() === entry.complaintRef.toLowerCase())) return clean;
+  // Sharafat 71: refuse only while an OPEN follow-up exists for the
+  // complaint. A completed follow-up no longer blocks a second check
+  // after the complaint is re-resolved.
+  if (clean.some((item) => item.complaintRef.toLowerCase() === entry.complaintRef.toLowerCase() && item.stillSatisfied === null)) return clean;
   return [...clean, entry];
 }
 

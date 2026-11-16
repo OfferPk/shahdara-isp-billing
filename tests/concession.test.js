@@ -83,7 +83,7 @@ test('threshold: below 12h not eligible, at 12h eligible', () => {
   assert.equal(at.reason, 'Outage Reaayat: 12h offline');
 });
 
-test('PINNED (1): 3000 package + 72h downtime -> Rs. 300 suggestion, badge text, net 2700', () => {
+test('PINNED (1): 3000 package + 72h downtime -> PKR 300 suggestion, badge text, net 2700', () => {
   const customer = customerWithBill(3000, 3000);
   const bill = customer.bills[0];
   const suggestion = buildConcessionSuggestion(customer, bill, [complaint()]);
@@ -91,7 +91,11 @@ test('PINNED (1): 3000 package + 72h downtime -> Rs. 300 suggestion, badge text,
   assert.equal(suggestion.downtimeHours, 72);
   assert.equal(suggestion.suggestedAmount, 300);
   assert.equal(suggestion.reason, 'Outage Reaayat: 72h offline');
-  assert.equal(concessionBadgeText(suggestion), 'Monthly Downtime: 72 hrs • Suggested Pro-Rata Concession: Rs. 300');
+  // Sharafat 85: the badge now formats through the single canonical
+  // formatPKR (core.js) — 'PKR 300', not the old hardcoded 'Rs. 300'.
+  // The pinned intent (a 300 concession for 72h on a 3,000 package) is
+  // unchanged; only the currency rendering is canonical now.
+  assert.equal(concessionBadgeText(suggestion), 'Monthly Downtime: 72 hrs • Suggested Pro-Rata Concession: PKR 300');
   assert.equal(netDueAfterConcession(3000, suggestion.suggestedAmount), 2700);
 
   let state = stateWithBill(3000, 3000);

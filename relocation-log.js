@@ -39,6 +39,7 @@
  * and the modal controller stay testable without the app.
  */
 import { t } from './nav-language.js';
+import { formatPKR } from './core.js';
 
 function cleanText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -52,13 +53,6 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-function pkr(value) {
-  if (value === null || value === undefined || value === '') return 'Not set';
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return 'Not set';
-  return `PKR ${amount.toLocaleString('en-PK')}`;
 }
 
 const ID_RE = /^REL-(\d+)$/;
@@ -128,7 +122,7 @@ export function buildRelocationTimeline(customer) {
   const rows = [];
   for (const entry of sanitizeRelocationLog(customer.relocationLog)) {
     const feePart = entry.shiftingFee > 0
-      ? t('prof_reloc_fee', null, { amount: pkr(entry.shiftingFee) }) + (entry.feeAppliedToBill ? t('prof_reloc_fee_bill', null, { month: entry.feeBillMonth }) : t('prof_reloc_fee_logged'))
+      ? t('prof_reloc_fee', null, { amount: formatPKR(entry.shiftingFee) }) + (entry.feeAppliedToBill ? t('prof_reloc_fee_bill', null, { month: entry.feeBillMonth }) : t('prof_reloc_fee_logged'))
       : '';
     const fiberPart = entry.extraFiberMeters !== null && entry.extraFiberMeters !== undefined
       ? t('prof_reloc_fiber', null, { meters: entry.extraFiberMeters })

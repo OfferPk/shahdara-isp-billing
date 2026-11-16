@@ -20,9 +20,12 @@
 // Waada broken yesterday does not move a current bill into an
 // older bucket. No Waada field is read here at all.
 //
-// The module is import-free by design (like owner-digest.js,
-// route-sequencing.js and day-target.js), so it can be used without
-// pulling in the app graph. The caller supplies bill-level entries
+// Sharafat 88: the module now imports { t } from nav-language.js ONLY
+// — nav-language.js itself imports nothing, so the module still pulls
+// in no app graph (no store, no DOM, no app.js) and stays usable
+// standalone; the import exists so the renderers can translate at
+// render time while the data model stays English-canonical. The caller
+// supplies bill-level entries
 // (one per outstanding bill) together with the as-of month; the
 // module never reads a record, never recounts a payment, and never
 // changes a bill, a total, or a Waada record.
@@ -62,6 +65,30 @@
 //     whole rupees; num() guards non-integer input by rounding to the
 //     nearest cent. The CSV writes exact decimal rupees (ageingCsv).
 //   - Nothing is mutated: input entries are read, never written.
+
+import { t } from './nav-language.js';
+
+// Sharafat 88: bucket keys ('current'/'one'/'two'/'threePlus') map to the
+// ageing_bucket_* dict keys at RENDER time only — the data model
+// (AGEING_BUCKETS labels/descriptions) stays English-canonical, so
+// 'threePlus' needs its 'three_plus' suffix here, not a model change.
+const AGEING_BUCKET_DICT_SUFFIX = Object.freeze({ current: 'current', one: 'one', two: 'two', threePlus: 'three_plus' });
+function ageingBucketLabel(bucketKey, lang = null) {
+  return t(`ageing_bucket_${AGEING_BUCKET_DICT_SUFFIX[bucketKey] ?? bucketKey}`, lang);
+}
+function ageingBucketDescription(bucketKey, lang = null) {
+  return t(`ageing_bucket_${AGEING_BUCKET_DICT_SUFFIX[bucketKey] ?? bucketKey}_desc`, lang);
+}
+
+// Sharafat 88: the CSV totals header is lowercase by convention
+// ('mohalla,total,bills,current,…' — pinned by the plan7 CSV test),
+// while the per-row bucket label keeps the Title Case bucket label.
+// Lowercasing the first character is a no-op for Urdu script (no
+// case), so the Urdu header shows exactly the translated bucket label.
+function ageingCsvBucketLabel(bucketKey, lang = null) {
+  const label = ageingBucketLabel(bucketKey, lang);
+  return label.charAt(0).toLowerCase() + label.slice(1);
+}
 
 export const AGEING_BUCKETS = Object.freeze([
   Object.freeze({ key: 'current', label: 'Current', ageMonths: 0, description: 'Bill month is the as-of month' }),
@@ -171,9 +198,9 @@ export function ageingMohallaKey(raw) {
   return stripped === 'JABBIYAAA' ? 'JABBIYAA' : stripped;
 }
 
-export function ageingMohallaLabel(raw) {
+export function ageingMohallaLabel(raw, lang = null) {
   const text = str(raw).trim().replace(/\s+/g, ' ');
-  if (!text) return 'Unassigned';
+  if (!text) return t('ageing_unassigned', lang);
   // Owner 5-part fix: display label in consistent Title Case, so a
   // stored 'CHARYAA' and a stored 'Charyaa' read the same; the folded
   // JABBIYAAA spelling reads as its canonical 'Jabbiyaa'.
@@ -204,8 +231,9 @@ function compareMohallas(a, b, compareAreas = null) {
   if (b.total !== a.total) return b.total - a.total;
   // Mohalla Numbering: the amount stays the primary rank; ties break
   // by the caller's mohalla order when given (the app passes the
-  // numbered order), otherwise by label — the module stays
-  // import-free, so the order is supplied, never copied here.
+  // numbered order), otherwise by label — the order is supplied, never
+  // copied here (the module's only import is nav-language.js, which
+  // carries no mohalla order).
   if (typeof compareAreas === 'function') return compareAreas(a.label, b.label);
   return str(a.label).localeCompare(str(b.label));
 }
@@ -382,30 +410,30 @@ export function ageingSummary(view) {
 }
 
 /** Printable HTML for a view: bucket table, mohalla table, customer lists. */
-export function ageingHtml(view) {
+export function ageingHtml(view, lang = null) {
   if (!view || !view.valid) return '';
   const bucketRows = AGEING_BUCKETS.map((bucket) => {
     const b = view.buckets[bucket.key];
-    return `<tr><td>${escapeHtml(b.label)}</td><td>${escapeHtml(b.description)}</td><td>${formatAmount(b.amount)}</td><td>${b.billCount}</td><td>${b.customerCount}</td></tr>`;
+    return `<tr><td>${escapeHtml(ageingBucketLabel(bucket.key, lang))}</td><td>${escapeHtml(ageingBucketDescription(bucket.key, lang))}</td><td>${formatAmount(b.amount)}</td><td>${b.billCount}</td><td>${b.customerCount}</td></tr>`;
   }).join('');
   const mohallaRows = view.mohallaTotals.map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${formatAmount(row.total)}</td><td>${row.billCount}</td><td>${formatAmount(row.byBucket.current)}</td><td>${formatAmount(row.byBucket.one)}</td><td>${formatAmount(row.byBucket.two)}</td><td>${formatAmount(row.byBucket.threePlus)}</td></tr>`).join('')
-    || '<tr><td colspan="7">No outstanding bills.</td></tr>';
+    || `<tr><td colspan="7">${escapeHtml(t('ageing_empty_no_bills', lang))}</td></tr>`;
   const customerSections = AGEING_BUCKETS.map((bucket) => {
     const b = view.buckets[bucket.key];
     if (b.customers.length === 0) return '';
     const rows = b.customers.map((c) => `<tr><td>${escapeHtml(c.customerName || '—')}</td><td>${escapeHtml(c.mohallaLabel)}</td><td>${formatAmount(c.amount)}</td><td>${c.billCount}</td><td>${escapeHtml(c.billMonths.join(', '))}</td></tr>`).join('');
-    return `<h4>${escapeHtml(b.label)} — customers</h4><table><thead><tr><th>Customer</th><th>Mohalla</th><th>Amount</th><th>Bills</th><th>Bill months</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<h4>${escapeHtml(t('ageing_heading_customers', lang, { label: ageingBucketLabel(bucket.key, lang) }))}</h4><table><thead><tr><th>${escapeHtml(t('ageing_col_customer', lang))}</th><th>${escapeHtml(t('ageing_col_mohalla', lang))}</th><th>${escapeHtml(t('ageing_col_amount', lang))}</th><th>${escapeHtml(t('ageing_col_bills', lang))}</th><th>${escapeHtml(t('ageing_col_bill_months', lang))}</th></tr></thead><tbody>${rows}</tbody></table>`;
   }).join('');
   const unagedSection = view.unaged.length === 0 ? ''
-    : `<h4>Bills without a readable bill month (counted in the total, in no bucket)</h4><table><thead><tr><th>Customer</th><th>Mohalla</th><th>Amount</th><th>Bill month as recorded</th></tr></thead><tbody>${view.unaged.map((item) => `<tr><td>${escapeHtml(item.customerName || '—')}</td><td>${escapeHtml(item.mohallaLabel)}</td><td>${formatAmount(item.amount)}</td><td>${escapeHtml(item.billMonth || '—')}</td></tr>`).join('')}</tbody></table>`;
-  return `<p>Receivables ageing by bill month, as of ${escapeHtml(view.asOfMonth)}. Bill age only — not promise age (Waada) and not days past the due date. Read-only: it changes no bill, total, or Waada record. Bill outstanding only; manual baqaya is not a bill and is not included here.</p>`
-    + `<table><thead><tr><th>Age bucket</th><th>Meaning</th><th>Amount</th><th>Bills</th><th>Customers</th></tr></thead><tbody>${bucketRows}</tbody>`
-    + `<tfoot><tr><td colspan="2">Total outstanding (bills)</td><td>${formatAmount(view.totalOutstanding)}</td><td>${view.billCount}</td><td>${view.customerCount}</td></tr></tfoot></table>`
+    : `<h4>${escapeHtml(t('ageing_heading_unaged', lang))}</h4><table><thead><tr><th>${escapeHtml(t('ageing_col_customer', lang))}</th><th>${escapeHtml(t('ageing_col_mohalla', lang))}</th><th>${escapeHtml(t('ageing_col_amount', lang))}</th><th>${escapeHtml(t('ageing_col_bill_month_as_recorded', lang))}</th></tr></thead><tbody>${view.unaged.map((item) => `<tr><td>${escapeHtml(item.customerName || '—')}</td><td>${escapeHtml(item.mohallaLabel)}</td><td>${formatAmount(item.amount)}</td><td>${escapeHtml(item.billMonth || '—')}</td></tr>`).join('')}</tbody></table>`;
+  return `<p>${escapeHtml(t('ageing_intro', lang, { asOf: view.asOfMonth }))}</p>`
+    + `<table><thead><tr><th>${escapeHtml(t('ageing_col_age_bucket', lang))}</th><th>${escapeHtml(t('ageing_col_meaning', lang))}</th><th>${escapeHtml(t('ageing_col_amount', lang))}</th><th>${escapeHtml(t('ageing_col_bills', lang))}</th><th>${escapeHtml(t('ageing_col_customers', lang))}</th></tr></thead><tbody>${bucketRows}</tbody>`
+    + `<tfoot><tr><td colspan="2">${escapeHtml(t('ageing_total_outstanding', lang))}</td><td>${formatAmount(view.totalOutstanding)}</td><td>${view.billCount}</td><td>${view.customerCount}</td></tr></tfoot></table>`
     // Owner 5-part fix: the seven-column mohalla totals table scrolls
     // inside its own card on a phone instead of clipping the
     // right-side columns. (The narrow bucket and per-customer tables
     // fit and keep no wrapper.)
-    + `<h4>Mohalla totals</h4><div class="table-scroll"><table><thead><tr><th>Mohalla</th><th>Total</th><th>Bills</th><th>Current</th><th>1 month</th><th>2 months</th><th>3+ months</th></tr></thead><tbody>${mohallaRows}</tbody></table></div>`
+    + `<h4>${escapeHtml(t('ageing_heading_mohalla_totals', lang))}</h4><div class="table-scroll"><table><thead><tr><th>${escapeHtml(t('ageing_col_mohalla', lang))}</th><th>${escapeHtml(t('ageing_col_total', lang))}</th><th>${escapeHtml(t('ageing_col_bills', lang))}</th><th>${escapeHtml(ageingBucketLabel('current', lang))}</th><th>${escapeHtml(ageingBucketLabel('one', lang))}</th><th>${escapeHtml(ageingBucketLabel('two', lang))}</th><th>${escapeHtml(ageingBucketLabel('threePlus', lang))}</th></tr></thead><tbody>${mohallaRows}</tbody></table></div>`
     + customerSections + unagedSection;
 }
 
@@ -415,16 +443,16 @@ export function ageingHtml(view) {
  * after the aged rows, so the row section sums to the mohalla-totals
  * section (buildReceivablesAgeing already counts unaged amounts in
  * those totals). A blank bill month prints '—', mirroring ageingHtml. */
-export function ageingCsv(view, agedEntries) {
+export function ageingCsv(view, agedEntries, lang = null) {
   if (!view || !view.valid) return '';
-  const lines = ['bucket,customer,mohalla,bill month,amount'];
+  const lines = [[t('ageing_csv_bucket', lang), t('ageing_csv_customer', lang), t('ageing_csv_mohalla', lang), t('ageing_csv_bill_month', lang), t('ageing_csv_amount', lang)].join(',')];
   const unagedLines = [];
   for (const entry of Array.isArray(agedEntries) ? agedEntries : []) {
     const bucketKey = ageingBucketForBill(str(entry.billMonth).trim(), view.asOfMonth);
     const line = [
-      csvCell(bucketKey === null ? 'Unaged' : view.buckets[bucketKey].label),
+      csvCell(bucketKey === null ? t('ageing_unaged', lang) : ageingBucketLabel(bucketKey, lang)),
       csvCell(entry.customerName),
-      csvCell(str(entry.mohallaLabel) || ageingMohallaLabel(entry.mohalla)),
+      csvCell(str(entry.mohallaLabel) || ageingMohallaLabel(entry.mohalla, lang)),
       csvCell(str(entry.billMonth).trim() || '—'),
       csvCell(formatCsvAmount(entry.amount)),
     ].join(',');
@@ -433,7 +461,7 @@ export function ageingCsv(view, agedEntries) {
   }
   lines.push(...unagedLines);
   lines.push('');
-  lines.push('mohalla,total,bills,current,1 month,2 months,3+ months');
+  lines.push([t('ageing_csv_mohalla', lang), t('ageing_csv_total', lang), t('ageing_csv_bills', lang), ageingCsvBucketLabel('current', lang), ageingCsvBucketLabel('one', lang), ageingCsvBucketLabel('two', lang), ageingCsvBucketLabel('threePlus', lang)].join(','));
   for (const row of view.mohallaTotals) {
     lines.push([
       csvCell(row.label),

@@ -1,5 +1,9 @@
 // Plan 214 (Plan 203-350) — Collection Promise Versus Actual Tracker.
 //
+// Sharafat 74: amounts print through the shared formatPKR formatter
+// (core.js) — "PKR 10,000", never raw "Rs 10000".
+import { formatPKR } from './core.js';
+//
 // A customer promises "I will pay on Friday" and the promise is
 // forgotten, so nobody can tell which promises were kept and which
 // were not. This module records one promise per customer promise:
@@ -27,10 +31,13 @@
 //     collector acts on each promise by hand.
 //
 // How the module keeps those fences:
-//   - It is pure and import-free: the caller supplies every record,
-//     and the module never reads storage, the clock, or the network,
-//     and never mutates an input. Dates compare as YYYY-MM-DD
-//     strings, so no Date object is ever used.
+//   - It is pure and imports only the pure formatPKR formatter: the
+//     caller supplies every record, and the module never reads
+//     storage, the clock, or the network, and never mutates an input.
+//     Dates compare as YYYY-MM-DD strings, so no Date object is ever
+//     used. (Sharafat 74: the module used to be import-free; the
+//     purity fence now pins that the import is the pure formatter
+//     only — see the plan214 test.)
 //   - A record with no id, no customer, no strict promised date, or
 //     no positive promised amount is refused outright. Unknown
 //     fields are dropped, so a record can never grow a bill,
@@ -220,10 +227,10 @@ export function collectionPromiseCountsForCustomer(list, customerId, today) {
 export function collectionPromiseText(record, today) {
   const normalized = normalizeCollectionPromise(record);
   if (!normalized) return '';
-  const promised = `Rs ${normalized.amountPromised} promised by ${normalized.promisedDate}`;
+  const promised = `${formatPKR(normalized.amountPromised)} promised by ${normalized.promisedDate}`;
   const status = collectionPromiseStatus(normalized, today);
   if (status === 'paid' || status === 'paidLate') {
-    const amountPart = normalized.amountPaid !== null ? `Rs ${normalized.amountPaid}` : 'amount not recorded';
+    const amountPart = normalized.amountPaid !== null ? `${formatPKR(normalized.amountPaid)}` : 'amount not recorded';
     const late = normalized.paidDate > normalized.promisedDate ? ' (paid late)' : '';
     return `${normalized.customer}: ${promised} — paid on ${normalized.paidDate} (${amountPart})${late}.`;
   }
@@ -231,13 +238,13 @@ export function collectionPromiseText(record, today) {
     // Sharafat 65: a short payment names its shortfall, computed from
     // the promise's own amountPaid only; a paid date with no recorded
     // amount keeps "amount not recorded" and no shortfall figure — one
-    // cannot be computed, and "short by Rs NaN" must never print.
+    // cannot be computed, and "short by PKR NaN" must never print.
     const late = normalized.paidDate > normalized.promisedDate ? ' (paid late)' : '';
     if (normalized.amountPaid === null) {
       return `${normalized.customer}: ${promised} — paid on ${normalized.paidDate} (amount not recorded)${late}.`;
     }
     const shortfall = normalized.amountPromised - normalized.amountPaid;
-    return `${normalized.customer}: ${promised} — paid on ${normalized.paidDate} (paid Rs ${normalized.amountPaid} of Rs ${normalized.amountPromised} (short by Rs ${shortfall}))${late}.`;
+    return `${normalized.customer}: ${promised} — paid on ${normalized.paidDate} (paid ${formatPKR(normalized.amountPaid)} of ${formatPKR(normalized.amountPromised)} (short by ${formatPKR(shortfall)}))${late}.`;
   }
   if (status === 'unkept') {
     return `${normalized.customer}: ${promised} — unkept, still unpaid.`;
@@ -276,12 +283,12 @@ export function collectionPromiseHtml(record, today) {
     const late = normalized.paidDate > normalized.promisedDate ? ' (paid late)' : '';
     if (status === 'partial' && normalized.amountPaid !== null) {
       const shortfall = normalized.amountPromised - normalized.amountPaid;
-      paid = `${escapeHtml(normalized.paidDate)} (paid Rs ${normalized.amountPaid} of Rs ${normalized.amountPromised} (short by Rs ${shortfall}))${late}`;
+      paid = `${escapeHtml(normalized.paidDate)} (paid ${formatPKR(normalized.amountPaid)} of ${formatPKR(normalized.amountPromised)} (short by ${formatPKR(shortfall)}))${late}`;
     } else {
-      paid = `${escapeHtml(normalized.paidDate)} (${normalized.amountPaid !== null ? `Rs ${normalized.amountPaid}` : 'amount not recorded'})${late}`;
+      paid = `${escapeHtml(normalized.paidDate)} (${normalized.amountPaid !== null ? `${formatPKR(normalized.amountPaid)}` : 'amount not recorded'})${late}`;
     }
   }
-  return `<p><strong>${escapeHtml(normalized.customer)}</strong> — promised Rs ${normalized.amountPromised} by ${escapeHtml(normalized.promisedDate)}; actual: ${paid}; status: ${status}; recorded by ${normalized.collector ? escapeHtml(normalized.collector) : 'No collector noted.'}</p>`;
+  return `<p><strong>${escapeHtml(normalized.customer)}</strong> — promised ${formatPKR(normalized.amountPromised)} by ${escapeHtml(normalized.promisedDate)}; actual: ${paid}; status: ${status}; recorded by ${normalized.collector ? escapeHtml(normalized.collector) : 'No collector noted.'}</p>`;
 }
 
 export function collectionPromiseAllHtml(list, today) {
@@ -294,10 +301,10 @@ export function collectionPromiseCsv(list, today) {
     rows.push([
       record.id,
       record.customer,
-      String(record.amountPromised),
+      formatPKR(record.amountPromised),
       record.promisedDate,
       record.paidDate,
-      record.amountPaid !== null ? String(record.amountPaid) : '',
+      record.amountPaid !== null ? formatPKR(record.amountPaid) : '',
       record.collector,
       collectionPromiseStatus(record, today),
     ]);

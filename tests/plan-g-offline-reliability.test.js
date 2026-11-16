@@ -126,6 +126,24 @@ test('Plan G worker: a precache failure notifies clients and does not silently p
   assert.equal(worker.posted.length, 1);
   assert.equal(worker.posted[0].type, 'SW_PRECACHE_FAILED');
   assert.match(worker.posted[0].error, /precache boom/);
+  // Sharafat 91: the failed install must not ask to activate — skipWaiting
+  // runs only after a successful precache, so a failed precache never
+  // calls it. (The re-throw above already discards the worker; this pins
+  // the request itself, so a future refactor cannot reintroduce it.)
+  assert.equal(worker.skipWaitingCalls, 0, 'a failed precache must not activate the new worker');
+});
+
+test('Sharafat 91: skipWaiting runs after a successful precache and never after a failed one', async () => {
+  const good = createWorker();
+  await good.dispatch('install');
+  assert.equal(good.skipWaitingCalls, 1, 'a successful precache activates the new worker');
+  assert.deepEqual(good.posted, []);
+  const bad = createWorker({ precacheFails: true });
+  await assert.rejects(() => bad.dispatch('install'));
+  await tick();
+  assert.equal(bad.skipWaitingCalls, 0, 'a failed precache must not activate the new worker');
+  assert.equal(bad.posted.length, 1);
+  assert.equal(bad.posted[0].type, 'SW_PRECACHE_FAILED');
 });
 
 test('Plan G worker: navigation offline falls back to the shell and notifies clients', async () => {

@@ -2341,7 +2341,14 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   // note applies nothing by itself — it never creates an advance
   // record and never touches any credit balance.
   const cleanExcessCashNote = normalizeExcessCashNote(excessCashNote, excessCashDuesCents, Math.round(cents * 100));
-  if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
+  // Sharafat 80: a correction may keep the payment's OWN stored method
+  // even after that name left PAYMENT_METHODS — correctPayment passes
+  // it as options.legacyMethod. The exemption is equality-scoped and
+  // only a non-empty string counts, so a missing method (undefined /
+  // '') still faces the fresh-recording rule below.
+  const legacyMethod = options?.legacyMethod;
+  const keepsStoredMethod = typeof legacyMethod === 'string' && legacyMethod !== '' && method === legacyMethod;
+  if (!PAYMENT_METHODS.includes(method) && !keepsStoredMethod) throw new Error('Choose a valid payment method.');
   // Plan 397: the large-cash approval — the owner's initials or name
   // that approved a cash payment above the operator-set threshold,
   // recorded with the transaction before it posts. The threshold
@@ -2959,7 +2966,12 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   // channel-reassign path) pass strictDigitalReference so the new method
   // is held to exactly the rule a fresh recording faces. The plain
   // correction form passes no options and keeps its historical behaviour.
-  let payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate, { strictDigitalReference: options?.strictDigitalReference === true }), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
+  // Sharafat 80: the correction also passes the payment's OWN stored
+  // method as legacyMethod, so an amount-only correction of a payment
+  // recorded under a retired method name saves without rewriting the
+  // method. Any OTHER non-listed method still faces the fresh-recording
+  // rule — the exemption is equality-scoped to the stored method.
+  let payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate, { strictDigitalReference: options?.strictDigitalReference === true, legacyMethod: existingPayment.method }), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
   // SISP-43: a correction restates the receipt, never its ticket-charge
   // settlement — the stamp is carried over verbatim, and the corrected
   // amount must still cover the settled charges. Anything else has to

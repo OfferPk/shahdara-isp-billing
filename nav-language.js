@@ -9466,6 +9466,30 @@ export function t(key, lang = null, params = {}) {
 }
 
 /**
+ * Formats a human date+time in the active application language.
+ * English keeps the exact current `toLocaleString('en-PK')` call (byte-identical,
+ * no options — an explicit timeZone would move the hour under TZ=UTC).
+ * Urdu renders the month name in Urdu script, pinned to Asia/Karachi
+ * ("16 نومبر، 2026، 11:58 AM" — Latin digits and English AM/PM, like every
+ * amount in the app). Language is read at call time, like t(), so a toggle
+ * takes effect on the next slip with no reload. Invalid input returns ''
+ * (never throws, never 'Invalid Date').
+ * @param {Date|string|number} value - Date, date string or timestamp
+ * @param {'en'|'ur'} [lang] - Language code (defaults to currently active)
+ * @returns {string} Formatted date+time, or '' for invalid input
+ */
+export function formatHumanDateTime(value, lang = null) {
+  if (value === null || value === undefined || typeof value === 'boolean') return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const currentLang = lang && SUPPORTED_LANGUAGES.includes(lang) ? lang : getAppLanguage();
+  if (currentLang === 'ur') {
+    return new Intl.DateTimeFormat('ur-PK', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Karachi' }).format(date);
+  }
+  return date.toLocaleString('en-PK');
+}
+
+/**
  * Applies text direction, HTML lang attribute, and CSS class to document root.
  * @param {'en'|'ur'} lang - Language code
  * @param {HTMLElement} [rootElement=document.documentElement]

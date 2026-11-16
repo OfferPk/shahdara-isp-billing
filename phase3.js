@@ -193,7 +193,7 @@ export const DEFAULT_MOHALLAS = Object.freeze(['CHARYAA','GANGALL','KISHTII','BA
  *  so it folds to JABBIYAA. The two "Orient School" spellings found in
  *  stored customer areas fold to one "Orient School". Anything else keeps
  *  its own key. */
-const MOHALLA_ALIASES = Object.freeze({ bani:'BANII', kishti:'KISHTII', chamyaa:'CHAMYAAA', jabbiyaaa:'JABBIYAA', 'orien school':'Orient School', 'orient scholl':'Orient School' });
+const MOHALLA_ALIASES = Object.freeze({ bani:'BANII', kishti:'KISHTII', chamyaa:'CHAMYAAA', jabbiyaaa:'JABBIYAA', palaliya:'PALALIYAA', 'orien school':'Orient School', 'orient scholl':'Orient School' });
 /** The spelling-variant map, exported for the mohalla seed item and any
  *  other grouping that must fold stored variants to one canonical name. */
 export { MOHALLA_ALIASES };
@@ -246,7 +246,7 @@ export const RECOVERY_MOHALLA_ORDER=Object.freeze([
   {number:9,label:'BANI',keys:['bani','banii']},
   {number:10,label:'JABBIYAA',keys:['jabbiyaa']},
   {number:11,label:'SODAA',keys:['sodaa']},
-  {number:12,label:'HAWELI OR END POINT',keys:['haweli','end point','endpoint','end-point']},
+  {number:12,label:'HAWELI OR END POINT',keys:['haweli','end point','endpoint','end-point','haweli or end point']},
 ]);
 export function recoveryMohallaRank(area) {
   const canon=canonicalMohalla(area);

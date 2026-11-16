@@ -1376,7 +1376,11 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         <div class="field-mode-waada-chips">
           <button type="button" class="field-mode-waada-chip" data-field-waada="plus2" ${busy ? 'disabled' : ''}>+2 days</button>
           <button type="button" class="field-mode-waada-chip" data-field-waada="plus5" ${busy ? 'disabled' : ''}>+5 days</button>
+          <button type="button" class="field-mode-waada-chip" data-field-waada="fifth" ${busy ? 'disabled' : ''}>5th</button>
           <button type="button" class="field-mode-waada-chip" data-field-waada="tenth" ${busy ? 'disabled' : ''}>10th</button>
+          <button type="button" class="field-mode-waada-chip" data-field-waada="29th" ${busy ? 'disabled' : ''}>29th</button>
+          <button type="button" class="field-mode-waada-chip" data-field-waada="30th" ${busy ? 'disabled' : ''}>30th</button>
+          <button type="button" class="field-mode-waada-chip" data-field-waada="31st" ${busy ? 'disabled' : ''}>31st</button>
           <input id="fieldModeWaadaCustomDate" class="field-mode-waada-date" type="date" aria-label="Custom promise date">
           <button type="button" class="field-mode-waada-chip" data-field-waada="custom" ${busy ? 'disabled' : ''}>Set date</button>
           <button type="button" class="field-mode-waada-chip" data-field-waada="clear" ${busy ? 'disabled' : ''}>Clear</button>

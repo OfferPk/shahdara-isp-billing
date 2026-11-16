@@ -1,12 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addPayment, createInitialState, saveBillMonth } from '../core.js';
+import { addPayment, createInitialState, persistState, saveBillMonth } from '../core.js';
 import { addExpense } from '../phase3.js';
 import { answerOwnerCommand, buildBusinessHealthScore, buildCustomerPaymentBehavior, buildCustomerRankings, buildCustomerHealthScore, buildCustomerLifetimeValue, buildSmartDuesRecovery } from '../owner-insights.js';
 
 const today = new Date('2026-10-07T12:00:00+05:00');
 const customerId = 'seed-001';
 const makeState = () => createInitialState(['Ali']);
+// Sharafat 83: in-memory storage for persistState — the derived lists
+// are memoised by ledger version and the version bumps only in
+// persistState, so a test that mutates state in place must persist
+// before re-deriving, exactly like production does.
+function memoryStorage() {
+  const data = new Map();
+  return {
+    getItem: (k) => (data.has(k) ? data.get(k) : null),
+    setItem: (k, v) => data.set(k, String(v)),
+    removeItem: (k) => data.delete(k)
+  };
+}
 function bill(state, month, amount = 1000) { return saveBillMonth(state, customerId, { month, dueAmount:String(amount), status:'pending' }, today); }
 function payment(state, month, date, amount) { return addPayment(state, customerId, month, { date, amount:String(amount), method:'Cash' }, today); }
 function historyState() {
@@ -96,6 +108,15 @@ test('health score categories stay within documented Good/Risk/Critical threshol
   assert.ok(good.score>=80);
   const customer=state.customers[0];
   for(const row of customer.bills.filter(item=>item.month!=='2026-06')) row.payments=[];
+  // Sharafat 83: the derived lists are memoised by ledger version and
+  // the version bumps only in persistState — an in-place mutation with
+  // no persist is invisible to the memo, so the next derivation would
+  // serve the pre-mutation figures. Production always persists before
+  // re-deriving (every slot-write in app.js is followed by save() or
+  // persistState); persist here so this threshold test reads the
+  // mutated ledger, as it did before the memo existed. The assertions
+  // below are unchanged.
+  persistState(state, memoryStorage());
   const critical=buildCustomerHealthScore(state,customerId,today);
   assert.ok(critical.score<80);
   assert.ok(['Risk','Critical'].includes(critical.category));

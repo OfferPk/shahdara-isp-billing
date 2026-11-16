@@ -1769,11 +1769,14 @@ function activateProfileTab(name, focus = false) {
 }
 // Plan 519 — the profile tabs carry counts, so the tab itself answers
 // "is there anything here?" before the tap: Complaints shows the
-// unresolved register complaints. Billing used to show the months with
-// a recorded bill on the tab itself ("Billing (3 months)"), but that
-// clipped the 4th tab at 360px — since Nov 2026 the Billing tab stays
-// bare ("1 Billing") and the same figure lives in the Billing panel
-// header (#profileBillingMonthsCount under "Last 24 months"). A zero
+// unresolved register complaints, and Baqaya shows the unpaid manual
+// baqaya entries (Sharafat 79 — the panel heading shows the total
+// unpaid AMOUNT, the tab shows how MANY entries are unpaid). Billing
+// used to show the months with a recorded bill on the tab itself
+// ("Billing (3 months)"), but that clipped the 4th tab at 360px —
+// since Nov 2026 the Billing tab stays bare ("1 Billing") and the
+// same figure lives in the Billing panel header
+// (#profileBillingMonthsCount under "Last 24 months"). A zero
 // count shows the bare label (no "(0)") and hides the panel line. The
 // labels are set here on every renderDetail, which is also what the
 // language-change listener re-runs — so a language switch re-renders
@@ -1785,7 +1788,7 @@ function activateProfileTab(name, focus = false) {
 // writing the button's textContent would wipe the tab number span.
 function updateProfileTabCounts(customer) {
   if (!customer) return;
-  const counts = profileTabCounts(customer, loadComplaints());
+  const counts = profileTabCounts(customer, loadComplaints(), manualBaqayaEntriesWithRemaining(customer));
   const billingLabel = $('#profileTabBilling .profile-tab-label');
   if (billingLabel) billingLabel.textContent = t('prof_tab_billing');
   const billingMonthsCount = $('#profileBillingMonthsCount');
@@ -1800,6 +1803,8 @@ function updateProfileTabCounts(customer) {
   }
   const complaintsLabel = $('#profileTabComplaints .profile-tab-label');
   if (complaintsLabel) complaintsLabel.textContent = counts.openComplaints > 0 ? t('prof_tab_complaints_count', null, { count: counts.openComplaints }) : t('prof_tab_complaints');
+  const baqayaLabel = $('#profileTabBaqaya .profile-tab-label');
+  if (baqayaLabel) baqayaLabel.textContent = counts.unpaidBaqaya > 0 ? t('prof_tab_baqaya_count', null, { count: counts.unpaidBaqaya }) : t('prof_tab_baqaya');
 }
 mountCustomerProfileContent();
 

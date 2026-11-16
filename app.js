@@ -3,7 +3,7 @@ import {
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, recordWinBackOfferSent, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
   deletePayment, setPaymentWalletVerified, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
-  deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot, isCashPaymentMethod,
+  deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot, isCashPaymentMethod, deriveDashboardBillRows,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation, applyConcessionToBill, removeConcessionFromBill, removeFirstMonthWaiverFromBill,
   calculateMethodTotalsForRows, findDuplicatePaymentReference, findIdentityConflicts, findPhoneConflicts, paymentSenderLabel,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
@@ -2287,13 +2287,13 @@ function renderDashboard() {
   }
   const totals = calculateDashboard(state, referenceDate);
   const currentCash = buildMonthlyClosingSnapshot(state, totals.currentMonth, referenceDate);
-  const retainedMonths = new Set(monthsForHistory(referenceDate));
-  const allBillRows = state.customers.flatMap(customer => (customer.bills ?? []).map(bill => ({ bill })));
-  const retainedBills = allBillRows.filter(({bill}) => retainedMonths.has(bill.month));
-  const pricedRetainedBills = retainedBills.filter(({bill}) => bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== '' && Number(bill.dueAmount) > 0);
-  const currentBills = allBillRows.filter(({bill}) => bill.month === totals.currentMonth);
-  const allPayments = allBillRows.flatMap(({bill}) => bill.payments ?? []);
-  const todayPayments = allPayments.filter(payment => payment.date === totals.today).length;
+  // Sharafat 83: the six roster walks below used to run inline on every
+  // render; they live in memoised deriveDashboardBillRows (core.js) now,
+  // so a repeat render reuses the bundle instead of re-walking the
+  // roster. The bundle is identical to these lines (same month/today —
+  // totals.currentMonth is monthKey(referenceDate), totals.today is
+  // dateKey(referenceDate)).
+  const { retainedMonths, allBillRows, retainedBills, pricedRetainedBills, currentBills, allPayments, todayPayments } = deriveDashboardBillRows(state, referenceDate);
   // Home Dashboard overhaul: retainedPayments and
   // pricedCurrentBills fed only the deleted grid cards (Total
   // collection, This month's due) — removed with the cards.

@@ -386,8 +386,53 @@ function normalizeMetersOrNull(value) {
   return Math.round(number * 10) / 10;
 }
 
+// Sharafat 83: the ledger version — the single invalidation signal for
+// the memoised derivations below. It is bumped inside persistState, the
+// one persistence funnel every mutation path goes through (save(), the
+// four direct-persist ledger paths, expense syncs, restore/transfer) —
+// a save()-only bump would miss exactly the paths that would then serve
+// stale screens (see the prep §2.6). The bump is unconditional
+// (try/finally): direct sites swallow persist errors with
+// `try { persistState(...) } catch {}` after the in-memory state is
+// already mutated, and the next render must recompute. Over-invalidation
+// on boot/restore persists is safe (recompute, never stale).
+let ledgerVersion = 0;
+export function getLedgerVersion() { return ledgerVersion; }
 export function persistState(state, storage, key = STORAGE_KEY) {
-  storage.setItem(key, JSON.stringify(state));
+  try {
+    storage.setItem(key, JSON.stringify(state));
+  } finally {
+    ledgerVersion += 1;
+  }
+}
+
+// Sharafat 83: single-entry memo slots. One slot per memoised builder;
+// each slot holds the last key and its value. A slot hits only when
+// state identity, ledger version, reference-date day and the normalised
+// extra params all match. Identity is required because derived-state
+// callers exist (e.g. nav-quick-collect passes a {...state, customers}
+// subset — a version-only key would return the full roster's result for
+// it); the version is required because save() often returns the SAME
+// state object (generateMonthlyBillsThroughCurrentMonth returns its
+// input unchanged when no bill was generated), so identity alone is
+// stale by construction; the day is required because "today", the
+// current month and recency windows are clock-derived. A single entry
+// bounds memory — the render loop only ever needs the latest key.
+function memoSlot() {
+  return { state: null, version: -1, day: '', extra: '', value: undefined };
+}
+function memoMatches(slot, state, version, day, extra) {
+  return slot.state === state && slot.version === version && slot.day === day && slot.extra === extra;
+}
+function memoStore(slot, state, version, day, extra, value) {
+  slot.state = state; slot.version = version; slot.day = day; slot.extra = extra; slot.value = value;
+  return value;
+}
+// The day component of a memo key. An invalid date yields a stable
+// placeholder instead of throwing, so a wrapper never throws before
+// the underlying builder's own validation runs.
+function memoDay(value) {
+  try { return dateKey(value); } catch { return `invalid:${String(value)}`; }
 }
 
 export function monthsForHistory(referenceDate = new Date()) {
@@ -874,10 +919,21 @@ function transactionMatchesQuery(row, query) {
     || fields.some(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase().includes(normalized));
 }
 
-export function searchCustomers(state, query = '') {
+function searchCustomersCompute(state, query) {
   if (!String(query ?? '').normalize('NFKC').trim()) return state.customers.slice();
   const allocations = calculatePaymentAllocations(state);
   return state.customers.filter(customer => customerMatchesQuery(customer, query, allocations));
+}
+
+const searchCustomersCache = memoSlot();
+// Sharafat 83: memoised — pure function of (state, query). The key
+// normalises the query exactly like the empty check (NFKC + trim);
+// a case-only difference misses the cache and recomputes, never
+// returns a wrong list.
+export function searchCustomers(state, query = '') {
+  const extra = String(query ?? '').normalize('NFKC').trim();
+  if (memoMatches(searchCustomersCache, state, ledgerVersion, '', extra)) return searchCustomersCache.value;
+  return memoStore(searchCustomersCache, state, ledgerVersion, '', extra, searchCustomersCompute(state, query));
 }
 
 // Sharafat 18: a bill is "priced at zero" only when the operator
@@ -920,7 +976,7 @@ export function buildPayrollSummary(state, month, referenceDate = new Date()) {
     saadBaseMonthlySalary:SAAD_BASE_MONTHLY_SALARY,saadMonthlyIncrement,saadMonthlySalary:SAAD_BASE_MONTHLY_SALARY+saadMonthlyIncrement};
 }
 
-export function filterCustomersByStatus(state, { serviceStatus = 'all', billingStatus = 'all', month = monthsForHistory()[0], customerQuery = '' } = {}, referenceDate = new Date()) {
+function filterCustomersByStatusCompute(state, { serviceStatus, billingStatus, month, customerQuery }, referenceDate) {
   checkMonth(month, referenceDate);
   if (!['all','active','offline','not-set'].includes(serviceStatus)) throw new Error('Choose All, Active, Offline, or Not set for service status.');
   if (!['all','paid','pending','partial','not-set'].includes(billingStatus)) throw new Error('Choose All, Paid, Pending, Partial, or Not set for billing status.');
@@ -932,6 +988,19 @@ export function filterCustomersByStatus(state, { serviceStatus = 'all', billingS
     const bill = (customer.bills ?? []).find(item => item.month === month);
     return derivedBillStatus(customer, bill, allocations) === billingStatus;
   });
+}
+
+const filterCustomersByStatusCache = memoSlot();
+// Sharafat 83: memoised — pure function of (state, options,
+// referenceDate). The key carries the RESOLVED options (the wrapper's
+// destructuring defaults are exactly the original signature's, so the
+// default month is still monthsForHistory()[0]) plus the reference
+// date's day, because checkMonth validates the month against it.
+export function filterCustomersByStatus(state, { serviceStatus = 'all', billingStatus = 'all', month = monthsForHistory()[0], customerQuery = '' } = {}, referenceDate = new Date()) {
+  const day = memoDay(referenceDate);
+  const extra = JSON.stringify([serviceStatus, billingStatus, month, customerQuery]);
+  if (memoMatches(filterCustomersByStatusCache, state, ledgerVersion, day, extra)) return filterCustomersByStatusCache.value;
+  return memoStore(filterCustomersByStatusCache, state, ledgerVersion, day, extra, filterCustomersByStatusCompute(state, { serviceStatus, billingStatus, month, customerQuery }, referenceDate));
 }
 
 export function deleteCustomer(state, customerId) {
@@ -3670,7 +3739,7 @@ export function filterNewCustomerMonths(months, startMonth, endMonth) {
  * actual payment entries. Allocations are derived, never duplicated as payments;
  * unused credit remains attached to its original receipt until a later bill exists.
  */
-export function calculatePaymentAllocations(state) {
+function calculatePaymentAllocationsCompute(state) {
   // Sharafat 11: one corrupt amount ("abc", imported via backup/CSV)
   // makes moneyCents return NaN, and a single NaN poisons every sum it
   // touches (actualReceiptsCents, balanceDueCents, credit generation).
@@ -3925,6 +3994,18 @@ export function calculatePaymentAllocations(state) {
   return { byPaymentId, byCustomerMonth, forMonth:(customerId, month) => byCustomerMonth.get(monthAllocationKey(customerId, month)) };
 }
 
+const calculatePaymentAllocationsCache = memoSlot();
+// Sharafat 83: memoised — pure function of state, so the key is (state
+// identity, ledger version) with no day: allocations have no clock
+// input (prep §2.4), and reading the wall clock inside this builder
+// would make the cache depend on call time instead of the caller's
+// date. Every other memoised builder in this file calls this one, so
+// they all reuse the same cached allocations for free.
+export function calculatePaymentAllocations(state) {
+  if (memoMatches(calculatePaymentAllocationsCache, state, ledgerVersion, '', '')) return calculatePaymentAllocationsCache.value;
+  return memoStore(calculatePaymentAllocationsCache, state, ledgerVersion, '', '', calculatePaymentAllocationsCompute(state));
+}
+
 function billStatusWithAllocations(customer, bill, allocations) {
   return derivedBillStatus(customer, bill, allocations);
 }
@@ -3934,7 +4015,7 @@ export function effectiveBillStatus(customer, bill, referenceDate = new Date()) 
   return status === 'paid' ? 'received' : status === 'not-set' ? 'not-recorded' : 'pending';
 }
 
-export function listTransactions(state, { customerQuery = '', date = '', recencyDays = null } = {}, referenceDate = new Date()) {
+function listTransactionsCompute(state, { customerQuery, date, recencyDays }, referenceDate) {
   const query = String(customerQuery).trim().toLocaleLowerCase();
   const windowDays = recencyDays === null || recencyDays === undefined || recencyDays === '' || recencyDays === 'all' ? null : Number(recencyDays);
   if (windowDays !== null && ![7, 30, 90].includes(windowDays)) throw new Error('Choose All history, Last 7 days, Last 30 days, or Last 90 days.');
@@ -4045,6 +4126,27 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     .sort((a, b) => b.date.localeCompare(a.date) || a.customerName.localeCompare(b.customerName) || b.month.localeCompare(a.month) || a.paymentId.localeCompare(b.paymentId));
 }
 
+const listTransactionsCache = memoSlot();
+// Sharafat 83: memoised by an options-normalised key: (state identity,
+// ledger version, reference-date day, normalised options). The four
+// unfiltered calls in renderTransactions share one key and collapse to
+// 1 walk; the filtered main call gets its own key when a query/date/
+// recency filter is active, and FOLDS to the unfiltered key when all
+// its filters are empty (empty query + empty date + null/'all' recency
+// are no-ops inside listTransactions) — so the common case is 1 walk
+// per render and the filtered case is 2. When no recency window is
+// active the result does not depend on referenceDate at all, so the
+// day is '' and the unfiltered calls fold regardless of which Date
+// object each call constructed.
+export function listTransactions(state, { customerQuery = '', date = '', recencyDays = null } = {}, referenceDate = new Date()) {
+  const query = String(customerQuery).trim().toLocaleLowerCase();
+  const windowDays = recencyDays === null || recencyDays === undefined || recencyDays === '' || recencyDays === 'all' ? null : Number(recencyDays);
+  const day = windowDays === null ? '' : memoDay(referenceDate);
+  const extra = JSON.stringify([query, date ? String(date) : '', windowDays]);
+  if (memoMatches(listTransactionsCache, state, ledgerVersion, day, extra)) return listTransactionsCache.value;
+  return memoStore(listTransactionsCache, state, ledgerVersion, day, extra, listTransactionsCompute(state, { customerQuery, date, recencyDays }, referenceDate));
+}
+
 export function buildMonthlyReport(state, { month = monthsForHistory()[0], statusFilter = 'all', customerQuery = '', includeArchived = false } = {}, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
   if (statusFilter === 'unpaid') statusFilter = 'pending';
@@ -4138,7 +4240,7 @@ function monthlyClosingMetrics(state, month, allocations = calculatePaymentAlloc
   };
 }
 
-export function buildMonthlyClosingSnapshot(state, month, closedAt = new Date()) {
+function buildMonthlyClosingSnapshotCompute(state, month, closedAt) {
   if (!validMonthString(month)) throw new Error('Choose a valid month for the closing snapshot.');
   const allocations = calculatePaymentAllocations(state);
   const metrics = monthlyClosingMetrics(state, month, allocations);
@@ -4159,6 +4261,18 @@ export function buildMonthlyClosingSnapshot(state, month, closedAt = new Date())
     profit:previous.profit
   };
   return { month, savedAt:localDateTimeValue(closedAt), ...metrics, previousMonthComparison };
+}
+
+const buildMonthlyClosingSnapshotCache = memoSlot();
+// Sharafat 83: memoised — pure function of (state, month, closedAt).
+// The key carries the month plus the closedAt day, because savedAt is
+// clock-derived (localDateTimeValue(closedAt)); memoising across days
+// would freeze the stamp. A closing save changes state, so it bumps
+// the version — no separate key is needed for monthlyClosings.
+export function buildMonthlyClosingSnapshot(state, month, closedAt = new Date()) {
+  const day = memoDay(closedAt);
+  if (memoMatches(buildMonthlyClosingSnapshotCache, state, ledgerVersion, day, month)) return buildMonthlyClosingSnapshotCache.value;
+  return memoStore(buildMonthlyClosingSnapshotCache, state, ledgerVersion, day, month, buildMonthlyClosingSnapshotCompute(state, month, closedAt));
 }
 
 export function saveMonthlyClosing(state, month, closedAt = new Date()) {
@@ -4189,7 +4303,7 @@ export function customerPackageProfit(customer) {
  * but never creates a collection entry.
  * Expected monthly package profit is selling amount minus provider purchase cost for complete profiles.
  */
-export function calculateDashboard(state, referenceDate = new Date()) {
+function calculateDashboardCompute(state, referenceDate) {
   const retainedMonths = new Set(monthsForHistory(referenceDate));
   const allocations = calculatePaymentAllocations(state);
   const currentMonth = monthKey(referenceDate);
@@ -4285,6 +4399,42 @@ export function calculateDashboard(state, referenceDate = new Date()) {
     incompleteProfitProfiles,
     unpricedBillCount
   };
+}
+
+const calculateDashboardCache = memoSlot();
+// Sharafat 83: memoised — pure function of (state, referenceDate). The
+// key carries the reference date's day: the current month, "today" and
+// the retained-month list all derive from it, so a version-only key
+// would freeze yesterday's figures after midnight until the next save.
+export function calculateDashboard(state, referenceDate = new Date()) {
+  const day = memoDay(referenceDate);
+  if (memoMatches(calculateDashboardCache, state, ledgerVersion, day, '')) return calculateDashboardCache.value;
+  return memoStore(calculateDashboardCache, state, ledgerVersion, day, '', calculateDashboardCompute(state, referenceDate));
+}
+
+// Sharafat 83: the six roster walks at the head of renderDashboard,
+// extracted verbatim so they can be memoised like the other builders
+// (they were inline in the render, so no cache could reach them).
+// currentBills is computed but unused by the render today — it stays
+// in the bundle so the extraction is a verbatim move, not a behaviour
+// change. The returned rows wrap the same bill objects (read-only
+// consumers: .filter/.length/.has only), and todayPayments is a number.
+function deriveDashboardBillRowsCompute(state, referenceDate) {
+  const retainedMonths = new Set(monthsForHistory(referenceDate));
+  const allBillRows = state.customers.flatMap(customer => (customer.bills ?? []).map(bill => ({ bill })));
+  const retainedBills = allBillRows.filter(({bill}) => retainedMonths.has(bill.month));
+  const pricedRetainedBills = retainedBills.filter(({bill}) => bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== '' && Number(bill.dueAmount) > 0);
+  const currentBills = allBillRows.filter(({bill}) => bill.month === monthKey(referenceDate));
+  const allPayments = allBillRows.flatMap(({bill}) => bill.payments ?? []);
+  const todayPayments = allPayments.filter(payment => payment.date === dateKey(referenceDate)).length;
+  return { retainedMonths, allBillRows, retainedBills, pricedRetainedBills, currentBills, allPayments, todayPayments };
+}
+
+const deriveDashboardBillRowsCache = memoSlot();
+export function deriveDashboardBillRows(state, referenceDate = new Date()) {
+  const day = memoDay(referenceDate);
+  if (memoMatches(deriveDashboardBillRowsCache, state, ledgerVersion, day, '')) return deriveDashboardBillRowsCache.value;
+  return memoStore(deriveDashboardBillRowsCache, state, ledgerVersion, day, '', deriveDashboardBillRowsCompute(state, referenceDate));
 }
 
 function paymentLines(customer, bill, allocations) {

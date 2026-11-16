@@ -149,8 +149,11 @@ test('csv export and filename', () => {
   const csv = collectionPromiseCsv([promiseA, promiseB], '2026-11-07');
   const lines = csv.split('\n');
   assert.equal(lines[0], 'id,customer,amount_promised,promised_date,paid_date,amount_paid,collector,status');
-  assert.match(lines[1], /CP-2,Ahmed,2000,2026-11-03,2026-11-03,2000,Saad,paid/);
-  assert.match(lines[2], /CP-1,Ahmed,1500,2026-11-06,,,Saad,unkept/);
+  assert.match(lines[1], /CP-2,Ahmed,"PKR 2,000",2026-11-03,2026-11-03,"PKR 2,000",Saad,paid/);
+  assert.match(lines[2], /CP-1,Ahmed,"PKR 1,500",2026-11-06,,,Saad,unkept/);
+  // Sharafat 74: the CSV amount columns now read "PKR 10,000" through
+  // the shared formatter (csvCell quotes the comma, so each stays one
+  // cell) — the old pins asserted the raw numbers 2000/1500.
   assert.equal(collectionPromiseFilename(), 'collection-promises.csv');
 });
 
@@ -170,8 +173,14 @@ test('list normalization drops bad entries and later duplicates', () => {
   assert.deepEqual(normalizeCollectionPromiseList([null, promiseA, { ...promiseA, amountPromised: 9999 }, promiseB]), [normalizeCollectionPromise(promiseA), promiseB]);
 });
 
-test('purity fence: the module is import-free and touches no storage, clock, or network', () => {
-  assert.doesNotMatch(moduleSrc, /^import\s/m);
+// Sharafat 74: the module is no longer import-free — it imports only
+// the pure formatPKR formatter from core.js (no storage, clock or
+// network; formatPKR uses only Intl.NumberFormat). The fence's intent
+// is preserved by the second assertion; the old pin asserted the
+// import-free letter and must not be restored.
+test('purity fence: the module imports only the pure formatter and touches no storage, clock, or network', () => {
+  assert.match(moduleSrc, /import \{ formatPKR \} from '\.\/core\.js';/);
+  assert.doesNotMatch(moduleSrc, /import \{ formatPKR \} from '\.\/owner-khata\.js';/);
   assert.doesNotMatch(moduleSrc, /localStorage|fetch\(|Date\.now|new Date\(/);
 });
 

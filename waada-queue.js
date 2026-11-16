@@ -93,15 +93,25 @@ export function addWaadaDays(dateStr, days) {
 export function dayOfMonthWaadaDate(todayStr, dayOfMonth) {
   const parts = parseWaadaParts(todayStr);
   const day = Math.floor(Number(dayOfMonth));
-  if (!parts || !Number.isFinite(day) || day < 1 || day > 28) return null;
-  if (parts.day <= day) return formatWaadaYmd(parts.year, parts.month, day);
+  if (!parts || !Number.isFinite(day) || day < 1 || day > 31) return null;
   let year = parts.year;
-  let month = parts.month + 1;
-  if (month > 12) {
-    month = 1;
-    year += 1;
+  let month = parts.month;
+  if (parts.day > day) {
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
   }
-  return formatWaadaYmd(year, month, day);
+  // Sharafat 70: clamp to the target month's last day when the month is
+  // shorter (31st in November -> 2026-11-30; 30th from 2026-01-31 rolls
+  // into February -> 2026-02-28). Leap-aware, the same expression
+  // isValidWaadaDate uses for the month length. The clamp can never offer
+  // a past date: in the same-month branch the clamp floor is the month's
+  // last day, which is always >= today; the rollover branch is next month
+  // by construction.
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return formatWaadaYmd(year, month, Math.min(day, daysInMonth));
 }
 
 /**
@@ -113,14 +123,20 @@ export function tenthOfMonthWaadaDate(todayStr) {
   return dayOfMonthWaadaDate(todayStr, 10);
 }
 
+/** The "5th of Month" chip date — same rule as the 10th, for the 5th (the bill due date). */
+export function fifthOfMonthWaadaDate(todayStr) {
+  return dayOfMonthWaadaDate(todayStr, 5);
+}
+
 /** The "15th of Month" chip date — same rule as the 10th, for the 15th. */
 export function fifteenthOfMonthWaadaDate(todayStr) {
   return dayOfMonthWaadaDate(todayStr, 15);
 }
 
 /**
- * One-tap chip dates. chip: 'plus2' | 'plus5' | 'tenth' | 'custom', plus the
- * SISP-126 remainder-waada chips 'plus3' | 'plus7' | 'fifteenth'.
+ * One-tap chip dates. chip: 'plus2' | 'plus5' | 'tenth' | 'fifth' |
+ * '29th' | '30th' | '31st' | 'custom', plus the SISP-126 remainder-waada
+ * chips 'plus3' | 'plus7' | 'fifteenth'.
  * Returns a YYYY-MM-DD string, or null for an unknown chip / invalid input.
  */
 export function computeWaadaChipDate(chip, todayStr, customDate = null) {
@@ -130,7 +146,11 @@ export function computeWaadaChipDate(chip, todayStr, customDate = null) {
   if (chip === 'plus3') return addWaadaDays(todayStr, 3);
   if (chip === 'plus7') return addWaadaDays(todayStr, 7);
   if (chip === 'tenth') return tenthOfMonthWaadaDate(todayStr);
+  if (chip === 'fifth') return fifthOfMonthWaadaDate(todayStr);
   if (chip === 'fifteenth') return fifteenthOfMonthWaadaDate(todayStr);
+  if (chip === '29th') return dayOfMonthWaadaDate(todayStr, 29);
+  if (chip === '30th') return dayOfMonthWaadaDate(todayStr, 30);
+  if (chip === '31st') return dayOfMonthWaadaDate(todayStr, 31);
   if (chip === 'custom') return isValidWaadaDate(customDate) ? customDate.trim() : null;
   return null;
 }

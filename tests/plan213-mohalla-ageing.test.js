@@ -181,7 +181,15 @@ test('csv and filename', () => {
 });
 
 test('module is pure and import-free', () => {
-  assert.doesNotMatch(moduleSrc, /^import /m);
+  // Sharafat 88: the module's ONLY import is { t } from nav-language.js,
+  // which itself imports nothing — the module still pulls in no app
+  // graph (no store, no DOM, no app.js), so the purity fence now
+  // allows exactly that one import instead of none. The prep's "zero
+  // pin rewrites" missed this pin (§2.5 lists the plan213 pins but
+  // not this one); D1(a) requires the import, so the pin is updated
+  // here rather than the design being bent around it.
+  const imports = moduleSrc.match(/^import .*$/gm) || [];
+  assert.deepEqual(imports, ["import { t } from './nav-language.js';"]);
   assert.doesNotMatch(moduleSrc, /localStorage|document\.|window\./);
 });
 

@@ -10087,6 +10087,15 @@ function renderDetail() {
   $('#welcomeState').hidden = !!customer;
   $('#customerDetail').hidden = !customer;
   if (!customer) return;
+  // Sharafat 77 — while the edit form is open, a re-render must not
+  // clobber what the operator has typed: the dirty set is the fields
+  // whose current value differs from the stored record and from the
+  // values the form opened with (Plan 499/500 dirty tracking, already
+  // imported). In view mode the set is empty and every write proceeds
+  // exactly as before.
+  const dirtyFormKeys = profileEditMode
+    ? new Set(dirtyProfileFieldKeys(customer, profileFieldControls(), profileCancelOpenValues))
+    : new Set();
   // FIRST-LOAD SPLIT: start the lazy QA chunk load on first profile open —
   // only once a profile is actually open (the boot render has no customer,
   // and a background preload must never toast — see ensureQaModals).
@@ -10213,11 +10222,11 @@ function renderDetail() {
   renderCustomerProfileView(customer);
   $('#customerProfileView').hidden = profileEditMode;
   $('#customerProfileForm').hidden = !profileEditMode;
-  $('#serviceStatusInput').value = customer.serviceStatus ?? 'not-set';
+  if (!dirtyFormKeys.has('serviceStatus')) $('#serviceStatusInput').value = customer.serviceStatus ?? 'not-set';
   // SISP-133: preferred visit window — legacy records read as 'anytime'.
-  if ($('#preferredVisitWindowInput')) $('#preferredVisitWindowInput').value = customerVisitWindow(customer);
+  if (!dirtyFormKeys.has('preferredVisitWindow') && $('#preferredVisitWindowInput')) $('#preferredVisitWindowInput').value = customerVisitWindow(customer);
   // SISP-84: connection type select (legacy records read residential).
-  if ($('#connectionTypeInput')) $('#connectionTypeInput').value = customer.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential';
+  if (!dirtyFormKeys.has('connectionType') && $('#connectionTypeInput')) $('#connectionTypeInput').value = customer.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential';
   // Profile redesign — the header badge is the DERIVED service pill
   // (Suspended > Expired > Vacation > Offline > Active > Not chosen),
   // not the stored manual status; the Service-group row keeps the
@@ -10291,20 +10300,20 @@ function renderDetail() {
   // SISP-8: vacation hold — edit fields + header badge (shown only while
   // a hold is active; skipped months stay visible in the profile view).
   const pauseSummary = pauseBillingSummary(customer);
-  if ($('#pauseBillingCheckbox')) $('#pauseBillingCheckbox').checked = customer.paused === true;
-  if ($('#prefersSmsCheckbox')) $('#prefersSmsCheckbox').checked = customer.prefersSms === true;
+  if (!dirtyFormKeys.has('paused') && $('#pauseBillingCheckbox')) $('#pauseBillingCheckbox').checked = customer.paused === true;
+  if (!dirtyFormKeys.has('prefersSms') && $('#prefersSmsCheckbox')) $('#prefersSmsCheckbox').checked = customer.prefersSms === true;
   // SISP-91: receipt language/channel preference selects (unset = Default).
-  if ($('#preferredReceiptLangSelect')) $('#preferredReceiptLangSelect').value = customer.preferredReceiptLang ?? '';
-  if ($('#preferredReceiptChannelSelect')) $('#preferredReceiptChannelSelect').value = customer.preferredReceiptChannel ?? '';
-  if ($('#pauseStartDateInput')) $('#pauseStartDateInput').value = customer.pauseStartDate ?? '';
-  if ($('#autoResumeDateInput')) $('#autoResumeDateInput').value = customer.autoResumeDate ?? '';
+  if (!dirtyFormKeys.has('preferredReceiptLang') && $('#preferredReceiptLangSelect')) $('#preferredReceiptLangSelect').value = customer.preferredReceiptLang ?? '';
+  if (!dirtyFormKeys.has('preferredReceiptChannel') && $('#preferredReceiptChannelSelect')) $('#preferredReceiptChannelSelect').value = customer.preferredReceiptChannel ?? '';
+  if (!dirtyFormKeys.has('pauseStartDate') && $('#pauseStartDateInput')) $('#pauseStartDateInput').value = customer.pauseStartDate ?? '';
+  if (!dirtyFormKeys.has('autoResumeDate') && $('#autoResumeDateInput')) $('#autoResumeDateInput').value = customer.autoResumeDate ?? '';
   // SISP-153: seasonal keep-alive edit fields. The restore rate is a
   // stored value (never re-derived after saving); it only PRE-FILLS
   // with the currently applicable rate when no triple is stored yet,
   // as a convenience the owner can change before saving.
-  if ($('#seasonalRateInput')) $('#seasonalRateInput').value = customer.seasonalRatePKR ?? '';
-  if ($('#seasonalUntilMonthInput')) $('#seasonalUntilMonthInput').value = customer.seasonalUntilMonth ?? '';
-  if ($('#seasonalRestoreRateInput')) $('#seasonalRestoreRateInput').value = customer.restorePackageRatePKR ?? applicablePriceForMonth(customer, pakistanMonthKey()) ?? '';
+  if (!dirtyFormKeys.has('seasonalRatePKR') && $('#seasonalRateInput')) $('#seasonalRateInput').value = customer.seasonalRatePKR ?? '';
+  if (!dirtyFormKeys.has('seasonalUntilMonth') && $('#seasonalUntilMonthInput')) $('#seasonalUntilMonthInput').value = customer.seasonalUntilMonth ?? '';
+  if (!dirtyFormKeys.has('restorePackageRatePKR') && $('#seasonalRestoreRateInput')) $('#seasonalRestoreRateInput').value = customer.restorePackageRatePKR ?? applicablePriceForMonth(customer, pakistanMonthKey()) ?? '';
   const pauseBadge = $('#pauseStateBadge');
   if (pauseBadge) {
     pauseBadge.textContent = `⏸ ${pauseSummary.label}`;
@@ -10313,58 +10322,58 @@ function renderDetail() {
   // SISP-148: do-not-suspend shield — edit fields + header badge (shown
   // only while the shield is active; an expired shield's values stay in
   // the form so the owner can extend them).
-  if ($('#doNotSuspendUntilInput')) $('#doNotSuspendUntilInput').value = customer.doNotSuspendUntil ?? '';
-  if ($('#doNotSuspendReasonInput')) $('#doNotSuspendReasonInput').value = customer.doNotSuspendReason ?? '';
+  if (!dirtyFormKeys.has('doNotSuspendUntil') && $('#doNotSuspendUntilInput')) $('#doNotSuspendUntilInput').value = customer.doNotSuspendUntil ?? '';
+  if (!dirtyFormKeys.has('doNotSuspendReason') && $('#doNotSuspendReasonInput')) $('#doNotSuspendReasonInput').value = customer.doNotSuspendReason ?? '';
   const shieldBadge = $('#shieldStateBadge');
   if (shieldBadge) {
     const headerShieldSummary = suspensionShieldSummary(customer, localDate());
     shieldBadge.textContent = headerShieldSummary.label;
     shieldBadge.hidden = !headerShieldSummary.active;
   }
-  if ($('#profileNameInput')) $('#profileNameInput').value = customer.name ?? '';
-  if ($('#nameUrduInput')) $('#nameUrduInput').value = customer.nameUrdu ?? '';
+  if (!dirtyFormKeys.has('name') && $('#profileNameInput')) $('#profileNameInput').value = customer.name ?? '';
+  if (!dirtyFormKeys.has('nameUrdu') && $('#nameUrduInput')) $('#nameUrduInput').value = customer.nameUrdu ?? '';
   // SISP-165: father / reference name + search aliases (comma-joined).
-  if ($('#fatherOrReferenceNameInput')) $('#fatherOrReferenceNameInput').value = customer.fatherOrReferenceName ?? '';
-  if ($('#searchAliasesInput')) $('#searchAliasesInput').value = (customer.searchAliases ?? []).join(', ');
-  $('#mohallaInput').value = customer.mohalla ?? '';
-  $('#zoneInput').value = customer.zone ?? '';
+  if (!dirtyFormKeys.has('fatherOrReferenceName') && $('#fatherOrReferenceNameInput')) $('#fatherOrReferenceNameInput').value = customer.fatherOrReferenceName ?? '';
+  if (!dirtyFormKeys.has('searchAliases') && $('#searchAliasesInput')) $('#searchAliasesInput').value = (customer.searchAliases ?? []).join(', ');
+  if (!dirtyFormKeys.has('mohalla')) $('#mohallaInput').value = customer.mohalla ?? '';
+  if (!dirtyFormKeys.has('zone')) $('#zoneInput').value = customer.zone ?? '';
   refreshZoneOptions();
-  $('#addressInput').value = customer.address ?? '';
-  $('#customerNotesInput').value = customer.notes ?? '';
-  $('#phoneInput').value = customer.phone ?? '';
+  if (!dirtyFormKeys.has('address')) $('#addressInput').value = customer.address ?? '';
+  if (!dirtyFormKeys.has('notes')) $('#customerNotesInput').value = customer.notes ?? '';
+  if (!dirtyFormKeys.has('phone')) $('#phoneInput').value = customer.phone ?? '';
   // SISP-118: separate WhatsApp + alternate numbers (optional).
-  if ($('#whatsappPhoneInput')) $('#whatsappPhoneInput').value = customer.whatsappPhone ?? '';
-  if ($('#alternatePhoneInput')) $('#alternatePhoneInput').value = customer.alternatePhone ?? '';
-  if ($('#cnicInput')) $('#cnicInput').value = customer.cnic ?? '';
-  $('#ispProviderInput').value = customer.ispProvider ?? '';
-  $('#packageSpeedInput').value = customer.packageSpeed ?? '';
-  $('#monthlyPurchaseCostInput').value = customer.monthlyPurchaseCost ?? '';
-  $('#monthlySellingAmountInput').value = customer.monthlySellingAmount ?? '';
-  $('#connectionDateInput').value = customer.connectionDate ?? '';
-  $('#connectionFeeInput').value = customer.connectionFee ?? '';
-  $('#routerModelInput').value = customer.routerModel ?? '';
-  $('#routerPriceInput').value = customer.routerPrice ?? '';
-  $('#fiberMetersInput').value = customer.fiberMeters ?? '';
+  if (!dirtyFormKeys.has('whatsappPhone') && $('#whatsappPhoneInput')) $('#whatsappPhoneInput').value = customer.whatsappPhone ?? '';
+  if (!dirtyFormKeys.has('alternatePhone') && $('#alternatePhoneInput')) $('#alternatePhoneInput').value = customer.alternatePhone ?? '';
+  if (!dirtyFormKeys.has('cnic') && $('#cnicInput')) $('#cnicInput').value = customer.cnic ?? '';
+  if (!dirtyFormKeys.has('ispProvider')) $('#ispProviderInput').value = customer.ispProvider ?? '';
+  if (!dirtyFormKeys.has('packageSpeed')) $('#packageSpeedInput').value = customer.packageSpeed ?? '';
+  if (!dirtyFormKeys.has('monthlyPurchaseCost')) $('#monthlyPurchaseCostInput').value = customer.monthlyPurchaseCost ?? '';
+  if (!dirtyFormKeys.has('monthlySellingAmount')) $('#monthlySellingAmountInput').value = customer.monthlySellingAmount ?? '';
+  if (!dirtyFormKeys.has('connectionDate')) $('#connectionDateInput').value = customer.connectionDate ?? '';
+  if (!dirtyFormKeys.has('connectionFee')) $('#connectionFeeInput').value = customer.connectionFee ?? '';
+  if (!dirtyFormKeys.has('routerModel')) $('#routerModelInput').value = customer.routerModel ?? '';
+  if (!dirtyFormKeys.has('routerPrice')) $('#routerPriceInput').value = customer.routerPrice ?? '';
+  if (!dirtyFormKeys.has('fiberMeters')) $('#fiberMetersInput').value = customer.fiberMeters ?? '';
   // SISP-24: optical splitter assignment + last RX reading (optional).
-  $('#splitterBoxIdInput').value = customer.splitterBoxId ?? '';
-  $('#splitterPortInput').value = customer.splitterPort ?? '';
-  $('#oltPonPortInput').value = customer.oltPonPort ?? '';
-  $('#lastRxDbmInput').value = customer.lastRxDbm ?? '';
+  if (!dirtyFormKeys.has('splitterBoxId')) $('#splitterBoxIdInput').value = customer.splitterBoxId ?? '';
+  if (!dirtyFormKeys.has('splitterPort')) $('#splitterPortInput').value = customer.splitterPort ?? '';
+  if (!dirtyFormKeys.has('oltPonPort')) $('#oltPonPortInput').value = customer.oltPonPort ?? '';
+  if (!dirtyFormKeys.has('lastRxDbm')) $('#lastRxDbmInput').value = customer.lastRxDbm ?? '';
   // SISP-167: ONU connector polish picker ('' = not recorded).
-  if ($('#onuConnectorTypeInput')) $('#onuConnectorTypeInput').value = customer.onuConnectorType ?? '';
+  if (!dirtyFormKeys.has('onuConnectorType') && $('#onuConnectorTypeInput')) $('#onuConnectorTypeInput').value = customer.onuConnectorType ?? '';
   // SISP-162: WDM converter side (optional; '' = not recorded).
-  if ($('#converterSideInput')) $('#converterSideInput').value = customer.customerConverterSide ?? '';
+  if (!dirtyFormKeys.has('customerConverterSide') && $('#converterSideInput')) $('#converterSideInput').value = customer.customerConverterSide ?? '';
   // SISP-32: pole & landmark directory (optional).
-  if ($('#poleNumberInput')) $('#poleNumberInput').value = customer.poleNumber ?? '';
-  if ($('#boxLocationNoteInput')) $('#boxLocationNoteInput').value = customer.boxLocationNote ?? '';
-  if ($('#dropWireCoreColorInput')) $('#dropWireCoreColorInput').value = customer.dropWireCoreColor ?? '';
-  if ($('#mediaConverterCostInput')) $('#mediaConverterCostInput').value = customer.mediaConverterCost ?? '';
-  if ($('#linemanInstallFeeInput')) $('#linemanInstallFeeInput').value = customer.linemanInstallFee ?? '';
+  if (!dirtyFormKeys.has('poleNumber') && $('#poleNumberInput')) $('#poleNumberInput').value = customer.poleNumber ?? '';
+  if (!dirtyFormKeys.has('boxLocationNote') && $('#boxLocationNoteInput')) $('#boxLocationNoteInput').value = customer.boxLocationNote ?? '';
+  if (!dirtyFormKeys.has('dropWireCoreColor') && $('#dropWireCoreColorInput')) $('#dropWireCoreColorInput').value = customer.dropWireCoreColor ?? '';
+  if (!dirtyFormKeys.has('mediaConverterCost') && $('#mediaConverterCostInput')) $('#mediaConverterCostInput').value = customer.mediaConverterCost ?? '';
+  if (!dirtyFormKeys.has('linemanInstallFee') && $('#linemanInstallFeeInput')) $('#linemanInstallFeeInput').value = customer.linemanInstallFee ?? '';
   // Polish #28 Phase D: any further install cost — optional, blank means not recorded.
-  if ($('#otherInstallCostInput')) $('#otherInstallCostInput').value = customer.otherInstallCost ?? '';
-  if ($('#fiberPerMeterRateInput')) $('#fiberPerMeterRateInput').value = customer.fiberPerMeterRate ?? '';
+  if (!dirtyFormKeys.has('otherInstallCost') && $('#otherInstallCostInput')) $('#otherInstallCostInput').value = customer.otherInstallCost ?? '';
+  if (!dirtyFormKeys.has('fiberPerMeterRate') && $('#fiberPerMeterRateInput')) $('#fiberPerMeterRateInput').value = customer.fiberPerMeterRate ?? '';
   // SISP-173: installer attribution (optional).
-  if ($('#installedByLinemanInput')) $('#installedByLinemanInput').value = customer.installedByLineman ?? '';  // SISP-7: feeder link fields — upstream select excludes this customer;
+  if (!dirtyFormKeys.has('installedByLineman') && $('#installedByLinemanInput')) $('#installedByLinemanInput').value = customer.installedByLineman ?? '';  // SISP-7: feeder link fields — upstream select excludes this customer;
   // the saved upstream stays visible even if that house was archived.
   const feederSaved = normalizeFeederFields(customer);
   const upstreamSelect = $('#upstreamCustomerInput');
@@ -10375,21 +10384,21 @@ function renderDetail() {
       : null;
     const options = [...candidates];
     if (savedUpstream && !options.some((c) => String(c.id) === String(savedUpstream.id))) options.unshift(savedUpstream);
-    upstreamSelect.innerHTML = `<option value="">${t('prof_feeder_direct')}</option>` + options.filter((c) => !c.archived || (savedUpstream && String(c.id) === String(savedUpstream.id))).map((c) => `<option value="${escapeHtml(String(c.id))}"${String(c.id) === String(feederSaved.upstreamCustomerId) ? ' selected' : ''}>${escapeHtml(c.name || 'Unknown')}${c.mohalla ? ` · ${escapeHtml(c.mohalla)}` : ''}${c.archived ? t('prof_upstream_archived_suffix') : ''}</option>`).join('');
-    upstreamSelect.value = feederSaved.upstreamCustomerId ?? '';
+    if (!dirtyFormKeys.has('upstreamCustomerId')) upstreamSelect.innerHTML = `<option value="">${t('prof_feeder_direct')}</option>` + options.filter((c) => !c.archived || (savedUpstream && String(c.id) === String(savedUpstream.id))).map((c) => `<option value="${escapeHtml(String(c.id))}"${String(c.id) === String(feederSaved.upstreamCustomerId) ? ' selected' : ''}>${escapeHtml(c.name || 'Unknown')}${c.mohalla ? ` · ${escapeHtml(c.mohalla)}` : ''}${c.archived ? t('prof_upstream_archived_suffix') : ''}</option>`).join('');
+    if (!dirtyFormKeys.has('upstreamCustomerId')) upstreamSelect.value = feederSaved.upstreamCustomerId ?? '';
   }
   const fiberZoneSelect = $('#fiberZoneInput');
   if (fiberZoneSelect) {
-    fiberZoneSelect.innerHTML = `<option value="">${t('prof_not_set')}</option>` + FIBER_ZONES.map((z) => `<option value="${escapeHtml(z)}"${z === (feederSaved.fiberZone ?? '') ? ' selected' : ''}>${escapeHtml(z)}</option>`).join('');
-    fiberZoneSelect.value = feederSaved.fiberZone ?? '';
+    if (!dirtyFormKeys.has('fiberZone')) fiberZoneSelect.innerHTML = `<option value="">${t('prof_not_set')}</option>` + FIBER_ZONES.map((z) => `<option value="${escapeHtml(z)}"${z === (feederSaved.fiberZone ?? '') ? ' selected' : ''}>${escapeHtml(z)}</option>`).join('');
+    if (!dirtyFormKeys.has('fiberZone')) fiberZoneSelect.value = feederSaved.fiberZone ?? '';
   }
   // SISP-97: feeder-host bijli credit (core zeroes it on save when this
   // house feeds no active downstream home).
-  if ($('#feederHostCreditInput')) $('#feederHostCreditInput').value = customer.feederHostCreditPKR ?? '';
-  if ($('#pppoeUsernameInput')) $('#pppoeUsernameInput').value = customer.pppoeUsername ?? '';
-  if ($('#pppoePasswordInput')) $('#pppoePasswordInput').value = customer.pppoePassword ?? '';
-  if ($('#staticIpInput')) $('#staticIpInput').value = customer.staticIp ?? '';
-  if ($('#macAddressInput')) $('#macAddressInput').value = customer.macAddress ?? '';
+  if (!dirtyFormKeys.has('feederHostCreditPKR') && $('#feederHostCreditInput')) $('#feederHostCreditInput').value = customer.feederHostCreditPKR ?? '';
+  if (!dirtyFormKeys.has('pppoeUsername') && $('#pppoeUsernameInput')) $('#pppoeUsernameInput').value = customer.pppoeUsername ?? '';
+  if (!dirtyFormKeys.has('pppoePassword') && $('#pppoePasswordInput')) $('#pppoePasswordInput').value = customer.pppoePassword ?? '';
+  if (!dirtyFormKeys.has('staticIp') && $('#staticIpInput')) $('#staticIpInput').value = customer.staticIp ?? '';
+  if (!dirtyFormKeys.has('macAddress') && $('#macAddressInput')) $('#macAddressInput').value = customer.macAddress ?? '';
   // SISP-113: live OUI vendor badge / randomized-MAC warning under the
   // MAC field. Display only — it never blocks or alters saving.
   const macAddressInputEl = $('#macAddressInput');
@@ -10454,29 +10463,29 @@ function renderDetail() {
     refreshStaticIpHint();
   }
   // SISP-94: router credential vault fields.
-  if ($('#wifiSsidInput')) $('#wifiSsidInput').value = customer.wifiSsid ?? '';
-  if ($('#wifiPasswordInput')) $('#wifiPasswordInput').value = customer.wifiPassword ?? '';
-  if ($('#routerAdminPortInput')) $('#routerAdminPortInput').value = customer.routerAdminPort ?? '';
-  if ($('#routerAdminPasswordInput')) $('#routerAdminPasswordInput').value = customer.routerAdminPassword ?? '';
+  if (!dirtyFormKeys.has('wifiSsid') && $('#wifiSsidInput')) $('#wifiSsidInput').value = customer.wifiSsid ?? '';
+  if (!dirtyFormKeys.has('wifiPassword') && $('#wifiPasswordInput')) $('#wifiPasswordInput').value = customer.wifiPassword ?? '';
+  if (!dirtyFormKeys.has('routerAdminPort') && $('#routerAdminPortInput')) $('#routerAdminPortInput').value = customer.routerAdminPort ?? '';
+  if (!dirtyFormKeys.has('routerAdminPassword') && $('#routerAdminPasswordInput')) $('#routerAdminPasswordInput').value = customer.routerAdminPassword ?? '';
   // SISP-19: custody fields (ownership selects + serial + deposit).
   // normalizeCustodyFields guards legacy/invalid ownership values.
   const custodyEditFields = normalizeCustodyFields(customer);
-  if ($('#routerOwnershipInput')) $('#routerOwnershipInput').value = custodyEditFields.routerOwnership;
-  if ($('#mediaConverterOwnershipInput')) $('#mediaConverterOwnershipInput').value = custodyEditFields.mediaConverterOwnership;
-  if ($('#serialNumberInput')) $('#serialNumberInput').value = customer.serialNumber ?? '';
-  if ($('#securityDepositInput')) $('#securityDepositInput').value = customer.securityDeposit ?? '';
+  if (!dirtyFormKeys.has('routerOwnership') && $('#routerOwnershipInput')) $('#routerOwnershipInput').value = custodyEditFields.routerOwnership;
+  if (!dirtyFormKeys.has('mediaConverterOwnership') && $('#mediaConverterOwnershipInput')) $('#mediaConverterOwnershipInput').value = custodyEditFields.mediaConverterOwnership;
+  if (!dirtyFormKeys.has('serialNumber') && $('#serialNumberInput')) $('#serialNumberInput').value = customer.serialNumber ?? '';
+  if (!dirtyFormKeys.has('securityDeposit') && $('#securityDepositInput')) $('#securityDepositInput').value = customer.securityDeposit ?? '';
   // SISP-158: shared-router contributor editor (rows for the form; the
   // current price rides on the host so the soft warning can refresh live).
   renderContributorEditor(customer);
   // SISP-143: occupancy + guarantor fields (normalized read, so a junk
   // stored residence type shows as Not recorded in the form).
   const occupancyEditFields = normalizeOccupancyFields(customer);
-  if ($('#residenceTypeInput')) $('#residenceTypeInput').value = occupancyEditFields.residenceType;
-  if ($('#landlordOrGuarantorNameInput')) $('#landlordOrGuarantorNameInput').value = occupancyEditFields.landlordOrGuarantorName;
-  if ($('#landlordPhoneInput')) $('#landlordPhoneInput').value = occupancyEditFields.landlordPhone;
-  $('#expiryDateInput').value = customer.expiryDate ?? '';
-  $('#cancellationDateInput').value = customer.cancellationDate ?? '';
-  $('#packageChangeStaffNameInput').value = '';
+  if (!dirtyFormKeys.has('residenceType') && $('#residenceTypeInput')) $('#residenceTypeInput').value = occupancyEditFields.residenceType;
+  if (!dirtyFormKeys.has('landlordOrGuarantorName') && $('#landlordOrGuarantorNameInput')) $('#landlordOrGuarantorNameInput').value = occupancyEditFields.landlordOrGuarantorName;
+  if (!dirtyFormKeys.has('landlordPhone') && $('#landlordPhoneInput')) $('#landlordPhoneInput').value = occupancyEditFields.landlordPhone;
+  if (!dirtyFormKeys.has('expiryDate')) $('#expiryDateInput').value = customer.expiryDate ?? '';
+  if (!dirtyFormKeys.has('cancellationDate')) $('#cancellationDateInput').value = customer.cancellationDate ?? '';
+  if (!dirtyFormKeys.has('packageChangeStaffName')) $('#packageChangeStaffNameInput').value = '';
   // Plan 509 — the static package-history section is gone: the view
   // section (packageHistoryViewSectionHtml, Plan 359) is the profile's
   // only package-history list, so there is nothing left to populate

@@ -44,7 +44,7 @@ function channelOf(report, channel) {
   return report.collectionChannels.find((row) => row.channel === channel);
 }
 
-test('SISP-51 spec: Rs. 10,000 splits into Direct Cash 4,000 / Waseem Shop 3,000 / EasyPaisa 3,000', () => {
+test('SISP-51 spec: PKR 10,000 splits into Direct Cash 4,000 / Waseem Shop 3,000 / EasyPaisa 3,000', () => {
   const report = build(specState());
   assert.equal(report.collected, 10000);
   assert.deepEqual(channelOf(report, DIRECT_CASH_CHANNEL), { channel: 'Direct Cash', kind: 'cash', amount: 4000, count: 1 });
@@ -239,13 +239,15 @@ test('SISP-51: WhatsApp text and print HTML carry the channel split and the cash
     ],
   });
   const text = buildOwnerKhataWhatsAppText(report);
-  assert.match(text, /Channel Split: Direct Cash Rs\. 4,000 · Waseem Abbasi Shop Rs\. 3,000 · Easypaisa Rs\. 3,000/);
-  assert.match(text, /Closing Cash-in-Hand \(Roznamcha\): Rs\. 7,000 · drawer band 2026-10-31/);
+  // Sharafat 85: canonical formatPKR — 'PKR 4,000' / 'PKR 3,000' /
+  // 'PKR 7,000', not the deleted khata copy's 'Rs.' forms. Figures unchanged.
+  assert.match(text, /Channel Split: Direct Cash PKR 4,000 · Waseem Abbasi Shop PKR 3,000 · Easypaisa PKR 3,000/);
+  assert.match(text, /Closing Cash-in-Hand \(Roznamcha\): PKR 7,000 · drawer band 2026-10-31/);
   const html = buildOwnerKhataPrintHtml(report);
   assert.match(html, /Collections by channel/);
-  assert.match(html, /<td>Waseem Abbasi Shop<\/td><td>1<\/td><td>Rs\. 3,000<\/td>/);
+  assert.match(html, /<td>Waseem Abbasi Shop<\/td><td>1<\/td><td>PKR 3,000<\/td>/);
   assert.match(html, /Closing Cash-in-Hand \(Roznamcha\) — drawer closed 2026-10-31/);
-  assert.match(html, /Rs\. 7,000/);
+  assert.match(html, /PKR 7,000/);
 });
 
 test('SISP-51: building the 2.0 report never mutates ledger state or inputs', () => {

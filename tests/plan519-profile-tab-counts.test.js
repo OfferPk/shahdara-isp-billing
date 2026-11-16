@@ -81,8 +81,10 @@ test('Plan 519: a complaint with no status counts as open — only Resolved is c
 });
 
 test('Plan 519: a missing customer has no counts', () => {
-  assert.deepEqual(profileTabCounts(null, [complaint()]), { billingMonths: 0, openComplaints: 0 });
-  assert.deepEqual(profileTabCounts(undefined, [complaint()]), { billingMonths: 0, openComplaints: 0 });
+  // Sharafat 79: the return shape gains unpaidBaqaya (the count of
+  // unpaid manual baqaya entries); a missing customer has none.
+  assert.deepEqual(profileTabCounts(null, [complaint()]), { billingMonths: 0, openComplaints: 0, unpaidBaqaya: 0 });
+  assert.deepEqual(profileTabCounts(undefined, [complaint()]), { billingMonths: 0, openComplaints: 0, unpaidBaqaya: 0 });
 });
 
 test('Plan 519: app.js imports the tab-count helper at the pinned version', () => {
@@ -96,7 +98,9 @@ test('Plan 519: updateProfileTabCounts sets the complaints count and keeps the B
   const start = app.indexOf('function updateProfileTabCounts(customer)');
   assert.notEqual(start, -1, 'updateProfileTabCounts must exist');
   const body = app.slice(start, app.indexOf('\nmountCustomerProfileContent();', start));
-  assert.ok(body.includes("profileTabCounts(customer, loadComplaints())"), 'counts derive from this customer and the register');
+  // Sharafat 79: the call gains a third argument — the derived baqaya
+  // entries — so the counts also cover unpaid manual baqaya.
+  assert.ok(body.includes("profileTabCounts(customer, loadComplaints(), manualBaqayaEntriesWithRemaining(customer))"), 'counts derive from this customer, the register and the derived baqaya list');
   assert.ok(body.includes("$('#profileTabBilling .profile-tab-label')"), 'billing tab label span is updated');
   assert.ok(body.includes("$('#profileTabComplaints .profile-tab-label')"), 'complaints tab label span is updated');
   // Live visual bugs (Nov 2026): "Billing (3 months)" on the tab

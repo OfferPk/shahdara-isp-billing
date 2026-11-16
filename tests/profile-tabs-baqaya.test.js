@@ -104,10 +104,18 @@ test('profile tabs: counts rewrite the label span, never the button', () => {
   assert.ok(body.includes("billingLabel.textContent = t('prof_tab_billing')"), 'billing tab is always the bare label — the count moved into the panel');
   assert.ok(body.includes("$('#profileBillingMonthsCount')"), 'the months figure is written into the Billing panel header');
   assert.ok(body.includes("$('#profileTabComplaints .profile-tab-label')"), 'complaints count targets the label span');
-  assert.ok(!body.includes("billingTab.textContent") && !body.includes("complaintsTab.textContent"),
+  assert.ok(!body.includes("billingTab.textContent") && !body.includes("complaintsTab.textContent") && !body.includes("baqayaTab.textContent"),
     'no count write may touch the button textContent — that would wipe the number span');
   assert.ok(!body.includes('profileTabInfo'), 'the Info tab still carries no count');
-  assert.ok(!body.includes('profileTabBaqaya'), 'the Baqaya tab carries no count — its panel heading already shows the total');
+  // Sharafat 79 reverses the old Plan 519 decision on this tab: the
+  // Baqaya tab DOES carry a count now — the count of unpaid entries.
+  // The panel heading shows the total unpaid AMOUNT, the tab shows
+  // HOW MANY entries are unpaid; two entries of PKR 500 read the same
+  // as one of PKR 1,000 in the heading, so only the tab count answers
+  // "is there anything here?". The write targets the label span only.
+  assert.ok(body.includes("$('#profileTabBaqaya .profile-tab-label')"), 'baqaya count targets the label span');
+  assert.ok(body.includes("counts.unpaidBaqaya > 0 ? t('prof_tab_baqaya_count'"), 'baqaya tab shows the count when entries are unpaid');
+  assert.ok(body.includes(": t('prof_tab_baqaya')"), 'baqaya tab falls back to the bare label at zero');
 });
 
 test('profile tabs: the Baqaya section still renders and wires its dialog', () => {

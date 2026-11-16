@@ -310,7 +310,14 @@ test('phase C: the sticky bar still reads the hint — its source did not move',
 
 test('phase C: the network rows carry a copy button for PPPoE username, static IP and MAC — and nothing else', () => {
   const app = read('app.js');
-  const network = app.match(/network: profileInfoGroupMarkup\(t\('prof_group_connection'\), \[\[[\s\S]*?\]\]\)/);
+  // Sharafat 77 — the fragment close is `]], 'profile-info-group--network')`,
+  // NOT `]])` : the rows array closes with `]],` (a fourth argument follows),
+  // so the old `]])` end ran away ~524 KB to the next `]])` in the file and
+  // swept in the whole edit-form block — any quoted 'pppoePassword' there
+  // (e.g. a dirty-guard key) tripped the assertion although the network
+  // rows never carried a copy button for it. The intent is unchanged: the
+  // network rows must list exactly these three copy fields.
+  const network = app.match(/network: profileInfoGroupMarkup\(t\('prof_group_connection'\), \[\[[\s\S]*?\]\], 'profile-info-group--network'\)/);
   assert.ok(network, 'the network fragment must exist');
   assert.ok(network[0].includes("'pppoeUsername'"), 'the PPPoE row must carry its copy field');
   assert.ok(network[0].includes("'staticIp'"), 'the static IP row must carry its copy field');

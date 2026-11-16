@@ -34946,7 +34946,7 @@ function renderComplaintFollowups() {
         stillSatisfied: null,
         note: $('#cfNote')?.value ?? '',
       });
-      if (!next || next.length === before.length) { toast('Complaint follow-up not recorded: give a complaint reference, a real due date, and a note. One follow-up per closed complaint.'); return; }
+      if (!next || next.length === before.length) { toast('Complaint follow-up not recorded: give a complaint reference, a real due date, and a note. One open follow-up per complaint.'); return; }
       saveComplaintFollowups(next);
       renderComplaintFollowups();
     });

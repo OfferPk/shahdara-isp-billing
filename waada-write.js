@@ -70,7 +70,7 @@ function toWholeRupees(amount) {
  *     represent); the live promise was still set, and the caller must
  *     surface the refusal — never drop it silently.
  * The input customer and records list are never mutated. Throws on an
- * invalid promise date, exactly like setCustomerWaada.
+ * invalid promise date or a non-positive promise amount, exactly like setCustomerWaada.
  */
 export function setLiveWaada(customer, records, { promiseDate, promiseAmount, promiseNote } = {}) {
   const updated = setCustomerWaada(customer, { promiseDate, promiseAmount, promiseNote });

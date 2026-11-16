@@ -159,12 +159,17 @@ test('a null amount mirrors as a null-amount record, and null matches null on ke
   assert.equal(cleared.promiseDate, undefined);
 });
 
-test('a zero amount refuses the mirror (surfaced) while the live promise is still set', () => {
-  const written = setLiveWaada(customer(), [], { promiseDate: CHIP_DATE, promiseAmount: 0, promiseNote: '' });
-  assert.equal(written.mirrorStatus, 'refused');
-  assert.equal(written.mirrorWritten, false);
-  assert.equal(written.records.length, 0);
-  assert.equal(written.customer.promiseDate, CHIP_DATE);
+test('a zero amount is refused outright by the setter (Sharafat 69) — the live promise is never set', () => {
+  // Sharafat 69 rewrote this test: the old contract was "a zero amount
+  // refuses the mirror (surfaced) while the live promise is still set" —
+  // setLiveWaada carried Rs 0 on the customer while the mirror refused
+  // it, so a Rs 0 promise snoozed the customer out of collection. The
+  // setter now throws on any non-positive amount, exactly like the
+  // invalid-date path, so nothing is written at all.
+  const before = [{ id: 'WD-1', customer: 'c1', promisedDate: CHIP_DATE, amountPromised: 2000, note: '', status: 'pending', closedDate: '' }];
+  assert.throws(() => setLiveWaada(customer(), before, { promiseDate: CHIP_DATE, promiseAmount: 0, promiseNote: '' }), /more than Rs 0/);
+  assert.equal(before.length, 1);
+  assert.throws(() => setLiveWaada(customer(), [], { promiseDate: CHIP_DATE, promiseAmount: -500, promiseNote: '' }), /more than Rs 0/);
 });
 
 test('an invalid date throws and the records list is untouched', () => {

@@ -8924,8 +8924,11 @@ function renderCustomerProfileView(customer) {
           promiseAmount: wadaBanner.querySelector('#wadaQuickAmount')?.value ?? '',
           promiseNote: wadaBanner.querySelector('#wadaQuickNote')?.value ?? ''
         });
-      } catch {
-        toast('Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.');
+      } catch (err) {
+        // Sharafat 69: surface the amount refusal by name — the generic
+        // message says "a whole-rupee amount when you enter one", and a
+        // typed -500 IS a whole-rupee amount, so it would teach nothing.
+        toast(err?.message === 'Promise amount must be more than Rs 0' ? err.message : 'Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.');
         return;
       }
       if (written.mirrorStatus === 'refused') { toast('Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.'); return; }

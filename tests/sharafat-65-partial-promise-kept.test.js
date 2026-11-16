@@ -65,8 +65,11 @@ test('counts put short and late payments in their own buckets', () => {
   assert.deepEqual(collectionPromiseCountsForCustomer(list, 'Bilal', '2026-11-07'), { kept: 1, keptLate: 0, partial: 2, unkept: 1, open: 0, total: 4 });
 });
 
-test('text names the shortfall: paid Rs 100 of Rs 3000 (short by Rs 2900)', () => {
-  assert.match(collectionPromiseText(short, '2026-11-05'), /paid Rs 100 of Rs 3000 \(short by Rs 2900\)/);
+test('text names the shortfall: paid PKR 100 of PKR 3,000 (short by PKR 2,900)', () => {
+  // Sharafat 74: the shortfall line now formats all three figures
+  // through the shared formatPKR — the old pin asserted the raw
+  // "paid Rs 100 of Rs 3000 (short by Rs 2900)".
+  assert.match(collectionPromiseText(short, '2026-11-05'), /paid PKR 100 of PKR 3,000 \(short by PKR 2,900\)/);
   assert.doesNotMatch(collectionPromiseText(fullOnTime, '2026-11-05'), /short by/);
 });
 
@@ -78,7 +81,8 @@ test('text for a paid date with no amount keeps "amount not recorded" and never 
 });
 
 test('text notes lateness for a short payment paid late', () => {
-  assert.match(collectionPromiseText(shortLate, '2026-11-05'), /short by Rs 2900/);
+  // Sharafat 74: "short by PKR 2,900" — same formatter as the text twin.
+  assert.match(collectionPromiseText(shortLate, '2026-11-05'), /short by PKR 2,900/);
   assert.match(collectionPromiseText(shortLate, '2026-11-05'), /paid late/);
   assert.match(collectionPromiseText(fullLate, '2026-11-05'), /paid late/);
 });
@@ -86,7 +90,7 @@ test('text notes lateness for a short payment paid late', () => {
 test('html twin shows the same shortfall and status as the text twin', () => {
   const html = collectionPromiseHtml(short, '2026-11-05');
   assert.match(html, /status: partial/);
-  assert.match(html, /paid Rs 100 of Rs 3000 \(short by Rs 2900\)/);
+  assert.match(html, /paid PKR 100 of PKR 3,000 \(short by PKR 2,900\)/);
   assert.match(collectionPromiseHtml(fullLate, '2026-11-05'), /status: paidLate/);
   assert.match(collectionPromiseHtml(fullLate, '2026-11-05'), /paid late/);
   assert.match(collectionPromiseHtml(amountUnknown, '2026-11-05'), /status: partial/);
@@ -104,14 +108,17 @@ test('summary text counts the partial and kept-late buckets', () => {
 test('csv follows the new status', () => {
   const csv = collectionPromiseCsv([short, fullOnTime, fullLate], '2026-11-07');
   const lines = csv.split('\n');
-  assert.match(lines[1], /CP-10,Ahmed,3000,2026-11-03,2026-11-03,100,Saad,partial/);
-  assert.match(lines[2], /CP-11,Ahmed,3000,2026-11-03,2026-11-03,3000,Saad,paid/);
-  assert.match(lines[3], /CP-12,Ahmed,3000,2026-11-03,2026-11-05,3000,Saad,paidLate/);
+  assert.match(lines[1], /CP-10,Ahmed,"PKR 3,000",2026-11-03,2026-11-03,PKR 100,Saad,partial/);
+  assert.match(lines[2], /CP-11,Ahmed,"PKR 3,000",2026-11-03,2026-11-03,"PKR 3,000",Saad,paid/);
+  assert.match(lines[3], /CP-12,Ahmed,"PKR 3,000",2026-11-03,2026-11-05,"PKR 3,000",Saad,paidLate/);
+  // Sharafat 74: the CSV amount columns now read "PKR 3,000" / "PKR 100"
+  // through the shared formatter — the old pins asserted the raw
+  // numbers 3000/100. The status column stays raw by design.
 });
 
 test('a short payment cannot be topped up — recording a second payment is refused', () => {
   // Sharafat 65 R9: recordCollectionPromisePayment refuses an
-  // already-paid promise, so the remaining Rs 2,900 cannot be added to
+  // already-paid promise, so the remaining PKR 2,900 cannot be added to
   // the SAME promise via the form. Topping up is its own item.
   const after = recordCollectionPromisePayment([short], 'CP-10', '2026-11-06', 2900);
   assert.deepEqual(after, [short]);

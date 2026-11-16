@@ -77,6 +77,92 @@ test('topbar fit: <=480px compacts brand title and language label, keeps both bu
 });
 
 // ---------------------------------------------------------------------------
+// Sharafat 90: the offline indicator was hidden on phones — at <=620px the
+// topbar hid #networkStatusPill with display:none!important, so the phone
+// showed no online/offline signal at all. The fix (styles.css only): the
+// pill leaves the hide selector and shows as a 32px dot; its text is hidden
+// with the .sr-only pattern (NOT display:none) so aria-live="polite" keeps
+// announcing status changes. No pixel proof exists in Node — the 360px fit
+// is proven by CSS-declared widths + arithmetic (see the budget test); the
+// real pixels need an on-phone check.
+// ---------------------------------------------------------------------------
+
+// The <=620px block is minified onto one line; slice it out by brace depth
+// so the pins below test the rule inside its own media query, not a match
+// that could sit anywhere in the file.
+function mediaBlock620() {
+  const start = styles.indexOf('@media(max-width:620px){');
+  assert.ok(start >= 0, '<=620px media block exists in styles.css');
+  let depth = 0;
+  for (let i = start; i < styles.length; i++) {
+    if (styles[i] === '{') depth++;
+    else if (styles[i] === '}') { depth--; if (depth === 0) return styles.slice(start, i + 1); }
+  }
+  assert.fail('<=620px media block never closes');
+}
+
+test('Sharafat 90: <=620px hide selector no longer lists #networkStatusPill', () => {
+  const block = mediaBlock620();
+  assert.ok(block.includes('.privacy-pill,#commandPaletteTrigger,#shortcutsHelpButton{display:none!important}'),
+    'the hide selector keeps the privacy pill + the two dead IDs, without the network pill');
+  const hidden = [...block.matchAll(/([^{}]+)\{display:none!important\}/g)].map((m) => m[1]);
+  assert.ok(hidden.length > 0, 'at least one display:none!important rule exists in the block');
+  for (const selector of hidden) {
+    assert.ok(!selector.includes('#networkStatusPill'), `no hide rule may list the pill: ${selector}`);
+  }
+  // The privacy pill stays hidden — it is out of scope for this item.
+  assert.ok(block.includes('.privacy-pill,'), 'the privacy pill is still in the hide selector');
+});
+
+test('Sharafat 90: dot-only #networkStatusPill rule at <=620px (32x32, no padding, centred)', () => {
+  const block = mediaBlock620();
+  assert.ok(block.includes('#networkStatusPill{width:32px;height:32px;padding:0;justify-content:center}'),
+    'the pill shows as a 32x32 dot at phone widths (the repo 32px touch floor)');
+});
+
+test('Sharafat 90: pill text is sr-only, not display:none (status still announced)', () => {
+  const block = mediaBlock620();
+  assert.ok(block.includes('#networkStatusPill .network-status-text{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}'),
+    'the text span is visually hidden with the .sr-only declarations');
+  assert.ok(!block.includes('.network-status-text{display:none'),
+    'the text must never be display:none — a hidden node is not live-announced');
+  // The declarations are the .sr-only rule itself, verbatim.
+  assert.ok(styles.includes('.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}'),
+    'the sr-only source declarations still exist');
+});
+
+test('Sharafat 90: 360px topbar width budget fits with a 32px dot (288 <= 360)', () => {
+  // Per-element widths, each cited from its own rule so a future width
+  // change fails this pin and forces the budget to be re-done (R9).
+  assert.ok(styles.includes('#navDrawerToggle,#mobileCustomerSearchTrigger,#topbarPendingActionsBtn,.topbar-actions .theme-toggle{width:38px;height:38px;'),
+    'nav toggle / search / pending-actions buttons are 38px at <=620px');
+  assert.match(styles, /\.brand-mark \{ flex: 0 0 30px; width: 30px; height: 30px; font-size: 15px; \}/,
+    'brand mark is 30px at <=360px');
+  assert.match(styles, /\.brand-copy \{ display: none; \}/, 'brand copy is hidden at <=480px (0px at 360px)');
+  assert.match(styles, /\.topbar \.backup-health-badge \{ flex: 0 0 auto; width: 38px; min-width: 38px; padding: 0; justify-content: center; \}/,
+    'backup badge is icon-only 38px at <=480px');
+  assert.match(styles, /\.topbar #fieldModeToggleBtn \{ width: 38px; height: 38px;/,
+    'field-mode button is 38px at <=620px');
+  assert.match(styles, /\.topbar \{ padding: 0 6px; gap: 4px; \}/, 'topbar padding is 0 6px at <=480px');
+  assert.match(styles, /\.topbar-actions \{ gap: 3px; \}/, 'topbar-actions gap is 3px at <=480px (later than the <=360px 2px rule, so 3px wins)');
+  const fixed = 38 + 30 + 32 + 38 + 38 + 38 + 38; // nav toggle + brand mark + network dot + backup badge + search + pending actions + field mode
+  const gaps = 3 * 4 + 4 * 3; // topbar gap 4px x 3 visible gaps + actions gap 3px x 4 gaps
+  const padding = 12; // padding 0 6px
+  assert.equal(fixed + gaps + padding, 288, 'budget total');
+  assert.ok(fixed + gaps + padding <= 360, 'the dot-only topbar fits at 360px with ~72px slack');
+});
+
+test('Sharafat 90: dot colours + topbar heights unchanged', () => {
+  const nav = readFileSync(new URL('../nav.css', import.meta.url), 'utf8');
+  assert.match(nav, /\.network-status-dot\.online \{\s*background: #10b981;/, 'online dot is still #10b981');
+  assert.match(nav, /\.network-status-dot\.offline \{\s*background: #f59e0b;/, 'offline dot is still #f59e0b');
+  const block = mediaBlock620();
+  assert.ok(block.includes('.topbar{height:58px;max-height:64px;'), 'topbar is still 58px at <=620px');
+  assert.match(styles, /@media \(max-width: 360px\) \{\s*\.topbar \{ gap: 4px; padding-inline: 6px; height: 56px; max-height: 64px; \}/,
+    'topbar is still 56px at <=360px');
+});
+
+// ---------------------------------------------------------------------------
 // SISP-193: repo-wide CSS brace-balance & @media scope ratchet (PR #491
 // extension). The PR #491 guard above covers components.css only, with a
 // naive split('{') count. That is not enough: the same unclosed-@media

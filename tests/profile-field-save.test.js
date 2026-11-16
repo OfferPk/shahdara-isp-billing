@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry } from '../profile-field-save.js';
+import { PROFILE_FIELD_SAVE_MAP, dirtyProfileFieldKeys, profileFieldSaveEntry } from '../profile-field-save.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(here, '..', name), 'utf8');
@@ -75,4 +75,44 @@ test('profile-field controls share one size rule, selects included', () => {
   const styles = read('styles.css');
   assert.ok(styles.includes('.profile-field input, .profile-field select, .profile-field textarea'), 'profile-field rule must cover selects, not just inputs/textareas');
   assert.ok(!/\.profile-field input, \.profile-field textarea\{/.test(styles), 'no select-less profile-field control rule may remain');
+});
+
+test('Sharafat 77: custody and occupancy keys count as dirty when typed', () => {
+  // Sharafat 77 depends on these record-derived keys being dirty when
+  // the operator changes them: renderDetail re-derives custody from
+  // normalizeCustodyFields and occupancy from
+  // normalizeOccupancyFields on every render, so without dirty keys
+  // a re-render mid-edit would clobber the typed values.
+  const customer = {
+    routerOwnership: 'own',
+    mediaConverterOwnership: 'rented',
+    residenceType: 'own',
+    landlordOrGuarantorName: '',
+    landlordPhone: '',
+  };
+  const ctrl = (id, type, value) => ({ id, type, value, checked: false });
+  const controls = [
+    ctrl('routerOwnershipInput', 'select-one', 'rented'),
+    ctrl('mediaConverterOwnershipInput', 'select-one', 'own'),
+    ctrl('residenceTypeInput', 'select-one', 'rented'),
+    ctrl('landlordOrGuarantorNameInput', 'text', 'Ahmed'),
+    ctrl('landlordPhoneInput', 'text', '03012345679'),
+  ];
+  const openValues = Object.fromEntries(
+    controls.map((c) => [c.id, { type: c.type, value: customer[PROFILE_FIELD_SAVE_MAP[c.id]], checked: false }]),
+  );
+  assert.deepEqual(
+    dirtyProfileFieldKeys(customer, controls, openValues).sort(),
+    ['landlordOrGuarantorName', 'landlordPhone', 'mediaConverterOwnership', 'residenceType', 'routerOwnership'],
+  );
+  // Untouched custody / occupancy fields stay clean against the same
+  // open-time snapshot.
+  const untouched = [
+    ctrl('routerOwnershipInput', 'select-one', 'own'),
+    ctrl('mediaConverterOwnershipInput', 'select-one', 'rented'),
+    ctrl('residenceTypeInput', 'select-one', 'own'),
+    ctrl('landlordOrGuarantorNameInput', 'text', ''),
+    ctrl('landlordPhoneInput', 'text', ''),
+  ];
+  assert.deepEqual(dirtyProfileFieldKeys(customer, untouched, openValues), []);
 });

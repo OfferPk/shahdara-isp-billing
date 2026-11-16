@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createInitialState, saveBillMonth, addPayment, calculatePaymentAllocations, listTransactions } from '../core.js';
+import { PROFILE_FIELD_SAVE_MAP } from '../profile-field-save.js';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, createReceiptWhatsAppDraft, createWhatsAppFollowupDraft, resolveReceiptWhatsAppAction } from '../profile-ui.js';
 import { receiptTermsNoteText } from '../receipt-terms.js';
 
@@ -443,4 +444,63 @@ test('follow-up center drafts all four customer-bound WhatsApp templates for rev
   assert.match(ownerUi,/recovery_send_whatsapp/);
   assert.match(ownerUi,/data-recovery-template/);
   assert.doesNotMatch(ownerUi,/fetch\s*\(|sendBeacon|window\.open\s*\(|sendText|autoSend/i);
+});
+
+test('Sharafat 77: renderDetail skips value writes for fields the operator has changed, and still refreshes the view', () => {
+  // While the edit form is open, a re-render (a new payment arriving,
+  // a ticket event, a toast) must not clobber what the operator has
+  // typed. renderDetail computes the dirty set ONCE, after the
+  // no-customer return, and only while editing — the Plan 499/500
+  // dirty tracking already imported at app.js:53.
+  const start = app.indexOf('function renderDetail() {');
+  const end = app.indexOf('  renderProfileShareDraft();\n}', start);
+  assert.ok(start >= 0 && end > start, 'renderDetail is present');
+  const body = app.slice(start, end);
+  const bodyLines = body.split('\n');
+  assert.ok(body.indexOf('const dirtyFormKeys') > body.indexOf('if (!customer) return;'), 'dirty set is computed after the no-customer return');
+  assert.match(
+    body,
+    /const dirtyFormKeys = profileEditMode\s*\? new Set\(dirtyProfileFieldKeys\(customer, profileFieldControls\(\), profileCancelOpenValues\)\)\s*: new Set\(\);/,
+    'dirty set is computed only while editing, empty in view mode',
+  );
+  assert.equal(
+    body.split('dirtyProfileFieldKeys(customer, profileFieldControls(), profileCancelOpenValues)').length - 1,
+    1,
+    'the dirty set is computed exactly once per render',
+  );
+  // Every one of the 70 mapped fields is dirty-guarded at its write:
+  // the guard sits on the write line itself, so a re-render mid-edit
+  // never clobbers typed input. The two select rebuilds have two
+  // guarded lines each (options + selected value).
+  const selectWriteNeedles = {
+    upstreamCustomerId: ['upstreamSelect.innerHTML', 'upstreamSelect.value'],
+    fiberZone: ['fiberZoneSelect.innerHTML', 'fiberZoneSelect.value'],
+  };
+  for (const [inputId, key] of Object.entries(PROFILE_FIELD_SAVE_MAP)) {
+    const needles = selectWriteNeedles[key] ?? [`$('#${inputId}').value`, `$('#${inputId}').checked`];
+    const idxs = needles
+      .map((needle) => bodyLines.findIndex((line) => line.includes(needle)))
+      .filter((i) => i !== -1);
+    assert.equal(idxs.length, selectWriteNeedles[key] ? 2 : 1, `${inputId} must have its write(s) in renderDetail`);
+    for (const idx of idxs) {
+      const window = bodyLines.slice(Math.max(0, idx - 3), idx + 1).join('\n');
+      assert.ok(window.includes(`dirtyFormKeys.has('${key}')`), `${inputId} write must be dirty-guarded for '${key}'`);
+    }
+  }
+  // The staff-name field is reset to blank on every render — that
+  // blanking is itself guarded, so a typed name survives a re-render.
+  assert.match(body, /if \(!dirtyFormKeys\.has\('packageChangeStaffName'\)\) \$\('#packageChangeStaffNameInput'\)\.value = '';/);
+  // View-only writes still refresh unguarded: the header name and the
+  // tab counts are not form input.
+  const nameIdx = bodyLines.findIndex((line) => line.includes('detailNameEl.textContent = shownName'));
+  assert.notEqual(nameIdx, -1, 'header name write must exist');
+  assert.equal(bodyLines.slice(Math.max(0, nameIdx - 3), nameIdx + 1).join('\n').includes('dirtyFormKeys'), false, 'header name must refresh unguarded');
+  const countsIdx = bodyLines.findIndex((line) => line.includes('updateProfileTabCounts(customer)'));
+  assert.notEqual(countsIdx, -1, 'tab counts refresh must exist');
+  assert.equal(bodyLines.slice(Math.max(0, countsIdx - 3), countsIdx + 1).join('\n').includes('dirtyFormKeys'), false, 'tab counts must refresh unguarded');
+  // The complaints-changed handler still re-renders the profile, and
+  // save / cancel still clear edit mode before re-rendering.
+  assert.match(app, /const handleRegisterComplaintsChanged = \(\) => \{[\s\S]*?renderDetail\(\);/);
+  assert.match(app, /cancelProfileEditButton'\)\.addEventListener\('click', async \(\) => \{[\s\S]*?profileEditMode = false; renderDetail\(\);/);
+  assert.match(app, /profileEditMode = false;\s*save\(\); renderDetail\(\)/);
 });

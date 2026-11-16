@@ -17,11 +17,14 @@
  *   (#incidentCount30Days). The Customer Info tab carries no count:
  *   the completion counter (Plan 512/513) already lives inside that
  *   panel, and duplicating it on the tab would say nothing new. The
- *   Manual Baqaya tab carries no count either: its panel heading
- *   already shows the total unpaid baqaya prominently.
+ *   Manual Baqaya tab carries a count of its unpaid entries (Sharafat
+ *   79): its panel heading shows the total unpaid amount, but the tab
+ *   shows how many entries are unpaid — two entries of PKR 500 read
+ *   the same as one of PKR 1,000 in the heading, so only the count
+ *   answers "is there anything here?" for the tab.
  */
-export function profileTabCounts(customer, complaints) {
-  if (!customer || typeof customer !== 'object') return { billingMonths: 0, openComplaints: 0 };
+export function profileTabCounts(customer, complaints, baqayaEntries = []) {
+  if (!customer || typeof customer !== 'object') return { billingMonths: 0, openComplaints: 0, unpaidBaqaya: 0 };
   const months = new Set();
   for (const bill of Array.isArray(customer.bills) ? customer.bills : []) {
     if (bill && typeof bill.month === 'string' && bill.month !== '') months.add(bill.month);
@@ -33,5 +36,9 @@ export function profileTabCounts(customer, complaints) {
     if (id !== undefined && id !== null && String(complaint.customerId ?? '') !== String(id)) continue;
     if (complaint.status !== 'Resolved') openComplaints += 1;
   }
-  return { billingMonths: months.size, openComplaints };
+  let unpaidBaqaya = 0;
+  for (const entry of Array.isArray(baqayaEntries) ? baqayaEntries : []) {
+    if (entry && typeof entry === 'object' && entry.remainingCents > 0) unpaidBaqaya += 1;
+  }
+  return { billingMonths: months.size, openComplaints, unpaidBaqaya };
 }

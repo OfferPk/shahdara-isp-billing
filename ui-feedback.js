@@ -222,7 +222,9 @@ export function createToastSystem(doc = document, win = window) {
     rec.el.classList.add('is-paused');
   }
   function resume(rec) {
-    if (!rec || rec.timer || rec.dismissed) return;
+    // Sharafat 92: a persistent toast never had a timer, so resuming it would
+    // arm one with an undefined remaining — setTimeout(NaN) dismisses at once.
+    if (!rec || rec.persistent || rec.timer || rec.dismissed) return;
     rec.el.classList.remove('is-paused');
     startTimer(rec, rec.remaining);
   }
@@ -317,7 +319,7 @@ export function createToastSystem(doc = document, win = window) {
       old.setAttribute('aria-live', 'off');
       const prev = current;
       pause(prev);
-      const rec = { el: old, remaining: prev.remaining, dismissed: false, origin: prev.origin };
+      const rec = { el: old, remaining: prev.remaining, dismissed: false, origin: prev.origin, persistent: prev.persistent };
       if (live.delete(prev)) live.add(rec); // the copy keeps the old toast's Undo; main is reused below
       prev.dismissed = true; // the previous record's identity lives on in the stacked copy (rec)
       // Re-wire buttons on the copy (cloneNode drops listeners).
@@ -328,7 +330,10 @@ export function createToastSystem(doc = document, win = window) {
       old.onpointermove = () => pause(rec);
       old.onpointerleave = () => resume(rec);
       stack.insertBefore(old, main);
-      startTimer(rec, Math.min(rec.remaining, 5000));
+      // Sharafat 92 (R3): a persistent copy never had startTimer called, so
+      // rec.remaining is undefined and Math.min(undefined, 5000) is NaN —
+      // setTimeout(NaN) would dismiss the stacked copy almost at once.
+      if (!rec.persistent) startTimer(rec, Math.min(rec.remaining, 5000));
       const olds = stack.querySelectorAll('.tsx-old');
       for (let i = 0; i < olds.length - (MAX_STACK - 1); i++) olds[i].remove();
     }
@@ -341,17 +346,22 @@ export function createToastSystem(doc = document, win = window) {
       current.dismissed = true;
     }
     stopTimer(current);
-    const rec = { el: main, dismissed: false, actions, origin: actions.length ? (topModal() || doc.body) : undefined };
+    const rec = { el: main, dismissed: false, actions, origin: actions.length ? (topModal() || doc.body) : undefined, persistent: opts.persistent === true };
     if (actions.length) live.add(rec);
     current = rec;
     fill(main, rec, { type, title: opts.title, message: text, actions, duration });
     main.hidden = false;
     place();
     win.requestAnimationFrame?.(() => { if (stack.classList.contains('tsx-in-dialog')) avoidDialogControls(stack.parentElement); });
-    // Restart the progress animation.
+    // Restart the progress animation — unless the toast is persistent, in which
+    // case a countdown bar would be a lie (it never counts down), so hide it.
     const bar = main.querySelector('.tsx-progress');
-    if (bar) { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; bar.style.animationDuration = `${duration}ms`; }
-    startTimer(rec, duration);
+    if (bar) {
+      if (rec.persistent) bar.style.display = 'none';
+      else { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; bar.style.animationDuration = `${duration}ms`; }
+    }
+    // Sharafat 92: persistent means until dismissed — no auto-dismiss timer.
+    if (!opts.persistent) startTimer(rec, duration);
     return { dismiss: () => dismiss(rec), element: main, type, duration };
   }
 

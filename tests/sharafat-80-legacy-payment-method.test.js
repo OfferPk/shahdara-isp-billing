@@ -27,6 +27,7 @@ import {
   BACKUP_FORMAT, PAYMENT_METHODS,
 } from '../core.js';
 import { paymentMethodGroup } from '../billing-ledger-presentation.js';
+import { t } from '../nav-language.js';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
@@ -193,7 +194,15 @@ test('Sharafat 80: the record form offers only current methods + a blank Choose 
 });
 
 test('Sharafat 80: the kist payoff refusal for genuinely unknown methods is intact', () => {
-  assert.ok(appJs.includes('Unknown payment method:'), 'payoff refusal string missing');
+  // Sharafat 86: the refusal text moved behind t('prof_kist_unknown_method')
+  // (nav-language.js) — the guard and the English wording are unchanged;
+  // only the literal moved out of app.js into the dictionary.
+  assert.ok(appJs.includes('if (!PAYMENT_METHODS.includes(method))'), 'payoff guard missing');
+  assert.ok(appJs.includes("t('prof_kist_unknown_method'"), 'payoff refusal call missing');
+  assert.equal(
+    t('prof_kist_unknown_method', 'en', { method: 'Cash' }),
+    'Unknown payment method: Cash. The plan was not settled.'
+  );
 });
 
 test('Sharafat 80: the reassign modal refusal is intact (deliberate-change flow)', () => {

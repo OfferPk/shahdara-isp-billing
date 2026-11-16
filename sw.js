@@ -41,8 +41,7 @@ self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_FILES.map(freshRequest))).catch(err => {
     notifyClients({ type: 'SW_PRECACHE_FAILED', cache: CACHE_NAME, error: String((err && err.message) || err) });
     throw err;
-  }));
-  self.skipWaiting();
+  }).then(() => { self.skipWaiting(); }));
 });
 
 self.addEventListener('activate', event => {

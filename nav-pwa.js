@@ -531,6 +531,8 @@ export const SW_UPDATE_SHOWN_KEY = 'shahdara_sw_update_shown_v1';
 export const SW_UPDATE_DISMISSED_KEY = 'shahdara_sw_update_dismissed_v1';
 /** Long-lived prompt: an update decision should not vanish in seconds. */
 export const SW_UPDATE_TOAST_DURATION_MS = 600000;
+/** Offline-notice toast: a warning the operator can read, then it goes away on its own. */
+export const SW_OFFLINE_TOAST_DURATION_MS = 8000;
 /** If an activated worker never raises controllerchange, reload anyway. */
 export const SW_UPDATE_RELOAD_FALLBACK_MS = 1500;
 
@@ -674,6 +676,38 @@ export function createSwUpdateReloadGuard() {
 }
 
 /**
+ * Sharafat 89: the page-side text for the three service-worker offline
+ * messages sw.js posts (SW_PRECACHE_FAILED, SW_OFFLINE_FALLBACK,
+ * SW_ASSET_OFFLINE). Pure — the 'message' handler in setupSwUpdatePrompt
+ * is a thin wrapper around it. Returns '' for anything else, so an
+ * unknown message type shows nothing.
+ *
+ * Wording rule: the notice never claims the failed file itself was served
+ * from cache — only that the app the operator is looking at is the cached
+ * copy. The precache notice names no file: the worker's post carries none.
+ * An asset URL that yields no basename falls back to the generic word
+ * 'file' — never the raw URL, which carries the origin and the ?v= stamp.
+ */
+const swOfflineSeenAssetUrls = new Set();
+
+function swOfflineAssetBasename(url) {
+  try {
+    const parts = new URL(String(url)).pathname.split('/').filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : '';
+  } catch { return ''; }
+}
+
+export function swOfflineNoticeMessage(data, lang = null) {
+  const type = data?.type;
+  if (type === 'SW_ASSET_OFFLINE') {
+    return t('sw_offline_asset', lang, { file: swOfflineAssetBasename(data?.url) || 'file' });
+  }
+  if (type === 'SW_OFFLINE_FALLBACK') return t('sw_offline_fallback', lang);
+  if (type === 'SW_PRECACHE_FAILED') return t('sw_offline_precache', lang);
+  return '';
+}
+
+/**
  * Wires the update-ready prompt to the <head> detection seam: reads the
  * stashed pending update, listens for later 'sw-update-pending' events,
  * and shows the bilingual app toast with Refresh / Later actions.
@@ -801,6 +835,27 @@ export function setupSwUpdatePrompt({
   const svc = serviceWorker();
   if (svc && typeof svc.addEventListener === 'function') {
     svc.addEventListener('controllerchange', () => { if (activationRequested) reloadOnce(); });
+    // Sharafat 89: sw.js posts SW_PRECACHE_FAILED / SW_OFFLINE_FALLBACK /
+    // SW_ASSET_OFFLINE when it cannot serve a file offline; until now
+    // nothing on the page listened, so the failure was silent. The notice
+    // is a non-modal warning toast with no action, so it shows even
+    // mid-entry — the Plan G busy rule guards destructive reloads, not
+    // this notice. Asset-offline toasts dedupe by URL (one per distinct
+    // file per page load); fallback and precache-failed toast every time.
+    svc.addEventListener('message', (event) => {
+      const data = event?.data;
+      if (data?.type === 'SW_ASSET_OFFLINE') {
+        const url = typeof data.url === 'string' ? data.url : '';
+        if (url) {
+          if (swOfflineSeenAssetUrls.has(url)) return;
+          swOfflineSeenAssetUrls.add(url);
+        }
+      }
+      const message = swOfflineNoticeMessage(data);
+      if (!message) return;
+      try { announceToScreenReader(message); } catch { /* announcement is best-effort */ }
+      onToast(message, { type: 'warning', duration: SW_OFFLINE_TOAST_DURATION_MS });
+    });
   }
 
   try { registrationRef = win?.__swUpdateRegistration || registrationRef; } catch { /* the stash is optional */ }

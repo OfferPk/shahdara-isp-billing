@@ -1279,6 +1279,10 @@ const saveFallbackStore = createSaveFallbackStore();
 let automaticBackupInFlight = null;
 let lastAutomaticBackupCheckAt = 0;
 let backupOperationBusy = false;
+// Sharafat 92: the handle (or `true` when the fallback toast returns none) of
+// the persistent automatic-backup failure toast, so a repeated failure does
+// not stack a second identical copy. Cleared when a later save succeeds.
+let automaticBackupFailureToast = null;
 let storagePersistenceInfo = { supported: false, persisted: false, status: 'unsupported' };
 let storageEstimateInfo = { supported: false, usageFormatted: 'Not available', quotaFormatted: 'Not available', percentUsed: null };
 let persistenceAutoRequested = false;
@@ -1813,7 +1817,7 @@ mountCustomerProfileContent();
 function toast(message, options = {}) {
   // ui-feedback.js: typed, stacked toasts with icon/title/progress (falls back to the #220 toast below).
   if (typeof window.__toastImpl === 'function') return window.__toastImpl(message, options || {});
-  const { actionLabel = null, onAction = null, duration = 2800 } = options || {};
+  const { actionLabel = null, onAction = null, duration = 2800, persistent = false } = options || {};
   const element = $('#toast');
   if (!element) return;
   element.replaceChildren();
@@ -1838,7 +1842,8 @@ function toast(message, options = {}) {
   element.hidden = false;
   element.onclick = () => { element.hidden = true; };
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { element.hidden = true; }, duration);
+  // Sharafat 92: persistent means until dismissed — no auto-dismiss timer.
+  if (!options.persistent) toastTimer = setTimeout(() => { element.hidden = true; }, duration);
 }
 window.toast = toast;
 // In-app confirm (ui-feedback.js) instead of the browser's confirm(); resolves 'confirm' | 'alt' | false.
@@ -11162,14 +11167,33 @@ async function checkAutomaticBackup() {
       $('#backupStatus').textContent = 'Automatic backup due · saving a new local copy…';
       try {
         await saveLocalSnapshot('automatic');
+        // Sharafat 92: the save worked, so a previously shown failure notice
+        // is stale — dismiss it if there is a handle, and clear the flag so
+        // a later failure toasts again. (The fallback path returns no handle,
+        // so the dismiss is guarded.)
+        try { automaticBackupFailureToast?.dismiss?.(); } catch { /* no handle to dismiss */ }
+        automaticBackupFailureToast = null;
         await refreshBackupManager();
       } catch (error) {
         const message = await recordBackupFailure(error);
         await refreshBackupManager();
         $('#backupStatus').textContent = `Automatic backup failed: ${message}. Previous backups and ledger data were kept.`;
+        // Sharafat 92: the failure was written only to #backupStatus, which
+        // lives inside the hidden Backup panel — toast it too, persistently,
+        // with the same text and the quota toast's Download action, so the
+        // operator learns about it without opening that screen. The flag
+        // dedupes: a repeated failure does not stack a second copy.
+        if (!automaticBackupFailureToast) {
+          automaticBackupFailureToast = toast(`Automatic backup failed: ${message}. Previous backups and ledger data were kept.`, { type: 'error', title: 'Automatic backup failed', persistent: true, actionLabel: 'Download JSON backup', onAction: () => { $('#downloadJsonBackupButton')?.click(); } }) || true;
+        }
       }
     } catch (error) {
       $('#backupStatus').textContent = `Automatic backup check failed: ${error.message || 'local backup storage is unavailable'}`;
+      // Sharafat 92: same surfacing as the save-failure branch above — this
+      // branch is the only surfacing for a corrupt-frequency failure.
+      if (!automaticBackupFailureToast) {
+        automaticBackupFailureToast = toast(`Automatic backup check failed: ${error.message || 'local backup storage is unavailable'}`, { type: 'error', title: 'Automatic backup check failed', persistent: true, actionLabel: 'Download JSON backup', onAction: () => { $('#downloadJsonBackupButton')?.click(); } }) || true;
+      }
     } finally {
       backupOperationBusy = false;
       await refreshBackupManager();

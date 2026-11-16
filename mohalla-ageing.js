@@ -42,8 +42,32 @@
 // Key normalisation matches Plan 7 exactly (trimmed, upper-cased,
 // leading "MOHALLA " stripped, internal whitespace collapsed; blank
 // maps to "UNASSIGNED" / "Unassigned"), so "Bani", "MOHALLA BANI" and
-// a canonical key from the app all land on the same row. The module is
-// import-free by design, like receivables-ageing.js itself.
+// a canonical key from the app all land on the same row. Sharafat 88:
+// the module now imports { t } from nav-language.js ONLY —
+// nav-language.js itself imports nothing, so the module still pulls in
+// no app graph and stays usable standalone; the import exists so the
+// renderers can translate at render time while the data model
+// (MOHALLA_AGEING_BUCKETS labels, row.note) stays English-canonical.
+
+import { t } from './nav-language.js';
+
+// Sharafat 88: bucket keys ('current'/'one'/'two'/'threePlus') map to the
+// ageing_bucket_* dict keys at RENDER time only — 'threePlus' needs its
+// 'three_plus' suffix here, not a model change.
+const AGEING_BUCKET_DICT_SUFFIX = Object.freeze({ current: 'current', one: 'one', two: 'two', threePlus: 'three_plus' });
+function ageingBucketLabel(bucketKey, lang = null) {
+  return t(`ageing_bucket_${AGEING_BUCKET_DICT_SUFFIX[bucketKey] ?? bucketKey}`, lang);
+}
+
+// Sharafat 88: the CSV header is lowercase by convention
+// ('mohalla,current,1 month,…' — pinned by the plan213 CSV test),
+// while the per-row note keeps the sentence-case 'No dues.'.
+// Lowercasing the first character is a no-op for Urdu script (no
+// case), so the Urdu header shows exactly the translated bucket label.
+function ageingCsvBucketLabel(bucketKey, lang = null) {
+  const label = ageingBucketLabel(bucketKey, lang);
+  return label.charAt(0).toLowerCase() + label.slice(1);
+}
 
 export const MOHALLA_AGEING_BUCKETS = Object.freeze([
   Object.freeze({ key: 'current', label: 'Current' }),
@@ -112,9 +136,9 @@ export function mohallaAgeingKey(raw) {
   return stripped === 'JABBIYAAA' ? 'JABBIYAA' : stripped;
 }
 
-export function mohallaAgeingLabel(raw) {
+export function mohallaAgeingLabel(raw, lang = null) {
   const text = str(raw).trim().replace(/\s+/g, ' ');
-  if (!text) return 'Unassigned';
+  if (!text) return t('ageing_unassigned', lang);
   // Owner 5-part fix: display label in consistent Title Case, so a
   // stored 'CHARYAA' and a stored 'Charyaa' read the same; the folded
   // JABBIYAAA spelling reads as its canonical 'Jabbiyaa'.
@@ -148,8 +172,8 @@ function emptySummary(valid, asOfMonth) {
 
 // Mohalla Numbering: rows read in the caller's mohalla order when
 // given (the app passes the numbered order), otherwise label A–Z —
-// the module stays import-free, so the order is supplied, never
-// copied here.
+// the order is supplied, never copied here (the module's only import
+// is nav-language.js, which carries no mohalla order).
 function compareRows(a, b, compareAreas = null) {
   if (typeof compareAreas === 'function') return compareAreas(a.label, b.label);
   return str(a.label).localeCompare(str(b.label));
@@ -250,37 +274,63 @@ export function buildMohallaAgeing(view, mohallas, compareAreas = null) {
 }
 
 /** One-line headline for a summary. */
-export function mohallaAgeingSummaryText(summary) {
+export function mohallaAgeingSummaryText(summary, lang = null) {
   if (!summary || !summary.valid) return '';
   const dues = summary.mohallasWithDues;
   const empty = summary.mohallasWithoutDues;
-  const emptyPart = empty > 0 ? `; ${empty} mohalla${empty === 1 ? '' : 's'} with no dues` : '';
-  return `${summary.mohallaCount} mohalla${summary.mohallaCount === 1 ? '' : 's'}, ${dues} with dues${emptyPart}. Business total ${formatAmount(summary.businessTotal)} as of ${summary.asOfMonth}.`;
+  const params = {
+    count: summary.mohallaCount,
+    mohallaWord: t(summary.mohallaCount === 1 ? 'ageing_word_mohalla' : 'ageing_word_mohallas', lang),
+    dues,
+    total: formatAmount(summary.businessTotal),
+    asOf: summary.asOfMonth,
+  };
+  if (empty > 0) {
+    return t('ageing_summary_with_empty', lang, {
+      ...params,
+      empty,
+      emptyWord: t(empty === 1 ? 'ageing_word_mohalla' : 'ageing_word_mohallas', lang),
+    });
+  }
+  return t('ageing_summary_no_empty', lang, params);
 }
 
 /** Plain-words text for one row. */
-export function mohallaAgeingRowText(row) {
+export function mohallaAgeingRowText(row, lang = null) {
   if (!row) return '';
-  if (!row.hasDues) return `${row.label}: No dues.`;
-  return `${row.label}: ${formatAmount(row.total)} outstanding — Current ${formatAmount(row.byBucket.current)}, 1 month ${formatAmount(row.byBucket.one)}, 2 months ${formatAmount(row.byBucket.two)}, 3+ months ${formatAmount(row.byBucket.threePlus)}${row.unaged > 0 ? `, bill month unreadable ${formatAmount(row.unaged)}` : ''}.`;
+  if (!row.hasDues) return `${row.label}: ${t('ageing_no_dues', lang)}`;
+  const unagedPart = row.unaged > 0 ? t('ageing_row_unaged_part', lang, { amount: formatAmount(row.unaged) }) : '';
+  return t('ageing_row_with_dues', lang, {
+    label: row.label,
+    total: formatAmount(row.total),
+    currentLabel: ageingBucketLabel('current', lang),
+    current: formatAmount(row.byBucket.current),
+    oneLabel: ageingBucketLabel('one', lang),
+    one: formatAmount(row.byBucket.one),
+    twoLabel: ageingBucketLabel('two', lang),
+    two: formatAmount(row.byBucket.two),
+    threePlusLabel: ageingBucketLabel('threePlus', lang),
+    threePlus: formatAmount(row.byBucket.threePlus),
+    unagedPart,
+  });
 }
 
 /** Printable HTML for a summary: one row per mohalla, totals row. */
-export function mohallaAgeingHtml(summary) {
+export function mohallaAgeingHtml(summary, lang = null) {
   if (!summary || !summary.valid) return '';
-  const rows = summary.rows.map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${formatAmount(row.byBucket.current)}</td><td>${formatAmount(row.byBucket.one)}</td><td>${formatAmount(row.byBucket.two)}</td><td>${formatAmount(row.byBucket.threePlus)}</td><td>${formatAmount(row.unaged)}</td><td>${formatAmount(row.total)}</td><td>${row.billCount}</td><td>${escapeHtml(row.note)}</td></tr>`).join('')
-    || '<tr><td colspan="9">No mohallas recorded.</td></tr>';
-  return `<p>Dues ageing note per mohalla, as of ${escapeHtml(summary.asOfMonth)}. Bill age only — the same Plan 7 ageing, grouped so each mohalla stands on its own. Read-only: it changes no bill, payment, or customer record. ${escapeHtml(mohallaAgeingSummaryText(summary))}</p>`
+  const rows = summary.rows.map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${formatAmount(row.byBucket.current)}</td><td>${formatAmount(row.byBucket.one)}</td><td>${formatAmount(row.byBucket.two)}</td><td>${formatAmount(row.byBucket.threePlus)}</td><td>${formatAmount(row.unaged)}</td><td>${formatAmount(row.total)}</td><td>${row.billCount}</td><td>${escapeHtml(row.hasDues ? row.note : t('ageing_no_dues', lang))}</td></tr>`).join('')
+    || `<tr><td colspan="9">${escapeHtml(t('ageing_empty_no_mohallas', lang))}</td></tr>`;
+  return `<p>${escapeHtml(t('ageing_intro_mohalla', lang, { asOf: summary.asOfMonth, summary: mohallaAgeingSummaryText(summary, lang) }))}</p>`
     // Owner 5-part fix: the nine-column table scrolls inside its own
     // card on a phone instead of clipping the right-side columns.
-    + `<div class="table-scroll"><table><thead><tr><th>Mohalla</th><th>Current</th><th>1 month</th><th>2 months</th><th>3+ months</th><th>Bill month unreadable</th><th>Total</th><th>Bills</th><th>Note</th></tr></thead><tbody>${rows}</tbody>`
-    + `<tfoot><tr><td>Business total</td><td colspan="5"></td><td>${formatAmount(summary.businessTotal)}</td><td></td><td>${summary.sumsMatch ? '' : 'Totals do not match the business total.'}</td></tr></tfoot></table></div>`;
+    + `<div class="table-scroll"><table><thead><tr><th>${escapeHtml(t('ageing_col_mohalla', lang))}</th><th>${escapeHtml(ageingBucketLabel('current', lang))}</th><th>${escapeHtml(ageingBucketLabel('one', lang))}</th><th>${escapeHtml(ageingBucketLabel('two', lang))}</th><th>${escapeHtml(ageingBucketLabel('threePlus', lang))}</th><th>${escapeHtml(t('ageing_col_bill_month_unreadable', lang))}</th><th>${escapeHtml(t('ageing_col_total', lang))}</th><th>${escapeHtml(t('ageing_col_bills', lang))}</th><th>${escapeHtml(t('ageing_col_note', lang))}</th></tr></thead><tbody>${rows}</tbody>`
+    + `<tfoot><tr><td>${escapeHtml(t('ageing_business_total', lang))}</td><td colspan="5"></td><td>${formatAmount(summary.businessTotal)}</td><td></td><td>${summary.sumsMatch ? '' : escapeHtml(t('ageing_totals_mismatch', lang))}</td></tr></tfoot></table></div>`;
 }
 
 /** CSV export: one row per mohalla, then the business total. */
-export function mohallaAgeingCsv(summary) {
+export function mohallaAgeingCsv(summary, lang = null) {
   if (!summary || !summary.valid) return '';
-  const lines = ['mohalla,current,1 month,2 months,3+ months,bill month unreadable,total,bills,note'];
+  const lines = [[t('ageing_csv_mohalla', lang), ageingCsvBucketLabel('current', lang), ageingCsvBucketLabel('one', lang), ageingCsvBucketLabel('two', lang), ageingCsvBucketLabel('threePlus', lang), t('ageing_csv_bill_month_unreadable', lang), t('ageing_csv_total', lang), t('ageing_csv_bills', lang), t('ageing_csv_note', lang)].join(',')];
   for (const row of summary.rows) {
     lines.push([
       csvCell(row.label),
@@ -291,10 +341,10 @@ export function mohallaAgeingCsv(summary) {
       csvCell(formatCsvAmount(row.unaged)),
       csvCell(formatCsvAmount(row.total)),
       csvCell(row.billCount),
-      csvCell(row.note),
+      csvCell(row.hasDues ? row.note : t('ageing_no_dues', lang)),
     ].join(','));
   }
-  lines.push(['Business total', '', '', '', '', '', csvCell(formatCsvAmount(summary.businessTotal)), '', ''].join(','));
+  lines.push([t('ageing_business_total', lang), '', '', '', '', '', csvCell(formatCsvAmount(summary.businessTotal)), '', ''].join(','));
   return lines.join('\n');
 }
 

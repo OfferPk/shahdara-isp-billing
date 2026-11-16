@@ -1849,6 +1849,10 @@ function duplicateTxnConfirm(txnId, dup) {
 }
 function searchQuery() { return $('#globalCustomerSearch').value; }
 function customerListQuery() { return $('#customerListSearch').value.trim() || searchQuery(); }
+// Sharafat 82: pending flag for the coalesced render tail in save().
+// Several saves in one synchronous stretch schedule exactly one
+// microtask pass; the flag is cleared BEFORE that pass runs.
+let saveRendersPending = false;
 function save() {
   void requestPersistenceOnFirstWrite();
   state = generateMonthlyBillsThroughCurrentMonth(state, new Date(), loadBillingCycleChoices());
@@ -1891,16 +1895,51 @@ function save() {
       toast('Could not save — your latest changes were NOT saved. Check browser storage is available, then retry.', { type: 'error', title: 'Save failed', duration: 8000 });
     }
   }
-  renderDashboard();
-  renderGlobalSearch();
-  renderCustomers();
-  renderTransactions();
-  renderMonthlyReport();
-  refreshOwnerCenter();
-  renderPhase3();
-  renderStorageWarning();
-  if (typeof dailyRegisterController?.refresh === 'function') {
-    dailyRegisterController.refresh();
+  // Sharafat 82: coalesce the render tail. Several saves in one
+  // synchronous stretch (e.g. the void confirm handler's save after
+  // voidPayment plus its save after addon charges reopen) used to run
+  // this whole tail once per save. Now the first save schedules one
+  // microtask pass and later saves in the same tick just join it; the
+  // pass reads the module `state` at fire time, so it renders the
+  // latest mutations. Persistence above stays synchronous per save —
+  // only these renders are deferred. The pass runs before paint
+  // (a microtask, not a timer) and the flag is cleared BEFORE the
+  // renders run, so a save triggered from inside the tail (none
+  // today) schedules a fresh pass instead of being swallowed.
+  // Why each call stays (no whole-render skipping): every one of
+  // them reads bills/payments (or the flags save() itself changes),
+  // so skipping any after a customers/payments save would leave a
+  // stale screen — renderDashboard (bills/payments via
+  // calculateDashboard + closing snapshot), renderGlobalSearch
+  // (buildGlobalLedgerSearch), renderCustomers
+  // (calculatePaymentAllocations over the ledger), renderTransactions
+  // (listTransactions), renderMonthlyReport
+  // (getMonthlyReportScreenRows -> buildMonthlyReport),
+  // refreshOwnerCenter (ledger-derived command/closings/health/
+  // insights/areas/rankings), renderPhase3 (renderAnalytics reads
+  // bills/payments via buildPhase3Analytics; its inventory/expenses/
+  // budget thirds are unaffected by a customers/payments save but
+  // share the one-line wrapper — splitting them out is a separate
+  // refactor), renderStorageWarning (the persistenceBlocked /
+  // storageAvailable flags save() changes),
+  // dailyRegisterController.refresh() (buildDailyRegisterData —
+  // today's payments + expenses).
+  if (!saveRendersPending) {
+    saveRendersPending = true;
+    queueMicrotask(() => {
+      saveRendersPending = false;
+      renderDashboard();
+      renderGlobalSearch();
+      renderCustomers();
+      renderTransactions();
+      renderMonthlyReport();
+      refreshOwnerCenter();
+      renderPhase3();
+      renderStorageWarning();
+      if (typeof dailyRegisterController?.refresh === 'function') {
+        dailyRegisterController.refresh();
+      }
+    });
   }
   return storageAvailable;
 }

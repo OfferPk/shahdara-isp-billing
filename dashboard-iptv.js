@@ -326,7 +326,7 @@ export function renderIptvMulticastSvg(metrics, options = {}) {
         <style>
           .iptv-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
           .iptv-title { font-size: 13px; font-weight: 700; fill: var(--text-color, #1e293b); }
-          .iptv-sub { font-size: 10px; fill: var(--text-muted, #64748b); }
+          .iptv-sub { font-size: 11px; fill: var(--text-muted, #64748b); }
           .iptv-val { font-size: 14px; font-weight: 700; fill: var(--text-color, #1e293b); }
           .iptv-bar-bg { fill: rgba(148, 163, 184, 0.2); rx: 4px; }
         </style>

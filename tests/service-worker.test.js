@@ -119,16 +119,29 @@ test('worker activation removes only older Shahdara caches and claims clients', 
   assert.equal(worker.claimCalls, 1);
 });
 
-test('worker serves a versioned app-module request from its cache despite query parameters', async () => {
+// Plan 690 (Phase 1 — supersedes the cache-first behaviour this test
+// used to pin): a versioned asset request goes network-first, so a
+// plain reload after a deploy runs the new code. The cache is the
+// OFFLINE fallback — the same request, with the network down, is still
+// served from the cache despite the query parameters. A different URL
+// is used for the offline leg so the online leg's cache.put cannot
+// mask the cached entry.
+test('worker tries the network first for a versioned app-module request and falls back to its cache offline (Plan 690)', async () => {
   const worker = createWorker({
     cacheNames:['shahdara-isp-billing-v37'],
-    entries:[['shahdara-isp-billing-v37','/app.js','cached module']]
+    entries:[['shahdara-isp-billing-v37','/app.js','cached module'],['shahdara-isp-billing-v37','/styles.css','cached styles']]
   });
-  const result = await worker.dispatch('fetch', { url:'https://billing.example/app.js?v=1.10.0', method:'GET' });
-  assert.equal(result.responded, true);
-  assert.equal(result.response, 'cached module');
-  assert.equal(worker.matchOptions[0].ignoreSearch, true);
-  assert.deepEqual(worker.fetched, []);
+  const fresh = { ok:true, status:200, type:'basic', body:'fresh module', clone() { return this; } };
+  worker.setFetch(async request => { worker.fetched.push(request.url); return fresh; });
+  const online = await worker.dispatch('fetch', { url:'https://billing.example/app.js?v=1.10.0', method:'GET' });
+  assert.equal(online.responded, true);
+  assert.equal(online.response, fresh, 'online, a versioned asset comes from the network first');
+  assert.deepEqual(worker.fetched, ['https://billing.example/app.js?v=1.10.0'], 'the network was tried before the cache');
+  worker.setFetch(async () => { throw new Error('offline'); });
+  const offline = await worker.dispatch('fetch', { url:'https://billing.example/styles.css?v=1.10.0', method:'GET' });
+  assert.equal(offline.responded, true);
+  assert.equal(offline.response, 'cached styles', 'offline, the cached copy is the fallback');
+  assert.equal(worker.matchOptions[0].ignoreSearch, true, 'the offline fallback still matches ignoring the query');
 });
 
 test('worker falls back to its cached app shell when a same-origin request fails offline', async () => {

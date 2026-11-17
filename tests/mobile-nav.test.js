@@ -322,17 +322,30 @@ test('setupScrollToTop handles button click and scroll visibility', async () => 
 
     const scrollFn = listeners.get('win:scroll');
     assert.ok(typeof scrollFn === 'function');
+    // Phase 1 (D9 — supersedes the Transactions Polish §5 idle-hide):
+    // the FAB hides AT ONCE while the operator is actively scrolling
+    // and comes back ~1s after the LAST scroll event, only when
+    // scrollY > 400. The old assertion (visible immediately after a
+    // scroll event) is the behaviour this change removes: the fixed
+    // FAB covered the Profile button of cards sliding past it.
+    const waitIdle = () => new Promise((resolve) => setTimeout(resolve, 1150));
     scrollFn();
-    assert.ok(btn.classList.contains('is-visible'));
+    assert.ok(!btn.classList.contains('is-visible'), 'hidden at once while scrolling');
+    await waitIdle();
+    assert.ok(btn.classList.contains('is-visible'), 'visible ~1s after the last scroll event (scrollY 500 > 400)');
 
     // DS-0 boundary: exactly 400px is still hidden (>400px shows).
     globalThis.window.scrollY = 400;
     scrollFn();
-    assert.ok(!btn.classList.contains('is-visible'));
+    assert.ok(!btn.classList.contains('is-visible'), 'hidden at once while scrolling');
+    await waitIdle();
+    assert.ok(!btn.classList.contains('is-visible'), 'still hidden after idle at exactly 400px');
 
     globalThis.window.scrollY = 50;
     scrollFn();
-    assert.ok(!btn.classList.contains('is-visible'));
+    assert.ok(!btn.classList.contains('is-visible'), 'hidden at once while scrolling');
+    await waitIdle();
+    assert.ok(!btn.classList.contains('is-visible'), 'still hidden after idle at 50px');
   } finally {
     globalThis.window = origWindow;
     globalThis.document = origDoc;

@@ -107,12 +107,17 @@ test('cards: header comes before badge strip before pill rows before actions —
   assert.ok(!card.includes("t('cust_card_row_health'"), 'Health score row label is gone from the card');
 });
 
-test('cards: service badge is the bare word only, with the full status in its aria-label', () => {
-  // The badge text is the bare service word (Active / Offline / Not set);
-  // the "Service status: …" phrasing lives only in the aria-label, so a
-  // screen reader still hears the full status.
-  assert.ok(card.includes('customer-service-${serviceStatus}'), 'badge class carries the stored status');
-  assert.ok(card.includes("aria-label=\"${escapeHtml(serviceAria)}\""), 'badge carries the full-status aria-label');
+test('cards: service status rides the meta line as the bare word, with the full status in its aria-label', () => {
+  // Phase 1: the service badge leaves the heading (its width was the
+  // heading's hog — the name truncated to 0px at 320px) and rides the
+  // meta line as a plain status segment. The bare word + the full
+  // status aria-label are preserved; only the location and the badge
+  // chrome change. The status is a bare span, NOT
+  // .customer-service-badge: the dark-theme !important badge
+  // backgrounds would survive any contextual strip.
+  assert.ok(!card.includes('customer-service-${serviceStatus}'), 'the heading badge is gone from the card');
+  assert.ok(card.includes('customer-card-meta-status'), 'the status rides the meta line as a plain segment');
+  assert.ok(card.includes("aria-label=\"${escapeHtml(serviceAria)}\""), 'the status segment carries the full-status aria-label');
   assert.ok(!card.includes('customer-manual-state'), 'the old 92px "Service status: …" pill is gone from the card');
   assert.ok(card.includes("const serviceStatus = ['active', 'offline', 'not-set'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set'"), 'unknown/missing status falls back to not-set, never an undefined class');
 });
@@ -408,6 +413,22 @@ test('cards: compact styles — pill rows flex-start, action row, no deleted rul
 // list gap) → ≈2.5 cards in a 518px list area — Round 2 does NOT
 // reach 3 cards/viewport (structural: heading + 3 pill rows +
 // actions). Phone check after deploy.
+// PHASE 1 (measure-p1-worktree.mjs, base 45362300 + this change,
+// Chromium headless shell — the standalone lifetime/tenure pill row
+// is deleted, Lifetime rides the meta line, tenure rides the health
+// row, the service badge leaves the heading, the name is 14.5px):
+// 360px — paid-up 158.7, paid-up+Ref 158.7, owed 189.7, baqaya 235.0,
+// worst long name 189.7, Risk 63 / Critical 50 / Risk 75 189.7;
+// 320px — paid-up 158.7, paid-up+Ref 158.7, owed 189.7, baqaya 235.0,
+// worst long name 189.7, Risk 63 / Critical 50 / Risk 75 189.7.
+// 3-card stack thirdBottom 529 (was 649) against the 618px in-page
+// budget at 360x740 — 3 cards fit. Additional 24.2px, 1 rect, both
+// widths (was 40.4px wrapped at 320 widest). Name 95px at 320 (the
+// floor — ~10 visible chars for "Customer Risk75", ~11 for the worst
+// long name). Paid-up is UNDER the 165px cap at both widths; owed /
+// baqaya are a DISCLOSED exception (D8 — the Outstanding row is never
+// hidden to meet the cap). Risk pill bg rgb(255,251,235), Critical
+// rgb(255,235,234) — computed, not source-level. 0 errors, 0 overflow.
 test('cards: card ends at the action row — no block may follow it', () => {
   const actionsAt = card.indexOf('customer-card-actions');
   const afterActions = card.slice(actionsAt);

@@ -85,7 +85,7 @@ import{wk as k}from"./chunk-32Z4MYEG.js";var wn=[{id:"saeed-park-feeder",name:"S
             <td><strong>${v.distanceMeters} m</strong> <span class="text-muted">(${(v.distanceMeters/1e3).toFixed(2)} km)</span></td>
             <td>
               <strong>${ki(v.type)}</strong>
-              ${v.isFault?`<div class="badge-${v.severity}" style="font-size:10px;display:inline-block;padding:1px 4px;border-radius:3px;">ACTIVE FAULT</div>`:""}
+              ${v.isFault?`<div class="badge-${v.severity}" style="font-size: 11px;display:inline-block;padding:1px 4px;border-radius:3px;">ACTIVE FAULT</div>`:""}
             </td>
             <td>${v.unreachable?"\u2014":`${v.lossDb} dB`}</td>
             <td>${v.unreachable?"\u2014":`${v.reflectanceDb} dB`}</td>
@@ -183,7 +183,7 @@ import{wk as k}from"./chunk-32Z4MYEG.js";var wn=[{id:"saeed-park-feeder",name:"S
           <td>${v.currentLoadKw} kW</td>
           <td><strong>${v.batterySoC}%</strong> (${v.batteryState})</td>
           <td>
-            <span class="sim-delta-badge ${v.gridBadgeClass}" style="font-size:10.5px;">
+            <span class="sim-delta-badge ${v.gridBadgeClass}" style="font-size: 11px;">
               ${Bn(v.gridStatusLabel)}
             </span>
           </td>
@@ -627,9 +627,9 @@ import{wk as k}from"./chunk-32Z4MYEG.js";var wn=[{id:"saeed-park-feeder",name:"S
             <td>${Fn(U.primaryArea)}</td>
             <td>${U.fusedSplices} / ${N.installedCapacity} (${N.trayUtilizationPct}%)</td>
             <td>${N.radius} mm</td>
-            <td>${N.optLoss.totalLoss1550Db} dB <span style="font-size:10px; color:var(--muted, #64748b);">(+${N.optLoss.differentialDeltaDb})</span></td>
+            <td>${N.optLoss.totalLoss1550Db} dB <span style="font-size: 11px; color:var(--muted, #64748b);">(+${N.optLoss.differentialDeltaDb})</span></td>
             <td>
-              <span class="sim-delta-badge ${N.badgeClass}" style="padding: 2px 6px; font-size: 10px;">
+              <span class="sim-delta-badge ${N.badgeClass}" style="padding: 2px 6px; font-size: 11px;">
                 ${N.statusTier}
               </span>
             </td>
@@ -786,7 +786,7 @@ import{wk as k}from"./chunk-32Z4MYEG.js";var wn=[{id:"saeed-park-feeder",name:"S
             <td>${F.clearance.fillRatioPct}% (${G.ductInnerDiaMm}mm)</td>
             <td>${F.dynamics.maxJettingDistanceM}m (${F.effectivePressure} bar)</td>
             <td>
-              <span class="sim-delta-badge ${F.badgeClass}" style="padding: 2px 6px; font-size: 10px;">
+              <span class="sim-delta-badge ${F.badgeClass}" style="padding: 2px 6px; font-size: 11px;">
                 ${F.statusTier}
               </span>
             </td>
@@ -1003,10 +1003,10 @@ import{wk as k}from"./chunk-32Z4MYEG.js";var wn=[{id:"saeed-park-feeder",name:"S
 `,i+=`   - Maintain standard routine optical power inspections.
 `),i}function M0(a,t={}){let{referenceDate:e="2026-10-16",onFilterArea:n,onToast:r,clipboard:s}=t;if(typeof document>"u")return;let o=document.getElementById("dashboardPonDbaModal"),i=document.getElementById("dashboardOpenPonDbaModalBtn"),c=document.getElementById("dashboardPonDbaModalCloseBtn"),l=document.getElementById("ponDbaPortSelect"),d=document.getElementById("ponDbaModeSelect"),f=document.getElementById("ponDbaConcurrencySlider"),p=document.getElementById("ponDbaConcurrencyVal"),u=document.getElementById("ponDbaCycleSlider"),g=document.getElementById("ponDbaCycleVal"),b=document.getElementById("ponDbaResetSimBtn"),y=document.getElementById("ponDbaKpiPortName"),E=document.getElementById("ponDbaKpiLatency"),x=document.getElementById("ponDbaKpiP99Jitter"),M=document.getElementById("ponDbaStatusBadge"),m=document.getElementById("ponDbaKpiRevenueRisk"),S=document.getElementById("ponDbaModalChartWrap"),h=document.getElementById("ponDbaPortsTableBody"),A=document.getElementById("ponDbaFilterAreaBtn"),T=document.getElementById("dashboardCopyPonDbaReportBtn");function C(){let R=ra(a,{portId:_e,modeOverride:Ga,concurrencyOverride:Ua,cycleOverride:Ha,referenceDate:e}),P=R.selectedDynamics,v=R.selectedPort;y&&(y.textContent=`${v.name} (${v.splitRatio})`),E&&(E.textContent=`${P.avgOneWayLatencyMs} ms (RTT: ${P.avgRttLatencyMs} ms)`),x&&(x.textContent=`P99: ${P.p99LatencyMs} ms | \xB1${P.jitterMs} ms`),M&&(M.textContent=P.status,M.className=`sim-delta-badge ${P.badgeClass}`),m&&(m.textContent=`${k(P.atRiskRevenue)} at risk`),S&&(S.innerHTML=Ks(R,{compact:!1})),h&&(h.innerHTML=R.portEvaluations.map($=>{let D=$.dynamics;return`
           <tr class="${$.port.id===_e?"table-row-selected":""}">
-            <td><strong>${$.port.name}</strong><br><span style="font-size: 10px; color: var(--muted, #64748b);">${$.port.standard}</span></td>
+            <td><strong>${$.port.name}</strong><br><span style="font-size: 11px; color: var(--muted, #64748b);">${$.port.standard}</span></td>
             <td>${$.port.primaryArea}</td>
             <td>${D.effectiveMode}</td>
-            <td><strong>${D.avgOneWayLatencyMs} ms</strong><br><span style="font-size: 10px; color: var(--muted, #64748b);">P99: ${D.p99LatencyMs}ms</span></td>
+            <td><strong>${D.avgOneWayLatencyMs} ms</strong><br><span style="font-size: 11px; color: var(--muted, #64748b);">P99: ${D.p99LatencyMs}ms</span></td>
             <td>\xB1${D.jitterMs} ms</td>
             <td>${D.utilizationPct}%</td>
             <td>${D.dropRatePct}%</td>
@@ -1203,7 +1203,7 @@ import{wk as k}from"./chunk-32Z4MYEG.js";var wn=[{id:"saeed-park-feeder",name:"S
 `,i+=`   - Keep cleaver dust-free and maintain battery charging cycle.
 `),i}function P0(a,t={}){let{referenceDate:e="2026-10-16",onFilterArea:n,onToast:r,clipboard:s}=t;if(typeof document>"u")return;let o=document.getElementById("dashboardSplicerModal"),i=document.getElementById("dashboardOpenSplicerModalBtn"),c=document.getElementById("dashboardSplicerModalCloseBtn"),l=document.getElementById("splicerUnitSelect"),d=document.getElementById("splicerArcSlider"),f=document.getElementById("splicerArcVal"),p=document.getElementById("splicerAngleSlider"),u=document.getElementById("splicerAngleVal"),g=document.getElementById("splicerResetSimBtn"),b=document.getElementById("splicerKpiUnitName"),y=document.getElementById("splicerKpiLoss"),E=document.getElementById("splicerKpiTensile"),x=document.getElementById("splicerStatusBadge"),M=document.getElementById("splicerKpiRevenueRisk"),m=document.getElementById("splicerModalChartWrap"),S=document.getElementById("splicerUnitsTableBody"),h=document.getElementById("splicerFilterAreaBtn"),A=document.getElementById("dashboardCopySplicerReportBtn");function T(){let C=oa(a,{unitId:Ge,arcCountOverride:sa,cleaveAngleOverride:la,calibCurrentOverride:ca,referenceDate:e}),R=C.selectedDynamics,P=C.selectedUnit;b&&(b.textContent=`${P.name.split("(")[0].trim()} (${R.wearPct}% wear)`),y&&(y.textContent=`${R.estimatedLossDb} dB (${R.effectiveAngle}\xB0 cleave)`),E&&(E.textContent=`${R.tensileProofN} N (Proof Test)`),x&&(x.textContent=R.status,x.className=`sim-delta-badge ${R.badgeClass}`),M&&(M.textContent=`${k(R.atRiskRevenue)} at risk`),m&&(m.innerHTML=Js(C,{compact:!1})),S&&(S.innerHTML=C.unitEvaluations.map(v=>{let $=v.dynamics;return`
           <tr class="${v.unit.id===Ge?"table-row-selected":""}">
-            <td><strong>${v.unit.name.split("(")[0].trim()}</strong><br><span style="font-size: 10px; color: var(--muted, #64748b);">${v.unit.assignedTech}</span></td>
+            <td><strong>${v.unit.name.split("(")[0].trim()}</strong><br><span style="font-size: 11px; color: var(--muted, #64748b);">${v.unit.assignedTech}</span></td>
             <td>${v.unit.primaryArea}</td>
             <td>${$.effectiveArcs} / ${v.unit.maxRatedArcs} (${$.wearPct}%)</td>
             <td><strong>${$.effectiveAngle}\xB0</strong></td>
@@ -1216,7 +1216,7 @@ import{wk as k}from"./chunk-32Z4MYEG.js";var wn=[{id:"saeed-park-feeder",name:"S
         <style>
           .bgp-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
           .bgp-title { font-size: 13px; font-weight: 700; fill: var(--text-color, #1e293b); }
-          .bgp-sub { font-size: 10px; fill: var(--text-muted, #64748b); }
+          .bgp-sub { font-size: 11px; fill: var(--text-muted, #64748b); }
           .bgp-val { font-size: 14px; font-weight: 700; fill: var(--text-color, #1e293b); }
           .bgp-bar-bg { fill: rgba(148, 163, 184, 0.2); rx: 4px; }
           .bgp-grid-line { stroke: rgba(148, 163, 184, 0.25); stroke-dasharray: 3,3; stroke-width: 1; }
@@ -1387,7 +1387,7 @@ import{wk as k}from"./chunk-32Z4MYEG.js";var wn=[{id:"saeed-park-feeder",name:"S
         <style>
           .iptv-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
           .iptv-title { font-size: 13px; font-weight: 700; fill: var(--text-color, #1e293b); }
-          .iptv-sub { font-size: 10px; fill: var(--text-muted, #64748b); }
+          .iptv-sub { font-size: 11px; fill: var(--text-muted, #64748b); }
           .iptv-val { font-size: 14px; font-weight: 700; fill: var(--text-color, #1e293b); }
           .iptv-bar-bg { fill: rgba(148, 163, 184, 0.2); rx: 4px; }
         </style>

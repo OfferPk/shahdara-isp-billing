@@ -645,7 +645,7 @@ export function setupMobileAttenuatorModal(options = {}) {
           <div style="color:var(--muted);font-size:11px">${item.technician || 'Lineman'} &bull; In: ${item.inputPowerDbm} dBm &rarr; Rx: ${item.rxPowerDbm} dBm</div>
         </div>
         <div style="text-align:right">
-          <span class="badge ${item.status === 'OPTIMAL' ? 'badge-pass' : 'badge-fail'}" style="font-weight:700;font-size:10px;padding:2px 6px;border-radius:4px;background:${item.status === 'OPTIMAL' ? '#10b98122' : '#ef444422'};color:${item.status === 'OPTIMAL' ? '#10b981' : '#ef4444'}">${item.status}</span>
+          <span class="badge ${item.status === 'OPTIMAL' ? 'badge-pass' : 'badge-fail'}" style="font-weight:700;font-size: 11px;padding:2px 6px;border-radius:4px;background:${item.status === 'OPTIMAL' ? '#10b98122' : '#ef444422'};color:${item.status === 'OPTIMAL' ? '#10b981' : '#ef4444'}">${item.status}</span>
         </div>
       </li>
     `).join('');

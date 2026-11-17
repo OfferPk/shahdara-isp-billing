@@ -263,7 +263,9 @@ test('plan 538 acceptance (apply): entries survive the concession reopen, amount
   const h = plan538Controller(plan538State(now, month), month);
   try {
     h.controller.open('seed-001');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '1000.00', 'amount starts at the full dues');
+    // Quick Collect polish (2026-11-17, D5): the amount prefills as a
+    // whole number now ('1000', was '1000.00').
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1000', 'amount starts at the full dues');
     assert.ok(h.applyBtn(), 'precondition: Apply button rendered for the eligible suggestion');
 
     const yesterday = await typeAcceptanceEntries(h);
@@ -272,7 +274,7 @@ test('plan 538 acceptance (apply): entries survive the concession reopen, amount
     // The concession itself: exactly the suggestion, bill untouched.
     assert.equal(Number(billOf(h.state, month).concessionAmount), 100, 'concession stamped at the suggested 100');
     assert.equal(Number(billOf(h.state, month).dueAmount), 1000, 'bill amount never rewritten');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '900.00', 'amount at the net due (1,000 − 100)');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '900', 'amount at the net due (1,000 − 100)');
     assert.ok(h.boxHtml().includes('Net due: PKR 900'), 'box shows the same net due — the display and the amount agree');
     assertEntriesIntact(h, yesterday);
     assert.ok(h.removeBtn(), 'box now offers Remove for the applied concession');
@@ -291,14 +293,14 @@ test('plan 538 acceptance (remove): removing the concession likewise preserves t
     h.controller.open('seed-001');
     const yesterday = await typeAcceptanceEntries(h);
     await h.applyBtn().click();
-    assert.equal(h.getEl('quickCollectAmountInput').value, '900.00', 'precondition: concession applied');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '900', 'precondition: concession applied');
 
     // The operator re-types nothing between Apply and Remove — the
     // entries Apply restored are the ones Remove must keep.
     await h.removeBtn().click();
 
     assert.equal(Number(billOf(h.state, month).concessionAmount || 0), 0, 'concession cleared');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '1000.00', 'amount back to the full dues');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1000', 'amount back to the full dues');
     assertEntriesIntact(h, yesterday);
     assert.ok(h.applyBtn(), 'box offers Apply again once the concession is gone');
     assert.ok(h.toasts.some(t => t.msg.includes('concession removed')), 'remove toast shown');
@@ -314,14 +316,14 @@ test('plan 538: an untouched form reopens on its defaults after Apply/Remove —
   try {
     h.controller.open('seed-001');
     await h.applyBtn().click();
-    assert.equal(h.getEl('quickCollectAmountInput').value, '900.00', 'amount at the net due');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '900', 'amount at the net due');
     assert.equal(h.getEl('quickCollectMethodSelect').value, '', 'no method invented (no past payment remembers one)');
     assert.equal(h.getEl('quickCollectTransactionIdInput').value, '', 'no TID invented');
     assert.equal(h.getEl('quickCollectSplitToggle').checked, false, 'split stays off');
     assert.equal(h.getEl('quickCollectScreenshotPreview').src, '', 'no screenshot invented');
 
     await h.removeBtn().click();
-    assert.equal(h.getEl('quickCollectAmountInput').value, '1000.00', 'amount back to the full dues');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1000', 'amount back to the full dues');
     assert.equal(h.getEl('quickCollectMethodSelect').value, '', 'still no method invented');
     assert.equal(h.getEl('quickCollectSplitToggle').checked, false, 'split still off');
   } finally {

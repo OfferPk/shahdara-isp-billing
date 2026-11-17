@@ -772,9 +772,9 @@ export function setupSpliceClosureModal(state, options = {}) {
             <td>${escapeXml(c.primaryArea)}</td>
             <td>${c.fusedSplices} / ${item.installedCapacity} (${item.trayUtilizationPct}%)</td>
             <td>${item.radius} mm</td>
-            <td>${item.optLoss.totalLoss1550Db} dB <span style="font-size:10px; color:var(--muted, #64748b);">(+${item.optLoss.differentialDeltaDb})</span></td>
+            <td>${item.optLoss.totalLoss1550Db} dB <span style="font-size: 11px; color:var(--muted, #64748b);">(+${item.optLoss.differentialDeltaDb})</span></td>
             <td>
-              <span class="sim-delta-badge ${item.badgeClass}" style="padding: 2px 6px; font-size: 10px;">
+              <span class="sim-delta-badge ${item.badgeClass}" style="padding: 2px 6px; font-size: 11px;">
                 ${item.statusTier}
               </span>
             </td>

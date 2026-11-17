@@ -814,10 +814,10 @@ export function setupPonDbaModal(state, options = {}) {
         const rowClass = isCurrent ? 'table-row-selected' : '';
         return `
           <tr class="${rowClass}">
-            <td><strong>${pe.port.name}</strong><br><span style="font-size: 10px; color: var(--muted, #64748b);">${pe.port.standard}</span></td>
+            <td><strong>${pe.port.name}</strong><br><span style="font-size: 11px; color: var(--muted, #64748b);">${pe.port.standard}</span></td>
             <td>${pe.port.primaryArea}</td>
             <td>${dyn.effectiveMode}</td>
-            <td><strong>${dyn.avgOneWayLatencyMs} ms</strong><br><span style="font-size: 10px; color: var(--muted, #64748b);">P99: ${dyn.p99LatencyMs}ms</span></td>
+            <td><strong>${dyn.avgOneWayLatencyMs} ms</strong><br><span style="font-size: 11px; color: var(--muted, #64748b);">P99: ${dyn.p99LatencyMs}ms</span></td>
             <td>±${dyn.jitterMs} ms</td>
             <td>${dyn.utilizationPct}%</td>
             <td>${dyn.dropRatePct}%</td>

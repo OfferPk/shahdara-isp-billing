@@ -848,7 +848,7 @@ export function setupMomGrowthModal(state = {}, {
 
         return `
           <tr class="${isCurrent ? 'is-active-month' : ''}" style="${isCurrent ? 'font-weight: 700; background: rgba(14, 91, 77, 0.05);' : ''}">
-            <td style="padding: 10px 12px;"><strong>${m.month}</strong> ${isCurrent ? '<span style="font-size: 10px; background: #0e5b4d; color: #fff; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">ACTIVE</span>' : ''}</td>
+            <td style="padding: 10px 12px;"><strong>${m.month}</strong> ${isCurrent ? '<span style="font-size: 11px; background: #0e5b4d; color: #fff; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">ACTIVE</span>' : ''}</td>
             <td style="padding: 10px 12px; text-align: right;">${m.activeSubscribers} <small style="color: ${subDeltaColor}; font-weight: 600;">(${m.mom?.subscriberDelta >= 0 ? '+' : ''}${m.mom?.subscriberDelta || 0})</small></td>
             <td style="padding: 10px 12px; text-align: right;">+${m.newSubscribers}</td>
             <td style="padding: 10px 12px; text-align: right; color: #ef4444;">-${m.churnedSubscribers}</td>

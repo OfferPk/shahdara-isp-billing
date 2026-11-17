@@ -1585,7 +1585,7 @@ export function setupDailyClosingModal(getState, {
           <tr>
             <td style="padding: 8px 10px; font-weight: 600;">${escapeHtml(s.name)}</td>
             <td style="padding: 8px 10px; text-align: center;">
-              <span class="badge ${s.isCash ? 'badge-cash' : 'badge-digital'}" style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: ${s.isCash ? '#dcfce7' : '#dbeafe'}; color: ${s.isCash ? '#166534' : '#1e40af'};">
+              <span class="badge ${s.isCash ? 'badge-cash' : 'badge-digital'}" style="padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; background: ${s.isCash ? '#dcfce7' : '#dbeafe'}; color: ${s.isCash ? '#166534' : '#1e40af'};">
                 ${s.isCash ? 'Physical Cash' : 'Digital/Bank'}
               </span>
             </td>
@@ -1659,7 +1659,7 @@ export function setupDailyClosingModal(getState, {
             <td style="padding: 8px 10px; font-family: monospace;">${escapeHtml(r.billMonth)}</td>
             <td style="padding: 8px 10px; text-align: right; font-weight: 700; color: #0e5b4d;">${escapeHtml(formatPKR(r.amount))}</td>
             <td style="padding: 8px 10px;">
-              <span class="badge ${r.isCash ? 'badge-cash' : 'badge-digital'}" style="padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; background: ${r.isCash ? '#dcfce7' : '#dbeafe'}; color: ${r.isCash ? '#166534' : '#1e40af'};">
+              <span class="badge ${r.isCash ? 'badge-cash' : 'badge-digital'}" style="padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; background: ${r.isCash ? '#dcfce7' : '#dbeafe'}; color: ${r.isCash ? '#166534' : '#1e40af'};">
                 ${escapeHtml(r.method)}
               </span>
             </td>
@@ -1737,7 +1737,7 @@ export function setupDailyClosingModal(getState, {
               Variance: ${existingHandover.variance >= 0 ? '+' : ''}${escapeHtml(formatPKR(existingHandover.variance))} (${escapeHtml(existingHandover.status)})
             </span>
           </div>
-          ${corrCount > 0 ? `<div style="font-size: 10px; color: #475569; margin-top: 4px;">📝 ${corrCount} Audited Correction(s) logged on this handover.</div>` : ''}
+          ${corrCount > 0 ? `<div style="font-size: 11px; color: #475569; margin-top: 4px;">📝 ${corrCount} Audited Correction(s) logged on this handover.</div>` : ''}
         `;
       }
 

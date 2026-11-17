@@ -497,7 +497,7 @@ export function setupMobileVflModal(options = {}) {
             <span style="color: var(--muted, #94a3b8);"> (Tube: ${l.tubeColorName} · Fiber: ${l.fiberColorName})</span>
             <div style="font-size: 11px; color: var(--muted, #64748b);">${l.cabinetName} · ${time}</div>
           </div>
-          <span class="badge ${l.faultCondition === 'CONTINUITY_OK' ? 'badge-success' : 'badge-danger'}" style="font-size: 10px;">${l.faultCondition.replace('_', ' ')}</span>
+          <span class="badge ${l.faultCondition === 'CONTINUITY_OK' ? 'badge-success' : 'badge-danger'}" style="font-size: 11px;">${l.faultCondition.replace('_', ' ')}</span>
         </li>
       `;
     }).join('');

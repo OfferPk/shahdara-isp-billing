@@ -1075,13 +1075,13 @@ export function setupPackageRevenueModal(getState, {
                   <span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${r.color}; flex-shrink:0;"></span>
                   <div>
                     <strong>${escapeHtml(r.label)}</strong>
-                    ${r.dataLimit ? `<br><small style="color:var(--text-muted, #64748b); font-size:10px;">${escapeHtml(r.dataLimit)}</small>` : ''}
+                    ${r.dataLimit ? `<br><small style="color:var(--text-muted, #64748b); font-size: 11px;">${escapeHtml(r.dataLimit)}</small>` : ''}
                   </div>
                 </div>
               </td>
               <td style="text-align:center;">
                 <span class="user-badge" style="font-weight:600;">${r.totalCustomers}</span>
-                <small style="color:var(--text-muted, #64748b); font-size:10px;">(${r.activeCustomers} active)</small>
+                <small style="color:var(--text-muted, #64748b); font-size: 11px;">(${r.activeCustomers} active)</small>
               </td>
               <td style="text-align:right; font-weight:600; color:#2563eb;">PKR ${r.billedAmount.toLocaleString()}</td>
               <td style="text-align:right; font-weight:600; color:#10b981;">PKR ${r.collectedAmount.toLocaleString()}</td>
@@ -1096,12 +1096,12 @@ export function setupPackageRevenueModal(getState, {
                 </div>
               </td>
               <td style="text-align:center;">
-                <span class="status-badge ${badgeClass}" style="font-size:10px; padding:2px 6px;">
+                <span class="status-badge ${badgeClass}" style="font-size: 11px; padding:2px 6px;">
                   ${r.collectionRate !== null ? `${r.collectionRate}%` : 'N/A'}
                 </span>
               </td>
               <td style="text-align:right;">
-                <button type="button" class="btn-sm secondary-button filter-pkg-cust-btn" data-pkg-label="${escapeHtml(r.label)}" style="font-size:10px; padding:2px 6px;" title="Filter customers in this package">
+                <button type="button" class="btn-sm secondary-button filter-pkg-cust-btn" data-pkg-label="${escapeHtml(r.label)}" style="font-size: 11px; padding:2px 6px;" title="Filter customers in this package">
                   🔍 Filter
                 </button>
               </td>

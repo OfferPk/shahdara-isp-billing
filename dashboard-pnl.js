@@ -1056,7 +1056,7 @@ export function setupPnlModal(getState, { onToast = () => {} } = {}) {
               <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: ${color};"></span>
                 <span>${escapeHtml(cat.category)}</span>
-                <span style="font-size: 10px; color: var(--text-muted, #64748b);">(${cat.count} ${cat.count === 1 ? 'entry' : 'entries'})</span>
+                <span style="font-size: 11px; color: var(--text-muted, #64748b);">(${cat.count} ${cat.count === 1 ? 'entry' : 'entries'})</span>
               </div>
               <div style="text-align: right;">
                 <strong>PKR ${cat.amount.toLocaleString()}</strong>
@@ -1096,14 +1096,14 @@ export function setupPnlModal(getState, { onToast = () => {} } = {}) {
         if (emptyState) emptyState.hidden = true;
         tableBody.innerHTML = rows.map(d => {
           const statusBadge = d.status === 'PROFITABLE'
-            ? '<span class="status-badge" style="background: rgba(16,185,129,0.15); color: #059669; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px;">Profitable</span>'
+            ? '<span class="status-badge" style="background: rgba(16,185,129,0.15); color: #059669; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 11px;">Profitable</span>'
             : d.status === 'NET_DEFICIT'
-              ? '<span class="status-badge" style="background: rgba(239,68,68,0.15); color: #dc2626; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px;">Deficit</span>'
-              : '<span class="status-badge" style="background: rgba(100,116,139,0.15); color: #475569; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 10px;">No Activity</span>';
+              ? '<span class="status-badge" style="background: rgba(239,68,68,0.15); color: #dc2626; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 11px;">Deficit</span>'
+              : '<span class="status-badge" style="background: rgba(100,116,139,0.15); color: #475569; padding: 2px 6px; border-radius: 4px; font-weight: 600; font-size: 11px;">No Activity</span>';
 
           return `
             <tr style="${d.isCurrent ? 'background: rgba(14,91,77,0.06); font-weight: 600;' : ''}">
-              <td>${d.month} ${d.isCurrent ? '<span style="font-size: 10px; color: var(--accent, #0e5b4d); font-weight: 700;">(Selected)</span>' : ''}</td>
+              <td>${d.month} ${d.isCurrent ? '<span style="font-size: 11px; color: var(--accent, #0e5b4d); font-weight: 700;">(Selected)</span>' : ''}</td>
               <td style="text-align: right; color: #10b981;">PKR ${d.income.toLocaleString()}</td>
               <td style="text-align: right; color: #ef4444;">PKR ${d.expenses.toLocaleString()}</td>
               <td style="text-align: right; font-weight: 700; color: ${d.netProfit >= 0 ? '#10b981' : '#ef4444'};">${d.netProfit >= 0 ? '+' : ''}PKR ${d.netProfit.toLocaleString()}</td>

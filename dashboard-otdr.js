@@ -818,7 +818,7 @@ export function setupOtdrModal(state, { referenceDate = new Date(), onFilterArea
             <td><strong>${ev.distanceMeters} m</strong> <span class="text-muted">(${(ev.distanceMeters / 1000).toFixed(2)} km)</span></td>
             <td>
               <strong>${escapeXml(ev.type)}</strong>
-              ${ev.isFault ? `<div class="badge-${ev.severity}" style="font-size:10px;display:inline-block;padding:1px 4px;border-radius:3px;">ACTIVE FAULT</div>` : ''}
+              ${ev.isFault ? `<div class="badge-${ev.severity}" style="font-size: 11px;display:inline-block;padding:1px 4px;border-radius:3px;">ACTIVE FAULT</div>` : ''}
             </td>
             <td>${ev.unreachable ? '—' : `${ev.lossDb} dB`}</td>
             <td>${ev.unreachable ? '—' : `${ev.reflectanceDb} dB`}</td>

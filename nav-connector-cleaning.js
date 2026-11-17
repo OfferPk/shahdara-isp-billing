@@ -691,13 +691,13 @@ export function setupMobileConnectorCleaningModal(options = {}) {
         <div>
           <div style="font-weight:600;color:#f8fafc;">${r.location} (${r.connectorType})</div>
           <div style="color:#94a3b8;font-size:11px;">${r.toolName || r.toolId} &bull; ${r.protocolName}</div>
-          <div style="color:#64748b;font-size:10px;">${new Date(r.timestamp).toLocaleTimeString()} &bull; Tech: ${r.technicianName}</div>
+          <div style="color:#64748b;font-size: 11px;">${new Date(r.timestamp).toLocaleTimeString()} &bull; Tech: ${r.technicianName}</div>
         </div>
         <div style="text-align:right;">
-          <span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;background:${r.estimatedSuccessRatePercent >= 85 ? '#065f46' : '#7f1d1d'};color:#ffffff;">
+          <span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size: 11px;font-weight:700;background:${r.estimatedSuccessRatePercent >= 85 ? '#065f46' : '#7f1d1d'};color:#ffffff;">
             ${r.estimatedSuccessRatePercent}%
           </span>
-          <div style="font-size:10px;color:${r.staticRiskLevel === 'CRITICAL' ? '#ef4444' : '#94a3b8'};margin-top:2px;">
+          <div style="font-size: 11px;color:${r.staticRiskLevel === 'CRITICAL' ? '#ef4444' : '#94a3b8'};margin-top:2px;">
             ${r.staticChargeKv} kV
           </div>
         </div>

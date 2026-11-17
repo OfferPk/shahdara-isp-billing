@@ -588,7 +588,7 @@ export function setupMobileMpoModal(state = {}, options = {}) {
           <td><strong>Port ${ch.endAPort}</strong></td>
           <td><span style="display:inline-block;width:12px;height:12px;background:${ch.colorHex};border-radius:2px;margin-right:4px;vertical-align:middle;"></span>${ch.colorName}</td>
           <td><strong>Port ${ch.endBPort}</strong></td>
-          <td><span style="font-size:10px;font-weight:700;color:#94a3b8">${ch.sr4Role}</span></td>
+          <td><span style="font-size: 11px;font-weight:700;color:#94a3b8">${ch.sr4Role}</span></td>
         `;
         channelsTbody.appendChild(tr);
       });

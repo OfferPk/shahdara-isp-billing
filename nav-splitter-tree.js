@@ -578,7 +578,7 @@ export function setupMobileSplitterTreeModal({ storage = (typeof localStorage !=
         </div>
         <div style="text-align:right;">
           <strong style="color:${item.status === 'PASS' ? '#10b981' : '#ef4444'}">${item.receivedPowerDbm} dBm</strong>
-          <div style="font-size:10px;color:#64748b;">${item.displayDate}</div>
+          <div style="font-size: 11px;color:#64748b;">${item.displayDate}</div>
         </div>
       </li>
     `).join('');

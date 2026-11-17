@@ -490,10 +490,10 @@ export function setupAerialAlertsModal(options = {}) {
         const insBadge = e.inspection ? `<span class="signal-tag" style="background:#10b981; color:#fff;">Resolved</span>` : '';
         return `
           <tr class="${rowClass}">
-            <td><strong>${e.sector.name}</strong><br><span style="font-size:10px; color:var(--muted, #64748b);">${e.sector.linemanTeam}</span></td>
+            <td><strong>${e.sector.name}</strong><br><span style="font-size: 11px; color:var(--muted, #64748b);">${e.sector.linemanTeam}</span></td>
             <td>${e.sector.area}</td>
             <td><strong>${e.effectiveSagM} m</strong></td>
-            <td><strong>${e.netClearanceM} m</strong><br><span style="font-size:10px; color:var(--muted, #64748b);">Min: ${e.sector.minRoadClearanceRequired}m</span></td>
+            <td><strong>${e.netClearanceM} m</strong><br><span style="font-size: 11px; color:var(--muted, #64748b);">Min: ${e.sector.minRoadClearanceRequired}m</span></td>
             <td>${e.tensionN} N</td>
             <td><span class="sim-delta-badge ${e.badgeClass}">${e.status}</span> ${insBadge}</td>
           </tr>

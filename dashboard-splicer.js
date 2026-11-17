@@ -710,7 +710,7 @@ export function setupFusionSplicerModal(state, options = {}) {
         const rowClass = isCurrent ? 'table-row-selected' : '';
         return `
           <tr class="${rowClass}">
-            <td><strong>${ue.unit.name.split('(')[0].trim()}</strong><br><span style="font-size: 10px; color: var(--muted, #64748b);">${ue.unit.assignedTech}</span></td>
+            <td><strong>${ue.unit.name.split('(')[0].trim()}</strong><br><span style="font-size: 11px; color: var(--muted, #64748b);">${ue.unit.assignedTech}</span></td>
             <td>${ue.unit.primaryArea}</td>
             <td>${dyn.effectiveArcs} / ${ue.unit.maxRatedArcs} (${dyn.wearPct}%)</td>
             <td><strong>${dyn.effectiveAngle}°</strong></td>

@@ -572,7 +572,7 @@ export function setupSolarModal(state, { referenceDate = new Date(), onFilterAre
           <td>${h.currentLoadKw} kW</td>
           <td><strong>${h.batterySoC}%</strong> (${h.batteryState})</td>
           <td>
-            <span class="sim-delta-badge ${h.gridBadgeClass}" style="font-size:10.5px;">
+            <span class="sim-delta-badge ${h.gridBadgeClass}" style="font-size: 11px;">
               ${escapeXml(h.gridStatusLabel)}
             </span>
           </td>

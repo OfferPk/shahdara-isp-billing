@@ -168,13 +168,15 @@ test('fit budget: the compact header, banner, callout, card and action values th
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .modal-heading .eyebrow { display: none; }'), 'H1: eyebrow must hide on success');
 
   // Header — compact sticky 52px target, measured 44px (the title +
-  // 32px buttons drive it); margin-bottom 0, top 0.
+  // 40px (i) button drives it); margin-bottom 0, top 0.
   const header = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .modal-heading {');
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .modal-heading { margin-bottom: 0 !important; }'), 'header margin-bottom must be 0 on success');
   assert.ok(header.includes('top: 0'), 'header must stick at top 0 (the old -16px offset is gone)');
   const helpBtn = ruleBlock(stylesSrc, '#quickCollectModal .help-info-btn {');
-  assert.ok(helpBtn.includes('width: 32px') && helpBtn.includes('height: 32px'), '(i) button must be 32x32 on success');
-  assert.ok(helpBtn.includes('min-height: 32px !important'), '(i) button must beat the global 44px min-height rule');
+  // Sharafat 96: the (i) button is 40x40 now (was 32x32) — the 40px
+  // touch-target floor for the help affordances.
+  assert.ok(helpBtn.includes('width: 40px') && helpBtn.includes('height: 40px'), '(i) button must be 40x40 on success');
+  assert.ok(helpBtn.includes('min-height: 40px !important'), '(i) button must beat the global 44px min-height rule');
   const closeBtn = ruleBlock(stylesSrc, '#quickCollectModal #closeQuickCollectModalBtn {');
   assert.ok(closeBtn.includes('width: 32px') && closeBtn.includes('height: 32px'), 'close button must be 32x32 on success');
 

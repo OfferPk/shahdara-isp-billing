@@ -50,13 +50,17 @@ test('Inner Tabs: the kist down-payment checkbox keeps a 22px box', () => {
   assert.ok(rule[0].includes('height:22px'), 'checkbox is 22px tall, not the grid 40px');
 });
 
-test('Inner Tabs: profile help buttons are 32px round, not stretched ovals', () => {
+test('Inner Tabs: profile help buttons take the base 40px circle, not stretched ovals', () => {
   const styles = read('styles.css');
   const rule = styles.match(/\.profile-detail-section \.help-info-btn\{[^}]*\}/);
   assert.ok(rule, 'the profile-scoped help-button rule must exist');
-  assert.ok(rule[0].includes('width:32px'), '32px wide');
-  assert.ok(rule[0].includes('height:32px'), '32px tall');
-  assert.ok(rule[0].includes('min-height:32px!important'), 'the 44px global button floor is beaten, button-only');
+  // Sharafat 96: the profile rule carries NO size declarations — instances
+  // take the base 40px circle (components.css), whose (0,2,1) selector
+  // beats the floor. Raising the sizes in place would render 44 wide x
+  // 40 tall (the base wins height), so the sizes are deleted, not raised.
+  assert.ok(!rule[0].includes('width:'), 'no width in the profile rule — the base 40px circle sets it');
+  assert.ok(!rule[0].includes('height:'), 'no height in the profile rule — the base 40px circle sets it');
+  assert.ok(!rule[0].includes('min-height'), 'no min-height in the profile rule — the base 40px !important sets it');
   assert.ok(rule[0].includes('flex-shrink:0'), 'the button never squeezes in the flex summary');
 });
 

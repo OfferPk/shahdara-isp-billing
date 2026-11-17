@@ -242,14 +242,19 @@ test('QC-7 fix 1: the guard returns the record, so the duplicate card + "Save an
 
 // --- Fix 2: QC filter pills wrap at <= 620px -------------------------------
 
-test('QC-7 fix 2: a 620px media rule makes the QC pill bar wrap with no horizontal scroll', () => {
+test('QC-7 fix 2: a 620px media rule makes the QC pill bar one scrolling row (wrap reversed by the polish)', () => {
+  // Quick Collect polish (2026-11-17, D4): the ≤620px wrap is
+  // reversed — the pill bar is one row that scrolls horizontally
+  // when it must (measured: fits at 360px, scrolls 4px at 320px).
+  // The old wrap pin is reversed with this note; the base rule's
+  // scroll on wide screens is unchanged (next test).
   const pillBars = mediaBlocks(styles, '@media (max-width: 620px)')
     .filter((block) => block.includes('.qc-filter-pills'));
   assert.equal(pillBars.length, 1, 'exactly one 620px media rule must carry .qc-filter-pills');
   const bar = pillBars[0];
-  assert.ok(bar.includes('flex-wrap: wrap'), 'wrapped bar must carry flex-wrap: wrap');
-  assert.ok(bar.includes('overflow-x: visible'), 'wrapped bar must carry overflow-x: visible');
-  assert.ok(!bar.includes('overflow-x: auto'), 'wrapped bar must not keep overflow-x: auto');
+  assert.ok(bar.includes('flex-wrap: nowrap'), 'scrolling bar must carry flex-wrap: nowrap');
+  assert.ok(bar.includes('overflow-x: auto'), 'scrolling bar must carry overflow-x: auto');
+  assert.ok(!bar.includes('overflow-x: visible'), 'scrolling bar must not keep overflow-x: visible');
 });
 
 test('QC-7 fix 2: the base pill bar still scrolls on wide screens (desktop unchanged)', () => {

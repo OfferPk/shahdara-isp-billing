@@ -25,9 +25,10 @@ const STUB_MEASURE = (t) => t.length * 20;
 
 // Bounds under a measure fn: left-aligned text spans [x, x+w],
 // right-aligned [x-w, x], centred [x-w/2, x+w/2]. Text commands only —
-// the seal overlaps the financial box's bottom-right corner BY DESIGN
-// (a rubber stamp drawn over the value), so seal commands are never
-// part of the no-overlap assertion.
+// the seal sits below the financial box (Plan 574 moved it there from
+// the Sharafat-53 BY-DESIGN overlap), so seal commands are never part
+// of the no-overlap assertion here; the seal-vs-value checks live in
+// tests/plan574-png-seal-layout.test.js.
 function textBounds(cmd, measure) {
   const w = measure(cmd.text);
   if (cmd.align === 'right') return [cmd.x - w, cmd.x];
@@ -186,29 +187,45 @@ test('ordinary cash receipt is byte-identical (fixed issuedAt)', (t) => {
   const model = buildModel(paidFixture());
   const layout = computePngReceiptLayout(model);
   assert.equal(layout.width, PNG_RECEIPT_WIDTH);
-  assert.equal(layout.height, PNG_RECEIPT_HEIGHT);
+  // Plan 574: the seal clearance band grows the layout — the height is
+  // max(model.height, y + 24), so only 142px of the 192px band shows
+  // past the 2000px model height on this receipt (2142, not 2192),
+  // and the footer sits 192px lower (1926 -> 2118). Measured.
+  assert.equal(layout.height, 2142);
   // Plan 573: the new Total Due row adds one finPitch (74px) below the
   // financial box, so the footer sits 74px lower (1852 -> 1926) and the
   // box carries six rows instead of five; the canvas height stays 2000
   // because the grown footer (1926 + 24) still fits the old foot.
-  assert.equal(layout.footerY, 1926);
+  assert.equal(layout.footerY, 2118);
   assert.equal(model.financial.length, 6);
   // The hash is pinned with a FIXED issuedAt: the Issued line carries the
   // current minute, so the repro's live hash changes every minute and
   // cannot be pinned as-is (the prep's fe1c233c… was one minute's value).
   // Plan 573: any model change re-pins the hash — Sharafat 53 did the
   // same when it first pinned it; the new value is the post-fix model.
+  // Plan 574: the seal move re-pins the hash again — the seal command
+  // is part of layout.commands, so ANY seal move changes it. The
+  // acceptance is redefined (D2(a)): all commands EXCEPT the seal are
+  // byte-identical (height, footerY, length and the hash shape are all
+  // pinned here; the seal's own position is pinned in
+  // tests/plan574-png-seal-layout.test.js). The hash pin stays, never
+  // deleted — the new value is the post-fix model.
   assert.equal(
     modelHash(model, layout),
-    '278259085caa2e6c7357aedd4515e7bef8d388d93b1a3f35aa255610a7d17aac');
+    '170698a6f87de9ec726ad8493e6666fc7bb0158147e425a64a86a03a2c24d8c6');
   assertNoOverlapOrOffCanvas(layout, DEFAULT_MEASURE, 'ordinary/default');
   const stubLayout = computePngReceiptLayout(model, STUB_MEASURE);
-  assert.equal(stubLayout.height, PNG_RECEIPT_HEIGHT);
+  // Plan 574: the stub layout grows by the same seal band — but the
+  // stub wraps the note to 2 lines (3 under the default), so its y is
+  // one 62px pitch lower: height 2080, not the default's 2142.
+  // Measured, not derived.
+  assert.equal(stubLayout.height, 2080);
   // The Urdu note wraps to 2 lines under the narrower stub measure
   // (3 under the default), so the stub footer sits one line higher.
   // Plan 573: the Total Due row adds one finPitch (74px) here too —
   // 1790 -> 1864, the same +74 as the default measure.
-  assert.equal(stubLayout.footerY, 1864);
+  // Plan 574: the seal band adds 192px here too — 1864 -> 2056.
+  assert.equal(stubLayout.footerY, 2056);
   assertNoOverlapOrOffCanvas(stubLayout, STUB_MEASURE, 'ordinary/stub');
 });
 

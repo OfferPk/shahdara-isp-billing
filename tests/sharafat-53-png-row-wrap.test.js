@@ -187,20 +187,28 @@ test('ordinary cash receipt is byte-identical (fixed issuedAt)', (t) => {
   const layout = computePngReceiptLayout(model);
   assert.equal(layout.width, PNG_RECEIPT_WIDTH);
   assert.equal(layout.height, PNG_RECEIPT_HEIGHT);
-  assert.equal(layout.footerY, 1852);
-  assert.equal(model.financial.length, 5);
+  // Plan 573: the new Total Due row adds one finPitch (74px) below the
+  // financial box, so the footer sits 74px lower (1852 -> 1926) and the
+  // box carries six rows instead of five; the canvas height stays 2000
+  // because the grown footer (1926 + 24) still fits the old foot.
+  assert.equal(layout.footerY, 1926);
+  assert.equal(model.financial.length, 6);
   // The hash is pinned with a FIXED issuedAt: the Issued line carries the
   // current minute, so the repro's live hash changes every minute and
   // cannot be pinned as-is (the prep's fe1c233c… was one minute's value).
+  // Plan 573: any model change re-pins the hash — Sharafat 53 did the
+  // same when it first pinned it; the new value is the post-fix model.
   assert.equal(
     modelHash(model, layout),
-    '3386a547287591cfd4ceae68502bd6d4bae7645dd6d5384d80dc76f4952cb8b5');
+    '278259085caa2e6c7357aedd4515e7bef8d388d93b1a3f35aa255610a7d17aac');
   assertNoOverlapOrOffCanvas(layout, DEFAULT_MEASURE, 'ordinary/default');
   const stubLayout = computePngReceiptLayout(model, STUB_MEASURE);
   assert.equal(stubLayout.height, PNG_RECEIPT_HEIGHT);
   // The Urdu note wraps to 2 lines under the narrower stub measure
   // (3 under the default), so the stub footer sits one line higher.
-  assert.equal(stubLayout.footerY, 1790);
+  // Plan 573: the Total Due row adds one finPitch (74px) here too —
+  // 1790 -> 1864, the same +74 as the default measure.
+  assert.equal(stubLayout.footerY, 1864);
   assertNoOverlapOrOffCanvas(stubLayout, STUB_MEASURE, 'ordinary/stub');
 });
 
@@ -305,7 +313,10 @@ test('no-history maximal receipt grows the canvas so the footer fits', (t) => {
   };
   const model = buildModel({ customer, bill, payment });
   assert.equal(model.history.length, 0);
-  assert.equal(model.financial.length, 10);
+  // Plan 573: the new Total Due row is the eleventh financial row on
+  // the maximal receipt (was ten); the height assertion below is
+  // relative (> 2000), so it holds unchanged.
+  assert.equal(model.financial.length, 11);
   const layout = computePngReceiptLayout(model);
   assert.ok(layout.height > PNG_RECEIPT_HEIGHT, `height should grow past 2000, got ${layout.height}`);
   assertNoOverlapOrOffCanvas(layout, DEFAULT_MEASURE, 'no-history-maximal/default');

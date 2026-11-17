@@ -21,7 +21,7 @@ test('success titles and durations', () => {
   assert.equal(inferTitle('success', 'Customer deleted from this device.'), 'Deleted');
   assert.equal(inferTitle('error', 'anything'), null);
   assert.equal(defaultDuration('success', false), 4000);
-  assert.equal(defaultDuration('error', false), 6000);
+  assert.equal(defaultDuration('error', false), 8000); // Sharafat 98: errors stay readable longer
   assert.ok(defaultDuration('success', true) >= 7000, 'toasts with Undo stay long enough to tap');
 });
 

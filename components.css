@@ -1590,7 +1590,7 @@ body.field-mode-open { overflow: hidden; }
 /* Edit + delete actions on Saad visit/payment rows and Installation Tracker
    request cards. Layout only — no colours, theme tokens for spacing. */
 .saad-visits-card-actions, .install-tracker-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: 8px; }
-.saad-visits-card-actions .secondary-button, .install-tracker-card-actions .secondary-button, .saad-visits-payment-actions .secondary-button { min-height: 32px; padding: 0 10px; }
+.saad-visits-card-actions .secondary-button, .install-tracker-card-actions .secondary-button, .saad-visits-payment-actions .secondary-button { min-height: 44px; padding: 0 10px; }
 .saad-visits-payment-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 8px; }
 /* SISP-19: hardware custody — token-only, no new hex colors. */
 .profile-custody-section { margin-top: 16px; }
@@ -3718,19 +3718,19 @@ button:not([hidden]).help-info-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  min-height: 28px !important;
+  width: 40px;
+  height: 40px;
+  min-height: 40px !important;
   /* Home Dashboard overhaul: the global button min-height rule
-     (styles.css:782) floors every button at 44px, which stretched
-     this 28px circle into a vertical oval on the At-Risk Loyal
+     (styles.css:923) floors every button at 44px, which stretched
+     this 40px circle into a vertical oval on the At-Risk Loyal
      Customers and Revenue Leak Audit headers — the same root cause
      as the profile (i) oval and the QC modal (i) oval. The floor
      is lifted here with !important AND a heavier selector:
      `button:not([hidden]).help-info-btn` scores (0,2,1), which
      beats the global `button:not([hidden])` rule (0,1,1); the
      plain class selector (0,1,0) lost to it and every (i) still
-     rendered as a 28x44 oval — the !important alone was never
+     rendered as a 40x44 oval — the !important alone was never
      enough, because both rules carry !important and specificity
      decides. The two 44px variants below set an explicit
      height: 44px, so they are unaffected by the lower floor.
@@ -3989,7 +3989,7 @@ button:not([hidden]).help-info-btn {
    next to the header it serves). The !important is required: the
    app-wide `button:not([hidden])` rule (styles.css) floors every button
    at 44px with !important. */
-#pendingActionsModal .pending-header-icon-btn { min-height: 32px !important; height: 32px !important; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; }
+#pendingActionsModal .pending-header-icon-btn { min-height: 44px !important; height: 44px !important; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; }
 .pending-actions-toolbar { padding: 10px 16px; gap: 8px; }
 /* Compression (D2): the tabs wrap at ALL widths — this rule used to say
    nowrap and overrode the nav.css base, recreating the scroll clip. */

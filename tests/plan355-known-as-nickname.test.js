@@ -217,10 +217,12 @@ test('wiring: the app imports the module and shows the known-as name beside the 
   // Customers Cards Compact retired the card's inline known-as line:
   // the name is a pill in the sub-line row, built from knownAsNameFor
   // with the Father/Ref or alias short label. Global search keeps the
-  // inline helper (asserted below).
+  // inline helper (asserted below). Round 2 (D9): the muted line says
+  // 'Ref:' now, so 'cust_card_father_ref_short' is deleted and the
+  // card uses 'cust_card_ref_short' instead; the alias key is kept.
   assert.ok(appSrc.slice(cardStart, cardEnd).includes('knownAsNameFor(customer)'), 'customer card derives the known-as name from the module');
-  assert.ok(appSrc.slice(cardStart, cardEnd).includes("'cust_card_father_ref_short'"), 'card pill uses the Father/Ref short label');
-  assert.ok(appSrc.slice(cardStart, cardEnd).includes("'cust_card_alias_short'"), 'card pill uses the alias short label');
+  assert.ok(appSrc.slice(cardStart, cardEnd).includes("'cust_card_ref_short'"), 'card muted line uses the Ref short label');
+  assert.ok(appSrc.slice(cardStart, cardEnd).includes("'cust_card_alias_short'"), 'card muted line uses the alias short label');
   assert.ok(!appSrc.slice(cardStart, cardEnd).includes("knownAsInlineHtml(customer, 'customer-known-as')"), 'card no longer renders the inline known-as line');
   const globalStart = appSrc.indexOf('function renderGlobalSearch(');
   const globalEnd = appSrc.indexOf('function ', globalStart + 10);

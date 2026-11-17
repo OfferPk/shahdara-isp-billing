@@ -301,7 +301,9 @@ test('QC-7 fix 3: the wrapped figures stay right-aligned on their own line', () 
   const blocks = mediaBlocks(styles, '@media (max-width: 360px)');
   const figures = blocks.filter((block) => block.includes('.qc3-figures'));
   assert.equal(figures.length, 1, 'exactly one 360px media rule must carry .qc3-figures');
-  assert.ok(figures[0].includes('margin-left: auto'), 'figures must carry margin-left: auto');
+  // Sharafat 95: the figures' spacer is a logical margin now
+  // (margin-inline-start: auto) so they stay right-aligned in Urdu mode.
+  assert.ok(figures[0].includes('margin-inline-start: auto'), 'figures must carry margin-inline-start: auto');
 });
 
 test('QC-7 fix 3: measured — a card with two 10-digit figures fits at 360px once the row wraps', () => {

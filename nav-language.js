@@ -189,12 +189,11 @@ export const TRANSLATIONS = {
     // were deleted with the old card; the open-hint / time-with-ISP /
     // health-reasons keys stay — the Urdu pins test guards their
     // English strings.
-    cust_card_father_ref_short: 'Father / Ref',
+    cust_card_ref_short: 'Ref',
     cust_card_alias_short: 'AKA',
     cust_card_lifetime_label: 'Lifetime',
     cust_card_tenure_months_short: '{n} mos',
-    cust_card_tenure_since_short: 'since {date}',
-    cust_card_open_profile: 'Full Profile',
+    cust_card_open_profile: 'Profile',
     cust_bill_not_set: 'Bill not set',
     cust_bill_paid: 'Paid',
     cust_bill_pending: 'Pending',
@@ -2253,12 +2252,17 @@ export const TRANSLATIONS = {
     baqaya_removed: 'Manual baqaya entry removed.',
     baqaya_remove_confirm: 'Remove this manual baqaya entry of {amount}?',
     baqaya_qc_line: 'Manual Baqaya (old dues): {amount}',
+    // Quick Collect polish (2026-11-17, D11): the Step 2 header label
+    // and the footer bill-dues part — the footer joins the bill-dues
+    // part, the ticket/add-on lines and the baqaya line with ' • '.
+    qc_head_payable: 'Payable',
+    qc_head_bill_dues: 'Bill dues: {amount}',
     txp_line: 'Oldest open bill {month}: PKR {amount} still open — the amount field starts with your full dues.',
     baqaya_receipt_line: 'Manual Baqaya ({id})',
     baqaya_status_adjusted: 'Adjusted',
     baqaya_status_adjusted_partial: 'Partly adjusted',
     baqaya_entry_adjusted_part: 'Adjusted {amount}',
-    addpend_add: '＋ Additional',
+    addpend_add: '+ Additional ▾',
     addpend_edit: 'Edit additional pending',
     addpend_total_label: 'Total pending {amount}',
     addpend_breakdown: 'Bill {bill} + Additional {additional}',
@@ -2295,6 +2299,10 @@ export const TRANSLATIONS = {
     qundo_gone: 'That payment is already removed — nothing left to undo.',
     qundo_failed: 'Could not undo payment: {error}',
     khula_chip: 'Pay {tendered} — keep {change} change as advance',
+    // Quick Collect polish (2026-11-17, D10): the merged quick-amount
+    // row's loose-change chip — short form only; khula_chip above stays
+    // untouched for Field Mode, which pins its exact wording.
+    qc_loose_keep_chip: 'Keep {change}',
     khula_credit_row: 'Change Kept as Advance Credit',
     pkg_auto_set_note: 'Package set from this payment: PKR {amount} / month',
     lfw_toggle: 'Waive late fee (−{amount})',
@@ -3122,7 +3130,7 @@ export const TRANSLATIONS = {
     bdate_chips_aria: 'Payment date shortcuts',
     bdate_chip_today: 'Today',
     bdate_chip_yesterday: 'Yesterday',
-    bdate_chip_prev_month_end: 'Prev Month End',
+    bdate_chip_prev_month_end: 'Prev Month',
     bdate_chip_custom: 'Custom',
     bdate_future_error: 'Payment date cannot be in the future.',
     riskseg_polite: 'Polite Reminder',
@@ -4168,6 +4176,9 @@ export const TRANSLATIONS = {
     // stays for Field Mode, which renders the same key.
     qc3_location_short: 'Map',
     qc3_collect: 'Collect',
+    // Quick Collect polish (2026-11-17, D3): the settled-card CTA —
+    // it opens the form with the Advance tag + target month ticked.
+    qc3_collect_advance: '➕ Advance',
     qc3_monthly_package: 'Monthly package',
     qc3_outstanding: 'Outstanding',
     qc3_no_phone: 'No phone number recorded',
@@ -4995,12 +5006,11 @@ export const TRANSLATIONS = {
     cust_card_chip_fee: '{amount}/ماہ',
     // Customers Cards Compact: condensed pill labels for the new card
     // (Father/reference, lifetime, tenure, Full Profile action).
-    cust_card_father_ref_short: 'والد / حوالہ',
+    cust_card_ref_short: 'حوالہ',
     cust_card_alias_short: 'دیگر نام',
     cust_card_lifetime_label: 'اب تک',
     cust_card_tenure_months_short: '{n} ماہ',
-    cust_card_tenure_since_short: '{date} سے',
-    cust_card_open_profile: 'مکمل پروفائل',
+    cust_card_open_profile: 'پروفائل',
     cust_bill_not_set: 'بل طے نہیں',
     cust_bill_paid: 'ادا شدہ',
     cust_bill_pending: 'زیر التوا',
@@ -7054,12 +7064,15 @@ export const TRANSLATIONS = {
     baqaya_removed: 'دستی بقایا اندراج ختم ہو گیا۔',
     baqaya_remove_confirm: '{amount} کا یہ دستی بقایا اندراج ختم کریں؟',
     baqaya_qc_line: 'دستی بقایا (پرانے واجبات): {amount}',
+    // Quick Collect polish (2026-11-17, D11): Step 2 header + footer.
+    qc_head_payable: 'قابل ادا',
+    qc_head_bill_dues: 'بل واجبات: {amount}',
     txp_line: 'سب سے پرانا کھلا بل {month}: PKR {amount} ابھی باقی ہے — رقم کا خانہ مکمل واجبات سے شروع ہوتا ہے۔',
     baqaya_receipt_line: 'دستی بقایا ({id})',
     baqaya_status_adjusted: 'ایڈجسٹ شدہ',
     baqaya_status_adjusted_partial: 'جزوی ایڈجسٹ شدہ',
     baqaya_entry_adjusted_part: 'ایڈجسٹ شدہ {amount}',
-    addpend_add: '＋ اضافی',
+    addpend_add: '+ اضافی ▾',
     addpend_edit: 'اضافی بقایا تبدیل کریں',
     addpend_total_label: 'کل بقایا {amount}',
     addpend_breakdown: 'بل {bill} + اضافی {additional}',
@@ -7096,6 +7109,9 @@ export const TRANSLATIONS = {
     qundo_gone: 'وہ ادائیگی پہلے ہی حذف ہو چکی ہے — واپس کرنے کو کچھ باقی نہیں۔',
     qundo_failed: 'ادائیگی واپس نہیں ہو سکی: {error}',
     khula_chip: '{tendered} ادا کریں — {change} بقایا ایڈوانس رکھیں',
+    // Quick Collect polish (2026-11-17, D10): the merged row's
+    // loose-change chip — short form only; khula_chip stays as is.
+    qc_loose_keep_chip: '{change} رکھیں',
     khula_credit_row: 'بقایا ایڈوانس کریڈٹ رکھا گیا',
     pkg_auto_set_note: 'اس ادائیگی سے پیکیج مقرر ہو گیا: PKR {amount} / مہینہ',
     lfw_toggle: 'تاخیری فیس معاف کریں (−{amount})',
@@ -7918,7 +7934,7 @@ export const TRANSLATIONS = {
     bdate_chips_aria: 'ادائیگی کی تاریخ کے شارٹ کٹ',
     bdate_chip_today: 'آج',
     bdate_chip_yesterday: 'گزشتہ کل',
-    bdate_chip_prev_month_end: 'پچھلے مہینے کا آخر',
+    bdate_chip_prev_month_end: 'پچھلے مہینے',
     bdate_chip_custom: 'اپنی تاریخ',
     bdate_future_error: 'ادائیگی کی تاریخ مستقبل کی نہیں ہو سکتی۔',
     riskseg_polite: 'نرم یاد دہانی',
@@ -8954,6 +8970,8 @@ export const TRANSLATIONS = {
     // the shared value above stays for Field Mode (see the EN block).
     qc3_location_short: 'نقشہ',
     qc3_collect: 'وصول کریں',
+    // Quick Collect polish (2026-11-17, D3): the settled-card CTA.
+    qc3_collect_advance: '➕ پیشگی',
     qc3_monthly_package: 'ماہانہ پیکیج',
     qc3_outstanding: 'بقایا',
     qc3_no_phone: 'فون نمبر درج نہیں ہے',

@@ -523,13 +523,13 @@ export function setupVehicleTransferModal(options = {}) {
           <tr>
             <td>
               <strong>${escapeXml(h.name)}</strong>
-              <div style="font-size:10px; color:var(--muted, #64748b);">${escapeXml(h.category)} [${h.sku}]</div>
+              <div style="font-size: 11px; color:var(--muted, #64748b);">${escapeXml(h.category)} [${h.sku}]</div>
             </td>
             <td><strong>${row.onHand}</strong> ${h.unit}</td>
             <td>${row.minSafe} ${h.unit}</td>
             <td>${formatPKR(row.itemValue)}</td>
             <td>
-              <span class="sim-delta-badge" style="background:${color}22; color:${color}; font-size:10px; padding:2px 6px;">
+              <span class="sim-delta-badge" style="background:${color}22; color:${color}; font-size: 11px; padding:2px 6px;">
                 ${row.itemStatus.toUpperCase()}
               </span>
             </td>

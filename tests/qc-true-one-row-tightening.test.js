@@ -121,12 +121,15 @@ test('1-row: labelled action row — grid auto auto 1fr, 38px, gap 6 at 320px', 
 // 5. Chips one line (3-chip case) + wrap valve (4-chip case) —
 // measured with the real render (probe-1row-a-chips3.mjs): the
 // 3-chip case (High priority 87.6 + ≥2k 36 + 2+ mos arrears 99.2)
-// fits one 24px row at 360px (card 143.5px) and wraps to 2 rows at
-// 320px (card 173.5px) — no crush, no overflow at either width;
-// the 4-chip case (+ 90+ days overdue 113.2) wraps to 2 rows at
-// both widths (card 173.5px), no crush. The valve is flex-wrap:
-// wrap on the chips row — nowrap would crush the badge (measured
-// 22.8px in the prep sim), so it stays.
+// fits one 24px row at 360px and wraps to 2 rows at 320px — no
+// crush, no overflow at either width; the 4-chip case (+ 90+ days
+// overdue 113.2) wraps to 2 rows at both widths, no crush. The
+// valve is flex-wrap: wrap on the chips row — nowrap would crush
+// the badge (measured 22.8px in the prep sim), so it stays.
+// Quick Collect polish (2026-11-17): the CARD grew (Row 2
+// subtitle + 2-line name) — badged 178.3px at 360px (was 143.5px)
+// — but the chips row itself is unchanged: still one 24px row at
+// 360px, still the wrap valve.
 test('1-row: chips row keeps the wrap valve; the short labels fit one line at 360px', () => {
   const chips = ruleBlock(stylesSrc, '#quickCollectModal .qc-card-chips {');
   assert.ok(chips.includes('flex-wrap: wrap'), 'the chips row must keep flex-wrap: wrap — the valve, never a crush');

@@ -102,9 +102,17 @@ test('amount chips: base rules carry min-height 44px at every width', () => {
   }
 });
 
-test('date chips: base rule carries min-height 44px at every width', () => {
+// Quick Collect polish (user decision 2026-11-17, parent D1): the
+// date chips drop to 38px, the method chips and the shop chips to
+// 40px — below the 44px floor, recorded not blessed. The base rules
+// carry the new sizes AND a heavier button:not([hidden]).<class>
+// defeater carries the same size, so the chips render at 38/40px
+// despite the global 44px !important floor. The filter chips keep
+// 44px (only their padding/font change). The tests below pin the NEW
+// sizes; the old 44px pins are rewritten with this note, not deleted.
+test('date chips: base rule carries min-height 38px at every width', () => {
   const rule = baseRule(styles, '.qc-date-chip');
-  assert.equal(decl(rule, 'min-height'), '44px');
+  assert.equal(decl(rule, 'min-height'), '38px');
   assert.equal(decl(rule, 'display'), 'inline-flex');
   assert.equal(decl(rule, 'align-items'), 'center');
 });
@@ -121,24 +129,32 @@ test('loose-change chips: base min-height is 44px, not 36px', () => {
   assert.equal(decl(rule, 'min-height'), '44px');
 });
 
-test('shop chips: base min-height is 44px, not 40px', () => {
+test('shop chips: base min-height is 40px (Quick Collect polish D1 — was 44px)', () => {
   const rule = baseRule(components, '.qc-shop-chip');
-  assert.equal(decl(rule, 'min-height'), '44px');
+  assert.equal(decl(rule, 'min-height'), '40px');
 });
 
 // ---- Nothing else about the chips changed ----------------------------
 
 test('chip rules keep their old sizes and colours', () => {
-  // No new sizes: padding / font-size / radius are exactly as before.
+  // No new sizes: padding / font-size / radius are exactly as before —
+  // EXCEPT the Quick Collect polish (2026-11-17, D1/D4) cuts, recorded
+  // not blessed: the date chips go to 8px 6px / 0.76rem (38px tall),
+  // the filter chips to 5px 10px / 0.78rem (still 44px tall). The
+  // filter-chip comment below is updated: the fit at 360px comes from
+  // the nowrap + scroll row (D4), not from the padding alone.
   assert.equal(decl(baseRule(styles, '.quick-amount-chip'), 'padding'), '4px 10px');
   assert.equal(decl(baseRule(styles, '.quick-amount-chip'), 'font-size'), '0.78rem');
   assert.equal(decl(baseRule(styles, '.qab-amount-chip'), 'padding'), '4px 10px');
-  assert.equal(decl(baseRule(styles, '.qc-date-chip'), 'padding'), '4px 10px');
+  assert.equal(decl(baseRule(styles, '.qc-date-chip'), 'padding'), '8px 6px');
+  assert.equal(decl(baseRule(styles, '.qc-date-chip'), 'font-size'), '0.76rem');
   // QC Cash Modal Overhaul: the filter-chip padding moves 6px 12px →
   // 6px 10px (with the 12.5px font) so Pending / High ≥ 2k / All fit
-  // on one row at 360px. Min-height stays 44px; every other chip
+  // on one row at 360px. Quick Collect polish (D4) moves it again to
+  // 5px 10px / 0.78rem; min-height stays 44px; every other chip
   // rule keeps its old size.
-  assert.equal(decl(baseRule(styles, '.quick-collect-filter-chip'), 'padding'), '6px 10px');
+  assert.equal(decl(baseRule(styles, '.quick-collect-filter-chip'), 'padding'), '5px 10px');
+  assert.equal(decl(baseRule(styles, '.quick-collect-filter-chip'), 'font-size'), '0.78rem');
   assert.equal(decl(baseRule(components, '.loose-change-chip'), 'padding'), '4px 10px');
   assert.equal(decl(baseRule(components, '.qc-shop-chip'), 'padding'), '7px 12px');
   assert.equal(decl(baseRule(components, '.qc-shop-chip'), 'font-size'), '13px');
@@ -178,24 +194,31 @@ test('Plan 528 amount group labels are untouched', () => {
 
 // ---- The already-44px controls are untouched -------------------------
 
-test('method chips, keypad and remwaada chips keep their heights', () => {
-  assert.equal(decl(baseRule(styles, '.quick-method-chip'), 'min-height'), '44px');
-  assert.equal(decl(baseRule(styles, '.quick-method-chip.bwb-big'), 'min-height'), '56px');
+test('method chips drop to 40px (Quick Collect polish D1); keypad and remwaada chips keep their heights', () => {
+  // Quick Collect polish (2026-11-17, D1): the method chips are 40px
+  // pills now (base rule + defeater), and the big three drop with
+  // them (56px → 40px, 15px → 13px) — recorded, not blessed. The
+  // keypad and the remwaada chips are untouched.
+  assert.equal(decl(baseRule(styles, '.quick-method-chip'), 'min-height'), '40px');
+  assert.equal(decl(baseRule(styles, '.quick-method-chip.bwb-big'), 'min-height'), '40px');
   assert.equal(decl(baseRule(styles, '.kpd-key'), 'min-height'), '56px');
   assert.equal(decl(baseRule(components, '.qc-remwaada-chip'), 'min-height'), '44px');
 });
 
 // ---- The <=480px guarantee stays where Plan D pinned it --------------
 
-test('Plan D block still carries the four 44px rules (kept, not removed)', () => {
+test('Plan D block still carries the four chip rules (date now 38px, the rest 44px)', () => {
+  // Quick Collect polish (2026-11-17, D1): the date chip is 38px in
+  // the Plan D block too (base rule and defeater carry the same size);
+  // the other three stay 44px. Recorded, not blessed.
   for (const selector of [
     '.quick-collect-filter-chip',
     '.quick-amount-chip',
-    '.qc-date-chip',
     '.loose-change-chip',
   ]) {
     assert.equal(decl(mediaDecls(planD, selector), 'min-height'), '44px', `${selector} in Plan D block`);
   }
+  assert.equal(decl(mediaDecls(planD, '.qc-date-chip'), 'min-height'), '38px', '.qc-date-chip in Plan D block');
 });
 
 // ---- The finding: the global button rule already guaranteed 44px -----

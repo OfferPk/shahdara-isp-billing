@@ -221,6 +221,8 @@ test('cleanup: filter checkboxes sit on one line via the scoped flex label', () 
 test('cleanup: shared .table-scroll rule keeps cells on one line with a sticky first column', () => {
   const styles = read('../styles.css');
   assert.ok(styles.includes('.table-scroll th, .table-scroll td { white-space: nowrap; overflow-wrap: normal; }'), 'nowrap cells');
-  assert.ok(styles.includes('.table-scroll th:first-child, .table-scroll td:first-child { position: sticky; left: 0;'), 'sticky first column');
+  // Sharafat 95: the sticky first column is logical now
+  // (inset-inline-start: 0) so it sticks to the start edge in Urdu mode.
+  assert.ok(styles.includes('.table-scroll th:first-child, .table-scroll td:first-child { position: sticky; inset-inline-start: 0;'), 'sticky first column');
   assert.ok(styles.includes('.table-scroll thead th:first-child { z-index: 4; background: #f6faf8; }'), 'corner cell keeps the header colour');
 });

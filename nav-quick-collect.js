@@ -41,7 +41,7 @@ import {
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel, validateBillPackageSnapshot } from './package-catalog.js';
 import { salesTaxCentsForPrice, salesTaxCentsOfBill, SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
-import { formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js';
+import { firstFiniteRemainingPayable, formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js';
 import { packageSuccessMessage, packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 // Quick Collect polish (2026-11-17, D6): the known-as name for the
@@ -1598,7 +1598,7 @@ const validQcHistoryDate = (value) => {
 export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   const { whatsappPhone = '' } = options;
   const amountStr = formatReceiptMoneyFigure(receipt.amount);
-  const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
+  const remainingPayable = firstFiniteRemainingPayable(receipt);
   const balanceStr = formatReceiptMoneyFigure(remainingPayable);
   const L = QC_RECEIPT_TEXT[sanitizeReceiptLang(options.lang ?? receipt?.receiptLang)] ?? QC_RECEIPT_TEXT.bilingual;
   const statusText = (remainingPayable <= 0) ? L.statusPaid : L.statusPartial;
@@ -1785,12 +1785,13 @@ export async function generateReceiptImageBlob(receipt) {
   ctx.fillText(receipt.month || '-', 230, 375);
 
   // Plan 565: the image receipt reads the same canonical remaining
-  // figure as the WhatsApp draft (payableRemaining ?? newTotalDues ??
-  // newBalanceDue ?? 0) — for the figure, the colour AND the
-  // settled/partial line, so all three agree with the draft. Before,
-  // newTotalDues alone understated the remaining whenever ticket /
-  // baqaya charges were still pending after the payment.
-  const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
+  // figure as the WhatsApp draft (firstFiniteRemainingPayable — Plan
+  // 566's finite guard on the canonical chain) — for the figure, the
+  // colour AND the settled/partial line, so all three agree with the
+  // draft. Before, newTotalDues alone understated the remaining
+  // whenever ticket / baqaya charges were still pending after the
+  // payment.
+  const remainingPayable = firstFiniteRemainingPayable(receipt);
   const balColor = (remainingPayable <= 0) ? '#059669' : '#dc2626';
   ctx.fillStyle = balColor;
   ctx.fillText(`PKR ${formatReceiptMoneyFigure(remainingPayable)}`, 420, 375);
@@ -2294,9 +2295,10 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
   // the WhatsApp draft (payableRemaining ?? newTotalDues ??
   // newBalanceDue ?? 0) — payableRemaining is the most complete
   // (bills + pending ticket/addon/baqaya charges), the later fields
-  // are the draft's own fallbacks. No finite-number guard here: a
-  // non-finite figure is Plan 566's guard, not this plan's.
-  const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
+  // are the draft's own fallbacks. Plan 566: the figure is read
+  // through firstFiniteRemainingPayable — a non-finite field falls
+  // through to the next finite field, defaulting to 0.
+  const remainingPayable = firstFiniteRemainingPayable(receipt);
   // QC receipt-modal overhaul (§4.3.2, decision (j)): the merged
   // Still-owed row below REPLACES the Remaining Balance row (PR #1332).
   // QC Success Card Polish (2026-11-13): the row is shown ONLY when the
@@ -2305,8 +2307,8 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
   // stated by the still-owes pill, so no "Fully paid" row and no
   // "PKR 0" text ever appear on the card. When ticket/boost charges
   // are pending, the label reads the Plan 526 charged label — the same
-  // label logic as successNextStepsHtml. (A non-finite figure is
-  // Plan 566's guard, not this item's.)
+  // label logic as successNextStepsHtml. (Plan 566 guards the figure
+  // upstream via firstFiniteRemainingPayable, so it is finite here.)
   const chargesPending = successNextStepsChargesPending(receipt);
   const mergedOwedLabel = remainingPayable > 0 && chargesPending
     ? SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT

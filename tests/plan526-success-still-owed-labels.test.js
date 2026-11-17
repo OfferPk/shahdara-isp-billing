@@ -269,7 +269,13 @@ test('wiring: the receipt card still reads the payable remainder — the merged 
   // the builder's end).
   const nextFn = wiringSrc.slice(start + 10).search(/\n(?:export )?function /);
   const slice = nextFn === -1 ? wiringSrc.slice(start, start + 12000) : wiringSrc.slice(start, start + 10 + nextFn);
-  assert.match(slice, /receipt\.payableRemaining \?\? receipt\.newTotalDues/);
+  // Plan 566 (D4) rewrote the inline `receipt.payableRemaining ??
+  // receipt.newTotalDues ?? ...` chain into the shared helper
+  // firstFiniteRemainingPayable — the builder still reads the same
+  // canonical remaining figure, now finite-guarded; the figure
+  // itself is pinned behaviourally by
+  // plan566-receipt-card-nan-guard.test.js.
+  assert.match(slice, /const remainingPayable = firstFiniteRemainingPayable\(receipt\);/);
   assert.ok(!slice.includes('SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT'), 'merged row must not read the fully-paid label — the row is hidden at 0');
   assert.ok(slice.includes('SUCCESS_NEXT_STEPS_STILL_OWED_TEXT'), 'merged row must read the still-owed label from the module');
   assert.ok(!wiringSrc.includes('Settle in Full'), 'settle badge text must be gone');

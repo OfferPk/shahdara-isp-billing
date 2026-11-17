@@ -387,7 +387,9 @@ test('Plan 385: the preview element sits on the entry form after the next-receip
 test('Plan 385: the preview has its own styles and no colour of its own', () => {
   assert.ok(stylesSrc.includes('.psp-preview {'));
   assert.ok(stylesSrc.includes('.psp-preview ul {'));
-  assert.ok(stylesSrc.includes('padding-left: 16px;'));
+  // Sharafat 95: the preview list's indent is a logical padding now
+  // (padding-inline-start) so it indents from the start edge in Urdu mode.
+  assert.ok(stylesSrc.includes('padding-inline-start: 16px;'));
 });
 
 // ---- Guards ----

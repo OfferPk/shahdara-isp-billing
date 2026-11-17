@@ -86,7 +86,9 @@ test('floating scroll-top button keeps clearance above the mobile bottom nav', (
   const css = read('nav.css');
   const mobile = css.slice(css.indexOf('.scroll-top-button {\n    bottom:'));
   assert.match(mobile, /bottom: 60px/);
-  assert.match(mobile, /right: 12px/);
+  // Sharafat 95: the phone scroll-top offset is logical now
+  // (inset-inline-end: 12px) so it mirrors in Urdu mode.
+  assert.match(mobile, /inset-inline-end: 12px/);
 });
 
 // Behaviour is untouched: same button, same id, same edit flow, and the

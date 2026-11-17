@@ -139,7 +139,9 @@ test('roll-forward table: short headers, status pills, scoped nowrap + sticky fi
   const tableCss = css.slice(css.indexOf('.roll-forward-table'));
   assert.match(tableCss, /\.roll-forward-table th, \.roll-forward-table td \{[^}]*white-space: nowrap/);
   assert.match(tableCss, /\.roll-forward-table th, \.roll-forward-table td \{[^}]*overflow-wrap: normal/);
-  assert.match(tableCss, /\.roll-forward-table thead th:first-child,\s*\.roll-forward-table tbody td:first-child \{[^}]*position: sticky;[^}]*left: 0/);
+  // Sharafat 95: the roll-forward sticky column is logical now
+  // (inset-inline-start: 0) so it sticks to the start edge in Urdu mode.
+  assert.match(tableCss, /\.roll-forward-table thead th:first-child,\s*\.roll-forward-table tbody td:first-child \{[^}]*position: sticky;[^}]*inset-inline-start: 0/);
 });
 
 test('equation grid: reconciling totals show all six figures with ✓', () => {

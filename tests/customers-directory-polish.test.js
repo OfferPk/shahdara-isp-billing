@@ -141,7 +141,9 @@ test('filters: the (i) lives in the FILTERS & SORT header row', () => {
   assert.ok(head.includes('class="help-tip filter-help"'), 'the (i) details must be in the header row');
   assert.ok(head.indexOf('cust_filters_sort_heading') < head.indexOf('filter-help'), 'title left, (i) right');
   const help = ruleBlock(css, '.customer-filter-head .filter-help {');
-  assert.ok(help.includes('margin-left: auto'), '(i) must sit at the right edge of the header row');
+  // Sharafat 95: the (i) spacer is a logical margin now (margin-inline-start:
+  // auto) so it still sits at the row's end in Urdu mode.
+  assert.ok(help.includes('margin-inline-start: auto'), '(i) must sit at the right edge of the header row');
 });
 
 test('filters: Cards|Table is the DS-0 segmented control with SVG icons', () => {

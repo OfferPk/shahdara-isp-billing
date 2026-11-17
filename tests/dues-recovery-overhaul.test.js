@@ -265,7 +265,10 @@ test('overhaul fleet: the LOWEST UPTIME list hides when every subscriber is at 1
 
 test('overhaul FAB clearance: the recovery panel clears the floating button at mobile widths', () => {
   assert.ok(styles.includes('#duesRecoveryPanel{padding-bottom:126px}'), 'the panel gets bottom clearance for the floating button');
-  assert.ok(styles.includes('.recovery-amount{margin-right:48px}'), 'the right-hand amount keeps a safe margin from the floating button');
+  // Sharafat 95: the amount's safe margin is logical now
+  // (margin-inline-end:48px) so it stays clear of the floating button
+  // in Urdu mode too (the button mirrors to the left).
+  assert.ok(styles.includes('.recovery-amount{margin-inline-end:48px}'), 'the right-hand amount keeps a safe margin from the floating button');
   assert.ok(styles.includes('.recovery-filter-row{position:sticky'), 'the filter row sticks while scrolling');
   assert.ok(styles.includes('.recovery-whatsapp-row select'), 'the WhatsApp row carries the template selector');
   assert.ok(styles.includes('.recovery-whatsapp{flex:1 1 50%'), 'the Send WhatsApp button takes half the WhatsApp row');

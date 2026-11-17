@@ -82,7 +82,9 @@ test('live bugs: QA favourite star sits 6px in at 14px, icon tile is 30px', () =
   const css = read('styles.css');
   const star = ruleBody(css, /\.qa-fav-toggle \{([^}]*)\}/);
   assert.match(star, /top:\s*6px/, 'star top is 6px');
-  assert.match(star, /right:\s*6px/, 'star right is 6px');
+  // Sharafat 95: the star's inset is logical now (inset-inline-end: 6px)
+  // so it stays 6px in from the row's end edge in Urdu mode.
+  assert.match(star, /inset-inline-end:\s*6px/, 'star inline-end is 6px');
   assert.match(star, /font-size:\s*14px/, 'star glyph is 14px');
   // Two-class selector on purpose: the QA icon span carries BOTH
   // .ds-icon-tile and .qa-tool-icon, and components.css (36px) loads

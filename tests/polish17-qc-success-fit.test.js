@@ -198,7 +198,9 @@ test('fit budget: the compact header, banner, callout, card and action values th
   // Callout — the Urdu package note in its own box below the banner.
   const callout = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-callout {');
   assert.ok(callout.includes('background: var(--ds-nested)'), 'callout must use the nested background');
-  assert.ok(callout.includes('border-right: 3px solid var(--ds-brand)'), 'callout must carry the brand right border');
+  // Sharafat 95: the callout accent is a logical border now
+  // (border-inline-end) so it stays on the card's end edge in Urdu mode.
+  assert.ok(callout.includes('border-inline-end: 3px solid var(--ds-brand)'), 'callout must carry the brand end border');
   assert.ok(callout.includes('padding: 10px 14px'), 'callout padding must be 10px 14px');
   assert.ok(callout.includes('direction: rtl'), 'callout must be RTL');
 

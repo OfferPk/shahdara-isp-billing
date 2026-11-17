@@ -1684,7 +1684,7 @@ body.field-mode-open { overflow: hidden; }
 /* SISP-156: channel-reassign action + lock note on payment rows and the
    reassign dialog bits. Token-only, both themes (the button mirrors the
    .void-payment row-action pattern; the dialog rides .billing-modal). */
-.reassign-channel { border: 1px solid var(--line); background: var(--color-neutral-0); color: var(--color-overdue); border-radius: 7px; padding: 7px 10px; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.reassign-channel { border: 1px solid var(--line); background: var(--color-neutral-0); color: var(--color-overdue); border-radius: 7px; padding: 7px 10px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .reassign-channel:hover { text-decoration: underline; }
 .channel-lock-note { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
 .payment-reassign-body { display: grid; gap: 8px; min-width: 0; }
@@ -1718,7 +1718,7 @@ body.field-mode-open { overflow: hidden; }
 .same-name-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-pending-bg); color: var(--color-pending); border: 1px solid var(--color-pending); white-space: nowrap; }
 .prepay-section { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); padding: 12px; margin-top: 12px; display: grid; gap: 8px; }
 .prepay-section legend { font-weight: 700; padding: 0 6px; }
-.void-payment { border: 1px solid var(--line); background: var(--color-neutral-0); color: var(--color-overdue); border-radius: 7px; padding: 7px 10px; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.void-payment { border: 1px solid var(--line); background: var(--color-neutral-0); color: var(--color-overdue); border-radius: 7px; padding: 7px 10px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .void-payment:hover { text-decoration: underline; }
 /* Sharafat 63: the void dialog's undo preview list (what voiding this
    payment will restore / reopen). Token-only, same muted pair as the
@@ -2064,9 +2064,9 @@ body.field-mode-open { overflow: hidden; }
 .register-customer { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 /* SISP-194: 💎 Advance Adjusted badge on register rows whose bill was
    settled (partly or wholly) by advance credit. Tokens only. */
-.register-advance-badge { display: inline-block; margin-left: 6px; border-radius: 999px; padding: 2px 8px; font-size: 9px; font-weight: 700; background: var(--color-paid-bg); color: var(--color-paid); white-space: nowrap; vertical-align: middle; }
-.register-reference { font-size: 10px; font-weight: 700; letter-spacing: .2px; color: var(--green); }
-.register-customer-sub { font-size: 10px; color: var(--muted); overflow-wrap: anywhere; }
+.register-advance-badge { display: inline-block; margin-left: 6px; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; background: var(--color-paid-bg); color: var(--color-paid); white-space: nowrap; vertical-align: middle; }
+.register-reference { font-size: 11px; font-weight: 700; letter-spacing: .2px; color: var(--green); }
+.register-customer-sub { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
 @media (max-width: 700px) {
   .register-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; }
   .register-customer { grid-column: 1 / -1; }
@@ -2241,7 +2241,7 @@ body.field-mode-open { overflow: hidden; }
   font: inherit;
 }
 .morning-pill-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--muted);
@@ -2302,7 +2302,7 @@ body.field-mode-open { overflow: hidden; }
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--muted);
   flex: 0 0 auto;
@@ -2331,7 +2331,7 @@ body.field-mode-open { overflow: hidden; }
 }
 .uptime-stat > span {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .4px;
   text-transform: uppercase;
@@ -2415,7 +2415,7 @@ body.field-mode-open { overflow: hidden; }
   color: var(--ink);
 }
 .uptime-period-head span {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -3938,7 +3938,7 @@ button:not([hidden]).help-info-btn {
 .bills-actions-row .secondary-button { width: 100%; min-width: 0; }
 .bills-actions-row-compact .secondary-button { font-size: 11px; padding-left: 6px; padding-right: 6px; }
 .report-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.report-tag { display: inline-block; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; font-size: 9px; line-height: 1.35; color: var(--muted); white-space: nowrap; }
+.report-tag { display: inline-block; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; font-size: 11px; line-height: 1.35; color: var(--muted); white-space: nowrap; }
 .report-row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .calculation-rules { margin: 8px 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); }
 .calculation-rules summary { cursor: pointer; padding: 9px 12px; font-size: 12px; font-weight: 700; color: var(--ink); list-style: none; min-height: 44px; display: flex; align-items: center; }
@@ -3966,7 +3966,7 @@ button:not([hidden]).help-info-btn {
 .mohalla-card-status { font-size: 11px; color: var(--muted); }
 .mohalla-card-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .mohalla-card-metrics > span { display: flex; flex-direction: column; min-width: 0; }
-.mohalla-metric-label { font-size: 9px; color: var(--muted); }
+.mohalla-metric-label { font-size: 11px; color: var(--muted); }
 .mohalla-card-metrics strong { font-size: 12px; overflow-wrap: anywhere; }
 .mohalla-card-rate { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
 .mohalla-rate-bar { flex: 1; height: 8px; border-radius: 999px; background: var(--surface-soft); overflow: hidden; min-width: 0; }

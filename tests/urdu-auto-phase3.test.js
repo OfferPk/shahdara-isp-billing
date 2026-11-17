@@ -1,6 +1,6 @@
 // Urdu auto-translation phase 3: Profile screen via t() + real renderers.
 // (a) Every prof_ dictionary key exists in BOTH en and ur, and every ur
-// value contains Urdu script except three documented template fragments
+// value contains Urdu script except the documented template fragments
 // whose translatable words live in neighbouring keys.
 // (b) The REAL profile renderers (profile-labels.js, profile-ui.js,
 // relocation-log.js — the pure functions whose output app.js renders
@@ -39,6 +39,14 @@ const FRAGMENT_EXEMPTIONS = {
   prof_prorata_badge: 'amount/direction template — the Urdu comes from prof_prorata_up/down/lateral',
   // Plan 509 — prof_pkghist_prorata_adj is gone with the static
   // package-history section; it was the third exemption here.
+  // Sharafat 100 (D4/D6) — the count lives in its own .profile-tab-count
+  // span OUTSIDE the label ellipsis, so these keys are pure '({count})'
+  // format fragments in both languages; the Urdu words live in the
+  // neighbouring label keys prof_tab_complaints / prof_tab_baqaya.
+  // tests/sharafat-100-profile-tab-fit.test.js pins the exact '({count})'
+  // value in both languages, so no English word can sneak in under this.
+  prof_tab_complaints_count: 'count-only fragment — label text lives in prof_tab_complaints',
+  prof_tab_baqaya_count: 'count-only fragment — label text lives in prof_tab_baqaya',
 };
 
 test('phase 3 dictionary: every prof_ key exists in en and ur, ur values carry Urdu script', () => {

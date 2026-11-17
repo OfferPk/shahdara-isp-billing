@@ -107,7 +107,10 @@ test('acceptance: every half control fills Rs 1,500 on the same fixture', () => 
     click.includes('addPaymentDuesFigures({ fullDues: activeDefaults.suggestedAmount })'),
     'entry chip must fill from the shared figures on suggestedAmount',
   );
-  assert.ok(click.includes('if (chipFigures.half !== null) amountInput.value = chipFigures.half.toFixed(2);'));
+  // Quick Collect polish (2026-11-17, D5): the chip fills are
+  // whole-number now (was .toFixed(2)) — the field reads '1000'
+  // whether the amount came from the prefill or a tap.
+  assert.ok(click.includes('if (chipFigures.half !== null) amountInput.value = wholeNumberAmountText(chipFigures.half);'));
   assert.ok(!click.includes('(half > 0 ? half : 500)'), 'the invented Rs 500 fallback must be gone');
 });
 
@@ -121,7 +124,9 @@ test('acceptance: tapping Full fills total dues, the same figure as the prefill 
     'the Plan 489 Full dues button fills the full dues',
   );
   const click = chipClickBlock();
-  assert.ok(click.includes('if (chipFigures.full !== null) amountInput.value = chipFigures.full.toFixed(2);'));
+  // Quick Collect polish (2026-11-17, D5): whole-number fill (was
+  // .toFixed(2)) — see the Half test above.
+  assert.ok(click.includes('if (chipFigures.full !== null) amountInput.value = wholeNumberAmountText(chipFigures.full);'));
 });
 
 test('acceptance: a zero-dues customer gets no fill from any half control (never Rs 500)', () => {
@@ -137,8 +142,10 @@ test('acceptance: a zero-dues customer gets no fill from any half control (never
   // nothing — its Full and 50% fills are guarded, and no Rs 500
   // fallback survives anywhere in the wiring file.
   const click = chipClickBlock();
-  assert.ok(click.includes('if (chipFigures.full !== null) amountInput.value = chipFigures.full.toFixed(2);'));
-  assert.ok(click.includes('if (chipFigures.half !== null) amountInput.value = chipFigures.half.toFixed(2);'));
+  // Quick Collect polish (2026-11-17, D5): whole-number fills (was
+  // .toFixed(2)) — see the Half test above.
+  assert.ok(click.includes('if (chipFigures.full !== null) amountInput.value = wholeNumberAmountText(chipFigures.full);'));
+  assert.ok(click.includes('if (chipFigures.half !== null) amountInput.value = wholeNumberAmountText(chipFigures.half);'));
   assert.ok(!wiringSrc.includes('(half > 0 ? half : 500)'), 'no Rs 500 fallback anywhere in the wiring');
 });
 
@@ -164,7 +171,9 @@ test('wiring: the Monthly chip is dropped — the Package chip takes its seat', 
   assert.ok(!refresh.includes('Monthly (Rs'), 'no Monthly label may remain in the refresh');
   assert.ok(refresh.includes('packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES)'), 'Package fills from the customer package price');
   const click = chipClickBlock();
-  assert.ok(click.includes("amountInput.value = packagePrice.toFixed(2);"), 'the Package chip fills the package price');
+  // Quick Collect polish (2026-11-17, D5): whole-number fill (was
+  // .toFixed(2)) — see the Half test above.
+  assert.ok(click.includes("amountInput.value = wholeNumberAmountText(packagePrice);"), 'the Package chip fills the package price');
   assert.ok(!click.includes('baseBalance'), 'no Monthly base balance may remain in the click handler');
 });
 

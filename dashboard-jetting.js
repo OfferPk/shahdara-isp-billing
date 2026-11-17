@@ -786,7 +786,7 @@ export function setupDuctJettingModal(state, options = {}) {
             <td>${item.clearance.fillRatioPct}% (${r.ductInnerDiaMm}mm)</td>
             <td>${item.dynamics.maxJettingDistanceM}m (${item.effectivePressure} bar)</td>
             <td>
-              <span class="sim-delta-badge ${item.badgeClass}" style="padding: 2px 6px; font-size: 10px;">
+              <span class="sim-delta-badge ${item.badgeClass}" style="padding: 2px 6px; font-size: 11px;">
                 ${item.statusTier}
               </span>
             </td>

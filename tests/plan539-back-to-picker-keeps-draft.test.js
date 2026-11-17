@@ -186,7 +186,9 @@ function assertEntriesIntact(h, { yesterday, prevMonth }) {
 /** Assert the form holds its fresh-open defaults for the given customer. */
 function assertFreshDefaults(h, month) {
   const today = getPakistanLocalDate(new Date());
-  assert.equal(h.getEl('quickCollectAmountInput').value, '1000.00', 'amount back at the full dues');
+  // Quick Collect polish (2026-11-17, D5): the amount prefills as a
+  // whole number now ('1000', was '1000.00').
+  assert.equal(h.getEl('quickCollectAmountInput').value, '1000', 'amount back at the full dues');
   assert.equal(h.getEl('quickCollectMethodSelect').value, '', 'no method remembered (no past payment)');
   assert.equal(h.getEl('quickCollectDateInput').value, today, 'date back at today');
   assert.equal(h.getEl('quickCollectTransactionIdInput').value, '', 'no TID carried over');
@@ -199,7 +201,8 @@ test('plan 539 acceptance (REPRO): Back then re-pick the same customer restores 
   const h = plan539Controller(plan539State(now, month));
   try {
     h.controller.open('seed-001');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '1000.00', 'precondition: amount starts at the full dues');
+    // Quick Collect polish (2026-11-17, D5): whole-number prefill.
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1000', 'precondition: amount starts at the full dues');
 
     const typed = typeAcceptanceEntries(h, month);
     await h.getEl('quickCollectBackToPickBtn').click();
@@ -269,6 +272,9 @@ test('plan 539: saving clears the draft, so Collect again opens a fresh form', a
     await h.getEl('quickCollectBackToPickBtn').click();
 
     // Re-pick: the draft comes back, proving it was kept.
+    // (The Back-to-picker draft restores the typed string verbatim —
+    // a typed '1000.00' comes back as '1000.00', not re-prefilled.
+    // Only a fresh prefill is whole-number; see D5.)
     h.controller.selectAndOpen('seed-001');
     assert.equal(h.getEl('quickCollectAmountInput').value, '1000.00', 'draft restored before the save');
     assert.equal(h.getEl('quickCollectTransactionIdInput').value, 'TID-539-SAVE-001', 'TID restored before the save');
@@ -332,7 +338,7 @@ test('plan 539 + polish #13: a draft-restored typed amount survives a package-ch
     h.controller.selectAndOpen('seed-001');
     assert.equal(h.getEl('quickCollectAmountInput').value, '1000.00', 'precondition: draft restored the 1,000');
     h.controller.selectAndOpen('seed-001', packageChangeAmountOptions('1000.00', 1000, 900));
-    assert.equal(h.getEl('quickCollectAmountInput').value, '900.00', 'untouched amount follows the repriced bill');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '900', 'untouched amount follows the repriced bill');
   } finally {
     h.restore();
   }

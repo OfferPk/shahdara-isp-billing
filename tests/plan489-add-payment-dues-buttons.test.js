@@ -26,6 +26,29 @@ const testSrc = readFileSync(new URL(import.meta.url), 'utf8');
 const NOV_6 = new Date(2026, 10, 6, 12);
 const SEP_5 = new Date(2026, 8, 5, 12);
 
+// Quick Collect polish (2026-11-17, D10): the loose-change host div
+// is nested inside the merged row (after Half), so the old
+// first-</div> slice truncates the row at the host's close and reads
+// only Full + Half. The row is read with a balanced scan instead —
+// the block from the row's opening <div> to its matching </div>.
+function quickAmountRow() {
+  const at = pageSrc.indexOf('qc-quick-amount-chips');
+  assert.ok(at > -1, 'the merged chip row must exist');
+  const open = pageSrc.lastIndexOf('<div', at);
+  let depth = 0;
+  let i = open;
+  while (i < pageSrc.length) {
+    if (pageSrc.startsWith('<div', i)) { depth++; i += 4; continue; }
+    if (pageSrc.startsWith('</div>', i)) {
+      depth--;
+      if (depth === 0) return pageSrc.slice(open, i + 6);
+      i += 6; continue;
+    }
+    i++;
+  }
+  throw new Error('unclosed .qc-quick-amount-chips row');
+}
+
 // Three open bills at PKR 3,000 each: total dues PKR 9,000, and the
 // customer is on the PKR 3,000 monthly selling amount.
 function stateWithBills(referenceDate) {
@@ -66,9 +89,7 @@ test('acceptance: the fixture fills full dues and half dues from the customer re
   // the Full/Half dues buttons ARE the static entry chips (the
   // script-rendered .apd-row is deleted). The chips carry
   // data-quick-amount="full|half" and fill from these same figures.
-  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
-  assert.ok(rowAt > 0, 'the merged chip row must exist');
-  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  const row = quickAmountRow();
   assert.ok(row.includes('data-quick-amount="full"'), 'the Full dues chip must exist');
   assert.ok(row.includes('data-quick-amount="half"'), 'the Half dues chip must exist');
   assert.ok(row.indexOf('data-quick-amount="full"') < row.indexOf('data-quick-amount="half"'), 'Full must come before Half');
@@ -150,10 +171,10 @@ test('html: the merged chip row carries Full dues, Half dues and Package in orde
   // the script-rendered .apd-row it built — the dues buttons ARE the
   // static entry chips now. The row carries the three figured chips
   // in order (Full dues, Half dues, Package — addendum A2 brings
-  // Package back), then the fixed notes.
-  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
-  assert.ok(rowAt > 0, 'the merged chip row must exist');
-  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  // Package back), then the fixed notes. Quick Collect polish (D10):
+  // the loose host sits between Half and Package, so the row is read
+  // with the balanced scan — the chip order is unchanged.
+  const row = quickAmountRow();
   for (const type of ['full', 'half', 'package', '2000', '1000', '500']) {
     assert.ok(row.includes(`data-quick-amount="${type}"`), `the ${type} chip must exist`);
   }
@@ -167,8 +188,8 @@ test('html: a chip with no known figure shows plain words — the figures are ru
   // dues', 'Half dues', 'Package'); the refresh fills the figures
   // ('Full dues (Rs X)') on open. A customer with no dues gets the
   // plain words with a zero figure, never a guessed amount.
-  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
-  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  // (Balanced scan — D10 nests the loose host inside the row.)
+  const row = quickAmountRow();
   assert.ok(row.includes('>Full dues</button>'), 'the Full chip starts as plain words');
   assert.ok(row.includes('>Half dues</button>'), 'the Half chip starts as plain words');
   assert.ok(row.includes('>Package</button>'), 'the Package chip starts as plain words');
@@ -186,8 +207,9 @@ test('html: the refresh labels use the app min-0 decimals — whole rupees print
 });
 
 test('html: every chip is type button, so tapping one never submits anything', () => {
-  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
-  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  // (Balanced scan — D10 nests the loose host inside the row; the
+  // old first-</div> slice read only Full + Half, 2 buttons.)
+  const row = quickAmountRow();
   assert.equal((row.match(/<button /g) || []).length, 6);
   assert.equal((row.match(/type="button"/g) || []).length, 6);
   assert.ok(!row.includes('<form'));
@@ -200,9 +222,8 @@ test('html: the dues chips ARE the entry-form chips now — one row, one handler
   // QC Modal Overhaul 2: the old split (script-rendered dues row +
   // static chip row, two handlers) is gone — the dues buttons ARE
   // the entry chips, and the single chip handler fills from the
-  // shared figures.
-  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
-  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  // shared figures. (Balanced scan — D10 nests the loose host.)
+  const row = quickAmountRow();
   assert.ok(row.includes('quick-amount-chip'), 'the dues chips must be entry-form chips');
   assert.ok(row.includes('data-quick-amount="full"'), 'Full dues must be a chip');
   assert.ok(row.includes('data-quick-amount="half"'), 'Half dues must be a chip');
@@ -295,9 +316,12 @@ test('wiring: tapping a chip fills only the form amount field', () => {
   const start = wiringSrc.indexOf('// Wire quick amount helper chips');
   assert.notEqual(start, -1);
   const block = wiringSrc.slice(start, start + 3000);
-  assert.match(block, /amountInput\.value = chipFigures\.full\.toFixed\(2\)/);
-  assert.match(block, /amountInput\.value = chipFigures\.half\.toFixed\(2\)/);
-  assert.match(block, /amountInput\.value = packagePrice\.toFixed\(2\)/);
+  // Quick Collect polish (2026-11-17, D5): the chip fills are
+  // whole-number now (was .toFixed(2)) — the field reads '1000'
+  // whether the amount came from the prefill or a tap.
+  assert.match(block, /amountInput\.value = wholeNumberAmountText\(chipFigures\.full\)/);
+  assert.match(block, /amountInput\.value = wholeNumberAmountText\(chipFigures\.half\)/);
+  assert.match(block, /amountInput\.value = wholeNumberAmountText\(packagePrice\)/);
   assert.match(block, /amountInput\.focus\(\)/);
   assert.ok(!block.includes('requestSubmit'), 'a chip tap must never submit');
   assert.ok(!block.includes('submitOneScreenPayment'), 'a chip tap must never save');
@@ -333,9 +357,8 @@ test('styles: the dues buttons reuse the one-screen buttons look — no new styl
 });
 
 test('wiring: the entry form chip row is the merged row — Full, Half, Package, fixed notes', () => {
-  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
-  assert.ok(rowAt > 0, 'the quick-amount row must exist');
-  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  // (Balanced scan — D10 nests the loose host inside the row.)
+  const row = quickAmountRow();
   // QC Modal Overhaul 2: one merged row — Full dues, Half dues,
   // Package (addendum A2) + the fixed notes 2,000 / 1,000 / 500.
   // Current Month and 1,500 are dropped (their figures were a second

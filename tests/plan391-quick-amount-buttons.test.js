@@ -35,6 +35,29 @@ const testSrc = fs.readFileSync(path.join(ROOT, 'plan391-quick-amount-buttons.te
 const NOV_6 = new Date(2026, 10, 6, 12);
 const SEP_5 = new Date(2026, 8, 5, 12);
 
+// Quick Collect polish (2026-11-17, D10): the loose-change host div
+// is nested inside the merged row (after Half), so the old
+// first-</div> slice truncates the row at the host's close and reads
+// only Full + Half. The row is read with a balanced scan instead —
+// the block from the row's opening <div> to its matching </div>.
+function quickAmountRow() {
+  const at = indexSrc.indexOf('qc-quick-amount-chips');
+  assert.ok(at > -1, 'the quick-amount row must exist');
+  const open = indexSrc.lastIndexOf('<div', at);
+  let depth = 0;
+  let i = open;
+  while (i < indexSrc.length) {
+    if (indexSrc.startsWith('<div', i)) { depth++; i += 4; continue; }
+    if (indexSrc.startsWith('</div>', i)) {
+      depth--;
+      if (depth === 0) return indexSrc.slice(open, i + 6);
+      i += 6; continue;
+    }
+    i++;
+  }
+  throw new Error('unclosed .qc-quick-amount-chips row');
+}
+
 // Three open bills at PKR 3,000 each: total dues PKR 9,000, and the
 // customer is on the PKR 3,000 monthly selling amount.
 function stateWithBills(referenceDate) {
@@ -210,14 +233,14 @@ test('Plan 391: acceptance — the package button fills nothing when the price i
 // offers) and 1,500 goes (a redundant numeric). Numerics read
 // descending, 2,000 → 1,000 → 500, as the spec lists them.
 test('Plan 391: the entry form carries full, half, package, 2,000, 1,000, and 500 buttons', () => {
-  const rowAt = indexSrc.indexOf('qc-quick-amount-chips');
-  assert.ok(rowAt > 0, 'the quick-amount row must exist');
-  const row = indexSrc.slice(rowAt, indexSrc.indexOf('</div>', rowAt));
+  const row = quickAmountRow();
   for (const type of ['full', 'half', 'package', '2000', '1000', '500']) {
     assert.ok(row.includes(`data-quick-amount="${type}"`), `missing ${type} button`);
   }
   // The buttons sit in the spec order: full dues, half dues, package
   // price, then the round figures descending — 2,000, 1,000, 500.
+  // (The loose-change host sits between Half and Package — D10 — but
+  // it is a host div, not a chip, so the chip order is unchanged.)
   const order = ['full', 'half', 'package', '2000', '1000', '500'].map((type) => row.indexOf(`data-quick-amount="${type}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'buttons must read full, half, package, 2,000, 1,000, 500');
   // The dropped chips are gone, not hidden: Current Month duplicated
@@ -228,8 +251,7 @@ test('Plan 391: the entry form carries full, half, package, 2,000, 1,000, and 50
 });
 
 test('Plan 391: every quick amount button is a fill-only button, never a submit', () => {
-  const rowAt = indexSrc.indexOf('qc-quick-amount-chips');
-  const row = indexSrc.slice(rowAt, indexSrc.indexOf('</div>', rowAt));
+  const row = quickAmountRow();
   const buttons = row.match(/<button[^>]*class="quick-amount-chip"[^>]*>/g) || [];
   // QC Modal Overhaul 2: the merged row is six chips (was eight
   // across two rows) — Full, Half, Package, 2,000, 1,000, 500.
@@ -241,8 +263,7 @@ test('Plan 391: every quick amount button is a fill-only button, never a submit'
 });
 
 test('Plan 391: the package and 500 buttons reuse the existing chip class — no new style', () => {
-  const rowAt = indexSrc.indexOf('qc-quick-amount-chips');
-  const row = indexSrc.slice(rowAt, indexSrc.indexOf('</div>', rowAt));
+  const row = quickAmountRow();
   assert.ok(row.includes('class="quick-amount-chip" data-quick-amount="package"'));
   assert.ok(row.includes('class="quick-amount-chip" data-quick-amount="500"'));
 });
@@ -273,13 +294,18 @@ test('Plan 391: the chip tap fills the package price, and fills nothing when it 
   const handler = navSrc.slice(navSrc.indexOf('// Wire quick amount helper chips'));
   assert.ok(handler.includes("} else if (type === 'package') {"));
   assert.ok(handler.includes("const packagePrice = packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES);"));
-  assert.ok(handler.includes('if (packagePrice !== null && packagePrice > 0) amountInput.value = packagePrice.toFixed(2);'));
+  // Quick Collect polish (2026-11-17, D5): a chip tap fills the
+  // amount as a whole number now (was .toFixed(2)), so the field
+  // reads '1000' whether the amount came from the prefill or a tap.
+  assert.ok(handler.includes('if (packagePrice !== null && packagePrice > 0) amountInput.value = wholeNumberAmountText(packagePrice);'));
 });
 
 test('Plan 391: the 500 button needs no new branch — the numeric branch already fills it', () => {
   const handler = navSrc.slice(navSrc.indexOf('// Wire quick amount helper chips'));
   assert.ok(handler.includes('const val = Number(type);'));
-  assert.ok(handler.includes('amountInput.value = val.toFixed(2);'));
+  // Quick Collect polish (2026-11-17, D5): whole-number fill (was
+  // .toFixed(2)) — see the Package test above.
+  assert.ok(handler.includes('amountInput.value = wholeNumberAmountText(val);'));
   assert.equal(resolveQuickAmount('500', {}), 500);
 });
 

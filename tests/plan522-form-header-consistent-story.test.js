@@ -176,16 +176,19 @@ test('fixture ticket charge: payable 3,500, dues 3,000, charge 500 — each labe
   assert.equal(defaults.payableTotal, 3500);
   assert.equal(defaults.suggestedAmount, 3500);
 
-  // Header box label: the payable figure says it includes charges.
+  // Header box label: the compact 'Payable' (Quick Collect polish
+  // 2026-11-17, D11) — the old 'Total Payable (incl. charges)' /
+  // 'Total Dues' branch is gone; the footer line below explains the
+  // gap, so the label no longer needs to.
   assert.ok(
-    quickCollectSrc.includes("hasExtras ? 'Total Payable (incl. charges)' : 'Total Dues'"),
-    'header box labels the payable figure as including charges'
+    quickCollectSrc.includes("t('qc_head_payable')"),
+    'header box labels the payable figure as Payable'
   );
-  // The SISP-43 e2e expectation still holds: 'Total Payable' is a
-  // substring of the new label.
-  assert.ok(quickCollectSrc.includes('Total Payable'), "'Total Payable' still appears");
-  // Header breakdown spells out the dues figure beside the charge.
-  assert.ok(quickCollectSrc.includes('Bill dues: PKR'), 'header breakdown labels the bill-dues figure');
+  // Header footer spells out the dues figure beside the charge, via
+  // the keyed bill-dues part (the literal 'Bill dues: PKR' no longer
+  // appears in the wiring — the key carries it in nav-language.js).
+  assert.ok(quickCollectSrc.includes("t('qc_head_bill_dues'"), 'header footer uses the keyed bill-dues part');
+  assert.ok(langSrc.includes("qc_head_bill_dues: 'Bill dues: {amount}'"), 'bill-dues key carries the label');
   assert.ok(quickCollectSrc.includes('Murammat / Material Charge'), 'header breakdown labels the charge line');
 
   // Big-name confirm line: the dues figure, labelled as dues — it
@@ -208,10 +211,16 @@ test('fixture no charges: header and confirm line show the same single figure', 
   assert.equal(defaults.ticketChargesPending, 0);
   assert.equal(defaults.payableTotal, 3000);
   assert.equal(defaults.suggestedAmount, 3000);
-  // Without extras the header box keeps the plain 'Total Dues' label.
+  // Without extras the header box reads the same compact 'Payable'
+  // (Quick Collect polish 2026-11-17, D11) — there is no 'Total Dues'
+  // branch any more; the label is one word in both cases.
   assert.ok(
-    quickCollectSrc.includes("'Total Payable (incl. charges)' : 'Total Dues'"),
-    'no-extras branch still reads Total Dues'
+    quickCollectSrc.includes("t('qc_head_payable')"),
+    'header box reads Payable with no extras too'
+  );
+  assert.ok(
+    !quickCollectSrc.includes("'Total Payable (incl. charges)' : 'Total Dues'"),
+    'the old two-branch label is gone'
   );
   const line = bigNameConfirmLine(state.customers[0], defaults.totalDues + defaults.manualBaqayaPending);
   assert.equal(bigNameConfirmLineText(line), 'Customer One — Mohalla A — Dues PKR 3,000');

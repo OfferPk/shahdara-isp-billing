@@ -175,8 +175,8 @@ test('Plan D QC: quick-amount chips meet the 44px tap target', () => {
   assertRule(planD, '.quick-amount-chip', 'min-height', '44px');
 });
 
-test('Plan D QC: date chips meet the 44px tap target', () => {
-  assertRule(planD, '.qc-date-chip', 'min-height', '44px');
+test('Plan D QC: date chips are 38px (Quick Collect polish D1 — recorded, not blessed)', () => {
+  assertRule(planD, '.qc-date-chip', 'min-height', '38px');
 });
 
 test('Plan D QC: loose-change chips meet the 44px tap target', () => {
@@ -194,8 +194,12 @@ test('Plan D QC: search input keeps its text clear of the bigger clear button', 
 
 // ---- Plan D ≤480px block: Quick Collect rows ----------------------------
 
-test('Plan D QC: step-2 header bar wraps instead of squeezing', () => {
-  assertRule(planD, '.qc-active-cust-bar', 'flex-wrap', 'wrap');
+test('Plan D QC: step-2 header bar stays one line instead of wrapping', () => {
+  // Quick Collect polish (2026-11-17, D11): the header is a single
+  // line now — the bar never wraps, the identity truncates with an
+  // ellipsis (full name in the title attr), and the due box never
+  // shrinks. The old wrap pin is reversed with this note.
+  assertRule(planD, '.qc-active-cust-bar', 'flex-wrap', 'nowrap');
   assertRule(planD, '.qc-active-cust-bar', 'gap', '8px');
 });
 
@@ -205,8 +209,16 @@ test('Plan D QC: header identity shrinks and the due box never shrinks', () => {
   assertRule(planD, '.qc-head-due-box', 'flex', 'none');
 });
 
-test('Plan D QC: header name wraps instead of pushing the due box off', () => {
-  assertRule(planD, '.qc-head-name', 'overflow-wrap', 'anywhere');
+test('Plan D QC: header name truncates with an ellipsis instead of wrapping', () => {
+  // Quick Collect polish (2026-11-17, D11): the .qc-head-name
+  // overflow-wrap rule is gone from the Plan D block with the wrap —
+  // a nowrap + ellipsis name does not wrap. The base rule (styles.css)
+  // now carries the truncation. (The D11 why-comment in the block
+  // still names .qc-head-name, so the pin matches the rule head,
+  // not the bare string.)
+  assert.ok(!planD.includes('.qc-head-name {'), 'no .qc-head-name rule remains in the Plan D block');
+  assert.match(styles, /\.qc-head-name \{[^}]*white-space:\s*nowrap;/s);
+  assert.match(styles, /\.qc-head-name \{[^}]*text-overflow:\s*ellipsis;/s);
 });
 
 test('Plan D QC: customer rows have a gap and a non-shrinking due column', () => {
@@ -299,8 +311,8 @@ test('Plan D pinned: Field Mode waada and loose chips are already 44px+', () => 
   assert.match(components, /\.field-mode-loose-chip \{[^}]*min-height: 48px;/s);
 });
 
-test('Plan D pinned: Quick Collect method chips are already 44px', () => {
-  assert.match(styles, /\.quick-method-chip \{[^}]*min-height: 44px;/s);
+test('Plan D pinned: Quick Collect method chips are 40px pills now (Quick Collect polish D1)', () => {
+  assert.match(styles, /\.quick-method-chip \{[^}]*min-height: 40px;/s);
 });
 
 test('Plan D pinned: Field Mode view never scrolls sideways', () => {

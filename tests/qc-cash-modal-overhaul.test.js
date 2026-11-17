@@ -178,15 +178,17 @@ test('search placeholder is shortened, in the markup and in the i18n key', () =>
   assert.equal(en.qc_search_placeholder, '🔍 Search #ID, name, or phone', 'the EN key must match the shortened placeholder');
 });
 
-test('filter pills: four pills at 12.5px, Emerald active, short High label', () => {
+test('filter pills: four pills at 0.78rem, Emerald active, short High label', () => {
   // QC True 1-Row Tightening (item A): the 4th pill 'Paid' joins
-  // the chips (the deleted Bill-status dropdown's paid pool), so
-  // the pills no longer fit one row at 360px — they wrap to two
-  // rows (+50px, disclosed in the PR body). The chip rule itself
-  // is unchanged: 12.5px, 6px 10px, 44px tap target, nowrap.
+  // the chips (the deleted Bill-status dropdown's paid pool).
+  // Quick Collect polish (2026-11-17, D4): the pills fit one row at
+  // 360px now (row 96px → 46px) — the ≤620px rule is nowrap +
+  // overflow-x:auto, and the chip is 0.78rem / 5px 10px (was 12.5px /
+  // 6px 10px; 0.78rem is 12.48px, the same size in rem). The 44px
+  // tap target and the nowrap label are unchanged.
   const chip = ruleBlock(stylesSrc, '.quick-collect-filter-chip {');
-  assert.ok(chip.includes('font-size: 12.5px'), 'pills must be 12.5px');
-  assert.ok(chip.includes('padding: 6px 10px'), 'pills must be 6px 10px');
+  assert.ok(chip.includes('font-size: 0.78rem'), 'pills must be 0.78rem');
+  assert.ok(chip.includes('padding: 5px 10px'), 'pills must be 5px 10px');
   assert.ok(chip.includes('min-height: 44px'), 'pills must keep their 44px tap target');
   assert.ok(chip.includes('white-space: nowrap'), 'pill labels must not wrap mid-label');
   const active = ruleBlock(stylesSrc, '.quick-collect-filter-chip.is-active {');
@@ -374,8 +376,18 @@ test('expanded end-of-day summary is a bordered card with an inline × top-right
   // Sharafat 95: the dismiss offset is logical now (inset-inline-end: 6px)
   // so it stays 6px in from the panel's end edge in Urdu mode.
   assert.ok(close.includes('inset-inline-end: 6px'), 'the close must sit 6px from the panel inline-end');
-  assert.ok(close.includes('width: 32px'), 'the close must be 32x32');
-  assert.ok(close.includes('min-height: 32px !important'), 'the close must beat the global 44px button floor');
+  assert.ok(close.includes('width: 28px'), 'the close must be 28x28');
+  // Quick Collect polish (2026-11-17, spec 1d): the close is 28px
+  // now — and the old 'must beat the floor' assertion was FALSE: a
+  // plain .eds-panel-dismiss rule (0,1,0) loses to the global
+  // button:not([hidden]) floor (0,1,1), so the old 32px rule rendered
+  // 32×44. The 28px is carried by a heavier defeater
+  // (button:not([hidden]).eds-panel-dismiss, 0,2,1) that really does
+  // beat the floor — measured 28×28.
+  assert.ok(close.includes('min-height: 28px !important'), 'the close base rule is 28px');
+  assert.ok(stylesSrc.includes('button:not([hidden]).eds-panel-dismiss {'), 'a heavier defeater carries the 28px');
+  const defeater = stylesSrc.slice(stylesSrc.indexOf('button:not([hidden]).eds-panel-dismiss {'));
+  assert.ok(defeater.slice(0, 200).includes('min-height: 28px !important'), 'the defeater beats the floor at 28px');
   // The rendered button keeps its id (the delegated handler) but is
   // an × now, not a secondary "Close" button.
   const summary = { date: '2026-11-10', count: 1, total: 150000, cashTotal: 150000, cashCount: 1, methods: [{ method: 'Cash', count: 1, total: 150000 }] };

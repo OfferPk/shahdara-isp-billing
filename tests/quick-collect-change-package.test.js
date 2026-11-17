@@ -362,7 +362,8 @@ test('controller (mock DOM): the payment step renders the package row, one tap r
     // shown and every catalogue package is offered.
     assert.ok(packageBox.innerHTML.includes('3Mbps / 100GB'), 'current package label rendered');
     assert.ok(packageBox.innerHTML.includes('5mbps-200gb'), 'catalogue options rendered');
-    assert.equal(getEl('quickCollectAmountInput').value, '1000.00', 'amount starts at the old dues');
+    // Quick Collect polish (2026-11-17, D5): whole-number prefill.
+    assert.equal(getEl('quickCollectAmountInput').value, '1000', 'amount starts at the old dues');
 
     // Pick the 2,000 package -> the apply button arms.
     pkgSelect.value = '5mbps-200gb';
@@ -373,7 +374,7 @@ test('controller (mock DOM): the payment step renders the package row, one tap r
     // still-open form now shows the new dues.
     await pkgApply.click();
     assert.equal(Number(billOf(state, month).dueAmount), 2000, 'bill repriced via the host save');
-    assert.equal(getEl('quickCollectAmountInput').value, '2000.00', 'amount re-rendered at the new dues');
+    assert.equal(getEl('quickCollectAmountInput').value, '2000', 'amount re-rendered at the new dues');
     const done = toasts.find(t => t.msg.includes('5Mbps / 200GB'));
     assert.ok(done, 'success toast names the new package');
     assert.equal(typeof done.opts?.onAction, 'function', 'toast carries the Undo action');
@@ -573,7 +574,8 @@ test('polish #13 (controller): a typed 2,500 survives the package change, and th
   const h = polish13Controller(polish13CurrentBillState(now, month));
   try {
     h.controller.open('seed-001');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '1000.00', 'amount starts at the old dues');
+    // Quick Collect polish (2026-11-17, D5): whole-number prefill.
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1000', 'amount starts at the old dues');
 
     // The operator types 2,500 first — the reported order.
     h.getEl('quickCollectAmountInput').value = '2500';
@@ -604,14 +606,14 @@ test('polish #13 (controller): an untouched field follows the new bill while the
   const h = polish13Controller(polish13OlderDuesState(now, month));
   try {
     h.controller.open('seed-001');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '1500.00', 'amount starts at full dues (older 500 + current 1,000)');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1500', 'amount starts at full dues (older 500 + current 1,000)');
 
     h.pkgSelect.value = '5mbps-500gb';
     await h.pkgSelect.dispatch('change');
     await h.pkgApply.click();
 
     assert.equal(Number(billOf(h.state, month).dueAmount), 2500, 'bill repriced to the new package');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '2500.00', 'untouched field becomes the new package price, not total dues');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '2500', 'untouched field becomes the new package price, not total dues');
     assert.ok(
       h.getEl('quickCollectCustomerHeader').innerHTML.includes('PKR 3,000'),
       'dues header still shows total dues (older 500 + repriced 2,500)'
@@ -650,7 +652,7 @@ test('polish #13 (controller): a billing-paused change leaves the field at the o
   const h = polish13Controller(state);
   try {
     h.controller.open('seed-001');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '500.00', 'amount starts at the old dues');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '500', 'amount starts at the old dues');
 
     h.pkgSelect.value = '5mbps-500gb';
     await h.pkgSelect.dispatch('change');
@@ -658,7 +660,7 @@ test('polish #13 (controller): a billing-paused change leaves the field at the o
 
     assert.equal(billOf(h.state, month), undefined, 'no bill was created while paused');
     assert.equal(h.state.customers[0].packageSpeed, '5Mbps / 500GB', 'the plan change itself is still recorded');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '500.00', 'field stays at the old dues when the bill is skipped');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '500', 'field stays at the old dues when the bill is skipped');
   } finally {
     h.restore();
   }
@@ -678,7 +680,7 @@ test('polish #13 (controller): a downgrade past what was paid empties the field 
   const h = polish13Controller(state);
   try {
     h.controller.open('seed-001');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '500.00', 'amount starts at the remaining 500');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '500', 'amount starts at the remaining 500');
 
     h.pkgSelect.value = '3mbps-100gb';
     await h.pkgSelect.dispatch('change');
@@ -722,18 +724,18 @@ test('polish #13 (controller): Undo restores the old prefill when the field was 
   const h = polish13Controller(polish13OlderDuesState(now, month));
   try {
     h.controller.open('seed-001');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '1500.00', 'amount starts at full dues');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1500', 'amount starts at full dues');
     h.pkgSelect.value = '5mbps-500gb';
     await h.pkgSelect.dispatch('change');
     await h.pkgApply.click();
-    assert.equal(h.getEl('quickCollectAmountInput').value, '2500.00', 'untouched field followed the new bill');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '2500', 'untouched field followed the new bill');
 
     const done = h.toasts.find(t => t.msg.includes('5Mbps / 500GB'));
     assert.ok(done, 'success toast names the new package');
     done.opts.onAction();
 
     assert.equal(Number(billOf(h.state, month).dueAmount), 1000, 'undo restored the old bill');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '1500.00', 'undo restores the old prefill, not the new bill figure');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1500', 'undo restores the old prefill, not the new bill figure');
   } finally {
     h.restore();
   }
@@ -745,7 +747,7 @@ test('polish #13 (controller): a normal customer pick still defaults to full due
   const h = polish13Controller(polish13OlderDuesState(now, month));
   try {
     h.controller.open('seed-001');
-    assert.equal(h.getEl('quickCollectAmountInput').value, '1500.00', 'pick defaults to full dues, older 500 + current 1,000');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1500', 'pick defaults to full dues, older 500 + current 1,000');
     assert.equal(h.getEl('quickCollectPrefillLine').hidden, false, 'prefill line still names the oldest bill on a normal pick');
   } finally {
     h.restore();

@@ -1132,6 +1132,13 @@ body.field-mode-open { overflow: hidden; }
   gap: 6px;
   margin-top: 6px;
 }
+/* Quick Collect polish (2026-11-17, D10): nested inside the merged
+   quick-amounts row, the host needs no top margin — the 6px margin
+   (from its standalone-row days) pushed the loose chip 6px below
+   Full/Half and stretched the row to 100px. */
+.qc-quick-amount-chips > .qc-loose-change-chips {
+  margin-top: 0;
+}
 .qc-loose-change-chips[hidden] { display: none; }
 .loose-change-chip {
   min-height: 44px;
@@ -2656,7 +2663,7 @@ body.field-mode-open { overflow: hidden; }
 }
 .qc-shop-chip {
   flex: 1 1 auto;
-  min-height: 44px;
+  min-height: 40px;
   /* QC Modal Overhaul 2: min-width 0 lives in the base rule (not a
      second scoped rule above it) so a long shop name wraps inside its
      grid column — and so the base-rule scan in
@@ -2673,6 +2680,13 @@ body.field-mode-open { overflow: hidden; }
   font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
+}
+/* Quick Collect polish (2026-11-17, D1 + D14): the shop chips are
+   40px text-only pills now — the heavier selector beats the 44px
+   floor (0,2,1 over 0,1,1), the Sharafat 96 precedent shape.
+   Recorded, not blessed: 40px is below the 44px floor. */
+button:not([hidden]).qc-shop-chip {
+  min-height: 40px !important;
 }
 .qc-shop-chip.is-active {
   background: var(--green);
@@ -3915,13 +3929,20 @@ button:not([hidden]).help-info-btn {
 @media (max-width: 480px) {
   .quick-collect-filter-chip { min-height: 44px; display: inline-flex; align-items: center; }
   .quick-amount-chip { min-height: 44px; display: inline-flex; align-items: center; }
-  .qc-date-chip { min-height: 44px; display: inline-flex; align-items: center; }
+  /* Quick Collect polish (2026-11-17, D1): the date chips are 38px
+     here too (were 44px) — the base rule and the defeater in
+     styles.css carry the same size; recorded, not blessed. */
+  .qc-date-chip { min-height: 38px; display: inline-flex; align-items: center; }
   .loose-change-chip { min-height: 44px; }
   .qc-search-clear { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
   .qc-search-input { padding-right: 56px; }
-  .qc-active-cust-bar { flex-wrap: wrap; gap: 8px; }
+  /* Quick Collect polish (2026-11-17, D11): the Step 2 header is one
+     line now — the bar never wraps, the identity truncates with an
+     ellipsis (full name in the title attr), and the due box never
+     shrinks. The .qc-head-name overflow-wrap rule is gone with the
+     wrap: a nowrap + ellipsis name does not wrap. */
+  .qc-active-cust-bar { flex-wrap: nowrap; gap: 8px; }
   .qc-cust-identity { min-width: 0; flex: 1 1 auto; }
-  .qc-head-name { overflow-wrap: anywhere; }
   .qc-head-due-box { flex: none; }
   .qc-customer-card { gap: 8px; }
   .qc-card-right { flex: none; }

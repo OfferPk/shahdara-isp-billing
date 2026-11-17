@@ -257,7 +257,11 @@ test('wiring: the submit try has a finally that settles the guard', () => {
 test('wiring: the duplicate prompts hold the guard and clear it on answer', () => {
   const tidAt = wiringSrc.indexOf('ask.then(ok => {');
   assert.ok(tidAt > 0, 'duplicate-TID prompt branch found');
-  const tidRegion = wiringSrc.slice(tidAt, tidAt + 900);
+  // Quick Collect polish (2026-11-17, D2): the direct-save button
+  // joins the guard-disable list in this branch, so the resubmit line
+  // sits past the old 900-char window — the window is widened to
+  // 1200, matching the saveGuardHeldForDialog check below it.
+  const tidRegion = wiringSrc.slice(tidAt, tidAt + 1200);
   assert.ok(tidRegion.includes('saveGuardHeldForDialog = false;'));
   assert.ok(tidRegion.includes('doubleTapSaveGuardFinish(saveGuard)'));
   assert.ok(tidRegion.includes("if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();"));

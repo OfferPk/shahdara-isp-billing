@@ -108,7 +108,10 @@ test('header: charge lines and charges divs have no inline style; classes carry 
   assert.ok(navSrc.includes('class="qc-head-charge-line"'), 'charge-line spans keep their class');
   assert.ok(navSrc.includes('class="qc-head-charges"'), 'charges divs keep their class');
   const lineRule = ruleBlock(bulkCss, '.qc-head-charge-line');
-  assert.match(lineRule, /display:\s*block/);
+  // Quick Collect polish (2026-11-17, D11): the footer is ONE line —
+  // bill dues + charges + baqaya joined with ' • ' — so the charge
+  // line is inline now (was display: block, one line per charge).
+  assert.match(lineRule, /display:\s*inline/);
   const boxRule = ruleBlock(bulkCss, '.qc-head-charges');
   assert.match(boxRule, /margin-top:\s*6px/);
   assert.match(boxRule, /font-size:\s*0\.85rem/);

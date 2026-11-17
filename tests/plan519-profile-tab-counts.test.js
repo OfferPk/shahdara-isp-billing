@@ -115,6 +115,11 @@ test('Plan 519: updateProfileTabCounts sets the complaints count and keeps the B
   assert.ok(body.includes("t('prof_tab_complaints_count', null, { count: counts.openComplaints })"), 'complaints count uses its i18n key with the count param');
   assert.ok(body.includes("t('prof_tab_complaints')"), 'zero open complaints falls back to the bare complaints label');
   assert.ok(!body.includes('profileTabInfo'), 'the Info tab carries no count — its completion counter already lives in the panel');
+  // Sharafat 100 (D4/D6): the count lives in its own span, outside the
+  // label's ellipsis — the label span truncates at ≤620px, the count
+  // never shrinks. The count key holds only the "(N)" suffix now.
+  assert.ok(body.includes("$('#profileTabComplaints .profile-tab-count')"), 'complaints count targets its own span, outside the label ellipsis');
+  assert.ok(body.includes('complaintsCount.hidden = counts.openComplaints <= 0'), 'complaints count hides at zero');
 });
 
 test('Plan 519: renderDetail refreshes the tab counts on every profile render', () => {
@@ -159,9 +164,14 @@ test('Plan 519: the count keys exist in both languages with the count param', ()
     assert.ok(lang.includes(`{count}`), 'count keys must carry the {count} param');
   }
   assert.ok(lang.includes("prof_billing_months_count: '{count} months'"), 'EN billing panel months figure');
-  assert.ok(lang.includes("prof_tab_complaints_count: 'Complaints ({count} open)'"), 'EN complaints count label');
+  // Sharafat 100 (D4): the count key holds only the "(N)" suffix now —
+  // "Complaints (2 open)" → "Complaints (2)" — because the count lives
+  // in its own span outside the label's ellipsis (D6); the label word
+  // comes from the label span. The suffix itself is script-neutral, so
+  // the UR value carries no Urdu script — the Urdu lives in the label.
+  assert.ok(lang.includes("prof_tab_complaints_count: '({count})'"), 'EN complaints count label is the short (N) suffix');
   assert.ok(lang.includes("prof_billing_months_count: '{count} ماہ'"), 'UR billing panel months figure carries Urdu script');
-  assert.ok(lang.includes("prof_tab_complaints_count: 'شکایات ({count} کھلی)'"), 'UR complaints count label carries Urdu script');
+  assert.ok(lang.includes("prof_tab_complaints_count: '({count})'"), 'UR complaints count label is the short (N) suffix');
 });
 
 test('Plan 519: the tab mechanism is untouched — map, activation, bindings, keys', () => {

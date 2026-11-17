@@ -137,6 +137,32 @@ export const RECEIPT_URDU_LABELS = {
   'Hardware Charge Still Outstanding': 'بقایا سامان چارج',
   'Item / چیز': 'چیز',
   'Offset Date / تاریخ': 'تاریخ',
+  // Plan 567 (D1 (b)+(c), D4, D7): the tax label and the A4/kist/
+  // settlement/offset static labels the sweep found unmapped. Every
+  // value is the Urdu half of the existing bilingual label (the
+  // map's rule); the two bare-English Service Period labels take the
+  // decided Urdu values (D4). The kist/settlement/offset entries are
+  // inert until Plan 569 wires the script option through (D2) — the
+  // map coverage + test-level proof is this plan's deliverable for
+  // them. The split receipt's 7 labels stay out (D3); the history
+  // heading stays out (D6).
+  'Sales tax / سیلز ٹیکس (19.5%)': 'سیلز ٹیکس',
+  'Payment Method / ذریعہ ادائیگی': 'ذریعہ ادائیگی',
+  'Receipt Status / کیفیت': 'کیفیت',
+  'Verification Code / تصدیقی کوڈ': 'تصدیقی کوڈ',
+  'Balance Due After Payment / باقی واجبات': 'باقی واجبات',
+  'Prepay Coverage': 'پیشگی کوریج',
+  'Down Payment Received / موصولہ پیشگی': 'موصولہ پیشگی',
+  'Net Refund to Customer / قابل واپسی رقم': 'قابل واپسی رقم',
+  'Offset Applied to Bill / بل میں تصفیہ': 'بل میں تصفیہ',
+  'First month included / پہلا مہینہ شامل ہے': 'پہلا مہینہ شامل ہے',
+  'Hamsaya Hissa Taqseem / حصہ تقسیم': 'حصہ تقسیم',
+  'Baqi / باقی رقم': 'باقی رقم',
+  'Service Period Start': 'سروس مدت کا آغاز',
+  'Service Period End': 'سروس مدت کا اختتام',
+  'Total Gross Payable / کل واجب الادا (gross)': 'کل واجب الادا',
+  'Planned Down Payment / منصوبہ شدہ پیشگی': 'منصوبہ شدہ پیشگی',
+  'NON-CASH ADJUSTMENT — no cash received / غیر نقد ایڈجسٹمنٹ — کوئی نقد رقم وصول نہیں ہوئی': 'غیر نقد ایڈجسٹمنٹ — کوئی نقد رقم وصول نہیں ہوئی',
 };
 
 /** Urdu-script form of one generated label, or null when unmapped. */

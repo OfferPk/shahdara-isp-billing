@@ -57,6 +57,30 @@ export function formatReceiptMoney(value) {
   return figure === '—' ? '—' : `PKR ${figure}`;
 }
 
+// Plan 566: the canonical remaining figure, finite-guarded. The three
+// receipt surfaces (success card, WhatsApp draft, PNG slip) used to
+// read `payableRemaining ?? newTotalDues ?? newBalanceDue ?? 0` —
+// but `??` catches missing fields, never non-finite ones: a NaN /
+// Infinity first field rode straight through and poisoned the
+// fallbacks (a NaN payableRemaining hid a finite newTotalDues 500;
+// Infinity printed a "PKR —" row). First FINITE field wins,
+// defaulting to 0 — the spec's guard-to-0. (T3: this claims settled
+// for a hand-built non-finite receipt; the live flow is finite by
+// construction, so the guard only ever fires on hand-built/test
+// receipts.) A null/undefined field is skipped, like `??` skipped
+// it; any other value is read through Number() and kept only when
+// finite, so numeric strings keep the old chain's effective value.
+export function firstFiniteRemainingPayable(receipt) {
+  if (!receipt || typeof receipt !== 'object') return 0;
+  for (const field of ['payableRemaining', 'newTotalDues', 'newBalanceDue']) {
+    const raw = receipt[field];
+    if (raw === null || raw === undefined) continue;
+    const value = Number(raw);
+    if (Number.isFinite(value)) return value;
+  }
+  return 0;
+}
+
 // The six bill-field waivers buildPaymentReceipt nets into
 // balanceDueCents (SISP-30 concession, SISP-40 referral credit,
 // SISP-50 deposit offset, SISP-111 credit transfer, SISP-97

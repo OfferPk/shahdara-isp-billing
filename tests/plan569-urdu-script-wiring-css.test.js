@@ -218,7 +218,10 @@ test('plan569 G2 main print: printPaymentReceipt forwarding is unchanged (D4 con
   assert.ok(appJs.includes("function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, format = isThermal ? 'thermal-80' : 'a4', script = 'roman' } = {})"), 'printPaymentReceipt signature must be unchanged');
   const body = fnBody(appJs, 'printPaymentReceipt');
   assert.ok(body.includes('generatePaymentReceiptHtml(receipt, {'), 'printPaymentReceipt must still call its builder');
-  assert.ok(/\/\/ Plan 168[\s\S]*?\n\s*script\n\s*\}\);/.test(body), 'printPaymentReceipt must still forward script to its builder call');
+  // Plan 571: the builder call now forwards reprintCount after script
+  // (the 571 stamp input), so script is no longer the last property —
+  // the regex pins script still forwarded AND reprintCount after it.
+  assert.ok(/\/\/ Plan 168[\s\S]*?\n\s*script,\n\s*\/\/ Plan 571[\s\S]*?\n\s*reprintCount\n\s*}\);/.test(body), 'printPaymentReceipt must still forward script to its builder call');
 });
 
 /* ---------------- G3 — the UI path under D1(a) ---------------- */

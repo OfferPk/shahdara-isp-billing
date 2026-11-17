@@ -239,7 +239,9 @@ test('rows: short shop label, time-or-mohalla instead of the repeated date', () 
 
 test('(i) circle: the base rule lifts the 44px floor with !important', () => {
   const css = read('components.css');
-  assert.ok(css.includes('min-height: 28px !important;'));
+  // Sharafat 96: the base (i) circle is 40px now (was 28px) — the
+  // !important lift is unchanged, only the size moved.
+  assert.ok(css.includes('min-height: 40px !important;'));
 });
 
 test('wiring: pills, toggle, unified search, and pill sync in app.js', () => {

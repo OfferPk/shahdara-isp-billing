@@ -806,7 +806,9 @@ export function generatePaymentReceiptHtml(receipt, {
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(RECEIPT_URDU_NOTE)}</div>
   ${receiptTermsNoteHtml()}
   ${starThankYouReceiptHtml(receipt)}
+  ${(status === 'PAID' || status === 'PARTIAL') ? '<p class="receipt-reminder">⚠️ Please pay by the 5th of each calendar month to avoid service interruption. Thanks 🥰</p>' : ''}
   <footer class="receipt-terms">
+    <p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n', '<br>')}</p>
     ${footerFor('* شکریہ! Shahdara ISP *')}
   </footer>
 </article>`, script);
@@ -866,6 +868,7 @@ export function generatePaymentReceiptHtml(receipt, {
   </div>
   ${receiptTermsNoteHtml()}
   ${starThankYouReceiptHtml(receipt)}
+  ${(status === 'PAID' || status === 'PARTIAL') ? '<p class="receipt-reminder">⚠️ Please pay by the 5th of each calendar month to avoid service interruption. Thanks 🥰</p>' : ''}
   <footer class="receipt-terms">
     <p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n', '<br>')}</p>
     ${footerFor('*** برائے مہربانی رسید سنبھال کر رکھیں۔ شکریہ! ***')}
@@ -980,7 +983,7 @@ export function generatePaymentReceiptHtml(receipt, {
   </div>
   ${receiptTermsNoteHtml()}
   ${starThankYouReceiptHtml(receipt)}
-  ${status === 'PAID' ? '<p class="receipt-reminder">⚠️ Please pay by the 5th of each calendar month to avoid service interruption. Thanks 🥰</p>' : ''}
+  ${(status === 'PAID' || status === 'PARTIAL') ? '<p class="receipt-reminder">⚠️ Please pay by the 5th of each calendar month to avoid service interruption. Thanks 🥰</p>' : ''}
   <footer class="receipt-terms">
     <h2>Package Terms &amp; Conditions / شرائط پیکیج</h2>
     <p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n', '<br>')}</p>

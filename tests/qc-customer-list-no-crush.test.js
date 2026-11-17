@@ -94,10 +94,13 @@ test('qc action row wraps and action buttons stay on one line', () => {
 
 test('qc list still scrolls at 460px and the base card min-height stays', () => {
   // QC Modal Overhaul 2: the cap rises 380px -> 460px (measured:
-  // 118px plain / 151.5px chips-row cards after the Quick Collect
-  // CSS tightening, 2 full + 85% of a third in a 460px list — the
-  // "2.5–3 cards on screen" target). The list still scrolls; the
-  // fix is the card shrink AND the taller list.
+  // 124.7px settled / 178.3px badged cards at 360px after the
+  // Quick Collect polish — was 118px plain / 151.5px chips-row
+  // after the CSS tightening — 2 full + ~49% of a third in a 460px
+  // list; the "2.5–3 cards on screen" target is not met any more,
+  // recorded not blessed: the Row 2 subtitle + 2-line name cost
+  // height). The list still scrolls; the fix is the card shrink
+  // AND the taller list.
   const list = ruleBlock('.qc-customer-list {');
   assert.ok(list.includes('max-height: 460px'), 'the list must cap at 460px and scroll');
   assert.ok(list.includes('overflow-y: auto'), 'the list must still scroll vertically');
@@ -164,4 +167,42 @@ test('all 100 cards render the tap target before the action row, in DOM order', 
       `${seg.name}: the action row must follow the tap target in DOM order`,
     );
   }
+});
+
+// --- Quick Collect polish (2026-11-17): Row 2 subtitle + DUE pill ---
+
+test('qc Row 2: the subtitle is a full-width second row, never crushed under the figures', () => {
+  // D1/D8 (Row 2): the .qc-cust-meta span moved out of the narrow
+  // .qc-card-left into .qc3-card-main after .qc3-figures, with
+  // flex: 1 1 100% — it gets the full card width, so the subtitle
+  // ("Mohalla • Package") no longer truncates and never sits under
+  // the figures. The render order is name → figures → subtitle.
+  const html = renderQuickCollectCustomerListHtml([{
+    id: 'c-1', customerNumber: 1, name: 'Fixture One', area: 'BARRIAN',
+    phone: '03012345678', totalDues: 1000,
+  }], null);
+  const nameAt = html.indexOf('qc-cust-name');
+  const figuresAt = html.indexOf('qc3-figures');
+  const metaAt = html.indexOf('qc-cust-meta');
+  assert.ok(nameAt > -1 && figuresAt > -1 && metaAt > -1, 'name, figures and subtitle all render');
+  assert.ok(nameAt < figuresAt && figuresAt < metaAt, 'order is name (Row 1), figures (Row 1), subtitle (Row 2)');
+  const rule = ruleBlock('#quickCollectModal .qc3-card-main > .qc-cust-meta {');
+  assert.ok(rule.includes('flex: 1 1 100%'), 'the subtitle spans the full card width');
+});
+
+test('qc DUE pill: the pill stays compact in the figures and never overlaps the subtitle', () => {
+  // D7: the DUE pill stays at the shipped 0.69rem / 1px 6px. It
+  // lives inside the figures on Row 1; the subtitle is on Row 2,
+  // so the two can never overlap — the pill is beside the amount,
+  // the subtitle is below both.
+  const pill = ruleBlock('.qc-due-tag {');
+  assert.ok(pill.includes('font-size: 0.69rem'), 'the DUE pill stays 0.69rem');
+  assert.ok(pill.includes('padding: 1px 6px'), 'the DUE pill stays 1px 6px');
+  const html = renderQuickCollectCustomerListHtml([{
+    id: 'c-1', customerNumber: 1, name: 'Fixture One', area: 'BARRIAN',
+    phone: '03012345678', totalDues: 1000,
+  }], null);
+  assert.ok(html.includes('qc-due-tag'), 'a dues card renders the DUE pill');
+  assert.ok(html.indexOf('qc-due-tag') < html.indexOf('qc-cust-meta'),
+    'the DUE pill comes before the subtitle in DOM order (Row 1, then Row 2)');
 });

@@ -37,11 +37,13 @@ function ruleBlock(css, selectorWithBrace) {
   return css.slice(open + 1, close);
 }
 
-// 1. Header: single row; (i) 32×32 keeping data-help; close 32×32 neutral.
-test('§8.1 header: (i) is 32x32 and keeps data-help; close is 32x32 neutral, not red 48px', () => {
+// 1. Header: single row; (i) 40×40 keeping data-help; close 32×32 neutral.
+test('§8.1 header: (i) is 40x40 and keeps data-help; close is 32x32 neutral, not red 48px', () => {
   const helpBtn = ruleBlock(stylesSrc, '#quickCollectModal .help-info-btn {');
-  assert.ok(helpBtn.includes('width: 32px') && helpBtn.includes('height: 32px'), '(i) must be 32x32');
-  assert.ok(helpBtn.includes('min-height: 32px !important'), '(i) must beat the global 44px min-height rule');
+  // Sharafat 96: the (i) is 40x40 now (was 32x32) — the 40px touch-target
+  // floor for the help affordances. The close stays 32x32 (excluded §C2).
+  assert.ok(helpBtn.includes('width: 40px') && helpBtn.includes('height: 40px'), '(i) must be 40x40');
+  assert.ok(helpBtn.includes('min-height: 40px !important'), '(i) must beat the global 44px min-height rule');
   const closeBtn = ruleBlock(stylesSrc, '#quickCollectModal #closeQuickCollectModalBtn {');
   assert.ok(closeBtn.includes('width: 32px !important') && closeBtn.includes('height: 32px !important'), 'close must be 32x32');
   assert.ok(closeBtn.includes('background: var(--color-neutral-100, #f0f4f2)'), 'close must be neutral, not red');

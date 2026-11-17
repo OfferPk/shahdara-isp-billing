@@ -6,6 +6,16 @@
 // only when owed, and the card ENDS at the action row
 // [Call] | [Collect] | [Full Profile →] (Collect flex:1).
 //
+// ROUND 2 (user request 2026-11-17 — ultra-compact): the Father/ref +
+// mohalla pills become ONE muted text line; the ＋ Additional button
+// becomes a 24px micro-pill on the health row (which moves OUT of the
+// outer <button> into .customer-card-rows, D2a); the Health pill
+// colours by CATEGORY (Risk → amber, Critical → rose, D3a/D4); the
+// action bar tightens to 36px with a "Profile" button (IdCard icon,
+// D6). The health row is the ONE space-between row on the card — a
+// deliberate B2 reversal (parent D2), scoped to the --spread modifier;
+// the base pill rows stay flex-start.
+//
 // REMOVED with the old card: the `Customer N` pill, the wide grey
 // input-box name style, the two stat boxes, the Payment + Health label
 // rows, the open-hint button, and the health-reasons <details> — the
@@ -80,8 +90,11 @@ test('cards: header comes before badge strip before pill rows before actions —
   const actionsAt = card.indexOf('customer-card-actions');
   assert.ok(badgeAt > -1 && stripAt > badgeAt, 'service badge (header) before the badge strip');
   assert.ok(pillRowAt > stripAt, 'pill rows after the badge strip');
+  // Round 2 (D2a): the health pill moved OUT of the outer <button>
+  // into .customer-card-rows — so it now sits AFTER the rows div
+  // opens, before the Outstanding row and the actions.
+  assert.ok(healthAt > rowsAt, 'health pill lives inside the rows div');
   assert.ok(healthAt > pillRowAt, 'health pill after the other pill rows');
-  assert.ok(rowsAt > healthAt, 'Outstanding rows after the health pill');
   assert.ok(actionsAt > rowsAt, 'action row after the rows — the card ends here');
   assert.ok(card.indexOf('customer-card-actions', actionsAt + 1) === -1, 'one action row only');
   // The old card's blocks are all gone — nothing may render after the
@@ -121,21 +134,29 @@ test('cards: header is [#N] badge + Bold Name + status pill + billing pill, badg
   for (const kept of ['cust_card_archived', 'free-connection-badge', 'prepaidUntilBadgeHtml', 'suspensionShieldBadgeHtml', 'loyaltyBadgeHtml', 'sameNameBadgeHtml', 'manualBaqayaCardBadgeMarkup']) {
     assert.ok(card.includes(kept), `number-line badge preserved in the strip: ${kept}`);
   }
-  // The known-as name is a pill in the sub-line row, not an inline line.
-  // The label key is chosen by a ternary (father field vs nickname),
-  // so the card carries the bare key strings, not a t('…') call.
+  // Round 2: the known-as name is a segment of the ONE muted text
+  // line under the header, not a pill. The label key is chosen by a
+  // ternary (father field vs nickname), so the card carries the bare
+  // key strings, not a t('…') call. D9: 'cust_card_father_ref_short'
+  // ('Father / Ref') is DELETED — the line says 'Ref:' now, via the
+  // new 'cust_card_ref_short' key; 'cust_card_alias_short' ('AKA')
+  // is kept for the nickname case.
   assert.ok(card.includes('knownAsNameFor(customer)'), 'known-as name comes from knownAsNameFor');
-  assert.ok(card.includes("'cust_card_father_ref_short'"), 'Father/reference pill label exists');
-  assert.ok(card.includes("'cust_card_alias_short'"), 'alias pill label exists');
-  assert.equal(TRANSLATIONS.en.cust_card_father_ref_short, 'Father / Ref');
+  assert.ok(card.includes("'cust_card_ref_short'"), 'muted line uses the Ref short label');
+  assert.ok(card.includes("'cust_card_alias_short'"), 'muted line uses the alias short label');
+  assert.equal(TRANSLATIONS.en.cust_card_ref_short, 'Ref');
   assert.equal(TRANSLATIONS.en.cust_card_alias_short, 'AKA');
-  assert.match(TRANSLATIONS.ur.cust_card_father_ref_short, /[\u0600-\u06FF]/, 'Urdu Father/Ref label carries Urdu script');
+  assert.equal(TRANSLATIONS.en.cust_card_father_ref_short, undefined, 'Father/Ref key deleted from the English dict (Round 2 D9)');
+  assert.equal(TRANSLATIONS.ur.cust_card_father_ref_short, undefined, 'Father/Ref key deleted from the Urdu dict (Round 2 D9)');
+  assert.match(TRANSLATIONS.ur.cust_card_ref_short, /[\u0600-\u06FF]/, 'Urdu Ref label carries Urdu script');
   assert.match(TRANSLATIONS.ur.cust_card_alias_short, /[\u0600-\u06FF]/, 'Urdu alias label carries Urdu script');
 });
 
-test('cards: pill row is Father/ref + Mohalla · package, mohalla in Title Case', () => {
-  assert.ok(card.includes('customer-card-pill-row'), 'pill-row container exists');
-  assert.ok(card.includes('customer-card-meta-pill'), 'meta-pill class exists');
+test('cards: muted line is Father/ref + Mohalla · package in one line, mohalla in Title Case', () => {
+  // Round 2: the two meta-pills become ONE muted text line
+  // (customer-card-meta-line) — `Charyaa • 3Mbps/100GB • Ref: …`.
+  assert.ok(card.includes('customer-card-meta-line'), 'muted-line class exists');
+  assert.ok(!card.includes('customer-card-meta-pill'), 'meta-pill class is gone from the card');
   assert.ok(card.includes("customer.mohalla || customer.zone"), 'mohalla falls back to zone');
   assert.ok(card.includes('canonicalMohalla(mohallaRaw)?.label'), 'mohalla casing comes from canonicalMohalla().label (Title Case, not the ALL-CAPS recovery labels)');
   assert.ok(card.includes("customer.packageSpeed || t('cust_card_package_not_set')"), 'package fallback stays exactly "Package not set"');
@@ -157,11 +178,14 @@ test('cards: Lifetime + tenure are TWO condensed pills in one row', () => {
   assert.equal(TRANSLATIONS.en.cust_card_recorded_receipts, undefined, 'recorded-receipts key deleted from the English dict');
   assert.equal(TRANSLATIONS.ur.cust_card_recorded_receipts, undefined, 'recorded-receipts key deleted from the Urdu dict');
   assert.ok(card.includes("t('cust_card_tenure_months_short'"), 'tenure months label exists');
-  assert.ok(card.includes("t('cust_card_tenure_since_short'"), 'tenure since label exists');
+  // Round 2 (D9): the tenure is compact "N mos (Mon 'YY)" — the
+  // 'since {date}' key is deleted (its only production user was the
+  // card); the months key stays for the "N mos" half.
+  assert.ok(!card.includes("t('cust_card_tenure_since_short'"), 'tenure since label is gone from the card');
   assert.equal(TRANSLATIONS.en.cust_card_tenure_months_short, '{n} mos');
-  assert.equal(TRANSLATIONS.en.cust_card_tenure_since_short, 'since {date}');
+  assert.equal(TRANSLATIONS.en.cust_card_tenure_since_short, undefined, 'tenure since key deleted from the English dict (Round 2 D9)');
+  assert.equal(TRANSLATIONS.ur.cust_card_tenure_since_short, undefined, 'tenure since key deleted from the Urdu dict (Round 2 D9)');
   assert.match(TRANSLATIONS.ur.cust_card_tenure_months_short, /[\u0600-\u06FF]/, 'Urdu tenure months label carries Urdu script');
-  assert.match(TRANSLATIONS.ur.cust_card_tenure_since_short, /[\u0600-\u06FF]/, 'Urdu tenure since label carries Urdu script');
   // The old stat-box keys are deleted with the boxes.
   assert.equal(TRANSLATIONS.en.cust_card_actually_received_lifetime, undefined, 'lifetime stat-box key deleted from the English dict');
   assert.equal(TRANSLATIONS.ur.cust_card_actually_received_lifetime, undefined, 'lifetime stat-box key deleted from the Urdu dict');
@@ -206,11 +230,15 @@ test('cards: outstanding row is gated on total > 0, with the baqaya breakdown as
 
 test('cards: health is ONE pill, reasons are deleted from the card but live in the profile', () => {
   // D-B2: `Health: NN/100 · Good` — one pill, score band coloured; the
-  // no-score case is a neutral meta-pill, never red.
+  // no-score case is a neutral meta-pill, never red. Round 2 (D3a):
+  // the pill ALSO carries a CATEGORY class (.health-risk /
+  // .health-critical) so the colour follows the word — the band class
+  // stays alongside, additive, helper untouched.
   assert.ok(card.includes('customer-card-health-pill'), 'health pill exists');
   assert.ok(card.includes('healthPillText'), 'health pill text is built once');
   assert.ok(card.includes("t('cust_card_health')"), 'health pill label uses the Health key');
   assert.ok(card.includes('healthBandClass'), 'health pill carries the score-band class');
+  assert.ok(card.includes('healthCatClass'), 'health pill carries the category class (Round 2 D3a)');
   assert.equal(TRANSLATIONS.en.cust_card_row_health, undefined, 'Health score row key deleted from the English dict');
   assert.equal(TRANSLATIONS.ur.cust_card_row_health, undefined, 'Health score row key deleted from the Urdu dict');
   // B2: the reasons <details> is DELETED from the card entirely — the
@@ -244,44 +272,46 @@ test('cards: Additional stays on the card with the same dialog wiring', () => {
   assert.ok(card.includes("t('addpend_edit')"), '✎ edit aria-label preserved');
   assert.ok(card.includes('!archived && customer.isFreeConnection !== true'), 'archived / free connections show no Additional control');
   assert.ok(card.includes('data-unarchive-customer'), 'archived cards still show Unarchive');
-  // Sharafat 28 REVERSAL of spec §5.2/§5.3: Additional used to live ONLY
-  // on the Outstanding row (＋ Additional when bill dues are owed, ✎ next
-  // to the breakdown when baqaya > 0), so a paid-up card had no Additional
-  // control at all — the profile (Manual Baqaya section) was the only way
-  // to add an amount to a paid-up customer. Sharafat 28 overrules that
-  // for paid-up cards: the button now also rides on its own compact row
-  // when the customer is paid up (the comment above additionalButton
-  // always promised this row). The Outstanding-row placement is unchanged,
-  // and the control is still preserved on every card with an outstanding
-  // balance. There is no pinned height budget left to break (the old
-  // ≤330px/≤430px map died with the old card in PR #1406) — the new
-  // measured paid-up height is disclosed in the Sharafat 28 PR body.
-  assert.ok(!card.includes('customer-card-additional-row'), 'no standalone Additional row class — the paid-up row reuses customer-card-row');
-  const outstandingBranch = card.slice(card.indexOf('outstanding.totalCents > 0'));
-  assert.ok(outstandingBranch.includes('${additionalButton}'), 'Additional lives inside the Outstanding-row branch');
-  const paidUpBranch = card.slice(card.indexOf('outstanding.totalCents === 0'));
-  assert.ok(paidUpBranch.includes('${additionalButton}'), 'Additional also lives on the paid-up row when nothing is owed');
-  assert.ok(card.includes('canAddPending && outstanding.totalCents === 0'), 'the paid-up row is gated on canAddPending — FREE/archived cards render no row at all, not an empty row');
-  const actionsAt = card.indexOf('customer-card-actions');
-  assert.ok(card.indexOf('outstanding.totalCents === 0') > -1 && card.indexOf('outstanding.totalCents === 0') < actionsAt, 'the paid-up row sits between the Outstanding row and the actions div');
+  // ROUND 2 REVERSAL (parent D1/D2, user request 2026-11-17): the
+  // button no longer rides the Outstanding row or its own paid-up row
+  // — both branches are deleted. It rides on the HEALTH row (moved
+  // out of the outer <button> into .customer-card-rows, next to the
+  // Health pill) as a 24px micro-pill, for paid-up AND owed cards
+  // alike; the ✎ edit variant moves with it (D5). The dialog wiring
+  // is unchanged, and the control is still preserved on every card
+  // with an outstanding balance. Sharafat 28's paid-up row (its own
+  // compact row when paid up) is deleted by design — the health row
+  // is its replacement.
+  assert.ok(!card.includes('customer-card-additional-row'), 'no standalone Additional row class');
+  assert.ok(!card.includes('canAddPending && outstanding.totalCents === 0'), 'the paid-up row branch is deleted');
+  const healthRowAt = card.indexOf('customer-card-pill-row--spread');
+  assert.ok(healthRowAt > -1, 'health row exists');
+  const healthRow = card.slice(healthRowAt, card.indexOf('customer-card-actions'));
+  assert.ok(healthRow.includes('${additionalButton}'), 'Additional lives on the health row');
+  const outBranch = card.slice(card.indexOf('${outstanding.totalCents > 0 ?'), card.indexOf('customer-card-actions'));
+  assert.ok(!outBranch.includes('${additionalButton}'), 'Additional is gone from the Outstanding row');
   const additionalDef = card.slice(card.indexOf('const additionalButton'));
   assert.ok(additionalDef.includes('data-additional-pending'), 'the Additional button variable carries the dialog wiring');
 });
 
 // ---------- Action row + whole-card tap target ----------
 
-test('cards: action row is [Call] | [Collect flex:1] | [Full Profile], Collect disabled on archived cards', () => {
+test('cards: action row is [Call] | [Collect flex:1] | [Profile], Collect disabled on archived cards', () => {
   assert.ok(card.includes('customer-card-action-call'), 'Call action exists');
   assert.ok(card.includes('customer-card-action-collect'), 'Collect action exists');
-  assert.ok(card.includes('customer-card-action-profile'), 'Full Profile action exists');
+  assert.ok(card.includes('customer-card-action-profile'), 'Profile action exists');
   assert.ok(card.includes("t('qc3_call')"), 'Call label reuses the Quick Collect key');
   assert.ok(card.includes("t('qc3_collect')"), 'Collect label reuses the Quick Collect key');
-  assert.ok(card.includes("t('cust_card_open_profile')"), 'Full Profile label exists');
-  assert.equal(TRANSLATIONS.en.cust_card_open_profile, 'Full Profile');
-  assert.match(TRANSLATIONS.ur.cust_card_open_profile, /[\u0600-\u06FF]/, 'Urdu Full Profile label carries Urdu script');
+  assert.ok(card.includes("t('cust_card_open_profile')"), 'Profile label exists');
+  assert.equal(TRANSLATIONS.en.cust_card_open_profile, 'Profile');
+  assert.match(TRANSLATIONS.ur.cust_card_open_profile, /[\u0600-\u06FF]/, 'Urdu Profile label carries Urdu script');
   assert.ok(card.includes("dsIcon('Phone'"), 'Call icon is the existing Phone icon (zero new icons)');
   assert.ok(card.includes("dsIcon('CreditCard'"), 'Collect icon is the existing CreditCard icon');
-  assert.ok(card.includes("dsIcon('UserPlus'"), 'Full Profile icon is UserPlus (D-B5, zero new icons)');
+  // Round 2 (D6): the Profile icon is the EXISTING IdCard (no new
+  // ds-icons entry, no ds0 pin change) and the label shortens to
+  // 'Profile' — 'Full Profile' was too long for the 36px action bar.
+  assert.ok(card.includes("dsIcon('IdCard'"), 'Profile icon is IdCard');
+  assert.ok(!card.includes("dsIcon('UserPlus'"), 'UserPlus is gone from the card');
   // D-B4: Collect is DISABLED on archived cards — it must not widen the
   // open #1393 record-on-archived trap. The Unarchive button stays
   // after the action row on archived cards only.
@@ -299,7 +329,7 @@ test('cards: whole card is still the tap target to the profile, action buttons s
   assert.equal(cardIds, 2, 'exactly two data-customer-id carriers in the card (whole-card button + rows div)');
   assert.ok(card.includes('data-card-call'), 'Call button carries data-card-call');
   assert.ok(card.includes('data-card-collect'), 'Collect button carries data-card-collect');
-  assert.ok(card.includes('data-card-open-profile'), 'Full Profile button carries data-card-open-profile');
+  assert.ok(card.includes('data-card-open-profile'), 'Profile button carries data-card-open-profile');
   // Bindings (renderCustomers, outside the card slice): every action
   // stops propagation, Collect uses the existing bridge with the
   // selectCustomer fallback (global-search Add Payment pattern), and
@@ -317,7 +347,11 @@ test('cards: compact styles — pill rows flex-start, action row, no deleted rul
   assert.ok(styles.includes('.customer-card-name'), 'bold name rule exists');
   assert.ok(styles.includes('.customer-card-badge-strip'), 'badge-strip rule exists');
   assert.ok(styles.includes('.customer-card-pill-row'), 'pill-row rule exists');
-  assert.ok(styles.includes('.customer-card-meta-pill'), 'meta-pill rule exists');
+  // Round 2 (D7/D8): the meta-pills become ONE muted text line
+  // (.customer-card-meta-line, ellipsis-truncated, 1 line always) —
+  // the .customer-card-meta-pill rule is deleted.
+  assert.ok(styles.includes('.customer-card-meta-line'), 'muted-line rule exists');
+  assert.ok(!styles.includes('.customer-card-meta-pill'), 'meta-pill rule is gone from styles.css');
   assert.ok(styles.includes('.customer-card-lifetime-pill'), 'lifetime-pill rule exists');
   assert.ok(styles.includes('.customer-card-tenure-pill'), 'tenure-pill rule exists');
   assert.ok(styles.includes('.customer-card-health-pill'), 'health-pill rule exists');
@@ -330,13 +364,18 @@ test('cards: compact styles — pill rows flex-start, action row, no deleted rul
   assert.ok(styles.includes('.customer-card-rows'), 'BOTTOM rows container rule exists');
   assert.ok(styles.includes('.customer-card-row'), 'BOTTOM row rule exists');
   // B2: pill rows are flex-start (adjacent), NEVER space-between — a
-  // space-between row leaves a dead middle.
+  // space-between row leaves a dead middle. Round 2 (D2): the health
+  // row is the ONE deliberate exception — a --spread modifier that
+  // space-betweens the Health pill and the ＋ Additional micro-pill.
+  // The BASE rules stay flex-start; only the modifier spreads.
   assert.match(styles, /\.customer-card-row \{[^}]*justify-content: flex-start/, 'rows are flex-start, not space-between');
   assert.match(styles, /\.customer-card-pill-row \{[^}]*justify-content: flex-start/, 'pill rows are flex-start, not space-between');
+  assert.ok(styles.includes('.customer-card-pill-row--spread'), 'health-row spread modifier exists');
+  assert.match(styles, /\.customer-card-pill-row--spread \{[^}]*justify-content: space-between/, 'only the spread modifier space-betweens');
   // §3: Collect is flex:1 so the action row fills exactly.
   assert.match(styles, /\.customer-card-action-collect \{[^}]*flex: 1 1 0/, 'Collect is flex:1 in the action row');
   // Deleted rules are gone.
-  for (const gone of ['.customer-card-stat ', '.customer-card-stats ', '.customer-card-subline', '.customer-card-open-hint', '.customer-name-pill', '.customer-health-reasons', '.customer-health-reason-pill', '.customer-card-health-value']) {
+  for (const gone of ['.customer-card-stat ', '.customer-card-stats ', '.customer-card-subline', '.customer-card-open-hint', '.customer-name-pill', '.customer-health-reasons', '.customer-health-reason-pill', '.customer-card-health-value', '.customer-card-meta-pill']) {
     assert.ok(!styles.includes(gone), `deleted rule is gone from styles.css: ${gone}`);
   }
   assert.ok(!styles.includes('.customer-manual-state'), 'dead manual-state pill rule is gone');
@@ -354,22 +393,21 @@ test('cards: compact styles — pill rows flex-start, action row, no deleted rul
 });
 
 // ---------- Measured heights (Chromium 360/320px, harness run — see PR body) ----------
-// HARNESS NOT RUN in this session: Chromium SIGTRAPs at launch, 4
-// attempts (measure.mjs ×3 with fresh TMPDIRs, minimal launch ×1) —
-// the VM is under memory pressure (~457MB available). The numbers
-// below are CSS ARITHMETIC estimates, NOT harness measurements, and
-// must not be read as pins: common card ≈197px (button 12 + heading
-// 26 + 3 pill rows ×28.5 + 12; rows div 2 + 8 + 36 + 13; li border 2);
-// baqaya ≈245px (+48 Outstanding row with sub-line); archived
-// ≈278px (+28.5 badge strip + 53 Unarchive); long-Urdu-name ≈231px
-// (+34 Outstanding row, name/package truncate instead of wrapping);
-// worst-case 320px ≈231px; no-score ≈197px. Pitch ≈207px (10px list
-// gap) → ≈2.5 cards in a 518px list area, third partial — in line
-// with D-B3's honest ~2.4 + partial. The D-B3 chrome squeeze is NOT
-// applied: the arithmetic puts the common card below its 220px
-// trigger either way. Phone check after deploy; the harness
-// (~/workspace/tmp-prep-customers/harness-baseline/measure.mjs) is
-// ready to re-run when the sandbox allows it.
+// ROUND 2 CORRECTION: the "≈197px" figure this comment used to carry
+// was WRONG — the harness-measured common paid-up card on base was
+// 260.3px (the arithmetic omitted the 52px paid-up ＋ Additional row
+// and used the stale 36px action-button height). Round 2 after-run
+// (measure-after.mjs, post-99 base 18b185dd, Chromium headless shell):
+// 360px — paid-up 195.7, owed 229.7, baqaya 278.0, archived 280.0,
+// long-Urdu 229.7, worst-case 229.7, no-score 195.7, Urdu UI 195.7;
+// 320px — paid-up 195.7, owed 245.8, baqaya 278.0, archived 307.7,
+// long-Urdu 245.8, worst-case 245.8, no-score 211.8, Urdu UI 195.7.
+// Every shape is ≤ its before-height at both widths; 0 errors, 0
+// overflow. Risk (63) pill bg rgb(255,251,235), Critical (50) pill bg
+// rgb(255,235,234) — computed, not source-level. Pitch ≈206px (10px
+// list gap) → ≈2.5 cards in a 518px list area — Round 2 does NOT
+// reach 3 cards/viewport (structural: heading + 3 pill rows +
+// actions). Phone check after deploy.
 test('cards: card ends at the action row — no block may follow it', () => {
   const actionsAt = card.indexOf('customer-card-actions');
   const afterActions = card.slice(actionsAt);

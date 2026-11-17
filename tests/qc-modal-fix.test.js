@@ -179,10 +179,12 @@ test('(6) the action buttons are semantic tonal buttons', () => {
   assert.match(styles, /\.qc3-collect\s*\{[^}]*font-weight:\s*600/, 'Collect weight must be 600');
 });
 
-test('(7) the priority tiers carry a 4px left accent and tier colours', () => {
-  assert.match(styles, /\.qc-customer-card\.qc2-priority--high\s*\{[^}]*border-left:\s*4px solid var\(--qc-high-border\)/, 'High accent must be 4px red');
-  assert.match(styles, /\.qc-customer-card\.qc2-priority--medium\s*\{[^}]*border-left:\s*4px solid var\(--qc-amber-strong-border\)/, 'Medium accent must be 4px amber');
-  assert.match(styles, /\.qc-customer-card\.qc2-priority--low\s*\{[^}]*border-left:\s*4px solid var\(--qc-low-border\)/, 'Low accent must be 4px sky blue');
+test('(7) the priority tiers carry a 4px start accent and tier colours', () => {
+  // Sharafat 95: the tier accents are logical borders now
+  // (border-inline-start) so they stay on the card's start edge in Urdu mode.
+  assert.match(styles, /\.qc-customer-card\.qc2-priority--high\s*\{[^}]*border-inline-start:\s*4px solid var\(--qc-high-border\)/, 'High accent must be 4px red');
+  assert.match(styles, /\.qc-customer-card\.qc2-priority--medium\s*\{[^}]*border-inline-start:\s*4px solid var\(--qc-amber-strong-border\)/, 'Medium accent must be 4px amber');
+  assert.match(styles, /\.qc-customer-card\.qc2-priority--low\s*\{[^}]*border-inline-start:\s*4px solid var\(--qc-low-border\)/, 'Low accent must be 4px sky blue');
   assert.match(styles, /\.qc2-badge--high\s*\{[^}]*color:\s*var\(--ds-danger-strong\)/, 'High badge must be red');
   assert.match(styles, /\.qc2-badge--medium\s*\{[^}]*color:\s*var\(--qc-amber-strong-text\)/, 'Medium badge must be amber');
   assert.match(styles, /\.qc2-badge--low\s*\{[^}]*color:\s*var\(--qc-low-text\)/, 'Low badge must be sky blue');

@@ -369,9 +369,11 @@ test('expanded end-of-day summary is a bordered card with an inline × top-right
   assert.ok(panel.includes('border: 1px solid var(--ds-border)'), 'the panel must be a clean bordered card');
   assert.ok(panel.includes('background: var(--ds-card)'), 'the panel must use the card token');
   const close = ruleBlock(stylesSrc, '.eds-panel-dismiss {');
-  assert.ok(close.includes('position: absolute'), 'the close must sit inline at the top right');
+  assert.ok(close.includes('position: absolute'), 'the close must sit inline at the top inline-end');
   assert.ok(close.includes('top: 6px'), 'the close must sit 6px from the panel top');
-  assert.ok(close.includes('right: 6px'), 'the close must sit 6px from the panel right');
+  // Sharafat 95: the dismiss offset is logical now (inset-inline-end: 6px)
+  // so it stays 6px in from the panel's end edge in Urdu mode.
+  assert.ok(close.includes('inset-inline-end: 6px'), 'the close must sit 6px from the panel inline-end');
   assert.ok(close.includes('width: 32px'), 'the close must be 32x32');
   assert.ok(close.includes('min-height: 32px !important'), 'the close must beat the global 44px button floor');
   // The rendered button keeps its id (the delegated handler) but is

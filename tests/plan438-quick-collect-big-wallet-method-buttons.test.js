@@ -183,21 +183,31 @@ test('wiring: the full list is still populated from every offered method', () =>
   assert.ok(populate.includes('`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`'), 'every offered method is an option');
 });
 
-test('styles: the big buttons are taller and larger than the small chips', () => {
-  const rules = stylesSrc.match(/\.quick-method-chip\.bwb-big\s*\{[^}]*\}/g) || [];
-  assert.equal(rules.length, 1, `expected one big-button rule, found ${rules.length}`);
-  assert.ok(rules[0].includes('min-height: 56px'), 'big buttons 56px tall');
-  assert.ok(rules[0].includes('font-size: 15px'), 'big buttons 15px text');
+test('styles: the big buttons are 40px pills now, same size as the small chips', () => {
+  // Quick Collect polish (2026-11-17, D1): the big three drop from
+  // 56px/15px to 40px/13px, so they match the small chips — recorded,
+  // not blessed. The bwb-big class stays as the isBigMethod marker
+  // (load-bearing: plan438's module + page pins use it). The base rule
+  // is matched anchored at the line start so the defeater
+  // (button:not([hidden]).quick-method-chip.bwb-big) is not counted.
+  const rules = stylesSrc.match(/^\.quick-method-chip\.bwb-big\s*\{[^}]*\}/gm) || [];
+  assert.equal(rules.length, 1, `expected one big-button base rule, found ${rules.length}`);
+  assert.ok(rules[0].includes('min-height: 40px'), 'big buttons 40px tall');
+  assert.ok(rules[0].includes('font-size: 13px'), 'big buttons 13px text');
   assert.ok(rules[0].includes('flex: 1 1 30%'), 'big buttons three across');
 });
 
-test('styles: the Other button is chip-sized, and the base chip rule is untouched', () => {
+test('styles: the Other button is chip-sized, and the base chip rule is 40px now', () => {
+  // Quick Collect polish (2026-11-17, D1): Other and the base chip
+  // drop 44px → 40px (recorded, not blessed). The defeater is written
+  // '.bwb-other:not([hidden])' so the single-rule pin below still
+  // counts exactly one '.bwb-other {' rule.
   const other = stylesSrc.match(/\.bwb-other\s*\{[^}]*\}/g) || [];
   assert.equal(other.length, 1, `expected one Other rule, found ${other.length}`);
-  assert.ok(other[0].includes('min-height: 44px'), 'Other button 44px like a small chip');
+  assert.ok(other[0].includes('min-height: 40px'), 'Other button 40px like a small chip');
   const base = stylesSrc.match(/^\.quick-method-chip\s*\{[^}]*\}/gm) || [];
   assert.equal(base.length, 1, `expected one base chip rule, found ${base.length}`);
-  assert.ok(base[0].includes('min-height: 44px'), 'base chip stays 44px');
+  assert.ok(base[0].includes('min-height: 40px'), 'base chip is 40px now');
   assert.ok(base[0].includes('font: 600 13px'), 'base chip stays 13px');
 });
 

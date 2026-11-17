@@ -44,6 +44,9 @@ import { salesTaxCentsForPrice, salesTaxCentsOfBill, SALES_TAX_RECEIPT_LABEL } f
 import { formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js';
 import { packageSuccessMessage, packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
+// Quick Collect polish (2026-11-17, D6): the known-as name for the
+// Step 2 header — '(Darbar)' beside the customer's name.
+import { knownAsNameFor } from './known-as-name.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
 import { dailyEntrySummary } from './daily-entry-summary.js';
 import { quickCollectRoundTotals, quickCollectRoundTotalsText } from './quick-collect-round-totals.js';
@@ -2152,16 +2155,21 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // on the right.
     // QC Modal Overhaul 2: Collect is plain "Collect" now — the dues
     // badge above it already names the figure, so naming it again
-    // on the button was the second copy. A settled customer keeps
-    // the plain Collect label: "Collect PKR 0" would promise a
-    // collection of nothing.
+    // on the button was the second copy. Quick Collect polish
+    // (2026-11-17, D3): a SETTLED customer gets '➕ Advance' instead —
+    // it opens the form with the Advance tag + target month ticked
+    // (the Advance guard in the submit handler refuses an untagged
+    // save against a paid bill, so a plain Collect would bounce).
+    // Both keep data-qc3-action="collect" — the handler opens the
+    // form either way.
     // QC True 1-Row Tightening (item A): the modal's Location button
     // reads 'Map' (modal-only key qc3_location_short) so the action
     // row fits one line — the shared qc3_location value ('Location')
     // stays for Field Mode, which renders the same key.
     const callHref = c.callHref ?? null;
     const mapsUrl = c.mapsUrl ?? null;
-    const collectLabel = t('qc3_collect');
+    const collectLabel = hasDues ? t('qc3_collect') : t('qc3_collect_advance');
+    const collectClass = hasDues ? 'qc3-collect' : 'qc3-advance';
     const actionsRow = `
       <div class="qc3-card-actions" role="group" aria-label="${escapeHtml(t('qc3_card_actions'))}">
         ${callHref
@@ -2170,7 +2178,7 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
         ${mapsUrl
           ? `<a class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--location" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location_short'))}</a>`
           : `<button type="button" class="qc3-action-btn qc3-action-btn--icon qc3-action-btn--location" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_location'))}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location_short'))}</button>`}
-        <button type="button" class="qc3-action-btn qc3-collect" data-qc3-action="collect" data-customer-id="${escapeHtml(c.id)}">${dsIcon('CreditCard', 18)} ${escapeHtml(collectLabel)}</button>
+        <button type="button" class="qc3-action-btn ${collectClass}" data-qc3-action="collect" data-customer-id="${escapeHtml(c.id)}">${dsIcon('CreditCard', 18)} ${escapeHtml(collectLabel)}</button>
       </div>`;
 
     // QC Cash Modal Overhaul: the card is now a wrapper div so the Call / Location /
@@ -2179,11 +2187,19 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // class, the data-customer-id and the selected / tier classes, so
     // the existing selectors, dark-theme rules and QC-2 accent still
     // apply; the inner main button is the tap-to-collect target.
-    // Row 1 is one line: the identity ([ #N ] name + subtitle) on
-    // the left and the Outstanding figure on the right. Row 2 is the
-    // chips row (.qc-card-chips) — priority badge, High-balance tag
-    // and tier labels at 24px/11px — rendered only when at least one
-    // chip exists.
+    // Row 1 is one line: the identity ([ #N ] name) on the left and
+    // the Outstanding figure on the right. Row 2 is the subtitle
+    // (.qc-cust-meta, "Mohalla • Package Name") at full width — it
+    // used to sit inside the narrow .qc-card-left and truncated on
+    // every dues card; the full-width row fixes the subtitle. Row 3
+    // is the chips row (.qc-card-chips) — priority badge,
+    // High-balance tag and tier labels at 24px/11px — rendered only
+    // when at least one chip exists.
+    // Quick Collect polish (2026-11-17): Row 1/Row 2 does NOT fix
+    // name truncation — the name is still capped by the figures on
+    // Row 1 (SIKANDAR ABBASI needs 135px, gets 107px at 360px), so
+    // long names still ellipsize; only the subtitle is fixed. The
+    // name wraps to 2 lines (D8) to use the Row 1 height better.
     // Quick Collect CSS tightening (user instruction 2026-11-13):
     // this REVERSES three deliberate measured fixes — the badge's
     // top-right seat (QC Modal Fix item 5), the figures' own KPI row
@@ -2210,7 +2226,6 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
             <div class="qc-cust-info">
               <span class="qc-cust-name">${escapeHtml(c.name)}</span>
               ${sameNameBadges?.get(c.id) ?? ''}
-              <span class="qc-cust-meta">${escapeHtml(cardSubtitle)}</span>
             </div>
           </div>
           <div class="qc3-figures">
@@ -2218,6 +2233,7 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
               <span class="qc3-figure-value">${dueLabel}</span>
             </span>
           </div>
+          <span class="qc-cust-meta">${escapeHtml(cardSubtitle)}</span>
           ${chipsHtml}
         </button>
         ${actionsRow}
@@ -2614,12 +2630,12 @@ export function setupQuickCollectModal({
   const bigWalletOtherBtn = document.getElementById('bwbOtherMethodBtn');
   const monthSelect = document.getElementById('quickCollectMonthSelect');
   const paidByInput = document.getElementById('quickCollectPaidByInput');
-  // Plan 379: the collection note fields (null when the host page
-  // predates them) — who collected the payment, where it was taken,
-  // and in which mohalla.
+  // Plan 379: the collection note field (null when the host page
+  // predates it) — who collected the payment. Quick Collect polish
+  // (2026-11-17, D13): the 'Collected at' + 'Collected in mohalla'
+  // fields were removed from this form, so entry-time place/mohalla
+  // recording goes; the profile twin still carries them.
   const collectedByInput = document.getElementById('quickCollectCollectedByInput');
-  const collectionPlaceSelect = document.getElementById('quickCollectCollectionPlaceSelect');
-  const collectionMohallaInput = document.getElementById('quickCollectCollectionMohallaInput');
   // Plan 389: the Urdu-script note field (null when the host page
   // predates it) — one optional note on the transaction, written in
   // Urdu script and shown exactly as written.
@@ -2770,6 +2786,11 @@ export function setupQuickCollectModal({
   // predates it) — disabled while a save is in progress, so a second
   // tap cannot start a second save.
   const quickCollectConfirmBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmBtn') : null;
+  // Quick Collect polish (2026-11-17, D2): the direct-save CTA (null
+  // when the host page predates it) — '✓ Save Payment (PKR {amount})'
+  // for a STANDARD collection only; it posts through the same submit
+  // handler, skipping only the Plan 382 confirm step.
+  const directSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectDirectSaveBtn') : null;
   const confirmBackBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmBackBtn') : null;
   // Plan 432: the cash change calculator (null when the host page
   // predates it) — the box, the cash-received input, and the
@@ -2782,11 +2803,26 @@ export function setupQuickCollectModal({
   // typing, a chip tap, a concession, or a pre-fill — so an extra
   // zero is caught before the receipt is printed. Clearing the field
   // clears the words; the display never changes any amount.
+  // Quick Collect polish (2026-11-17): whole-number amounts print
+  // without decimals ('1500', not '1500.00') — a non-whole amount
+  // keeps its two decimals ('1500.50'). Only the Step 2 amount
+  // prefill uses it; the one-screen and chip-fill sites keep their
+  // own form, and the one-screen totals are a separate surface.
+  function wholeNumberAmountText(value) {
+    const v = Number(value);
+    return Number.isInteger(v) ? String(v) : v.toFixed(2);
+  }
+
   function renderAmountWordsLine() {
     if (!wordsLine) return;
     const text = amountInput ? amountInWordsLineText(amountInput.value) : '';
     wordsLine.textContent = text;
-    wordsLine.hidden = text === '';
+    // Quick Collect polish (2026-11-17, D5): the words line appears
+    // only when the amount carries a non-zero decimal part — a
+    // whole-number amount (1500) needs no words line. The Plan 377
+    // guard (empty or invalid amount) still hides it.
+    const amount = amountInput ? Number(amountInput.value) : NaN;
+    wordsLine.hidden = text === '' || Number.isInteger(amount);
   }
   // Plan 432: the change calculator shows only while a cash-family
   // method is selected — change only exists for cash — and only
@@ -3091,34 +3127,28 @@ export function setupQuickCollectModal({
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
 
   // SISP-116: loose-change chip host (null when the host page predates it).
+  // Quick Collect polish (2026-11-17, D10): the host is nested inside
+  // the merged quick-amounts row (Full + Half + loose chip on one row);
+  // the 'Round-note tender' group label above it was removed, so the
+  // Plan 528 label hook below is gone with it.
   const looseChangeBox = typeof document !== 'undefined' ? document.getElementById('quickCollectLooseChangeChips') : null;
-
-  // Plan 528: the round-note tender group label (in the page just
-  // above the loose-change chips, found by its class hook — no new
-  // element id); it hides with its row so an empty row never leaves
-  // a stray label above the cash box. Null when the host page (or a
-  // host document without querySelector) predates it.
-  const looseChangeLabel = typeof document !== 'undefined' && typeof document.querySelector === 'function'
-    ? document.querySelector('.qc-loose-change-label')
-    : null;
 
   // SISP-116: renders the round-note tender chips for the amount owed.
   // The chips only ever FILL the amount input with the tendered figure —
   // recording still goes through the ordinary form submit, exactly like
   // typing the amount, so the engine derives the kept change as advance
   // credit. Hidden while the Advance tag is ticked (an advance has its
-  // own flow) and whenever no round-up exists.
+  // own flow) and whenever no round-up exists. The chip label is the
+  // short '🪙 Keep {change}' form (D10) — the long khula_chip wording
+  // stays untouched for Field Mode, which pins its exact text.
   function renderLooseChangeChips() {
     if (!looseChangeBox) return;
     const owed = advanceCheckbox?.checked ? 0 : Number(activeDefaults?.payableTotal ?? 0);
-    const markup = looseChangeChipsMarkup(owed, (tendered, change) => t('khula_chip', null, {
-      tendered: formatPKR(tendered),
+    const markup = looseChangeChipsMarkup(owed, (tendered, change) => t('qc_loose_keep_chip', null, {
       change: formatPKR(change)
     }));
     looseChangeBox.innerHTML = markup;
     looseChangeBox.hidden = markup === '';
-    // Plan 528: the group label hides with its row and returns with it.
-    if (looseChangeLabel) looseChangeLabel.hidden = markup === '';
   }
 
   // SISP-30: outage concession badge host (null when the host page predates it).
@@ -3251,6 +3281,40 @@ export function setupQuickCollectModal({
   // only while the form's current summary still carries this key;
   // any edit after the summary was shown re-shows it instead.
   let saveConfirmationArmedKey = null;
+  // Quick Collect polish (2026-11-17, D2): one-shot — the direct-save
+  // CTA sets it, the submit handler consumes it at the top (so a
+  // refused submit can never arm a later Review), and the Plan 382
+  // block skips the confirm step only while the collection is still
+  // standard (re-checked there, never trusted from the button).
+  let requestDirectSave = false;
+  // Quick Collect polish (2026-11-17, D2): the standard-collection
+  // gate — a single leg, no Advance tag, no split, no duplicate-TID
+  // warning, and an amount within the dues (the full payable total,
+  // bills + charges + baqaya — the figure the form prefills). The
+  // duplicate check mirrors the submit handler's exactly, including
+  // the Sharafat 8 bypass key.
+  function isDirectSaveStandard() {
+    const amountVal = Number(amountInput?.value);
+    const dues = Number(activeDefaults?.payableTotal ?? 0);
+    if (!Number.isFinite(amountVal) || amountVal <= 0 || amountVal > dues) return false;
+    if (advanceCheckbox?.checked) return false;
+    if (splitToggle?.checked) return false;
+    const txnIdVal = (transactionIdInput?.value || '').trim();
+    if (txnIdVal) {
+      const dup = findDuplicatePaymentReference(getState(), txnIdVal);
+      if (dup && duplicateBypassedForTxnKey !== duplicateTidBypassKey(activeCustomerId, txnIdVal, amountVal, methodSelect?.value || 'Cash')) return false;
+    }
+    return true;
+  }
+  // Quick Collect polish (2026-11-17, D2): shows the direct-save CTA
+  // with the current amount while the collection is standard, hides
+  // it otherwise (Review stays the only CTA then). The label reuses
+  // the one-screen save label ('✓ Save Payment (PKR 3,000)').
+  function syncDirectSaveButton() {
+    if (!directSaveBtn) return;
+    directSaveBtn.textContent = quickCollectOneScreenSaveLabel(amountInput?.value ?? '');
+    directSaveBtn.hidden = !isDirectSaveStandard();
+  }
   // Plan 437: the double-tap save guard — one in-flight save at a
   // time. tryStart arms it at the top of the submit handler and the
   // finally below clears it when the save settles, so a second tap for
@@ -3514,6 +3578,9 @@ export function setupQuickCollectModal({
   methodSelect?.addEventListener('change', () => {
     syncMethodChips(methodSelect.value);
     updateDigitalVisibility(methodSelect.value);
+    // Quick Collect polish (2026-11-17, D2): a method change re-checks
+    // the direct-save CTA (the duplicate-TID gate reads the method).
+    syncDirectSaveButton();
   });
 
   // Plan 438: the Other button reveals the full method list for
@@ -3639,6 +3706,9 @@ export function setupQuickCollectModal({
   });
   // Plan 377: the words follow every keystroke in the amount field.
   amountInput?.addEventListener('input', () => renderAmountWordsLine());
+  // Quick Collect polish (2026-11-17, D2): the direct-save CTA follows
+  // every keystroke too — it shows only while the collection is standard.
+  amountInput?.addEventListener('input', () => syncDirectSaveButton());
   // Plan 385: the settlement preview follows every keystroke too —
   // changing the amount re-settles it before anything is saved.
   amountInput?.addEventListener('input', () => renderSettlementPreview());
@@ -3672,6 +3742,9 @@ export function setupQuickCollectModal({
   // Plan 387: ticking Advance hides the warning (the money is already
   // advance, not a dues payment), and clearing it re-shows it.
   advanceCheckbox?.addEventListener('change', () => renderUnderpaymentWarning());
+  // Quick Collect polish (2026-11-17, D2): ticking Advance hides the
+  // direct-save CTA (an advance is not a standard collection).
+  advanceCheckbox?.addEventListener('change', () => syncDirectSaveButton());
 
   // SISP-126: the Remainder Waada row tracks the amount live (typing, and
   // the payment date / Advance toggle, which move the chip dates and the
@@ -3731,6 +3804,10 @@ export function setupQuickCollectModal({
     // exactly like leg 1. No new split change listener is added
     // here either: the five-listener pin (Plan 527) stays exactly 5.
     renderPendingClearanceFlag();
+    // Quick Collect polish (2026-11-17, D2): toggling the split hides
+    // the direct-save CTA (a split is not a standard collection).
+    // Piggybacked here — no new split change listener is added.
+    syncDirectSaveButton();
   }
   splitToggle?.addEventListener('change', updateSplitVisibility);
   // Sharafat 1: splitting the payment no longer hides the choice —
@@ -4392,8 +4469,11 @@ export function setupQuickCollectModal({
           // the concession (pinned by tests/concession.test.js).
           // Nothing due covers the whole bill: blank, like the
           // prefill's own "nothing due" rule.
+          // Quick Collect polish (2026-11-17, D5): the net due
+          // fills as a whole number, like the prefill and the chip
+          // fills — the amount field reads '900', not '900.00'.
           if (amountInput && typeof netBalanceCents === 'number') {
-            amountInput.value = netBalanceCents > 0 ? (netBalanceCents / 100).toFixed(2) : '';
+            amountInput.value = netBalanceCents > 0 ? wholeNumberAmountText(netBalanceCents / 100) : '';
           }
           // Plan 377: the concession sets the amount after the form
           // opened, so the words refresh explicitly.
@@ -4754,11 +4834,16 @@ export function setupQuickCollectModal({
         // collector sees the old dues inside the 1-tap amount.
         const hasBaqaya = activeDefaults.manualBaqayaPending > 0;
         const hasExtras = hasTicketCharges || hasAddonCharges || hasBaqaya;
-        const chargeLines = [
-          ...activeDefaults.ticketChargeLines.map(line => `<span class="qc-head-charge-line">🔧 Murammat / Material Charge (${escapeHtml(line.ticketId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
-          ...activeDefaults.addonChargeLines.map(line => `<span class="qc-head-charge-line">⚡ Speed Boost (${escapeHtml(line.boostId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
-          ...(hasBaqaya ? [`<span class="qc-head-charge-line">🧾 ${escapeHtml(t('baqaya_qc_line', null, { amount: `PKR ${Number(activeDefaults.manualBaqayaPending).toLocaleString('en-PK')}` }))}</span>`] : [])
-        ].join('');
+        // Quick Collect polish (2026-11-17, D11): the footer is ONE
+        // line — bill dues + ticket/add-on lines + baqaya joined with
+        // ' • ' — hidden when there are no extras. The parts are plain
+        // text (no per-part spans), so the line wraps as one line.
+        const chargeParts = [
+          `🧾 ${escapeHtml(t('qc_head_bill_dues', null, { amount: `PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}` }))}`,
+          ...activeDefaults.ticketChargeLines.map(line => `🔧 Murammat / Material Charge (${escapeHtml(line.ticketId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}`),
+          ...activeDefaults.addonChargeLines.map(line => `⚡ Speed Boost (${escapeHtml(line.boostId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}`),
+          ...(hasBaqaya ? [`🧾 ${escapeHtml(t('baqaya_qc_line', null, { amount: `PKR ${Number(activeDefaults.manualBaqayaPending).toLocaleString('en-PK')}` }))}`] : [])
+        ];
         // Polish #11: the target bill's package + tax breakdown,
         // read-only — the bill's own figures, so the collection screen
         // can never disagree with the bill. Shown whenever the target
@@ -4770,19 +4855,26 @@ export function setupQuickCollectModal({
           ? `<div class="qc-head-charges"><span class="qc-head-charge-line">📦 ${targetBillPackage ? `${escapeHtml(targetBillPackage.label)}: PKR ${Number(targetBillPackage.price).toLocaleString('en-PK')}` : 'Package'}${typeof targetBillTax === 'number' && targetBillTax > 0 ? ` · 🧾 Sales tax (19.5%): PKR ${Number(targetBillTax / 100).toLocaleString('en-PK')}` : ''}</span></div>`
           : '';
 
+        // Quick Collect polish (2026-11-17, D6 + D11): the identity is
+        // one line — '#N NAME (known-as)' truncating with ellipsis
+        // (the full name in the title attr) — and the due box reads
+        // just 'Payable'. The area·phone line is gone. The footer
+        // merges bill dues + charges + baqaya into one ' • ' line,
+        // hidden when there are no extras.
+        const knownAs = knownAsNameFor(activeDefaults.customer);
+        const displayName = knownAs ? `${activeDefaults.name} (${knownAs})` : activeDefaults.name;
         customerHeader.innerHTML = `
           <div class="qc-active-cust-bar">
             <div class="qc-cust-identity">
               <span class="qc-tag-num">#${escapeHtml(String(activeDefaults.customerNumber))}</span>
-              <strong class="qc-head-name">${escapeHtml(activeDefaults.name)}</strong>
-              <span class="qc-head-area">${escapeHtml(activeDefaults.area)}${activeDefaults.phone ? ' · ' + escapeHtml(activeDefaults.phone) : ''}</span>
+              <strong class="qc-head-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</strong>
             </div>
             <div class="qc-head-due-box">
-              <span class="qc-box-label">${hasExtras ? 'Total Payable (incl. charges)' : 'Total Dues'}</span>
+              <span class="qc-box-label">${escapeHtml(t('qc_head_payable'))}</span>
               <strong class="qc-box-amt">PKR ${(hasExtras ? activeDefaults.payableTotal : activeDefaults.totalDues).toLocaleString('en-PK')}</strong>
             </div>
           </div>
-          ${hasExtras ? `<div class="qc-head-charges"><span class="qc-head-charge-line">🧾 Bill dues: PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}</span>${chargeLines}</div>` : ''}
+          ${hasExtras ? `<div class="qc-head-charges"><span class="qc-head-charge-line">${chargeParts.join(' • ')}</span></div>` : ''}
           ${packageTaxLine}
         `;
       }
@@ -4793,7 +4885,7 @@ export function setupQuickCollectModal({
 
       // Prefill fields
       if (amountInput) {
-        amountInput.value = activeDefaults.suggestedAmount > 0 ? activeDefaults.suggestedAmount.toFixed(2) : '';
+        amountInput.value = activeDefaults.suggestedAmount > 0 ? wholeNumberAmountText(activeDefaults.suggestedAmount) : '';
         amountInput.max = '999999';
       }
       // QC Modal Overhaul 2: the Plan 376 prefill line is gone — the
@@ -4832,7 +4924,7 @@ export function setupQuickCollectModal({
       if (options && options.amountOverride !== undefined && options.amountOverride !== null) {
         if (amountInput) {
           amountInput.value = typeof options.amountOverride === 'number'
-            ? (options.amountOverride > 0 ? options.amountOverride.toFixed(2) : '')
+            ? (options.amountOverride > 0 ? wholeNumberAmountText(options.amountOverride) : '')
             : String(options.amountOverride);
         }
         if (prefillLine) {
@@ -4843,6 +4935,10 @@ export function setupQuickCollectModal({
       // Plan 377: the form opens with the suggested amount already
       // typed, so the words start shown, not blank.
       renderAmountWordsLine();
+      // Quick Collect polish (2026-11-17, D2): the direct-save button
+      // is decided on open too — a prefilled standard amount shows it
+      // at once, not only after the first keystroke.
+      syncDirectSaveButton();
       // QC Modal Overhaul 2: the form opens with the subtitle already
       // shown for the picked customer, so the operator can tell the
       // customer which bill it settles and which number it will get.
@@ -5474,7 +5570,7 @@ export function setupQuickCollectModal({
       if (typeof onToast === 'function') onToast(error instanceof Error ? error.message : String(error), { type: 'error' });
       return;
     }
-    if (amountInput) amountInput.value = draft.amount.toFixed(2);
+    if (amountInput) amountInput.value = wholeNumberAmountText(draft.amount);
     if (methodSelect) methodSelect.value = draft.method;
     if (dateInput) dateInput.value = getPakistanLocalDate();
     // Plan 544: the one-screen submit re-dates the hidden form to
@@ -5699,6 +5795,7 @@ export function setupQuickCollectModal({
     doubleTapSaveGuardFinish(saveGuard);
     doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
     doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
+    doubleTapSaveGuardSetDisabled(directSaveBtn, false);
     if (dupWarningCard) dupWarningCard.hidden = true;
     if (leg2DupCard) leg2DupCard.hidden = true;
     // Closing during the undo window keeps the payment (it is NOT undone).
@@ -5775,6 +5872,9 @@ export function setupQuickCollectModal({
   transactionIdInput?.addEventListener('input', () => {
     duplicateBypassedForTxnKey = null;
     if (dupWarningCard) dupWarningCard.hidden = true;
+    // Quick Collect polish (2026-11-17, D2): typing a TID re-checks
+    // the direct-save CTA (a duplicate TID hides it).
+    syncDirectSaveButton();
   });
 
   // Plan 534: wire the leg-2 duplicate card buttons — the same
@@ -5980,16 +6080,16 @@ export function setupQuickCollectModal({
       const chipFigures = addPaymentDuesFigures({ fullDues: activeDefaults.suggestedAmount });
 
       if (type === 'full') {
-        if (chipFigures.full !== null) amountInput.value = chipFigures.full.toFixed(2);
+        if (chipFigures.full !== null) amountInput.value = wholeNumberAmountText(chipFigures.full);
       } else if (type === 'half') {
-        if (chipFigures.half !== null) amountInput.value = chipFigures.half.toFixed(2);
+        if (chipFigures.half !== null) amountInput.value = wholeNumberAmountText(chipFigures.half);
       } else if (type === 'package') {
         const packagePrice = packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES);
-        if (packagePrice !== null && packagePrice > 0) amountInput.value = packagePrice.toFixed(2);
+        if (packagePrice !== null && packagePrice > 0) amountInput.value = wholeNumberAmountText(packagePrice);
       } else {
         const val = Number(type);
         if (Number.isFinite(val)) {
-          amountInput.value = val.toFixed(2);
+          amountInput.value = wholeNumberAmountText(val);
         }
       }
       // SISP-101: chips set the amount programmatically (no input
@@ -6010,6 +6110,9 @@ export function setupQuickCollectModal({
       renderRemainderWaadaRow();
       // Plan 533: a chip-set amount re-computes the split total the same way.
       renderSplitTotal();
+      // Quick Collect polish (2026-11-17, D2): a chip-set amount
+      // re-checks the direct-save CTA the same way.
+      syncDirectSaveButton();
     });
   });
 
@@ -6117,6 +6220,14 @@ export function setupQuickCollectModal({
     const summary = buildSaveConfirmationSummary();
     if (!summary) { showStep('form'); return; }
     saveConfirmationArmedKey = saveConfirmationSummaryKey(summary);
+    if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
+  });
+  // Quick Collect polish (2026-11-17, D2): the direct-save CTA sets
+  // the one-shot flag and submits through the ordinary handler — the
+  // validations still run, and the Plan 382 block skips the confirm
+  // step only while the collection is still standard.
+  directSaveBtn?.addEventListener('click', () => {
+    requestDirectSave = true;
     if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
   });
   confirmBackBtn?.addEventListener('click', () => {
@@ -6991,6 +7102,11 @@ export function setupQuickCollectModal({
   paymentForm?.addEventListener('submit', (e) => {
     e.preventDefault();
     if (!activeCustomerId) return;
+    // Quick Collect polish (2026-11-17, D2): consume the one-shot
+    // direct-save flag up front, so a refused submit can never arm
+    // a later Review — the flag is read once, here, and cleared.
+    const directSaveRequested = requestDirectSave;
+    requestDirectSave = false;
 
     // Plan 437: double-tap save guard — a second tap for the same
     // payment while a save is in progress is ignored outright, before
@@ -7007,6 +7123,7 @@ export function setupQuickCollectModal({
     saveGuardHeldForDialog = false;
     doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, true);
     doubleTapSaveGuardSetDisabled(confirmSaveBtn, true);
+    doubleTapSaveGuardSetDisabled(directSaveBtn, true);
 
     try {
       const state = getState();
@@ -7051,11 +7168,12 @@ export function setupQuickCollectModal({
       const methodVal = methodSelect?.value || 'Cash';
       const monthVal = monthSelect?.value || activeDefaults.targetMonth;
       const paidByVal = paidByInput?.value || '';
-      // Plan 379: the collection note values, read beside the payer
+      // Plan 379: the collection note value, read beside the payer
       // name — empty reads as no note, exactly like the payer field.
+      // Quick Collect polish (2026-11-17, D13): the place/mohalla
+      // reads are gone with their fields — entry-time place/mohalla
+      // recording goes; the profile twin still carries them.
       const collectedByVal = collectedByInput?.value || '';
-      const collectionPlaceVal = normalizeCollectionPlace(collectionPlaceSelect?.value || '');
-      const collectionMohallaVal = collectionMohallaInput?.value || '';
       // Plan 389: the Urdu-script note value, read beside the payer
       // name — empty reads as no note, exactly like the payer field.
       const urduNoteVal = urduNoteInput?.value || '';
@@ -7146,6 +7264,7 @@ export function setupQuickCollectModal({
               doubleTapSaveGuardFinish(saveGuard);
               doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
               doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
+              doubleTapSaveGuardSetDisabled(directSaveBtn, false);
               if (!ok) { transactionIdInput?.focus(); return; }
               // Sharafat 8: arm the bypass as the key of THIS payment, never the raw TID.
               duplicateBypassedForTxnKey = duplicateTidBypassKey(activeCustomerId, txnIdVal, amountVal, methodVal);
@@ -7198,6 +7317,7 @@ export function setupQuickCollectModal({
             doubleTapSaveGuardFinish(saveGuard);
             doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
             doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
+            doubleTapSaveGuardSetDisabled(directSaveBtn, false);
             if (!proceed) { amountInput?.focus(); return; }
             duplicatePaymentBypassedKey = bypassKey;
             if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
@@ -7380,7 +7500,13 @@ export function setupQuickCollectModal({
       // it with the new figures. A null summary (nothing worth
       // confirming) proceeds exactly as before.
       const pendingSummary = buildSaveConfirmationSummary();
-      if (pendingSummary && saveConfirmationSummaryKey(pendingSummary) !== saveConfirmationArmedKey) {
+      // Quick Collect polish (2026-11-17, D2): a direct-save tap skips
+      // the confirm step ONLY while the collection is still standard
+      // (single leg, no Advance, no split, no duplicate-TID warning,
+      // amount ≤ dues) — re-checked here, not trusted from the button
+      // state. Anything else shows the confirm step as before.
+      const skipConfirm = directSaveRequested && isDirectSaveStandard();
+      if (pendingSummary && saveConfirmationSummaryKey(pendingSummary) !== saveConfirmationArmedKey && !skipConfirm) {
         if (confirmSummaryBox) confirmSummaryBox.innerHTML = saveConfirmationSummaryHtml(pendingSummary);
         // Plan 433: the receipt preview beside the summary, on the
         // same confirm step — the receipt exactly as it will print.
@@ -7441,8 +7567,6 @@ export function setupQuickCollectModal({
             // and carried into the spec the same way. The split
             // module decides which leg each one rides.
             collectedBy: collectedByVal || undefined,
-            collectionPlace: collectionPlaceVal || undefined,
-            collectionMohalla: collectionMohallaVal || undefined,
             urduNote: urduNoteVal || undefined,
             categoryTag: categoryTagVal || undefined,
             promiseLink: promiseLinkVal ? { promiseId: promiseLinkVal } : undefined,
@@ -7564,8 +7688,6 @@ export function setupQuickCollectModal({
         advanceTargetMonth: advanceCheckbox?.checked ? (advanceTargetSelect?.value || undefined) : undefined,
         paidBy: paidByVal,
         collectedBy: collectedByVal || undefined,
-        collectionPlace: collectionPlaceVal || undefined,
-        collectionMohalla: collectionMohallaVal || undefined,
         urduNote: urduNoteVal || undefined,
         crossPayment: crossPaymentVal || undefined,
         overpaymentChoice: selectedOverpaymentChoice || undefined,
@@ -7726,6 +7848,7 @@ export function setupQuickCollectModal({
         doubleTapSaveGuardFinish(saveGuard);
         doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
         doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
+        doubleTapSaveGuardSetDisabled(directSaveBtn, false);
       }
     }
   });

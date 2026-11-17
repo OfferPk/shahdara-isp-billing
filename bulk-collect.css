@@ -29,7 +29,7 @@
 .primary-button.qc-duplicate-proceed { background: var(--color-danger); font-size: var(--text-xs); padding: 6px 12px; }
 [data-theme="dark"] .primary-button.qc-duplicate-proceed { background: var(--color-danger-strong); }
 #quickCollectUndoBtn { border-color: var(--color-overdue); color: var(--color-overdue); }
-.qc-head-charge-line { display: block; }
+.qc-head-charge-line { display: inline; }
 .qc-head-charges { margin-top: 6px; font-size: 0.85rem; }
 .qc-one-screen-top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .qc-one-screen-save { width: 100%; }

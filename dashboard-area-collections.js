@@ -949,11 +949,11 @@ export function setupAreaCollectionsModal(getState, {
               <div style="font-weight: 600; color: var(--text-color, #0f172a);">
                 ${escapeHtml(r.areaName)}
               </div>
-              ${r.parentArea ? `<div style="font-size: 10px; color: var(--text-muted, #64748b);">${escapeHtml(r.parentArea)}</div>` : ''}
+              ${r.parentArea ? `<div style="font-size: 11px; color: var(--text-muted, #64748b);">${escapeHtml(r.parentArea)}</div>` : ''}
             </td>
             <td style="text-align: center;">
               ${r.totalCustomers}
-              <div style="font-size: 10px; color: var(--text-muted, #64748b);">${r.activeCustomers} active</div>
+              <div style="font-size: 11px; color: var(--text-muted, #64748b);">${r.activeCustomers} active</div>
             </td>
             <td style="text-align: right; font-weight: 500;">
               PKR ${r.billedAmount.toLocaleString()}

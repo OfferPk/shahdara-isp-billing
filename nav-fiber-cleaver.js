@@ -742,11 +742,11 @@ export function setupMobileCleaverModal(state = {}, options = {}) {
       <li class="probe-history-item" style="display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.06);font-size:12px">
         <div>
           <strong>${rec.modelName} (Pos #${rec.currentPosition})</strong> - ${rec.technicianName}
-          <div style="color:#94a3b8;font-size:10px">${rec.targetArea} · ${rec.observedDefectName} · ${rec.measuredCleaveAngle}°</div>
+          <div style="color:#94a3b8;font-size: 11px">${rec.targetArea} · ${rec.observedDefectName} · ${rec.measuredCleaveAngle}°</div>
         </div>
         <div style="text-align:right">
           <span style="color:${rec.badgeColor || '#10b981'};font-weight:700">${rec.cleaveQuality}</span>
-          <div style="font-size:10px;color:#cbd5e1">+${rec.estimatedSpliceLossDb} dB</div>
+          <div style="font-size: 11px;color:#cbd5e1">+${rec.estimatedSpliceLossDb} dB</div>
         </div>
       </li>
     `).join('');

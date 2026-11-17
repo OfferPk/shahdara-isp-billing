@@ -97,23 +97,33 @@ test('Sharafat 79: the Baqaya label span is set with the count key when unpaid, 
   const start = app.indexOf('function updateProfileTabCounts(customer)');
   assert.notEqual(start, -1, 'updateProfileTabCounts must exist');
   const body = app.slice(start, app.indexOf('\nmountCustomerProfileContent();', start));
-  assert.ok(body.includes("$('#profileTabBaqaya .profile-tab-label')"), 'baqaya count targets the label span');
-  assert.ok(body.includes("counts.unpaidBaqaya > 0 ? t('prof_tab_baqaya_count', null, { count: counts.unpaidBaqaya }) : t('prof_tab_baqaya')"),
-    'baqaya label uses the count key with the count param when unpaid, the bare label at zero');
+  assert.ok(body.includes("$('#profileTabBaqaya .profile-tab-label')"), 'baqaya label span is still written');
+  // Sharafat 100 (D4/D6): the count lives in its own span, outside the
+  // label's ellipsis — the label span keeps the bare label always, the
+  // count span takes the "(N)" suffix key when unpaid and hides at zero.
+  assert.ok(body.includes("$('#profileTabBaqaya .profile-tab-count')"), 'baqaya count targets its own span, outside the label ellipsis');
+  assert.ok(body.includes("counts.unpaidBaqaya > 0 ? t('prof_tab_baqaya_count', null, { count: counts.unpaidBaqaya }) : ''"),
+    'baqaya count span uses the count key with the count param when unpaid, empty at zero');
+  assert.ok(body.includes("baqayaLabel.textContent = t('prof_tab_baqaya')"),
+    'baqaya label span always shows the bare label now');
   assert.ok(!body.includes('baqayaTab.textContent'), 'no count write may touch the button textContent — that would wipe the number span');
 });
 
 test('Sharafat 79: the new Baqaya count key exists in EN and UR, right after the Complaints count key', () => {
   const nav = read('nav-language.js');
-  const enComplaints = nav.indexOf("prof_tab_complaints_count: 'Complaints ({count} open)'");
-  const enBaqaya = nav.indexOf("prof_tab_baqaya_count: 'Baqaya ({count})'");
+  // Sharafat 100 (D4/D6): both count keys hold only the "(N)" suffix
+  // now — the label word comes from the label span, the count from its
+  // own span outside the ellipsis. The baqaya key keeps its position
+  // right after the complaints key.
+  const enComplaints = nav.indexOf("prof_tab_complaints_count: '({count})'");
+  const enBaqaya = nav.indexOf("prof_tab_baqaya_count: '({count})'");
   assert.ok(enComplaints >= 0 && enBaqaya > enComplaints, 'EN key must exist after the Complaints count key');
-  const urComplaints = nav.indexOf("prof_tab_complaints_count: 'شکایات ({count} کھلی)'");
-  const urBaqaya = nav.indexOf("prof_tab_baqaya_count: 'بقایا ({count})'");
+  const urComplaints = nav.indexOf("prof_tab_complaints_count: '({count})'");
+  const urBaqaya = nav.indexOf("prof_tab_baqaya_count: '({count})'");
   assert.ok(urComplaints >= 0 && urBaqaya > urComplaints, 'UR key must exist after the Complaints count key');
   // The short "(N)" form is the fit decision — no word form ("unpaid",
   // "entries") that would widen the tab at 360px.
-  assert.match(nav, /prof_tab_baqaya_count: 'Baqaya \(\{count\}\)',/, 'EN key is exactly the short "(N)" form');
+  assert.match(nav, /prof_tab_baqaya_count: '\(\{count\}\)',/, 'EN key is exactly the short "(N)" suffix');
 });
 
 test('Sharafat 79: the Info tab still carries no count and the Billing tab stays bare', () => {

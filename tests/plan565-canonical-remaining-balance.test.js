@@ -23,9 +23,14 @@
  * image receipt, the Bluetooth slip and the badge, with the same
  * ?? 0 fallback discipline. No source figure's computation changes.
  *
- * BOUNDARY (Plan 566, NOT this plan): the ?? chain handles missing
- * fields, not non-finite ones — a NaN payableRemaining still rides
- * through ?? and is Plan 566's guard to add. No test here pins NaN.
+ * BOUNDARY (Plan 566, NOW IMPLEMENTED — 2026-11-17): the ?? chain
+ * handled missing fields, not non-finite ones — a NaN payableRemaining
+ * used to ride through ??; Plan 566 added the guard as the shared
+ * helper firstFiniteRemainingPayable (receipt-money.js), called by
+ * the card, the draft and the image receipt. The NaN behaviour is
+ * pinned in tests/plan566-receipt-card-nan-guard.test.js; the wiring
+ * pin below pins the helper call (rewritten for 566 with the
+ * why-comment — the behaviour pins above still cover the figure).
  *
  * Fixtures (synthetic data only; pattern-fake 03001234567 phone):
  *  - Fixture A (real, via executeQuickCollection): a PKR 1,000 bill
@@ -286,9 +291,13 @@ test('plan565 WIRING: merged Still-owed row uses the canonical chain', () => {
   // canonical remaining figure, and it branches on remainingPayable > 0
   // (PKR X when owed, row hidden at 0 — QC Success Card Polish,
   // 2026-11-13; the settled state is stated by the still-owes pill).
+  // Plan 566 (D4) rewrote the inline ?? chain into the shared helper
+  // firstFiniteRemainingPayable — the behaviour pins above still cover
+  // the figure; this wiring pin now pins the helper call instead of
+  // the chain's text.
   assert.ok(
-    quickCollectSrc.includes('const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;'),
-    'card builder computes the canonical remaining figure'
+    quickCollectSrc.includes('const remainingPayable = firstFiniteRemainingPayable(receipt);'),
+    'card builder computes the canonical remaining figure via the Plan 566 helper'
   );
   assert.ok(
     quickCollectSrc.includes('remainingPayable > 0 ? `'),

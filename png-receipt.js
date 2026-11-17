@@ -213,6 +213,15 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   for (const line of Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : []) {
     financial.push({ label: L(`Manual Baqaya / دستی بقایا (${line.entryId})`), value: money(line.amount) });
   }
+  // Plan 573: the total due, read verbatim from the breakdown through
+  // the shared formatter — the same gross figure the HTML layouts print
+  // as Kul Qabil-e-Ada. It sits after the last charge row and before
+  // Amount Paid, so the reader checks Paid + Remaining against it.
+  // Gated on the breakdown (the Previous Balance precedent): a
+  // no-breakdown slip carries no total row at all.
+  if (breakdown) {
+    financial.push({ label: L('Total Due / Kul Qabil-e-Ada'), value: money(breakdown.totalDue), strong: true });
+  }
   financial.push({ label: L('Amount Paid / Wusool Paya'), value: money(receipt.paidAmount), strong: true });
   // SISP-116: the khula-paisa change kept as advance credit, right
   // after the full cash received above (paidAmount stays the tender).

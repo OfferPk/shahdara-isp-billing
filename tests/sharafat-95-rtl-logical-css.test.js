@@ -244,12 +244,14 @@ test('C7 braces balanced in styles.css + nav.css', () => {
     'nav.css brace mismatch');
 });
 
-test('S1 EN/UR parity holds (4,671 / 4,671 — Round 2 D9 net −1 key, not this item)', () => {
-  // The prep hardcoded 4,574 — stale on this base; this base is 4,672/4,672
-  // (verified by import), unchanged by this CSS-only item. Round 2 (D9)
-  // moves it to 4,671/4,671: two keys deleted, one added.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4671, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4671, 'UR key count moved');
+test('S1 EN/UR parity holds (4,675 / 4,675 — Round 2 D9 net −1, Quick Collect polish +4 keys)', () => {
+  // The prep hardcoded 4,574 — stale on this base; this base was
+  // 4,672/4,672 (verified by import), unchanged by this CSS-only
+  // item. Round 2 (D9) moves it to 4,671/4,671: two keys deleted,
+  // one added. Quick Collect polish (2026-11-17) adds 4 keys
+  // (EN + UR), so the count moves to 4,675/4,675.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4675, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4675, 'UR key count moved');
 });
 
 test('S2 logical-property precedent already exists (conversion follows it)', () => {

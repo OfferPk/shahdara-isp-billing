@@ -6,15 +6,15 @@
 // math that produce them, and RECORDS the measured totals.
 //
 // Measured (harness, 0 pageerrors, chromium-headless-shell):
-//   360x640 NEW: header 49px (48px row + 1px border — one row, title
-//     one line, badge "29" one line, Copy 32px, close 32px neutral);
+//   360x640 NEW: header 61px (60px row + 1px border — one row, title
+//     one line, badge "29" one line, Copy 44px, close 32px neutral);
 //     toolbar 197px (tabs 2 wrapped rows, no scroll, over 0; bulk 2
-//     rows x 34px); chrome above list 258px (BASE 344px, -86px); list
-//     viewport 305px (BASE 219px, +86px); receipt card 168.4px (BASE
+//     rows x 34px); chrome above list 270px (BASE 344px, -74px); list
+//     viewport 293px (BASE 219px, +74px); receipt card 168.4px (BASE
 //     220.4px, -52px — the user's ~50px); actions one 38px row,
 //     Send WhatsApp rgb(15,83,56) = #0F5338; phone span one 16px line;
-//     header stays put on list scroll (moved 0). Visible ~1.7 cards
-//     (1 full + ~0.67 partial; BASE ~0.9, 0 full). The literal 2.5–3
+//     header stays put on list scroll (moved 0). Visible ~1.6 cards
+//     (1 full + ~0.60 partial; BASE ~0.9, 0 full). The literal 2.5–3
 //     target is NOT met at 360px — see the D4 note below.
 //   360x640 BASE (for comparison): header 111px (title 3 lines +
 //     badge row); toolbar 221px (tabs 1 SCROLLING row, over 184 — the
@@ -23,20 +23,24 @@
 //     .pending-actions-tabs { flex-wrap: nowrap; } loads later and
 //     overrides it — this item fixes it in both files); bulk 3 rows
 //     x 44px; card 220.4px (actions 2 rows, 96px).
-//   390x844 NEW: header 49px; toolbar 197px; chrome 258px (BASE 270px,
-//     -12px — the base tabs already fit one scrolling row here, so the
-//     wrap ADDS a tab row); list viewport 485px; card 168.4px (same as
+//   390x844 NEW: header 61px; toolbar 197px; chrome 270px (BASE 270px,
+//     ±0 — the 12px header growth cancels the -12px the wrap had
+//     saved); list viewport 473px; card 168.4px (same as
 //     base — the buttons already fit one row at this width); visible
-//     ~2.7 cards (2 full + 0.74; BASE ~2.66). The 2.5–3 target IS met.
-//   540px NEW: header 49px; toolbar 157px (all three bulk buttons on
-//     ONE row); chrome 218px; list viewport 486px; card 148.2px (meta
-//     one line at this width); visible ~3.1 cards; tabs over 0.
-//   320px NEW: header 49px, one row, no overlap (Copy is icon-only at
+//     ~2.7 cards (2 full + 0.66; BASE ~2.66). The 2.5–3 target IS met.
+//   540px NEW: header 61px; toolbar 157px (all three bulk buttons on
+//     ONE row); chrome 230px; list viewport 474px; card 148.2px (meta
+//     one line at this width); visible ~3.0 cards; tabs over 0.
+//   320px NEW: header 61px, one row, no overlap (Copy is icon-only at
 //     <=380px); actions one 38px row (Send WhatsApp 116.8px — the
 //     prep's marginal case resolves WITHOUT the 12px fallback);
-//     toolbar 287px (tabs 3 rows, bulk 3 rows); visible ~1.0 card.
+//     toolbar 287px (tabs 3 rows, bulk 3 rows); visible ~0.9 card.
 //   D4 (parent decision): the literal 2.5–3 target at 360px is ACCEPTED
-//     as recorded-not-blessed at ~1.7 cards (PR #1337 precedent).
+//     as recorded-not-blessed at ~1.6 cards (PR #1337 precedent).
+//     Sharafat 96 re-measured it: the 44px Copy button grows the
+//     header 49px -> 61px at every width (the row is content-driven,
+//     not a fixed 48px row as the 96 prep assumed), so the list
+//     viewport loses 12px and visible cards drop ~0.07.
 //     The prep's ~2.2 estimate was optimistic: it assumed 36px tabs
 //     (the app-wide button floor makes them 44px), a 342px modal
 //     (the app-wide dialog padding leaves 314px), and a 32px meta line
@@ -126,9 +130,11 @@ test('header: the close is a modal-scoped 32px neutral [x] — the universal 48p
   assert.ok(pageSrc.includes('>✕</button>'), 'close glyph is ✕, not the 48px red ↩');
 });
 
-test('header: the Copy button is 32px with a Copy SVG sibling — never inside [data-i18n]', () => {
-  assert.ok(compSrc.includes('#pendingActionsModal .pending-header-icon-btn { min-height: 32px !important; height: 32px !important; padding: 0 10px;'),
-    'Copy button is 32px on the header row (the !important beats the app-wide button:not([hidden]) 44px !important floor in styles.css)');
+test('header: the Copy button is 44px with a Copy SVG sibling — never inside [data-i18n]', () => {
+  // Sharafat 96: the Copy button is 44px tall now (was 32px) — the 48px
+  // header row still fits it; height-only change, width unchanged.
+  assert.ok(compSrc.includes('#pendingActionsModal .pending-header-icon-btn { min-height: 44px !important; height: 44px !important; padding: 0 10px;'),
+    'Copy button is 44px on the header row (the !important beats the app-wide button:not([hidden]) 44px !important floor in styles.css)');
   assert.ok(pageSrc.includes('id="pendingActionsCopyDigestBtn" class="pending-header-icon-btn"'),
     'Copy button keeps its id and class');
   assert.ok(pageSrc.includes('<span data-ds-icon="Copy" aria-hidden="true"></span><span data-i18n="pending_copy_list">'),

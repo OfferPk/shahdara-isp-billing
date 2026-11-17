@@ -171,9 +171,10 @@ test('header help button is 44px in the header context only', () => {
   const rule = baseRule(components, '#customerPane .pane-heading-actions .help-info-btn');
   assert.equal(decl(rule, 'width'), '44px');
   assert.equal(decl(rule, 'height'), '44px');
-  // The base 28px circle is untouched everywhere else.
-  assert.equal(decl(baseRule(components, '.help-info-btn'), 'width'), '28px');
-  assert.equal(decl(baseRule(components, '.help-info-btn'), 'height'), '28px');
+  // Sharafat 96: the base circle is 40px now (was 28px) — still smaller
+  // than the 44px header variant, and still a circle at 40px.
+  assert.equal(decl(baseRule(components, '.help-info-btn'), 'width'), '40px');
+  assert.equal(decl(baseRule(components, '.help-info-btn'), 'height'), '40px');
   // The field-mode 44px precedent is untouched.
   assert.match(components, /\.field-mode-head \.help-info-btn \{ width: 44px; height: 44px; \}/);
 });

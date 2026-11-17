@@ -306,7 +306,7 @@
    bare `summary` selector (styles.css:174) putting min-height:44px on
    every summary, so height:32px alone cannot win: the floor must be
    pinned too. Measured 32x44 oval before this fix. */
-.help-icon { flex: none; align-self: center; min-height: 32px; }
+.help-icon { flex: none; align-self: center; min-height: 40px; }
 .help-tip { align-self: center; }
 
 /* DS 6.3 - Row 1: Edit is the 46px primary, Delete is destructive,

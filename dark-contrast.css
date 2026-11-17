@@ -60,7 +60,7 @@
 [data-theme="dark"] .help-icon { background: var(--dk-surface-2) !important; color: var(--dk-accent) !important; border-color: var(--dk-line) !important; }
 
 /* Secondary / toggle buttons that kept white backgrounds. */
-[data-theme="dark"] :is(.secondary-button, .pagination-btn, .backup-controls-toggle, .command-palette-trigger, .language-toggle-btn,
+[data-theme="dark"] :is(.secondary-button, .pagination-btn, .backup-controls-toggle, .language-toggle-btn,
   .network-status-pill, .view-nav-button, .customer-filter-button, .chart-range-btn, .heatmap-filter-btn, .ci-open-btn, .wizard-trigger-btn,
   .quick-action-tile, .home-primary-btn, .service-choice-not-set):not(.is-active):not(.is-selected):not([aria-pressed="true"]):not([aria-current="page"]) {
   background: var(--dk-surface-2) !important;

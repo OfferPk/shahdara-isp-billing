@@ -240,10 +240,12 @@ test('glued text: the CSS separator puts a colon between label and value', () =>
   assert.ok(dashboardCss.includes("content: ': ';"), 'separator is a colon plus space');
 });
 
-test('small fixes: help-info 28px, fuel month width, FAB safe area, header stack', () => {
+test('small fixes: help-info 40px, fuel month width, FAB safe area, header stack', () => {
   const helpBtn = componentsCss.slice(componentsCss.indexOf('.help-info-btn {'), componentsCss.indexOf('.help-info-btn {') + 900);
-  assert.ok(helpBtn.includes('min-height: 28px'), 'help-info button escapes the 44px global floor');
-  assert.ok(helpBtn.includes('width: 28px'), 'help-info button stays 28px wide');
+  // Sharafat 96: the base help-info button is a 40px circle now (was 28px)
+  // — it still lifts the 44px global floor with !important, at 40px.
+  assert.ok(helpBtn.includes('min-height: 40px'), 'help-info button escapes the 44px global floor');
+  assert.ok(helpBtn.includes('width: 40px'), 'help-info button stays 40px wide');
   const fuel = dashboardCss.slice(dashboardCss.indexOf('.fuel-efficiency-month input {'), dashboardCss.indexOf('.fuel-efficiency-month input {') + 600);
   assert.ok(fuel.includes('width: 170px'), 'fuel month input fits "November 2026"');
   assert.ok(navCss.includes('env(safe-area-inset-bottom'), 'FAB clears the device safe area');

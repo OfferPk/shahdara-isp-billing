@@ -238,8 +238,10 @@ test('profile redesign: detail pane bottom padding clears the speed dial (D-T6)'
 // Help icon — the 32x44 oval is gone: the bare `summary` selector
 // (styles.css:174) floors every summary at 44px, so the fix pins the
 // min-height too.
-test('profile redesign: help icon is a 32px circle, not a 32x44 oval', () => {
-  assert.match(profileCss, /\.help-icon \{ flex: none; align-self: center; min-height: 32px; \}/, 'help icon pins min-height 32px');
+test('profile redesign: help icon is a 40px circle, not a 32x44 oval', () => {
+  // Sharafat 96: the help icon is 40x40 now (was 32px) — the min-height
+  // guarantee in profile-ui.css must match the 40px size, not sit below it.
+  assert.match(profileCss, /\.help-icon \{ flex: none; align-self: center; min-height: 40px; \}/, 'help icon pins min-height 40px');
 });
 
 // Billing KPIs — all stats are .ds-stat-box; Net-due turns green at 0

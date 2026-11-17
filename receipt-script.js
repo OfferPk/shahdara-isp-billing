@@ -112,6 +112,12 @@ export const RECEIPT_URDU_LABELS = {
   'Data Limit': 'ڈیٹا حد',
   'Nominal Package Price': 'پیکیج قیمت',
   'Kist / قسط': 'قسط',
+  // Plan 568 (D10, F1): thermal-58's arrears block passes the BARE label
+  // 'Kist' (receipt.js:794) while thermal-80 passes 'Kist / قسط' (:852);
+  // the map had no bare key, so thermal-58 rendered <dt>Kist:</dt>
+  // Roman. The 'Kist ' prefix rule cannot fix it — there is no space
+  // after Kist in <dt>Kist:</dt> (T10).
+  Kist: 'قسط',
   'FIFO taqseem / payment split': 'ادائیگی تقسیم',
   'Baqi Sabiqa Baqaya': 'باقی سابقہ بقایا',
   'Baqi Mahana Bill': 'باقی ماہانہ بل',
@@ -165,6 +171,49 @@ export const RECEIPT_URDU_LABELS = {
   'NON-CASH ADJUSTMENT — no cash received / غیر نقد ایڈجسٹمنٹ — کوئی نقد رقم وصول نہیں ہوئی': 'غیر نقد ایڈجسٹمنٹ — کوئی نقد رقم وصول نہیں ہوئی',
 };
 
+/**
+ * Plan 568 (D2, mechanism A): dynamic-label prefixes.
+ *
+ * The exact map above can never match a label carrying an ID, a date, a
+ * count or a name. Each pair here is [static prefix, Urdu prefix]: the
+ * prefix is the literal static text at the start of the rendered <dt>
+ * content, and everything after it (IDs, dates, counts, names) re-attaches
+ * verbatim — values are never rewritten. The table is ordered
+ * longest-first (defensive: no pair is a prefix of another today, but a
+ * longer prefix must win if one ever is). Applied inside
+ * applyReceiptScript AFTER the exact pass (mandatory, T2): <dt>Kist /
+ * قسط:</dt> and <dt>Kist Schedule / قسطوں کی تفصیل:</dt> both start with
+ * 'Kist ', so a prefix-first order would mangle them into 'قسط / قسط:'
+ * / 'قسط Schedule …' — the exact pass rewrites them first.
+ *
+ * Values: five reuse an existing Urdu form (P1, P3, P4, P5, P6); five
+ * are composed from words the app already uses (D3): ticket 'مرمت /
+ * سامان چارج (' (مرمت from مرمت ٹکٹ; سامان چارج from the map's own
+ * 'بقایا سامان چارج'), arrears offset 'بقایا تصفیہ — ' (from the map's
+ * 'Arrears Cleared by Deposit Offset / بقایا تصفیہ'), bill offset
+ * 'بل تصفیہ — ' (بل + تصفیہ, both established), unrecovered
+ * 'ناقابلِ وصول ' (copied byte-for-byte from the UR bd_heading value in
+ * nav-language.js — kasra U+0650 after ل — never retyped), Asal
+ * Customer 'اصل گاہک — ' (اصل from 'اصل میں وصول شدہ'; گاہک from
+ * 'گاہک #{number}…'). The kist/settlement/offset rows (P5 schedule,
+ * P8, P9, P10) are INERT until Plan 569 wires the script option
+ * through — test-level proof only (T7). The split receipt stays out
+ * (D8); the history heading stays out (D6); history rows need no
+ * mechanism — dates are values (D7).
+ */
+export const RECEIPT_URDU_PREFIXES = [
+  ['Prepay Coverage / پیشگی کوریج (', 'پیشگی کوریج ('],
+  ['Murammat / Material Charge (', 'مرمت / سامان چارج ('],
+  ['Manual Baqaya / دستی بقایا (', 'دستی بقایا ('],
+  ['Speed Boost / سپیڈ بوسٹ (', 'سپیڈ بوسٹ ('],
+  ['Arrears offset — ', 'بقایا تصفیہ — '],
+  ['Asal Customer — ', 'اصل گاہک — '],
+  ['Bill offset — ', 'بل تصفیہ — '],
+  ['Unrecovered ', 'ناقابلِ وصول '],
+  ['Hamsaya — ', 'ہمسایہ — '],
+  ['Kist ', 'قسط '],
+];
+
 /** Urdu-script form of one generated label, or null when unmapped. */
 export function urduReceiptLabel(label) {
   if (typeof label !== 'string') return null;
@@ -178,9 +227,12 @@ export function urduReceiptLabel(label) {
  * returns the input unchanged, so a receipt without a script choice
  * prints exactly as before. For 'urdu', every mapped <dt> label is
  * replaced with its Urdu-script form (plain and <strong> variants,
- * with and without the trailing colon), unmapped labels are left
- * untouched, and the article is marked right-to-left Urdu. Values are
- * never touched: the replacement only ever matches a whole <dt> unit.
+ * with and without the trailing colon), then the Plan 568 prefix pass
+ * replaces the static prefix of a dynamic <dt> label (an ID, date,
+ * count or name follows it) with its Urdu form and leaves the variable
+ * part verbatim; unmapped labels are left untouched, and the article
+ * is marked right-to-left Urdu. Values are never touched: the
+ * replacement only ever matches a whole <dt> unit.
  */
 export function applyReceiptScript(html, script) {
   if (sanitizeReceiptScript(script) !== 'urdu') return html;
@@ -191,6 +243,16 @@ export function applyReceiptScript(html, script) {
     out = out.split(`<dt>${from}</dt>`).join(`<dt>${to}</dt>`);
     out = out.split(`<dt><strong>${from}:</strong></dt>`).join(`<dt><strong>${to}:</strong></dt>`);
     out = out.split(`<dt><strong>${from}</strong></dt>`).join(`<dt><strong>${to}</strong></dt>`);
+  }
+  // Plan 568 (D2): the prefix pass — AFTER the exact pass (T2). Every
+  // dynamic family has its static part FIRST, so matching the prefix at
+  // the start of the <dt> content is enough, and the colon (when
+  // present) sits after the variable part, so both <dt>X:</dt> and
+  // <dt>X</dt> forms are covered by the same two joins. The variable
+  // part re-attaches verbatim; values are never rewritten.
+  for (const [from, to] of RECEIPT_URDU_PREFIXES) {
+    out = out.split(`<dt>${from}`).join(`<dt>${to}`);
+    out = out.split(`<dt><strong>${from}`).join(`<dt><strong>${to}`);
   }
   const at = out.indexOf('<article class="receipt-sheet');
   if (at >= 0) {

@@ -5083,6 +5083,22 @@ function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, 
   const payment = bill?.payments?.find(row => row.id === paymentId);
   if (!customer || !bill || !payment) { toast('This saved payment receipt is no longer available.'); return; }
   const receipt = buildPaymentReceipt(customer, bill, payment);
+  // Plan 571: reprint audit wiring. A receipt printed for the first
+  // time renders the original and saves a printed-once marker; every
+  // later print records a reprint in the log and stamps the sheet
+  // REPRINT with the count read back from the saved log. The record
+  // is written here, before window.print() is invoked (D2(a)) — a
+  // cancelled print dialog still counts as a print, matching the
+  // manual panel's record-on-click precedent. Receipts printed
+  // before 571 shipped carry no marker, so their first post-571
+  // print is an original (D1(a), disclosed).
+  const printedReceiptNumbers = loadPrintedReceiptNumbers();
+  let reprintCount = 0;
+  if (printedReceiptNumbers.includes(receipt.receiptNumber)) {
+    reprintCount = recordReceiptReprint(receipt);
+  } else {
+    savePrintedReceiptNumbers([...printedReceiptNumbers, receipt.receiptNumber]);
+  }
   const area = $('#receiptPrintArea');
   if (!area) return;
 
@@ -5094,7 +5110,9 @@ function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, 
     receiptFooter: getReceiptFooter(),
     // Plan 168: print-time script choice; anything other than 'urdu'
     // prints exactly as before, and the stored receipt is never touched.
-    script
+    script,
+    // Plan 571: the reprint count for the sheet stamp (0 = original).
+    reprintCount
   });
   area.hidden = false;
   document.body.classList.add('printing-receipt');
@@ -27902,6 +27920,38 @@ function loadReceiptReprints() {
 }
 function saveReceiptReprints(list) {
   try { localStorage.setItem(RECEIPT_REPRINT_KEY, JSON.stringify(normalizeReceiptReprintList(list))); } catch { /* record only: a failed save leaves the previous reprints in place */ }
+}
+// Plan 571: printed-once markers — the receipt numbers whose first
+// print already happened. A separate store from the reprint log:
+// the log records reprints only, so it can never tell a first print
+// from a second (D1(a)). Read/written only in printPaymentReceipt.
+const PRINTED_RECEIPT_KEY = 'shahdara_receipt_printed_v1';
+function loadPrintedReceiptNumbers() {
+  try {
+    const raw = localStorage.getItem(PRINTED_RECEIPT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return [...new Set(parsed.filter((item) => typeof item === 'string' && item))];
+  } catch { return []; }
+}
+function savePrintedReceiptNumbers(list) {
+  try { localStorage.setItem(PRINTED_RECEIPT_KEY, JSON.stringify([...new Set((Array.isArray(list) ? list : []).filter((item) => typeof item === 'string' && item))])); } catch { /* marker only: a failed save means the next print is treated as a first print again */ }
+}
+// Plan 571: record one print-path reprint and return the log count
+// AFTER the write, so the sheet stamp and the log always agree
+// (D7(a)). A PKR 0 receipt cannot be recorded (the module refuses
+// amount ≤ 0) and returns 0, so it never stamps (T4, disclosed).
+function recordReceiptReprint(receipt) {
+  const before = loadReceiptReprints();
+  const next = addReceiptReprint(before, {
+    id: `RR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    receiptNumber: receipt.receiptNumber,
+    amount: receipt.paidAmount,
+    reprintDate: getTodayDateString(),
+  });
+  saveReceiptReprints(next);
+  return reprintsForReceipt(loadReceiptReprints(), receipt.receiptNumber).length;
 }
 let receiptReprintBound = false;
 function renderReceiptReprints() {

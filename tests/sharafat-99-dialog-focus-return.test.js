@@ -265,11 +265,13 @@ test('D reverse still reverses the offset, re-renders and toasts', () => {
 
 // ── G — guards (3). ─────────────────────────────────────────────────────
 
-test('G EN/UR parity holds at 4,672/4,672 (no new key — the fix adds no user-facing strings)', () => {
+test('G EN/UR parity holds at 4,671/4,671 (no new key — the fix adds no user-facing strings; Round 2 D9 net −1)', () => {
+  // Round 2 (D9): net −1 key — 'cust_card_father_ref_short' and
+  // 'cust_card_tenure_since_short' deleted, 'cust_card_ref_short' added.
   const enKeys = Object.keys(TRANSLATIONS.en);
   const urKeys = Object.keys(TRANSLATIONS.ur);
-  assert.equal(enKeys.length, 4672);
-  assert.equal(urKeys.length, 4672);
+  assert.equal(enKeys.length, 4671);
+  assert.equal(urKeys.length, 4671);
   const keyDiff = enKeys.filter((k) => !TRANSLATIONS.ur[k]).concat(urKeys.filter((k) => !TRANSLATIONS.en[k]));
   assert.deepEqual(keyDiff, []);
 });

@@ -139,7 +139,7 @@
 [data-theme="dark"] .customer-service-not-set { background: var(--dk-surface-2) !important; color: var(--dk-muted) !important; border-color: var(--dk-line) !important; }
 /* Compact customer cards: row labels + sub-line use the muted dark text;
    the outstanding value stays ink-bright like the stat values. */
-[data-theme="dark"] :is(.customer-card-subline, .customer-card-row, .customer-card-row-sub) { color: var(--dk-muted) !important; }
+[data-theme="dark"] :is(.customer-card-subline, .customer-card-meta-line, .customer-card-row, .customer-card-row-sub) { color: var(--dk-muted) !important; }
 [data-theme="dark"] .customer-card-row-value strong { color: var(--dk-ink) !important; }
 [data-theme="dark"] .archived-unarchive-button {
   background: var(--dk-surface-2) !important;

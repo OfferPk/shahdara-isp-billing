@@ -244,11 +244,12 @@ test('C7 braces balanced in styles.css + nav.css', () => {
     'nav.css brace mismatch');
 });
 
-test('S1 EN/UR parity holds (4,672 / 4,672 — no i18n change in this item)', () => {
+test('S1 EN/UR parity holds (4,671 / 4,671 — Round 2 D9 net −1 key, not this item)', () => {
   // The prep hardcoded 4,574 — stale on this base; this base is 4,672/4,672
-  // (verified by import), unchanged by this CSS-only item.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4672, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4672, 'UR key count moved');
+  // (verified by import), unchanged by this CSS-only item. Round 2 (D9)
+  // moves it to 4,671/4,671: two keys deleted, one added.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4671, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4671, 'UR key count moved');
 });
 
 test('S2 logical-property precedent already exists (conversion follows it)', () => {

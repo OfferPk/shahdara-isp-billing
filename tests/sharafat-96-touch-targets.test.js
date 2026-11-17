@@ -20,6 +20,17 @@
 // decision needs naming, not silence), the Sharafat 90 pill note (32 wide x
 // 44 tall on phones, not 32x32). Fixture data: none — pure CSS-source
 // assertions, no names or numbers.
+//
+// ROUND 2 (user request 2026-11-17 — Customers Cards ultra-compact,
+// parent D1): the user's EXPLICIT request shrinks TWO controls BELOW
+// the 44px floor, in this item's !important-defeater shape — recorded,
+// not blessed. (1) the ＋ Additional micro-pill to 24px
+// (components.css .additional-pending-btn + its defeater, pinned in
+// tests/customers-cards-round2.test.js R1d/R6c); (2) the card action
+// buttons to 36px (styles.css .customer-card-action-btn + its
+// defeater — F10 below is rewritten to pin that, not to pass it).
+// The global floor itself is untouched, and the two defeaters are
+// the ONLY new ones (R6c counts them).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -125,9 +136,20 @@ test('F9 Pending Actions Copy button carries no 32px !important size', () => {
     'components.css:3992 still min-height:32px !important + height:32px !important (defeats the floor; the 48px header row still fits a 44px button)');
 });
 
-test('F10 customer-card-action-btn (a) carries min-height >=40', () => {
-  assert.ok(hasProp(ruleBodies(stylesNC, '.customer-card-action-btn'), /min-height\s*:\s*(4[0-9]|[5-9][0-9])px/),
-    'styles.css:1202 still min-height:36px — an <a>, so the button floor never reaches it');
+test('F10 customer-card-action-btn is 36px by USER DECISION (Round 2 D1) — defeater pins it, floor stays intact', () => {
+  // ROUND 2 REWRITE (parent D1, user request 2026-11-17): the action
+  // buttons shrink from 40px to 36px on the user's explicit request
+  // for ultra-compact cards — recorded, not blessed. The 36px class
+  // rule alone would LOSE to the 44px global floor, so the
+  // 96-precedent !important defeater carries it, exactly like the
+  // 24px ＋ Additional micro-pill. This test pins the DELIBERATE
+  // exception (36px + defeater), it does not bless it — the floor
+  // itself is untouched (R6c in tests/customers-cards-round2.test.js
+  // pins the floor rule verbatim and counts the defeaters).
+  assert.ok(hasProp(ruleBodies(stylesNC, '.customer-card-action-btn'), /min-height\s*:\s*36px/),
+    'styles.css .customer-card-action-btn is no longer min-height:40px');
+  assert.ok(/button:not\(\[hidden\]\)\.customer-card-action-btn\s*\{[^}]*min-height\s*:\s*36px\s*!important/.test(stylesNC),
+    'styles.css carries the 36px !important defeater for the action buttons');
 });
 
 test('F11 bare .edit-payment carries its own min-height >=40 (Plan 550 pattern)', () => {
@@ -231,9 +253,12 @@ test('C8 braces balanced in styles.css + nav.css + components.css', () => {
     'components.css brace mismatch');
 });
 
-test('S1 EN/UR parity holds (4,672 / 4,672 — no i18n change in this item)', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4672, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4672, 'UR key count moved');
+test('S1 EN/UR parity holds (4,671 / 4,671 — Round 2 D9 net −1 key, not this item)', () => {
+  // Round 2 (D9): 'cust_card_father_ref_short' and
+  // 'cust_card_tenure_since_short' deleted, 'cust_card_ref_short'
+  // added — net −1 key in each dict.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4671, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4671, 'UR key count moved');
 });
 
 test('S2 global button floor intact', () => {

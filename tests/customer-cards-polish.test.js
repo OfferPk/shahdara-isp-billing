@@ -74,12 +74,13 @@ test('polish: condensed pills replace the metrics boxes (same figures, pill geom
   // middle). The pills reuse the palette already in the file: the
   // neutral meta/health pills take the ds tokens, the coloured pills
   // take the health/status hex already present (no new hex — the 613
-  // ratchet is the backstop).
+  // ratchet is the backstop). Round 2: the meta-pills become ONE
+  // muted text line (.customer-card-meta-line) — the meta-pill rule
+  // is deleted, and the line carries the muted #475569 text.
   assert.ok(!styles.includes('.customer-card-stat'), 'stat-box rules are gone with the boxes');
   assert.match(styles, /\.customer-card-pill-row \{[^}]*justify-content: flex-start;/s, 'pill rows are adjacent, never space-between');
-  assert.match(styles, /\.customer-card-meta-pill \{[^}]*border: 1px solid var\(--ds-line\);/s, 'meta pill border token');
-  assert.match(styles, /\.customer-card-meta-pill \{[^}]*border-radius: var\(--radius-pill\);/s, 'meta pill is round');
-  assert.match(styles, /\.customer-card-meta-pill \{[^}]*background: var\(--ds-nested\);/s, 'meta pill background token');
+  assert.ok(!styles.includes('.customer-card-meta-pill'), 'meta-pill rule is gone from styles.css (Round 2 D7/D8)');
+  assert.match(styles, /\.customer-card-meta-line \{[^}]*color: #475569;/s, 'muted line uses the existing muted grey');
   assert.match(styles, /\.customer-card-lifetime-pill \{[^}]*background: #e8f5ed;/s, 'lifetime pill reuses the received green');
   assert.match(styles, /\.customer-card-tenure-pill \{[^}]*background: #e5efff;/s, 'tenure pill reuses the status blue');
   assert.match(
@@ -89,49 +90,48 @@ test('polish: condensed pills replace the metrics boxes (same figures, pill geom
   );
 });
 
-test('polish: paid-up cards get their own ＋ Additional row; free/archived cards get no row at all', () => {
-  // Sharafat 28: the comment above additionalButton always promised the
-  // button "rides on its own compact row when paid up", but the template
-  // interpolated it ONLY inside the Outstanding row — a paid-up customer
-  // could only get an additional amount added from the profile. The row
-  // below restores the promised row. It is a plain customer-card-row
-  // (no new class — the compact pin forbids 'customer-card-additional-row'),
-  // it reuses additionalButton as-is, and it is gated on canAddPending
-  // so FREE/archived cards render NO row at all (not an empty 8px row).
-  const paidUpAt = card.indexOf('canAddPending && outstanding.totalCents === 0');
-  assert.ok(paidUpAt > -1, 'paid-up branch exists in the card template');
-  const paidUpBranch = card.slice(paidUpAt, card.indexOf('customer-card-actions'));
-  assert.ok(paidUpBranch.includes('${additionalButton}'), 'the paid-up row interpolates the Additional button');
-  assert.ok(paidUpBranch.includes('canAddPending'), 'the paid-up row is gated on canAddPending');
-  assert.ok(paidUpBranch.includes('<span class="customer-card-row">'), 'the paid-up row reuses the plain row class, no new class');
-  assert.ok(!paidUpBranch.includes('customer-card-additional-row'), 'no new row class name');
-  // In the paid-up branch totalCents === 0 implies manualBaqayaCents is 0
+test('polish: paid-up cards get ＋ Additional on the health row; free/archived cards get no button at all', () => {
+  // ROUND 2 REVERSAL (parent D1/D2, user request 2026-11-17): Sharafat
+  // 28's paid-up row is deleted. The ＋ Additional button now rides
+  // on the HEALTH row (moved out of the outer <button> into
+  // .customer-card-rows, next to the Health pill) as a 24px micro-pill
+  // — for paid-up AND owed cards alike, so a paid-up customer can
+  // still get an additional amount added from the card. The button
+  // reuses additionalButton as-is (same dialog wiring, same
+  // additional-pending-btn class), and it is gated on canAddPending
+  // so FREE/archived cards render NO button at all.
+  assert.ok(!card.includes('canAddPending && outstanding.totalCents === 0'), 'the paid-up row branch is deleted');
+  const healthRowAt = card.indexOf('customer-card-pill-row--spread');
+  assert.ok(healthRowAt > -1, 'health row exists in the card template');
+  const healthRow = card.slice(healthRowAt, card.indexOf('customer-card-actions'));
+  assert.ok(healthRow.includes('${additionalButton}'), 'the health row interpolates the Additional button');
+  assert.ok(healthRow.includes('customer-card-health-pill'), 'the health row carries the Health pill beside it');
+  const outBranch = card.slice(card.indexOf('${outstanding.totalCents > 0 ?'), card.indexOf('customer-card-actions'));
+  assert.ok(!outBranch.includes('${additionalButton}'), 'the Outstanding row no longer carries the button');
+  // In the paid-up case totalCents === 0 implies manualBaqayaCents is 0
   // (billDuesCents only sums balanceDueCents > 0), so additionalButton
   // always renders the ＋ Additional label here, never the ✎ edit glyph.
   assert.ok(card.includes("outstanding.manualBaqayaCents > 0 ? '✎' : escapeHtml(t('addpend_add'))"), 'the button shows ＋ Additional when no baqaya is owed, ✎ only next to a breakdown');
-  // The Outstanding row keeps the button too (baqaya-owed cards are
-  // unchanged): the button still lives inside the totalCents > 0 branch.
-  const outstandingBranch = card.slice(card.indexOf('${outstanding.totalCents > 0 ?'), paidUpAt);
-  assert.ok(outstandingBranch.includes('${additionalButton}'), 'baqaya-owed cards keep the button on the Outstanding row');
-  // FREE/archived: additionalButton is '' via canAddPending, and the row
-  // itself is gated on canAddPending — no empty row is rendered for them.
+  // FREE/archived: additionalButton is '' via canAddPending — no
+  // button is rendered for them on the health row either.
   assert.ok(card.includes('const canAddPending = !archived && customer.isFreeConnection !== true;'), 'canAddPending hides the control for FREE/archived cards');
 });
 
 test('polish: the action row is the only new control — no service toggle', () => {
   // REVERSAL (Customers Cards Compact §3): the old "no new control"
   // rule is retired on purpose — the card now ends in an action row
-  // [Call | Collect | Full Profile]. The allowlist below is the WHOLE
-  // control set: the whole-card open button, the outstanding row's
-  // ＋ Add amount button, the archived unarchive button, the Clear-dues
+  // [Call | Collect | Profile]. The allowlist below is the WHOLE
+  // control set: the whole-card open button, the health row's
+  // ＋ Additional micro-pill, the archived unarchive button, the Clear-dues
   // seat (now a span with role=button in the header, not a button),
   // and the three action-row controls. No service toggle ever.
   // Pre-existing buttons only: the whole card is one open button (PR
-  // #1334 design), the outstanding row keeps its ＋ Add amount button
-  // (Sharafat 28: the button ALSO rides on its own compact row when the
-  // customer is paid up — same additional-pending-btn, same allowlist),
-  // archived cards keep their unarchive button. Unpaid Cards adds the
-  // green Clear dues seat in the header pill's seat (D-B1).
+  // #1334 design), the health row keeps its ＋ Additional micro-pill
+  // (Round 2: the button moved from the Outstanding row / its own
+  // paid-up row onto the health row — same additional-pending-btn,
+  // same allowlist), archived cards keep their unarchive button.
+  // Unpaid Cards adds the green Clear dues seat in the header pill's
+  // seat (D-B1).
   const buttonClasses = [...card.matchAll(/<button[^>]*class="([^"]*)"/g)].map(m => m[1]);
   assert.ok(buttonClasses.length > 0, 'card buttons found');
   for (const cls of buttonClasses) {

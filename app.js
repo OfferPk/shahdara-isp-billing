@@ -1823,13 +1823,19 @@ function activateProfileTab(name, focus = false) {
 // a complaint resolved from the register modal refreshes them through
 // handleRegisterComplaintsChanged's renderDetail. The static HTML
 // keeps the bare data-i18n labels for the first paint.
-// The counts write into the tab's .profile-tab-label span only —
-// writing the button's textContent would wipe the tab number span.
+// Sharafat 100 (D4/D6): the counts live in their own .profile-tab-count
+// span, OUTSIDE the label's ellipsis — the label span truncates at
+// ≤620px, the count never shrinks, so the count is always fully
+// visible. The count keys hold only the "(N)" suffix now ("Complaints
+// (2 open)" → "Complaints (2)"); the label word comes from the label
+// span. The label's title carries the full rendered tab text, so a
+// truncated label still reads in full on hover / assistive tech.
+// Writing the button's textContent would wipe the tab number span.
 function updateProfileTabCounts(customer) {
   if (!customer) return;
   const counts = profileTabCounts(customer, loadComplaints(), manualBaqayaEntriesWithRemaining(customer));
   const billingLabel = $('#profileTabBilling .profile-tab-label');
-  if (billingLabel) billingLabel.textContent = t('prof_tab_billing');
+  if (billingLabel) { billingLabel.textContent = t('prof_tab_billing'); billingLabel.title = t('prof_tab_billing'); }
   const billingMonthsCount = $('#profileBillingMonthsCount');
   if (billingMonthsCount) {
     if (counts.billingMonths > 0) {
@@ -1841,9 +1847,21 @@ function updateProfileTabCounts(customer) {
     }
   }
   const complaintsLabel = $('#profileTabComplaints .profile-tab-label');
-  if (complaintsLabel) complaintsLabel.textContent = counts.openComplaints > 0 ? t('prof_tab_complaints_count', null, { count: counts.openComplaints }) : t('prof_tab_complaints');
+  const complaintsCount = $('#profileTabComplaints .profile-tab-count');
+  if (complaintsLabel) complaintsLabel.textContent = t('prof_tab_complaints');
+  if (complaintsCount) {
+    complaintsCount.hidden = counts.openComplaints <= 0;
+    complaintsCount.textContent = counts.openComplaints > 0 ? t('prof_tab_complaints_count', null, { count: counts.openComplaints }) : '';
+  }
+  if (complaintsLabel) complaintsLabel.title = counts.openComplaints > 0 ? `${t('prof_tab_complaints')} ${t('prof_tab_complaints_count', null, { count: counts.openComplaints })}` : t('prof_tab_complaints');
   const baqayaLabel = $('#profileTabBaqaya .profile-tab-label');
-  if (baqayaLabel) baqayaLabel.textContent = counts.unpaidBaqaya > 0 ? t('prof_tab_baqaya_count', null, { count: counts.unpaidBaqaya }) : t('prof_tab_baqaya');
+  const baqayaCount = $('#profileTabBaqaya .profile-tab-count');
+  if (baqayaLabel) baqayaLabel.textContent = t('prof_tab_baqaya');
+  if (baqayaCount) {
+    baqayaCount.hidden = counts.unpaidBaqaya <= 0;
+    baqayaCount.textContent = counts.unpaidBaqaya > 0 ? t('prof_tab_baqaya_count', null, { count: counts.unpaidBaqaya }) : '';
+  }
+  if (baqayaLabel) baqayaLabel.title = counts.unpaidBaqaya > 0 ? `${t('prof_tab_baqaya')} ${t('prof_tab_baqaya_count', null, { count: counts.unpaidBaqaya })}` : t('prof_tab_baqaya');
 }
 mountCustomerProfileContent();
 

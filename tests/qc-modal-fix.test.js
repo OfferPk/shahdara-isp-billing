@@ -204,7 +204,9 @@ test('(9) the High filter pill is rose and the counts are counter badges', () =>
   assert.match(styles, /\.qc-count-badge\s*\{[^}]*border-radius:\s*999px/, 'counts must be rounded badges');
   assert.match(html, /<span class="qc-count-badge" id="quickCollectDuesCount">0<\/span>/, 'Pending count must be a badge, not parens');
   assert.equal(html.includes('(<span id="quickCollectDuesCount">'), false, 'no parens around the counts');
-  assert.match(styles, /#quickCollectModal \.help-info-btn\s*\{[^}]*width:\s*36px/, 'header info button must be 36px');
+  // Sharafat 96: the QC header (i) is 40px now (was 36px) — the 40px
+  // touch-target floor for the help affordances.
+  assert.match(styles, /#quickCollectModal \.help-info-btn\s*\{[^}]*width:\s*40px/, 'header info button must be 40px');
   assert.match(styles, /#quickCollectModal #closeQuickCollectModalBtn\s*\{[^}]*width:\s*36px !important/, 'header close button must be 36px');
 });
 

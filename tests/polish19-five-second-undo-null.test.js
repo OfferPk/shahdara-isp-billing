@@ -141,7 +141,8 @@ async function submitAndConfirm(getEl, getState) {
 test('REPRO (polish #19): the five-second undo deletes a plain payment instead of erroring on splitLegs', async () => {
   await withController(polish19FixtureState(), async ({ controller, getEl, toasts, getState }) => {
     controller.open('seed-001');
-    assert.equal(getEl('quickCollectAmountInput').value, '1000.00', 'precondition: amount starts at full dues');
+    // Quick Collect polish (2026-11-17, D5): whole-number prefill.
+    assert.equal(getEl('quickCollectAmountInput').value, '1000', 'precondition: amount starts at full dues');
 
     await submitAndConfirm(getEl, getState);
     assert.equal(paymentsOf(getState(), MONTH).length, 1, 'precondition: one payment recorded');

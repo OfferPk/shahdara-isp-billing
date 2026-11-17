@@ -24,17 +24,26 @@ const testSrc = readFileSync(new URL(import.meta.url), 'utf8');
 const CHIPS_LABEL = 'Quick amounts';
 const LOOSE_LABEL = 'Round-note tender';
 
-test('acceptance: the loose-change row carries its group label in the page, directly above its host', () => {
-  const hostAt = pageSrc.indexOf('id="quickCollectLooseChangeChips"');
-  assert.ok(hostAt > -1, 'the loose-change chips host must exist');
-  const labelAt = pageSrc.indexOf(LOOSE_LABEL);
-  assert.ok(labelAt > -1, 'the round-note tender label must exist in the page');
-  assert.ok(labelAt < hostAt, 'the label must sit above the loose-change row');
+test('acceptance: the merged row carries one group label; the loose host is nested inside it, label-free', () => {
+  // Quick Collect polish (2026-11-17, D10): the 'Round-note tender'
+  // group label is GONE — one group label ('Quick amounts') covers
+  // the merged row (Full + Half + loose on one row), and the loose
+  // host is nested inside the row after Half. The old pin (a label
+  // directly above the loose host) is reversed with this note.
+  assert.ok(!pageSrc.includes(LOOSE_LABEL), 'the round-note tender label must be gone');
+  assert.ok(!pageSrc.includes('qc-loose-change-label'), 'the loose label hook must be gone');
+  const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
+  assert.ok(rowAt > 0, 'the merged chip row must exist');
+  const labelAt = pageSrc.indexOf(CHIPS_LABEL);
+  assert.ok(labelAt > -1, 'the Quick amounts label must exist in the page');
+  assert.ok(labelAt < rowAt, 'the label must sit above the merged row');
   const labelOpen = pageSrc.lastIndexOf('<p', labelAt);
-  const between = pageSrc.slice(labelOpen, hostAt);
+  const between = pageSrc.slice(labelOpen, rowAt);
   assert.ok(!between.includes('</div>'), 'nothing may sit between the label and its row');
   assert.ok(between.includes('qc-amount-group-label'), 'the label uses the shared group-label class');
-  assert.ok(between.includes('qc-loose-change-label'), 'the label carries its own hook for the hide-with-row toggle');
+  // The host is nested inside the row (after Half), not a row below it.
+  const hostAt = pageSrc.indexOf('id="quickCollectLooseChangeChips"');
+  assert.ok(hostAt > rowAt, 'the loose host sits inside the merged row');
   // The host still sits before the cash change box (Plan 432 pin).
   const cashAt = pageSrc.indexOf('id="quickCollectCashChangeBox"');
   assert.ok(hostAt < cashAt, 'the loose-change row still sits before the cash change box');
@@ -61,14 +70,18 @@ test('acceptance: the merged chip row carries one static group label in the page
   assert.ok(between.includes('qc-amount-group-label'), 'the label uses the shared group-label class');
 });
 
-test('acceptance: the loose-change label hides with its row and returns with it', () => {
+test('acceptance: the loose-change host hides when empty (the label is gone, so there is nothing to toggle with it)', () => {
+  // Quick Collect polish (2026-11-17, D10): the 'Round-note tender'
+  // label is deleted with the merge, so renderLooseChangeChips no
+  // longer toggles a label — the host hides on its own when the
+  // markup is empty. The old pin (label hides with the row) is
+  // reversed with this note.
   const start = wiringSrc.indexOf('function renderLooseChangeChips()');
   assert.notEqual(start, -1, 'renderLooseChangeChips must exist');
   const block = wiringSrc.slice(start, start + 1200);
   assert.ok(block.includes("looseChangeBox.hidden = markup === '';"), 'the row still hides when empty');
-  assert.ok(block.includes('looseChangeLabel.hidden = markup === '), 'the label hides with the row');
-  // The label is found by its class hook, never a new element id.
-  assert.ok(wiringSrc.includes("document.querySelector('.qc-loose-change-label')"), 'the label is found by class');
+  assert.ok(!block.includes('looseChangeLabel'), 'no label toggle remains');
+  assert.ok(!wiringSrc.includes("document.querySelector('.qc-loose-change-label')"), 'the label class hook is gone');
   assert.ok(!wiringSrc.includes('quickCollectLooseChangeLabel'), 'no new element id is introduced');
 });
 
@@ -76,9 +89,25 @@ test('wiring: no button is added, removed, or reworded by the labels', () => {
   // The merged chip row in the page — six chips (QC Modal Overhaul
   // 2: Full dues, Half dues, Package + 2,000 / 1,000 / 500; Current
   // Month and 1,500 dropped, Package back per addendum A2).
+  // Quick Collect polish (D10): the loose host is nested inside the
+  // row after Half, so the row is read with a balanced scan — the
+  // old first-</div> slice truncated at the host's close.
   const rowAt = pageSrc.indexOf('qc-quick-amount-chips');
   assert.ok(rowAt > 0, 'the quick-amount row must exist');
-  const row = pageSrc.slice(rowAt, pageSrc.indexOf('</div>', rowAt));
+  const open = pageSrc.lastIndexOf('<div', rowAt);
+  let depth = 0;
+  let i = open;
+  let row = '';
+  while (i < pageSrc.length) {
+    if (pageSrc.startsWith('<div', i)) { depth++; i += 4; continue; }
+    if (pageSrc.startsWith('</div>', i)) {
+      depth--;
+      if (depth === 0) { row = pageSrc.slice(open, i + 6); break; }
+      i += 6; continue;
+    }
+    i++;
+  }
+  assert.ok(row.length > 0, 'the merged row must close');
   for (const type of ['full', 'half', 'package', '2000', '1000', '500']) {
     assert.ok(row.includes(`data-quick-amount="${type}"`), `merged ${type} chip must stay`);
   }

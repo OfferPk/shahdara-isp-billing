@@ -300,10 +300,14 @@ test('status merge: the merged Still-owed row is written from the same receipt f
   // QC receipt-modal overhaul (§4.3.2): the settle badge is gone — the
   // merged Still-owed row in the card builder is the surface that reads
   // the canonical remaining figure, branching on remainingPayable > 0.
+  // Plan 566 (D4) rewrote the inline ?? chain into the shared helper
+  // firstFiniteRemainingPayable — this wiring pin now pins the helper
+  // call instead of the chain's text (the figure itself is covered by
+  // the behaviour pins and by plan566-receipt-card-nan-guard.test.js).
   assert.ok(!quickCollectSrc.includes('function renderSettleStatusBadge()'), 'settle render must be gone');
   assert.ok(
-    quickCollectSrc.includes('const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;'),
-    'card builder must compute the canonical remaining figure',
+    quickCollectSrc.includes('const remainingPayable = firstFiniteRemainingPayable(receipt);'),
+    'card builder must compute the canonical remaining figure via the Plan 566 helper',
   );
   assert.ok(
     quickCollectSrc.includes('remainingPayable > 0 ? `'),

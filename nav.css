@@ -353,8 +353,8 @@ body.drawer-open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border-radius: 8px;
   border: 1px solid var(--line, #e2ece7);
   background: transparent;
@@ -1012,8 +1012,8 @@ kbd {
 }
 
 .sheet-close-btn {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border-radius: 8px;
   border: 1px solid var(--line, #e2ece7);
   background: transparent;
@@ -1235,36 +1235,6 @@ kbd {
 /* ==========================================================================
    COMMAND PALETTE & QUICK JUMP BAR
    ========================================================================== */
-
-.command-palette-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--surface, #ffffff);
-  border: 1px solid var(--line, #e2ece7);
-  font: 500 12px/1 Manrope, system-ui, sans-serif;
-  color: var(--muted, #60756c);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.command-palette-trigger:hover {
-  background: var(--surface-sunken, #f0f5f2);
-  border-color: var(--green, #0e5b4d);
-  color: var(--ink, #182e2a);
-}
-
-.command-palette-trigger kbd {
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: var(--surface-sunken, #f0f5f2);
-  border: 1px solid var(--line, #e2ece7);
-  color: var(--ink, #182e2a);
-}
 
 .command-palette-dialog {
   border: none;
@@ -1488,24 +1458,6 @@ kbd {
 }
 
 /* Dark mode for palette and pull-to-refresh */
-[data-theme="dark"] .command-palette-trigger {
-  background: #14231f;
-  border-color: #253d35;
-  color: #8fa59c;
-}
-
-[data-theme="dark"] .command-palette-trigger:hover {
-  background: #19382e;
-  border-color: #34d399;
-  color: #e6edea;
-}
-
-[data-theme="dark"] .command-palette-trigger kbd {
-  background: #192e27;
-  border-color: #253d35;
-  color: #a7f3d0;
-}
-
 [data-theme="dark"] .command-palette-card {
   background: #14231f;
   border-color: #253d35;
@@ -1681,7 +1633,6 @@ kbd {
     min-height: 32px;
   }
 
-  .command-palette-trigger,
   .shortcuts-help-button,
   .theme-toggle {
     width: 32px;
@@ -6843,7 +6794,6 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
 
 
 @media (max-width: 640px) {
-  .command-palette-trigger,
   .shortcuts-help-button {
     display: none;
   }

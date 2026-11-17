@@ -99,7 +99,11 @@ export function writeFailureMessage(input = {}) {
 }
 
 export function defaultDuration(type, hasAction) {
-  const base = type === 'error' || type === 'warning' ? 6000 : 4000;
+  // Sharafat 98: one toast system — errors default to 8000 ms (info/success
+  // keep 4000 ms, warnings 6000 ms); with an action the floor is 7000 ms.
+  // Persistence is NOT encoded here: show() resolves error+action into
+  // opts.persistent instead (Sharafat 92 F3 pins the guard shapes).
+  const base = type === 'error' ? 8000 : type === 'warning' ? 6000 : 4000;
   return hasAction ? Math.max(base, 7000) : base;
 }
 
@@ -307,7 +311,11 @@ export function createToastSystem(doc = document, win = window) {
     const type = TOAST_TYPES[opts.type] ? opts.type : inferToastType(raw);
     const text = stripLeadingIcon(raw);
     const actions = normalizeActions(opts);
-    // app.js passes 2800 ms by default (#220); give actions / errors enough time to be read.
+    // Sharafat 98: an error toast with an action stays until dismissed.
+    // Resolve that INTO opts.persistent here, so every downstream guard
+    // (startTimer, progress-bar hide, stacked-copy inherit, resume())
+    // reads the effective flag — Sharafat 92 F3 pins those source shapes.
+    opts = { ...opts, persistent: opts.persistent === true || (type === 'error' && actions.length > 0) };
     const asked = Number(opts.duration);
     const duration = Math.max(Number.isFinite(asked) && asked > 0 ? asked : 0, defaultDuration(type, actions.length > 0));
 

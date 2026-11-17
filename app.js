@@ -14,6 +14,12 @@ import {
 } from './core.js?v=1.11.0';
 // Sharafat 87: the Bluetooth test slip's timestamp renders in the app language.
 import { formatHumanDateTime } from './nav-language.js';
+// Sharafat 98: the app.js fallback toast renders the same typed toast as the
+// ui-feedback impl, from the same pure helpers (no cycle — ui-feedback.js
+// imports only nav-language.js). Importing it also registers __toastImpl
+// during app.js's import evaluation, so the QR deep-link boot toast takes
+// the impl path instead of the fallback.
+import { inferToastType, inferTitle, TOAST_TYPES, defaultDuration, stripLeadingIcon } from './ui-feedback.js?v=1.11.0';
 // Polish #23: first-month tag helpers (badge data + bill waiver read).
 import { taggedFirstMonths, firstMonthWaiverOf } from './new-customer-tag.js';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
@@ -1264,6 +1270,8 @@ let pendingBackupPreview = null;
 let pendingBackupSourceText = '';
 let pendingDeltaMerge = null;
 let toastTimer;
+let toastRemaining = 0; // Sharafat 98: remaining ms for the fallback toast's pause-on-hover.
+let toastStartedAt = 0;
 let refreshOwnerCenter = () => {};
 let customerDraftController = null;
 let expenseDraftController = null;
@@ -1842,31 +1850,119 @@ mountCustomerProfileContent();
 function toast(message, options = {}) {
   // ui-feedback.js: typed, stacked toasts with icon/title/progress (falls back to the #220 toast below).
   if (typeof window.__toastImpl === 'function') return window.__toastImpl(message, options || {});
-  const { actionLabel = null, onAction = null, duration = 2800, persistent = false } = options || {};
+  // Sharafat 98: one toast system — the fallback renders the SAME typed toast
+  // as the impl (icon/title/message/action/close ×/progress, role + aria-live,
+  // duration rule, pause-on-hover) from the same pure helpers. It runs only
+  // when __toastImpl is absent (ui-feedback.js failed to load or its
+  // auto-init threw); under the D5 import that is a last-resort path. The
+  // single #toast element still replaces (no stacking), and it is moved into
+  // a .tsx-stack container so the stack-scoped tsx layout applies — the one
+  // gap left is the modal top layer (the impl lifts the stack into an open
+  // dialog; the fallback cannot, so a toast over an open modal may sit under
+  // the backdrop — it is still announced via aria-live).
+  options = options || {};
+  const raw = String(message ?? '');
+  const type = options.type && TOAST_TYPES[options.type] ? options.type : inferToastType(raw);
+  const text = stripLeadingIcon(raw);
+  const meta = TOAST_TYPES[type] || TOAST_TYPES.info;
+  const { actionLabel = null, onAction = null } = options;
+  const hasAction = Boolean(actionLabel && typeof onAction === 'function');
+  // Sharafat 98 (D10): resolve persistence INTO options.persistent, so the
+  // guard below reads the effective flag — an error toast with an action
+  // stays until dismissed. (D3: the storage-full 12000 ms calls become
+  // persistent; their explicit duration stays at the call site, inert.)
+  options = { ...options, persistent: options.persistent === true || (type === 'error' && hasAction) };
+  // Explicit durations stay floors (max), exactly like the impl's show().
+  const asked = Number(options.duration);
+  const duration = Math.max(Number.isFinite(asked) && asked > 0 ? asked : 0, defaultDuration(type, hasAction));
   const element = $('#toast');
   if (!element) return;
-  element.replaceChildren();
-  if (typeof message === 'string') {
-    const textSpan = document.createElement('span');
-    textSpan.className = 'toast-text';
-    textSpan.textContent = message;
-    element.appendChild(textSpan);
+  // The stack container gives #toast the impl's grid layout, dark background
+  // and accent border (the .tsx-stack > #toast rules); without it the toast
+  // would render as a stacked plain box.
+  let stack = document.getElementById('toastStack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'toastStack';
+    stack.className = 'tsx-stack';
+    document.body.appendChild(stack);
   }
-  if (actionLabel && typeof onAction === 'function') {
+  if (element.parentElement !== stack) stack.appendChild(element);
+  element.dataset.type = type;
+  element.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  element.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+  element.setAttribute('aria-atomic', 'true');
+  element.classList.add('tsx');
+  element.classList.remove('is-paused');
+  element.replaceChildren();
+  const icon = document.createElement('span');
+  icon.className = 'tsx-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = meta.icon;
+  const body = document.createElement('div');
+  body.className = 'tsx-body';
+  const titleEl = document.createElement('strong');
+  titleEl.className = 'tsx-title';
+  titleEl.textContent = options.title || inferTitle(type, text) || meta.title;
+  const textSpan = document.createElement('span');
+  textSpan.className = 'toast-text tsx-message';
+  textSpan.textContent = text;
+  body.append(titleEl, textSpan);
+  element.append(icon, body);
+  if (hasAction) {
+    const wrap = document.createElement('div');
+    wrap.className = 'tsx-actions';
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'toast-action-btn';
     btn.textContent = actionLabel;
-    btn.onclick = (e) => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
       element.hidden = true;
       try { onAction(); } catch (err) { console.error('Toast action failed:', err); }
-    };
-    element.appendChild(btn);
+    });
+    wrap.appendChild(btn);
+    element.appendChild(wrap);
   }
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'tsx-close';
+  close.setAttribute('aria-label', 'Dismiss notification');
+  close.textContent = '×';
+  close.addEventListener('click', (e) => { e.stopPropagation(); element.hidden = true; });
+  element.appendChild(close);
+  const bar = document.createElement('span');
+  bar.className = 'tsx-progress';
+  bar.setAttribute('aria-hidden', 'true');
+  bar.style.animationDuration = `${duration}ms`;
+  // A countdown bar on a toast that never counts down would be a lie.
+  if (options.persistent) bar.style.display = 'none';
+  element.appendChild(bar);
   element.hidden = false;
   element.onclick = () => { element.hidden = true; };
+  // Pause on hover/focus, like the impl — a still cursor the toast slides
+  // under must not eat its reading time.
+  const pauseFallback = () => {
+    if (!toastTimer) return;
+    toastRemaining = Math.max(400, toastRemaining - (Date.now() - toastStartedAt));
+    clearTimeout(toastTimer);
+    toastTimer = null;
+    element.classList.add('is-paused');
+  };
+  const resumeFallback = () => {
+    if (options.persistent || toastTimer || element.hidden) return;
+    element.classList.remove('is-paused');
+    toastStartedAt = Date.now();
+    toastTimer = setTimeout(() => { element.hidden = true; }, toastRemaining);
+  };
+  element.onpointermove = pauseFallback;
+  element.onpointerleave = resumeFallback;
+  element.onfocusin = pauseFallback;
+  element.onfocusout = (e) => { if (!element.contains(e.relatedTarget)) resumeFallback(); };
   clearTimeout(toastTimer);
+  toastTimer = null;
+  toastStartedAt = Date.now();
+  toastRemaining = duration;
   // Sharafat 92: persistent means until dismissed — no auto-dismiss timer.
   if (!options.persistent) toastTimer = setTimeout(() => { element.hidden = true; }, duration);
 }

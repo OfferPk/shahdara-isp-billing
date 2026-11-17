@@ -5112,7 +5112,7 @@ function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, 
 
 // SISP-29: print the down-payment + kist schedule receipt into the same
 // print area the standard receipts use, then print it the same way.
-function printDownPaymentKistReceipt(customerForReceipt, plan, payment) {
+function printDownPaymentKistReceipt(customerForReceipt, plan, payment, { script = 'roman' } = {}) {
   try {
     const receipt = buildDownPaymentKistReceipt(customerForReceipt, plan, payment);
     const area = $('#receiptPrintArea');
@@ -5120,7 +5120,10 @@ function printDownPaymentKistReceipt(customerForReceipt, plan, payment) {
     area.innerHTML = buildDownPaymentKistReceiptHtml(receipt, {
       businessName: state.settings?.businessName || 'Shahdara ISP',
       businessPhone: state.settings?.businessPhone || '0300-1234567',
-      receiptFooter: getReceiptFooter()
+      receiptFooter: getReceiptFooter(),
+      // Plan 569: print-time script choice, mirroring printPaymentReceipt.
+      // No caller passes 'urdu' yet (D1(a) wiring-only).
+      script
     });
     area.hidden = false;
     document.body.classList.add('printing-receipt');
@@ -5136,7 +5139,7 @@ function printDownPaymentKistReceipt(customerForReceipt, plan, payment) {
 // same print area the standard receipts use, then print it the same
 // way. The receipt reads the settlement stamped on the customer at
 // settle time — it can never be produced for an unsettled deposit.
-function printDepositSettlementReceipt(customerId) {
+function printDepositSettlementReceipt(customerId, { script = 'roman' } = {}) {
   const customer = state.customers.find(row => row.id === customerId);
   const receipt = customer ? buildDepositSettlementReceipt(customer) : null;
   if (!receipt) { toast('No deposit settlement is recorded for this customer.'); return; }
@@ -5145,7 +5148,10 @@ function printDepositSettlementReceipt(customerId) {
   area.innerHTML = generateDepositSettlementReceiptHtml(receipt, {
     businessName: state.settings?.businessName || 'Shahdara ISP',
     businessPhone: state.settings?.businessPhone || '0300-1234567',
-    receiptFooter: getReceiptFooter()
+    receiptFooter: getReceiptFooter(),
+    // Plan 569: print-time script choice, mirroring printPaymentReceipt.
+    // No caller passes 'urdu' yet (D1(a) wiring-only).
+    script
   });
   area.hidden = false;
   document.body.classList.add('printing-receipt');
@@ -5160,7 +5166,7 @@ function printDepositSettlementReceipt(customerId) {
 // active offset. The receipt reads the depositOffsets entry stamped at
 // apply time — it can never be produced for an offset that never
 // happened, and it states on its face that no cash moved.
-function printDepositOffsetReceipt(customerId, offsetId) {
+function printDepositOffsetReceipt(customerId, offsetId, { script = 'roman' } = {}) {
   const customer = state.customers.find(row => row.id === customerId);
   const receipt = customer ? buildDepositOffsetReceipt(customer, offsetId) : null;
   if (!receipt) { toast('No deposit offset is recorded for this customer.'); return; }
@@ -5169,7 +5175,10 @@ function printDepositOffsetReceipt(customerId, offsetId) {
   area.innerHTML = generateDepositOffsetReceiptHtml(receipt, {
     businessName: state.settings?.businessName || 'Shahdara ISP',
     businessPhone: state.settings?.businessPhone || '0300-1234567',
-    receiptFooter: getReceiptFooter()
+    receiptFooter: getReceiptFooter(),
+    // Plan 569: print-time script choice, mirroring printPaymentReceipt.
+    // No caller passes 'urdu' yet (D1(a) wiring-only).
+    script
   });
   area.hidden = false;
   document.body.classList.add('printing-receipt');

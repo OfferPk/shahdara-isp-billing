@@ -1905,6 +1905,23 @@ stat cells become pills. */
 .receipt-custom-footer{margin-top:8px}
 .receipt-custom-footer p{font-weight:700}
 .receipt-custom-footer p[dir=rtl]{text-align:right}
+/* Plan 569: Urdu-script receipt rules (D5(b) print + screen, D6(a)
+   RTL-natural, D7(a) Naskh + line-height). Scoped to
+   .receipt-urdu-script ONLY — the shared .receipt-fields /
+   .receipt-field / .receipt-head / .receipt-terms rules are never
+   touched, so a Roman print stays pixel-identical (T7). Under
+   dir="rtl" the labels and values right-align; the two-column grid
+   auto-placement flips (first field top-right) — that is the correct
+   reading of column order for an RTL document, accepted, not fought
+   (no direction:ltr pin anywhere in this block). The face stays the
+   .receipt-sheet Naskh stack (Nastaliq only loads in Urdu language
+   mode, so naming it here would silently fall back to Naskh); only
+   the line-height grows, so tall Urdu glyphs never clip. No colours
+   are set here, so no new hex and no new token. */
+.receipt-urdu-script .receipt-field dt{text-align:right}
+.receipt-urdu-script .receipt-field dd{text-align:right}
+.receipt-urdu-script .receipt-urdu-notice{line-height:1.9}
+.receipt-urdu-script .receipt-terms p{line-height:2}
 @media(max-width:620px){.receipt-sheet{margin:12px auto;padding:20px}.receipt-fields{grid-template-columns:1fr;gap:12px 14px}.receipt-head h1{font-size:21px}.receipt-mark{min-width:54px;min-height:54px}}
 @media print{
   @page{size:A4;margin:13mm}
@@ -1915,6 +1932,8 @@ stat cells become pills. */
   body.printing-receipt .receipt-sheet{width:100%;max-width:none;min-height:0;margin:0;padding:0;border:0;border-radius:0;box-shadow:none}
   body.printing-receipt .receipt-head{break-inside:avoid}
   body.printing-receipt .receipt-fields,body.printing-receipt .receipt-reminder,body.printing-receipt .receipt-terms{break-inside:avoid}
+  /* Plan 569: the Urdu notice never splits across a printed page. */
+  body.printing-receipt .receipt-urdu-script .receipt-urdu-notice{break-inside:avoid}
   body.printing-dashboard-summary *{visibility:hidden!important}
   body.printing-dashboard-summary #printSummarySection,body.printing-dashboard-summary #printSummarySection *{visibility:visible!important}
   body.printing-dashboard-summary #printSummarySection{display:block!important;position:fixed;inset:0;width:100%;max-width:none;margin:0;padding:0;background:#fff}

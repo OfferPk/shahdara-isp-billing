@@ -39,6 +39,11 @@
  * + G3 builder-direct rows, disclosed inert (6) + G4 guards (5) =
  * 33 tests. Expected suite: 20,277 + 33 = 20,310/0.
  * Build dist 23. Parity 4,675/4,675 (no new i18n keys).
+ *
+ * Plan 569 note: 569 wired the script option into the three builders
+ * (D2), so the G3 wiring absence-controls flipped to presence
+ * controls (see that test's why-comment). The rows are no longer
+ * inert — but no production caller passes 'urdu' yet (569 D1(a)).
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -313,13 +318,15 @@ test('plan568 G3 offset bill: row translates via direct applyReceiptScript', () 
   assert.ok(urdu.includes('<dt>بل تصفیہ — 2026-11:</dt>'), 'offset bill row must read بل تصفیہ — 2026-11:');
 });
 
-test('plan568 G3 wiring: the three builders take no script option and never call applyReceiptScript (569 territory)', () => {
-  // Absence-controls: these stay failing until 569 — they prove 568
-  // cannot wire what it does not own. The generated HTML (without
-  // direct apply) still carries the Roman dynamic labels in production.
-  assert.ok(!buildDownPaymentKistReceiptHtml.toString().includes('applyReceiptScript'), 'kist builder must not call applyReceiptScript yet');
-  assert.ok(!generateDepositSettlementReceiptHtml.toString().includes('applyReceiptScript'), 'settlement builder must not call applyReceiptScript yet');
-  assert.ok(!generateDepositOffsetReceiptHtml.toString().includes('applyReceiptScript'), 'offset builder must not call applyReceiptScript yet');
+test('plan568 G3 wiring: the three builders now call applyReceiptScript (wired by Plan 569)', () => {
+  // Plan 569 wired the script option into all three builders (D2):
+  // the absence-controls above flip to presence-controls here. The
+  // intent is unchanged — the wiring belongs to 569, not 568 — and
+  // 569's own file owns the behaviour pins (G1). The generated HTML
+  // WITHOUT a script option is still Roman (the default is 'roman').
+  assert.ok(buildDownPaymentKistReceiptHtml.toString().includes('applyReceiptScript'), 'kist builder must call applyReceiptScript (Plan 569)');
+  assert.ok(generateDepositSettlementReceiptHtml.toString().includes('applyReceiptScript'), 'settlement builder must call applyReceiptScript (Plan 569)');
+  assert.ok(generateDepositOffsetReceiptHtml.toString().includes('applyReceiptScript'), 'offset builder must call applyReceiptScript (Plan 569)');
   const kist = buildDownPaymentKistReceiptHtml({
     customerName: 'Ahmed', customerId: '12', receiptNumber: 'R-9', verificationCode: 'AB12-CD',
     paymentDate: '2026-11-03', paymentMethod: 'Cash', itemTitle: 'Router',
@@ -328,7 +335,7 @@ test('plan568 G3 wiring: the three builders take no script option and never call
     schedule: [{ installmentNumber: 1, totalMonths: 4, month: '2026-12', amount: 1000, status: 'remaining' }],
     urduNote: 'شکریہ!',
   });
-  assert.ok(kist.includes('Kist 1/4 · 2026-12'), 'generated kist HTML still Roman without direct apply — inert until 569');
+  assert.ok(kist.includes('Kist 1/4 · 2026-12'), 'generated kist HTML still Roman without a script option — the default is roman');
 });
 
 test('plan568 G3 values: schedule values + hardware label stay verbatim in the Urdu direct-apply output (T9)', () => {

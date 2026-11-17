@@ -253,12 +253,15 @@ test('C8 braces balanced in styles.css + nav.css + components.css', () => {
     'components.css brace mismatch');
 });
 
-test('S1 EN/UR parity holds (4,671 / 4,671 — Round 2 D9 net −1 key, not this item)', () => {
+test('S1 EN/UR parity holds (4,675 / 4,675 — Round 2 D9 net −1, Quick Collect polish +4 keys)', () => {
   // Round 2 (D9): 'cust_card_father_ref_short' and
   // 'cust_card_tenure_since_short' deleted, 'cust_card_ref_short'
-  // added — net −1 key in each dict.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4671, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4671, 'UR key count moved');
+  // added — net −1 key in each dict. Quick Collect polish
+  // (2026-11-17): 4 new keys, EN + UR — qc3_collect_advance,
+  // qc_head_payable, qc_head_bill_dues, qc_loose_keep_chip.
+  // Parity is kept: 4,672 − 1 + 4 = 4,675.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4675, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4675, 'UR key count moved');
 });
 
 test('S2 global button floor intact', () => {

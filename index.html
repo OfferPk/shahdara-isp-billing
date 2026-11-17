@@ -27319,18 +27319,22 @@
                  the one screen's preset chips use. The fixed notes
                  are 2,000 / 1,000 / 500. The dropped chips (Current
                  Month, 1,500) were a second copy of a figure the
-                 field or the Full chip already offers. -->
+                 field or the Full chip already offers. Quick Collect
+                 polish (2026-11-17, D10): the loose-change (round-note
+                 tender) chip is nested inside this row after Half, so
+                 Full + Half + loose share ONE row; the 'Round-note
+                 tender' group label below is gone — one group label
+                 ('Quick amounts') covers the merged row. -->
             <p class="qc-amount-group-label">Quick amounts</p>
             <div class="qc-quick-amount-chips" aria-label="Suggested quick amounts">
               <button type="button" class="quick-amount-chip" data-quick-amount="full">Full dues</button>
               <button type="button" class="quick-amount-chip" data-quick-amount="half">Half dues</button>
+              <div id="quickCollectLooseChangeChips" class="qc-loose-change-chips" aria-label="Loose change round-note tenders" hidden></div>
               <button type="button" class="quick-amount-chip" data-quick-amount="package">Package</button>
               <button type="button" class="quick-amount-chip" data-quick-amount="2000">2,000</button>
               <button type="button" class="quick-amount-chip" data-quick-amount="1000">1,000</button>
               <button type="button" class="quick-amount-chip" data-quick-amount="500">500</button>
             </div>
-            <p class="qc-amount-group-label qc-loose-change-label">Round-note tender</p>
-            <div id="quickCollectLooseChangeChips" class="qc-loose-change-chips" aria-label="Loose change round-note tenders" hidden></div>
             <!-- QC Modal Overhaul 2: the cash change calculator moved
                  into the Month & Note Details below (with the split
                  toggle) — it shows only while a cash method is
@@ -27349,7 +27353,7 @@
               <div class="qc-date-chips" role="group" data-i18n-aria-label="bdate_chips_aria" aria-label="Payment date shortcuts">
                 <button type="button" class="qc-date-chip" data-qc-date-chip="today" data-i18n="bdate_chip_today">Today</button>
                 <button type="button" class="qc-date-chip" data-qc-date-chip="yesterday" data-i18n="bdate_chip_yesterday">Yesterday</button>
-                <button type="button" class="qc-date-chip" data-qc-date-chip="prev-month-end" data-i18n="bdate_chip_prev_month_end">Prev Month End</button>
+                <button type="button" class="qc-date-chip" data-qc-date-chip="prev-month-end" data-i18n="bdate_chip_prev_month_end">Prev Month</button>
                 <button type="button" class="qc-date-chip" data-qc-date-chip="custom" data-i18n="bdate_chip_custom">Custom</button>
               </div>
             </div>
@@ -27396,25 +27400,11 @@
                 <input id="quickCollectPaidByInput" type="text" maxlength="100" placeholder="e.g. Self, Brother, Shop Cashier" class="qc-input">
               </div>
             </div>
-            <!-- Plan 379: the collection note — who collected the payment, where it was taken, and in which mohalla. All three are optional; a collection without a note records none. -->
+            <!-- Plan 379: the collection note — who collected the payment. Quick Collect polish (2026-11-17, D13): the 'Collected at' + 'Collected in mohalla' fields were removed from this form, so entry-time place/mohalla recording goes; the profile twin still carries them. -->
             <div class="qc-form-row" style="margin-top:8px;">
               <div class="qc-field-group">
                 <label for="quickCollectCollectedByInput" class="qc-label">Collected by (optional)</label>
                 <input id="quickCollectCollectedByInput" type="text" maxlength="100" placeholder="e.g. Collector One" class="qc-input">
-              </div>
-
-              <div class="qc-field-group">
-                <label for="quickCollectCollectionPlaceSelect" class="qc-label">Collected at (optional)</label>
-                <select id="quickCollectCollectionPlaceSelect" class="qc-input">
-                  <option value="">—</option>
-                  <option value="shop">Shop</option>
-                  <option value="field">Field</option>
-                </select>
-              </div>
-
-              <div class="qc-field-group">
-                <label for="quickCollectCollectionMohallaInput" class="qc-label">Collected in mohalla (optional)</label>
-                <input id="quickCollectCollectionMohallaInput" type="text" maxlength="60" placeholder="e.g. Mohalla A" class="qc-input">
               </div>
             </div>
             <!-- Plan 389: the Urdu-script note — one optional note on the transaction, written in Urdu script and shown exactly as written. -->
@@ -27671,6 +27661,15 @@
           </div>
 
           <div class="qc-form-actions">
+            <!-- Quick Collect polish (2026-11-17, D2): the direct-save
+                 CTA — '✓ Save Payment (PKR {amount})' for a STANDARD
+                 collection only; it posts through the same submit
+                 handler, skipping only the Plan 382 confirm step.
+                 Hidden while the collection is not standard (Review
+                 stays the only CTA then). -->
+            <button id="quickCollectDirectSaveBtn" class="primary-button qc-confirm-btn" type="button" hidden>
+              ✓ Save Payment
+            </button>
             <button id="quickCollectConfirmBtn" class="primary-button qc-confirm-btn" type="submit">
               Review payment →
             </button>

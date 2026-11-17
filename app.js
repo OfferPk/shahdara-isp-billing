@@ -100,7 +100,7 @@ import {
 } from './backup-store.js?v=1.11.0';
 import { saveBranchGuard, ensureBranchGuard, createBranchGuardStamp, recordBranchGuardExport, recordBranchGuardApply } from './branch-guard.js?v=1.11.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.11.0';
-import { BACKUP_HEALTH_KEY, assessBackupHealth, backupPreActionPrompt, countAllPayments, countPaymentsAfterDate, recordBackupHealthExport, shareBackupOffDevice } from './backup-health.js?v=1.11.0';
+import { BACKUP_HEALTH_KEY, BACKUP_HEALTH_PAYMENT_THRESHOLD, assessBackupHealth, backupPreActionPrompt, countAllPayments, countPaymentsAfterDate, recordBackupHealthExport, shareBackupOffDevice } from './backup-health.js?v=1.11.0';
 import { verifyBackup, describeRestoreChanges } from './backup-verification.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
@@ -1360,18 +1360,43 @@ function deriveBackupHealth() {
   return { record, paymentsSinceExport };
 }
 
+// Sharafat 93: render-layer translation of the backup-health model (88
+// precedent) — the model stays English-canonical; these helpers map its
+// branch table to t() keys. The branch key is (status, never, payments):
+// Never and stale-Critical share the status 'critical' but not the
+// strings, so a status-only map would collapse them; the payments title
+// needs the count passed as a {count} param. `lang` is a test seam only —
+// callers pass nothing and t() reads the active language.
+function backupHealthLabelText(health, lastExportAt, lang = null) {
+  const never = !lastExportAt || Number.isNaN(new Date(lastExportAt).getTime());
+  if (never) return t('bkup_health_label_never', lang);
+  if (health.status === 'safe') return t('bkup_health_label_safe', lang);
+  if (health.status === 'due') return t('bkup_health_label_due', lang);
+  return t('bkup_health_label_critical', lang);
+}
+function backupHealthTitleText(health, lastExportAt, paymentsSinceExport, lang = null) {
+  const never = !lastExportAt || Number.isNaN(new Date(lastExportAt).getTime());
+  if (never) return t('bkup_health_title_never', lang);
+  if (Number.isFinite(paymentsSinceExport) && paymentsSinceExport >= BACKUP_HEALTH_PAYMENT_THRESHOLD) return t('bkup_health_title_critical_payments', lang, { count: paymentsSinceExport });
+  if (health.status === 'safe') return t('bkup_health_title_safe', lang);
+  if (health.status === 'due') return t('bkup_health_title_due', lang);
+  return t('bkup_health_title_critical_stale', lang);
+}
+
 function renderBackupHealthBadge() {
   const badge = $('#backupHealthBadge');
   if (!badge) return;
   const { record, paymentsSinceExport } = deriveBackupHealth();
   const health = assessBackupHealth({ lastExportAt: record.lastExportAt, paymentsSinceExport, now: new Date() });
+  const healthLabel = backupHealthLabelText(health, record.lastExportAt);
+  const healthTitle = backupHealthTitleText(health, record.lastExportAt, paymentsSinceExport);
   const emojiEl = $('#backupHealthEmoji');
   const labelEl = $('#backupHealthLabel');
   if (emojiEl) emojiEl.textContent = health.emoji;
-  if (labelEl) labelEl.textContent = health.label;
+  if (labelEl) labelEl.textContent = healthLabel;
   badge.className = `backup-health-badge health-${health.status}${health.pulse ? ' is-critical' : ''}`;
-  badge.title = `${health.title} Tap to download a JSON backup.`;
-  badge.setAttribute('aria-label', `${health.label}. ${health.title} Tap to download a JSON backup.`);
+  badge.title = `${healthTitle} ${t('bkup_health_tap_download')}`;
+  badge.setAttribute('aria-label', `${healthLabel}. ${healthTitle} ${t('bkup_health_tap_download')}`);
 }
 
 // SISP-199: pre-action backup banners inside the Monthly Billing Cycle and
@@ -1424,9 +1449,9 @@ function updateDataSafetyUi(status = null) {
 
   const bannerBackupBadge = $('#dataSafetyBackupBadge');
   if (bannerBackupBadge) {
-    bannerBackupBadge.textContent = backupHealth.label;
+    bannerBackupBadge.textContent = backupHealthLabelText(backupHealth, backupRecord.lastExportAt);
     bannerBackupBadge.className = `safety-badge badge-${backupBadgeLevel}`;
-    bannerBackupBadge.title = backupHealth.title;
+    bannerBackupBadge.title = backupHealthTitleText(backupHealth, backupRecord.lastExportAt, paymentsSinceExport);
   }
   const bannerPersistenceBadge = $('#dataSafetyPersistenceBadge');
   if (bannerPersistenceBadge) {
@@ -10891,7 +10916,7 @@ function renderStorageWarning() {
   $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
 }
 function formatBackupSize(bytes) {
-  if (!Number.isFinite(Number(bytes)) || Number(bytes) < 0) return 'Not available';
+  if (!Number.isFinite(Number(bytes)) || Number(bytes) < 0) return t('bkup_not_available');
   const value = Number(bytes);
   if (value < 1024) return `${value} bytes`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
@@ -10901,7 +10926,7 @@ function formatBackupDateTime(value) {
   const date = value ? new Date(value) : null;
   return date && Number.isFinite(date.getTime())
     ? new Intl.DateTimeFormat(undefined, { dateStyle:'medium', timeStyle:'short', timeZone:PAKISTAN_TIME_ZONE }).format(date)
-    : 'Never';
+    : t('bkup_never');
 }
 function renderBackupManager({ settings, status, backups }) {
   const frequency = settings?.frequency || DEFAULT_BACKUP_FREQUENCY;

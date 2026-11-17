@@ -81,6 +81,28 @@ self.addEventListener('fetch', event => {
     }));
     return;
   }
+  // Plan 690 (Phase 1): a VERSIONED asset request — one carrying a
+  // query string (every app file is pinned ?v=1.11.0) — goes
+  // network-first. Dropping ignoreSearch alone cannot fix staleness
+  // while the stamp is frozen: the stored key 'app.js?v=1.11.0' would
+  // still match the old content. Network-first means a plain reload
+  // after a deploy runs the new code; the cache is only the offline
+  // fallback (any stamp — the content is the same file), and a
+  // 404/500 is never cached (fetchAndCache's cacheable rule).
+  // Unversioned asset requests keep the cache-first behaviour below
+  // (offline-first for the app's own files).
+  if (isAssetRequest(event.request) && new URL(event.request.url).search) {
+    event.respondWith(fetchAndCache(event.request).catch(() => {
+      return caches.match(event.request, { ignoreSearch: true }).then(cached => {
+        if (cached && (cached.ok !== false)) return cached;
+        notifyClients({ type: 'SW_ASSET_OFFLINE', url: event.request.url, cache: CACHE_NAME });
+        return typeof Response === 'function'
+          ? new Response('Offline — file unavailable', { status: 503, headers: { 'Content-Type': 'text/plain' } })
+          : null;
+      });
+    }));
+    return;
+  }
   event.respondWith(
     caches.match(event.request, { ignoreSearch:true }).then(cached => {
       // Self-heal: ignore error responses that older workers stored (e.g. 404s from the pre-#208 build).

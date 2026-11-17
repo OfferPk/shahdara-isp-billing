@@ -555,6 +555,34 @@ export function swUpdateVersionFromScriptUrl(scriptUrl) {
   }
 }
 
+/** Plan 688 (Phase 1): the frozen ?v= stamp — APP_VERSION '1.11.0'
+ *  (release-assurance.js, pinned by Plan Z). It never changes between
+ *  deploys, so a scriptURL carrying exactly this stamp tells us
+ *  nothing about which deploy the worker is from. A scriptURL with
+ *  any OTHER stamp is a real version (tests, or a future APP_VERSION
+ *  bump) and is used as-is. Pinned by a test that reads APP_VERSION. */
+export const SW_UPDATE_FROZEN_VERSION = '1.11.0';
+
+/**
+ * Plan 688 (Phase 1): the update's version identity from the worker's
+ * CACHE_NAME ('shahdara-isp-billing-v37-<sha256-10>' — build.mjs
+ * stamps the dist build's content hash into it, plan-591-to-690.md
+ * §688). The ?v= stamp is frozen (see SW_UPDATE_FROZEN_VERSION), so
+ * the cache-name hash is the only identity that changes per deploy.
+ * The identity is 'swu-<hash10>' — the 'swu' prefix is unused
+ * anywhere in the repo. Returns '' when the cache name carries no
+ * hash (an unstamped dev worker).
+ *
+ * @param {string} cacheName
+ * @returns {string} version string, or '' when no hash is present
+ */
+export function swUpdateVersionFromCacheName(cacheName) {
+  const raw = String(cacheName ?? '').trim();
+  if (!raw) return '';
+  const match = raw.match(/-([0-9a-f]{10})$/);
+  return match ? `swu-${match[1]}` : '';
+}
+
 /**
  * Pure prompt decision: show only when an update is waiting, and only
  * if this exact version was neither shown nor dismissed before.
@@ -732,6 +760,15 @@ export function setupSwUpdatePrompt({
   let deferredVersion = '';
   let activationRequested = false;
   let fallbackTimer = null;
+  // Plan 688: the build-hash identity once learned from a cache name
+  // — the deploy's identity for the rest of the page session, so a
+  // later signal that carries only the frozen scriptURL (the
+  // controllerchange re-dispatch after activation) does not re-prompt
+  // under the stale '1.11.0' identity. And the waiting worker we
+  // already asked for its cache name (ask once — a worker that never
+  // answers must not be re-asked on every signal).
+  let resolvedHashVersion = '';
+  let statusAskedFor = null;
   // Plan G: a caller may pass its own busy check; otherwise the default
   // document check above applies. A boolean is accepted for tests.
   const isBusyFn = typeof isBusy === 'function' ? isBusy : () => defaultSwUpdateBusyCheck(win);
@@ -788,7 +825,43 @@ export function setupSwUpdatePrompt({
     if (!svc) return false;
     const waiting = liveWaitingWorker();
     const scriptURL = detail?.scriptURL || waiting?.scriptURL || '';
-    const version = swUpdateVersionFromScriptUrl(scriptURL);
+    // Plan 688 (Phase 1): the prompt identity is the build content
+    // hash in the worker's cache name, not the ?v= stamp. The hash
+    // arrives on the SW_STATUS reply (detail.cache is the field sw.js
+    // posts; detail.cacheName is accepted too). A scriptURL carrying
+    // any stamp OTHER than the frozen one is a real version (tests,
+    // or a future APP_VERSION bump) and is used as-is.
+    let version = swUpdateVersionFromCacheName(detail?.cacheName || detail?.cache || '');
+    if (version) resolvedHashVersion = version;
+    if (!version) {
+      const scriptVersion = swUpdateVersionFromScriptUrl(scriptURL);
+      if (scriptVersion && scriptVersion !== SW_UPDATE_FROZEN_VERSION) {
+        version = scriptVersion;
+      } else if (waiting && typeof waiting.postMessage === 'function') {
+        // The hash is unresolved and the stamp is the frozen one:
+        // ask the waiting worker for its cache name (SW_GET_STATUS)
+        // and defer — the SW_STATUS reply re-runs consider() with it.
+        // Nothing is marked shown or dismissed on this path. Asking
+        // twice for the same worker is pointless, but deferring again
+        // is correct: falling back to the frozen stamp would prompt
+        // under '1.11.0' and defeat the hash identity. (The setup-time
+        // consider() already asked once, so a second signal for the
+        // same worker — the head script's event, the controllerchange
+        // re-dispatch — must still defer, not fall through.)
+        if (statusAskedFor !== waiting) {
+          statusAskedFor = waiting;
+          try { waiting.postMessage({ type: 'SW_GET_STATUS' }); } catch { /* the worker is gone */ }
+        }
+        return false;
+      } else {
+        // No waiting worker to ask (e.g. the controllerchange
+        // re-dispatch after activation), or the worker was already
+        // asked and never answered: the hash learned earlier in this
+        // session is the deploy's identity; otherwise the old
+        // scriptURL identity (the pre-688 behaviour for that case).
+        version = resolvedHashVersion || scriptVersion;
+      }
+    }
     const updateReady = Boolean(waiting) || Boolean(detail && version);
     const hasController = detail ? detail.hasController !== false : Boolean(svc.controller);
     if (!updateReady || !version || !hasController) return false;
@@ -844,6 +917,13 @@ export function setupSwUpdatePrompt({
     // file per page load); fallback and precache-failed toast every time.
     svc.addEventListener('message', (event) => {
       const data = event?.data;
+      // Plan 688: the waiting worker answered SW_GET_STATUS with its
+      // cache name — re-consider the prompt with the build-hash
+      // identity (data.cache is the field sw.js posts).
+      if (data?.type === 'SW_STATUS') {
+        consider({ cacheName: data.cache || data.cacheName || '' });
+        return;
+      }
       if (data?.type === 'SW_ASSET_OFFLINE') {
         const url = typeof data.url === 'string' ? data.url : '';
         if (url) {

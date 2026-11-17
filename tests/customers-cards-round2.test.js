@@ -316,7 +316,11 @@ test('r2 R2a: the muted line reads mohalla • package • Ref in order, slash c
   const html = renderCard(customer, state);
   assert.ok(html.includes('customer-card-meta-line'), 'muted line class exists');
   const lineAt = html.indexOf('customer-card-meta-line');
-  const line = html.slice(lineAt, html.indexOf('</span>', lineAt));
+  // Phase 1: the meta line's first segment is a nested status span,
+  // so the first `</span>` after the line start is the STATUS span's
+  // close, not the line's. The line's own close is followed by
+  // `</button>` (the outer button closes right after the meta line).
+  const line = html.slice(lineAt, html.indexOf('</button>', lineAt));
   assert.ok(line.includes('Charyaa • 3Mbps/100GB • Ref:'), `line reads "Charyaa • 3Mbps/100GB • Ref: …": ${line}`);
   assert.ok(!line.includes('3Mbps / 100GB'), 'package slash is compacted (no spaces around /)');
   assert.ok(line.includes('Reference Person'), 'ref name rides on the line');
@@ -332,7 +336,9 @@ test('r2 R2c: no-Ref case renders the line without the Ref segment', () => {
   const { state, customer } = goodState();
   const html = renderCard(customer, state);
   const lineAt = html.indexOf('customer-card-meta-line');
-  const line = html.slice(lineAt, html.indexOf('</span>', lineAt));
+  // Phase 1: slice to `</button>` — the first `</span>` is the nested
+  // status span's close now (see R2a).
+  const line = html.slice(lineAt, html.indexOf('</button>', lineAt));
   assert.ok(line.includes('Charyaa • 3Mbps/100GB'), 'line still shows mohalla • package');
   assert.ok(!line.includes('Ref:'), 'no Ref segment when there is no known-as name');
 });
@@ -342,13 +348,15 @@ test('r2 R2d: AKA case keeps the label — "AKA: …" in EN, "دیگر نام: �
   en.customer.fatherOrReferenceName = '';
   en.customer.searchAliases = ['Chotu'];
   const enHtml = renderCard(en.customer, en.state, 'en');
-  const enLine = enHtml.slice(enHtml.indexOf('customer-card-meta-line'), enHtml.indexOf('</span>', enHtml.indexOf('customer-card-meta-line')));
+  // Phase 1: slice to `</button>` — the first `</span>` is the nested
+  // status span's close now (see R2a).
+  const enLine = enHtml.slice(enHtml.indexOf('customer-card-meta-line'), enHtml.indexOf('</button>', enHtml.indexOf('customer-card-meta-line')));
   assert.ok(enLine.includes('AKA: <bdi dir="auto">Chotu</bdi>'), `EN AKA line: ${enLine}`);
   const ur = paidUpState();
   ur.customer.fatherOrReferenceName = '';
   ur.customer.searchAliases = ['Chotu'];
   const urHtml = renderCard(ur.customer, ur.state, 'ur');
-  const urLine = urHtml.slice(urHtml.indexOf('customer-card-meta-line'), urHtml.indexOf('</span>', urHtml.indexOf('customer-card-meta-line')));
+  const urLine = urHtml.slice(urHtml.indexOf('customer-card-meta-line'), urHtml.indexOf('</button>', urHtml.indexOf('customer-card-meta-line')));
   assert.ok(urLine.includes('دیگر نام: <bdi dir="auto">Chotu</bdi>'), `UR AKA line: ${urLine}`);
 });
 
@@ -356,7 +364,9 @@ test('r2 R2e: the ref name rides in <bdi dir="auto"> (Sharafat 94 pattern)', () 
   const { state, customer } = paidUpState();
   const html = renderCard(customer, state);
   const lineAt = html.indexOf('customer-card-meta-line');
-  const line = html.slice(lineAt, html.indexOf('</span>', lineAt));
+  // Phase 1: slice to `</button>` — the first `</span>` is the nested
+  // status span's close now (see R2a).
+  const line = html.slice(lineAt, html.indexOf('</button>', lineAt));
   assert.ok(line.includes('<bdi dir="auto">Reference Person</bdi>'), 'ref name is isolated in <bdi dir="auto">');
 });
 
@@ -401,7 +411,10 @@ test('r2 R3d: tenure pill is ABSENT when no connection date is set (render-level
   assert.equal(core.summarizeCustomerTenure(customer, new Date()).status, 'not-recorded');
   const html = renderCard(customer, state);
   assert.ok(!html.includes('customer-card-tenure-pill'), 'no tenure pill renders for a not-recorded tenure');
-  assert.ok(html.includes('customer-card-lifetime-pill'), 'the Lifetime pill keeps the row');
+  // Phase 1: the standalone pill row is deleted — the Lifetime pill
+  // still renders, now as text on the meta line (the "row" it kept
+  // in Round 2 no longer exists).
+  assert.ok(html.includes('customer-card-lifetime-pill'), 'the Lifetime pill still renders (now on the meta line)');
   assert.ok(card.includes("tenureRaw.status === 'not-recorded'"), 'hide is gated on the status, never on the text (UR-safe)');
 });
 
@@ -427,7 +440,9 @@ test('r2 R4a: Risk (60–79) renders the warm amber triple by CATEGORY', () => {
   const html = renderCard(customer, state);
   const cls = pillClasses(html);
   assert.ok(cls && cls.includes('health-risk'), `Risk pill carries .health-risk: ${cls}`);
-  assert.match(styles, /\.customer-card-health-pill\.health-risk \{[^}]*background: #fffbeb;[^}]*color: #b45309;[^}]*border: 1px solid #fde68a;/s, 'Risk rule is the warm amber triple, background → color → border');
+  // Phase 1 (D6): the category rules are hardened with !important, so
+  // the regex allows the optional `!important` after each value.
+  assert.match(styles, /\.customer-card-health-pill\.health-risk \{[^}]*background: #fffbeb(?: !important)?;[^}]*color: #b45309(?: !important)?;[^}]*border: 1px solid #fde68a(?: !important)?;/s, 'Risk rule is the warm amber triple, background → color → border');
   assert.ok(html.includes('Risk'), 'pill text still says Risk');
 });
 
@@ -438,7 +453,9 @@ test('r2 R4b: Critical renders rose/red by CATEGORY', () => {
   const html = renderCard(customer, state);
   const cls = pillClasses(html);
   assert.ok(cls && cls.includes('health-critical'), `Critical pill carries .health-critical: ${cls}`);
-  assert.match(styles, /\.customer-card-health-pill\.health-critical \{[^}]*background: #ffebea;[^}]*color: #a3342d;[^}]*border: 1px solid #fecaca;/s, 'Critical rule is rose with the #fecaca border (D12)');
+  // Phase 1 (D6): the category rules are hardened with !important, so
+  // the regex allows the optional `!important` after each value.
+  assert.match(styles, /\.customer-card-health-pill\.health-critical \{[^}]*background: #ffebea(?: !important)?;[^}]*color: #a3342d(?: !important)?;[^}]*border: 1px solid #fecaca(?: !important)?;/s, 'Critical rule is rose with the #fecaca border (D12)');
 });
 
 test('r2 R4c: Good (≥80) stays green — no category class', () => {

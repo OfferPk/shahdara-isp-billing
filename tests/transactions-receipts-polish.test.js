@@ -4,9 +4,10 @@
 // one row, filtered total on the count line; (3) pill strip clearance,
 // finder follows the pill, Show More (25/page); (4) compact
 // color-coded receipt cards — nowrap receipt-ID badge, method pill,
-// 3-column actions; (5) ^ FAB opacity 0.85 + idle-hide (Pucho owns
-// geometry). Fixtures are generic placeholders only — no real customer
-// data from any screenshot.
+// 3-column actions; (5) ^ FAB opacity 0.85 + hide-while-scrolling
+// (Phase 1 D9 — supersedes the §5 idle-hide; Pucho owns geometry).
+// Fixtures are generic placeholders only — no real customer data from
+// any screenshot.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -77,9 +78,16 @@ test('count line carries the filtered total from the same summary object', () =>
   assert.ok(app.indexOf('const summary = calculateTransactionSummary(transactions);') < app.indexOf("$('#transactionsCount').textContent"), 'summary is computed before the count writer');
 });
 
-test('scroll-top FAB: idle-hide timer exists and the >400px threshold is unchanged', () => {
-  assert.ok(navJs.includes('scheduleIdleHide'), 'idle-hide scheduler exists in setupScrollToTop');
-  assert.ok(navJs.includes('}, 2000);'), 'idle interval is 2s');
+test('scroll-top FAB: hide-while-scrolling + ~1s idle-show, and the >400px threshold is unchanged', () => {
+  // Phase 1 (D9 — supersedes this file's §5 idle-hide): the FAB hides
+  // AT ONCE on a scroll event and comes back ~1s after the last one.
+  // The old 2s idle-hide scheduler is gone — it hid the button AFTER
+  // scrolling stopped, which is the opposite of what the operator
+  // needs: the fixed FAB covered the Profile button of cards sliding
+  // past it while it was visible.
+  assert.ok(navJs.includes('btn.hidden = true;'), 'the scroll listener hides the button at once');
+  assert.ok(navJs.includes('}, 1000);'), 'the idle-show interval is ~1s');
+  assert.ok(!navJs.includes('scheduleIdleHide'), 'the old idle-hide scheduler is gone');
   assert.ok(navJs.includes('scrollY > 400'), '>400px appearance threshold is unchanged');
   assert.match(navCss, /\.scroll-top-button\.is-visible\s*\{[^}]*opacity:\s*0\.85/, 'visible button is semi-transparent');
 });

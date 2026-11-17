@@ -183,6 +183,11 @@ test('sweep: no content text below 11px anywhere in the 5 CSS files or the 28 JS
   const raise10 = new Set(DATA.filter((r) => r.disp === 'RAISE10').map((r) => `${r.file}|${r.selector}`));
   // DS-0 exception: .bottom-nav-badge stays 10px by design (see header).
   const ds0Exceptions = new Set(['nav.css|.bottom-nav-badge']);
+  // Phase 1 (D12) exception: .build-stamp is 9px by design (see the
+  // guard test below — a non-content build label, the DS-0-badge
+  // precedent). The sweep's ds0Exceptions shape allows exactly 10px;
+  // the stamp needs exactly 9px, so it gets its own set.
+  const phase1Exceptions = new Set(['styles.css|.build-stamp']);
   for (const f of cssFiles) {
     const rules = cssRules(f);
     const cands = new Map();
@@ -206,7 +211,8 @@ test('sweep: no content text below 11px anywhere in the 5 CSS files or the 28 JS
         if (px < 11) {
           const ok = stay.has(`${f}|${sel}|${normM(med)}`) ||
             (raise10.has(`${f}|${sel}`) && eff.value === 10 && eff.unit === 'px') ||
-            (ds0Exceptions.has(`${f}|${sel}`) && eff.value === 10 && eff.unit === 'px');
+            (ds0Exceptions.has(`${f}|${sel}`) && eff.value === 10 && eff.unit === 'px') ||
+            (phase1Exceptions.has(`${f}|${sel}`) && eff.value === 9 && eff.unit === 'px');
           assert.ok(ok, `${f} ${sel} @${med || '(base)'} renders ${eff.value}${eff.unit} — a content site the table missed`);
         }
       }
@@ -256,6 +262,18 @@ test('DS-0 exception: .bottom-nav-badge stays 10px on an 18px line', () => {
   assert.ok(m, '.bottom-nav-badge rule missing from nav.css');
   assert.ok(m[1].includes('font: 800 10px/18px'), 'badge text must stay 10px on an 18px line (DS-0)');
   assert.ok(m[1].includes('height: 18px') && m[1].includes('min-width: 18px'), 'badge must stay an 18px pill');
+});
+
+test('Phase 1 (D12) exception: .build-stamp stays 9px (a non-content build label)', () => {
+  // Deliberate Phase 1 pin (phase1-cards-compaction.test.js G5b): the
+  // "d23" stamp is a build label, not content text — the same precedent
+  // as the DS-0 bottom-nav badge (10px). The 97 floor yields to it.
+  // Do NOT "fix" this to 11px without a parent decision overriding D12.
+  const styles = read('styles.css');
+  const m = styles.match(/\.build-stamp\s*\{([^}]*)\}/);
+  assert.ok(m, '.build-stamp rule missing from styles.css');
+  assert.ok(m[1].includes('font-size: 9px'), 'stamp text must stay 9px (D12, blessed)');
+  assert.ok(m[1].includes('font-weight: 700'), 'stamp stays bold');
 });
 
 test('C-guard: the dead .command-palette-trigger rule set is absent (Sharafat 96 A3, kept absent)', () => {

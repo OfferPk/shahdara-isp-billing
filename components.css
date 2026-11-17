@@ -3717,7 +3717,11 @@ button.field-dispatch-item { cursor: pointer; }
    light mode, flips light in dark mode). Tokens only: components.css
    must stay hex-free — the SISP-136 / SISP-54 / SISP-5 / SISP-100 /
    DS-0 / Plan A token-only audits slice this file to its end. */
-.additional-pending-btn { border: 1px solid var(--ds-success-border); background: var(--ds-success-bg); color: var(--ink); border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 800; cursor: pointer; min-height: 24px; }
+.additional-pending-btn { border: 1px solid var(--ds-success-border); background: var(--ds-success-bg); color: var(--ink); border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 800; cursor: pointer; min-height: 24px; white-space: nowrap; }
+/* Phase 1: the ＋ Additional label never wraps — at 320px the widest
+   cards let it wrap to two lines (40.4px tall), which is the single
+   biggest height leak on the health row. nowrap keeps it one line
+   (24px); the flex row's shrinking middle absorbs the width. */
 /* Round 2 (D1 — user decision, recorded not blessed): the directory
    card's ＋ Additional is a 24px micro-pill, below the 96
    touch-target rationale. The !important defeater (same shape as

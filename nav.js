@@ -435,38 +435,42 @@ export function setupScrollToTop() {
     });
 
     let ticking = false;
-    // Transactions & Recent Receipts Polish §5: the button hides ~2s
-    // after the operator stops scrolling (it reappears on the next
-    // scroll event). The timer only governs how long the button
-    // LINGERS — the >400px appearance threshold is unchanged (DS-0).
+    // Phase 1 (D9 — supersedes the Transactions Polish §5 idle-hide):
+    // the button hides AT ONCE while the operator is actively
+    // scrolling and comes back ~1s after the LAST scroll event, only
+    // when scrollY > 400. The old behaviour showed it DURING the
+    // scroll, where the fixed 40px button (bottom 142px) covered the
+    // Profile button of whatever card slid underneath it (measured:
+    // 31px of overlap at scrollY 450–800). Geometry (40px/142px)
+    // and the 400px threshold are unchanged (DS-0).
     let idleTimer = null;
-    const scheduleIdleHide = () => {
+    window.addEventListener('scroll', () => {
+      // Hide immediately: the operator is scrolling, so the FAB
+      // would sit on top of the cards sliding past it.
+      btn.hidden = true;
+      btn.classList.toggle('is-visible', false);
       if (idleTimer !== null && typeof clearTimeout === 'function') clearTimeout(idleTimer);
       if (typeof setTimeout !== 'function') return;
       idleTimer = setTimeout(() => {
-        btn.hidden = true;
-        btn.classList.toggle('is-visible', false);
-      }, 2000);
-    };
-    window.addEventListener('scroll', () => {
-      scheduleIdleHide();
-      if (!ticking) {
-        ticking = true;
-        const update = () => {
-          const scrollY = typeof window !== 'undefined' ? (window.scrollY || document.documentElement?.scrollTop || 0) : 0;
-          // DS-0: the brief shows the button only once the operator has
-          // scrolled down >400px (was 300px).
-          const shouldShow = scrollY > 400;
-          btn.hidden = !shouldShow;
-          btn.classList.toggle('is-visible', shouldShow);
-          ticking = false;
-        };
-        if (typeof window.requestAnimationFrame === 'function') {
-          window.requestAnimationFrame(update);
-        } else {
-          update();
+        idleTimer = null;
+        if (!ticking) {
+          ticking = true;
+          const update = () => {
+            const scrollY = typeof window !== 'undefined' ? (window.scrollY || document.documentElement?.scrollTop || 0) : 0;
+            // DS-0: the brief shows the button only once the operator has
+            // scrolled down >400px (was 300px).
+            const shouldShow = scrollY > 400;
+            btn.hidden = !shouldShow;
+            btn.classList.toggle('is-visible', shouldShow);
+            ticking = false;
+          };
+          if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(update);
+          } else {
+            update();
+          }
         }
-      }
+      }, 1000);
     }, { passive: true });
   }
 }

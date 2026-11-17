@@ -67,7 +67,9 @@ test('card polish: name is bold plain text next to the [#N] badge', () => {
   assert.ok(!styles.includes('.customer-name-pill'), 'no name-pill rule in styles.css');
   const rule = styles.match(/\.customer-card-name \{[^}]*\}/s);
   assert.ok(rule, 'name rule exists');
-  assert.match(rule[0], /font-size: var\(--text-card-name\);/, 'name stays 18px via the token');
+  // Phase 1: the name is 14.5px via the token now (was 18px) — the
+  // token itself is the pin; the value moved in tokens.css.
+  assert.match(rule[0], /font-size: var\(--text-card-name\);/, 'name stays on the token (now 14.5px)');
   assert.match(rule[0], /font-weight: 700;/, 'name is bold');
   assert.match(rule[0], /flex: 1 1 auto;/, 'name takes the free header width');
 });
@@ -85,7 +87,12 @@ test('card polish: long names truncate with an ellipsis in the header row', () =
   assert.match(rule[0], /overflow: hidden;/, 'name clips instead of wrapping');
   assert.match(rule[0], /text-overflow: ellipsis;/, 'clipped name shows an ellipsis');
   assert.match(rule[0], /white-space: nowrap;/, 'name stays on one line');
-  assert.match(rule[0], /min-width: 0;/, 'name shrinks inside the flex row');
+  // Phase 1 (D5): the name's min-width is a 95px floor, not 0 — the
+  // 18px name + the service badge in the heading left the name 0px
+  // wide on the worst cards at 320px (measured). The name still
+  // truncates with an ellipsis (overflow/text-overflow/nowrap above);
+  // it just never truncates to nothing.
+  assert.match(rule[0], /min-width: 95px;/, 'name shrinks inside the flex row, but never below the 95px floor');
   assert.ok(card.includes('title="${escapeHtml(openLabel)}"'), 'whole-card button title carries the full name');
 });
 

@@ -26,7 +26,13 @@
   --text-2xl: 32px;
   /* DS-0: brief sizes that fall between existing steps — card name 18px,
      profile-tab labels 13px, ledger table headers 11px. */
-  --text-card-name: 18px;
+  /* Phase 1: card names 18px -> 14.5px. The name was the heading's
+     tallest element (18px at line-height 1.25 = 22.5px) and its width
+     the reason names ellipsized to 0px at 320px; 14.5px buys the
+     heading ~4px and, with the service badge gone from the heading,
+     room for the name. Only usage is styles.css .customer-card-name;
+     no test pins the token value. Pills stay >= 11px (D5). */
+  --text-card-name: 14.5px;
   --text-tab: 13px;
   --text-table-head: 11px;
   --numeric: tabular-nums; /* money figures always tabular */

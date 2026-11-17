@@ -38,10 +38,14 @@ test('polish: card avatar is removed — no DP tile in the card markup', () => {
   assert.ok(!card.includes('initials(customer.name)'), 'no initials rendered on the card');
 });
 
-test('polish: card name is 18px via the --text-card-name token', () => {
-  assert.match(tokens, /--text-card-name: 18px;/, 'token is 18px');
+test('polish: card name is 14.5px via the --text-card-name token', () => {
+  // Phase 1: the name drops 18px -> 14.5px (the 18px name was the
+  // heading's tallest element and, with the service badge, left the
+  // name 0px wide at 320px). Same token, same bold weight, no
+  // input-box look.
+  assert.match(tokens, /--text-card-name: 14\.5px;/, 'token is 14.5px');
   // Customers Cards Compact retired the name PILL with the Customer N
-  // pill: the name is a plain bold span (flex:1) — same 18px token,
+  // pill: the name is a plain bold span (flex:1) — same token,
   // same bold weight, no input-box look.
   assert.match(
     styles,

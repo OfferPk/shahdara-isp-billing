@@ -574,14 +574,14 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
     <td class="col-name">
       <span class="customer-name-text">
         <strong>${escapeHtml(customer.name)}</strong>
-        ${customer.phone ? `<small class="cust-phone">${escapeHtml(customer.phone)}</small>` : ''}
+        ${customer.phone ? `<small class="cust-phone"><bdi>${escapeHtml(customer.phone)}</bdi></small>` : ''}
       </span>
     </td>
     <td class="col-area">${escapeHtml(area)}</td>
     <td class="col-plan"><span class="table-plan-badge">${escapeHtml(plan)}</span></td>
     <td class="col-service"><span class="table-service-pill service-${escapeHtml(service)}">${escapeHtml(serviceLabel)}</span></td>
     <td class="col-billing"><span class="table-billing-badge ${billingClass}">${escapeHtml(billingLabel)}</span></td>
-    <td class="col-balance font-mono ${balance > 0 ? 'text-due' : 'text-clear'}">PKR ${safeNum}</td>
+    <td class="col-balance font-mono ${balance > 0 ? 'text-due' : 'text-clear'}"><bdi>PKR ${safeNum}</bdi></td>
     <td class="col-action">
       <button class="secondary-button table-select-btn" type="button" data-customer-id="${escapeHtml(customer.id)}">${t('cust_table_open')}</button>
       ${archived ? `<button class="secondary-button table-unarchive-btn" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}

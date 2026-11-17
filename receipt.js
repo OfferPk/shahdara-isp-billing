@@ -681,7 +681,12 @@ export function generatePaymentReceiptHtml(receipt, {
   // Plan 168: print-time script choice. Anything other than 'urdu'
   // renders exactly as before; 'urdu' re-labels the fields in Urdu
   // script without touching any stored value.
-  script = 'roman'
+  script = 'roman',
+  // Plan 571: reprint count for this sheet, as recorded by the print
+  // path. 0 or absent means the original sheet; the stamp renders
+  // only when the count is above 0, so non-reprint layouts stay
+  // byte-identical.
+  reprintCount = 0
 } = {}) {
   if (!receipt) return '';
 
@@ -723,6 +728,13 @@ export function generatePaymentReceiptHtml(receipt, {
   // never be mistaken for a live receipt. '' on every other receipt,
   // so non-void layouts stay byte-identical.
   const voidStampHtml = status === 'VOID' ? '<div class="receipt-void-stamp">VOID — This payment was voided and counts as no payment</div>' : '';
+  // Plan 571: the REPRINT stamp, mirroring the Plan K VOID stamp
+  // above. The count is the number of reprint-log entries for this
+  // receipt AFTER the current print was recorded (D7(a)) — 0 means
+  // the original sheet, so the stamp is '' there and non-reprint
+  // layouts stay byte-identical. It carries the original receipt
+  // number and the count (REPRINT ×1 on the second sheet, D3(a)).
+  const reprintStampHtml = reprintCount > 0 ? `<div class="receipt-reprint-stamp">REPRINT ×${reprintCount} — Receipt #: ${escapeHtml(receipt.receiptNumber)}</div>` : '';
   // Plan 555: an unknown balance is a dash, never an invented PKR 0.
   const balanceStr = receipt.balanceDueCents === null ? '—' : formatAmount(receipt.balanceDueCents / 100);
   const balanceLabel = receipt.balanceDueCents === 0 ? 'PKR 0 (مکمل ادا شدہ / Paid)' : `${balanceStr} (بقایا جات / Due)`;
@@ -759,6 +771,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <header class="receipt-head">
     ${headerFor('Receipt #:', 'thermal')}
     ${voidStampHtml}
+    ${reprintStampHtml}
   </header>
   <div class="receipt-divider">--------------------------------</div>
   <dl class="receipt-fields">
@@ -819,6 +832,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <header class="receipt-head">
     ${headerFor('Receipt #:', 'thermal')}
     ${voidStampHtml}
+    ${reprintStampHtml}
   </header>
   <div class="receipt-divider">================================</div>
   <dl class="receipt-fields">
@@ -975,6 +989,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <span class="receipt-mark ${statusClass}">${escapeHtml(status)}</span>
   </header>
   ${voidStampHtml}
+  ${reprintStampHtml}
   <dl class="receipt-fields">
     ${fields.filter(hasA4FieldValue).map(([label, val, cls]) => `<div class="receipt-field"><dt>${escapeHtml(label)}</dt><dd class="${cls || ''}">${val ? escapeHtml(val) : '&nbsp;'}</dd></div>`).join('')}
   </dl>${paymentHistorySectionHtml(receipt, formatAmount)}

@@ -141,7 +141,11 @@ test('kist layout fits the grown canvas, seal present, all commands in bounds, f
   // foot (footerY 2000), so the history rule (Math.max(H, y + 24)) now
   // grows the canvas by its 24px of bottom padding — 2024, not 2000.
   // Nothing clips: the footer still sits inside the grown canvas.
-  assert.equal(layout.height, 2024);
+  // Plan 573: the new Total Due row adds one finPitch (74px) below the
+  // financial box, so the footer sits 74px lower — height 2098, footerY
+  // 2074. The row is the proof: the canvas grew by exactly one row.
+  assert.equal(layout.height, 2098);
+  assert.equal(layout.footerY, 2074);
   assert.ok(layout.footerY > 0 && layout.footerY <= layout.height, `footerY ${layout.footerY} inside canvas`);
   const seal = layout.commands.find((cmd) => cmd.type === 'seal');
   assert.ok(seal, 'seal command present');
@@ -157,7 +161,11 @@ test('kist layout fits the grown canvas, seal present, all commands in bounds, f
       assert.ok(cmd.x >= 0 && cmd.y >= 0 && cmd.x + cmd.w <= PNG_RECEIPT_WIDTH, 'rect in bounds');
     }
     if (cmd.type === 'text') {
-      assert.ok(cmd.y >= 0 && cmd.y <= PNG_RECEIPT_HEIGHT, 'text y in bounds');
+      // Plan 573: the Total Due row pushes the Issued line to y 2014,
+      // past the old 2000 foot — the bound is the grown layout height
+      // (2098), the shape receipt-footer-studio.test.js already uses;
+      // the text is inside the canvas, not clipped.
+      assert.ok(cmd.y >= 0 && cmd.y <= layout.height, 'text y in bounds');
     }
   }
 });
@@ -349,12 +357,17 @@ test('Plan 551: a fractional tax (1,500 package) reads PKR 292.50 on the PNG, sa
   assert.ok(a4.includes('+PKR 292.50'), 'the A4 receipt shows the same fractional figure');
 });
 
-test('Plan 551: the taxed slip still fits the 1600x2000 canvas with the footer inside', () => {
+test('Plan 551: the taxed slip grows by one row with the footer inside the grown canvas', () => {
   const { customer, bill, payment } = taxedFixture();
   const model = buildPngReceiptModel(buildPaymentReceipt(customer, bill, payment), customer);
   const layout = computePngReceiptLayout(model);
   assert.equal(layout.width, PNG_RECEIPT_WIDTH);
-  assert.equal(layout.height, PNG_RECEIPT_HEIGHT, 'no-history taxed receipt keeps the exact canvas');
+  // Plan 573: the new Total Due row adds one finPitch (74px), so the
+  // taxed footer sits at exactly 2000 and the layout grows to 2024
+  // (max(2000, 2000 + 24)) — the footer is inside the grown canvas,
+  // and the Issued line (y 1940) still fits the old foot.
+  assert.equal(layout.height, 2024);
+  assert.equal(layout.footerY, 2000);
   assert.ok(layout.footerY > 0 && layout.footerY <= PNG_RECEIPT_HEIGHT, `footerY ${layout.footerY} inside canvas`);
   const texts = layout.commands.filter((cmd) => cmd.type === 'text').map((cmd) => cmd.text);
   assert.ok(texts.some((t) => t.includes('+PKR 195')), 'tax row drawn');

@@ -415,12 +415,14 @@ test('SISP-194 no advance involvement: the receipt model and every surface stay 
     assert.ok(!html.includes('Advance Credit Applied'), format);
     assert.ok(!html.includes('Remaining Advance Balance'), format);
   }
-  // PNG: financial rows are exactly the pre-SISP-194 five and the
-  // canvas stays exactly 1600x2000.
+  // PNG: financial rows are exactly the pre-SISP-194 five plus the
+  // Plan 573 Total Due row (before Amount Paid), and the canvas stays
+  // exactly 1600x2000.
   const model = buildPngReceiptModel(receipt, customer);
   assert.deepEqual(model.financial.map((row) => row.label), [
     'Previous Balance / Sabiqa Baqaya',
     'Current Month Bill / Mahana Package',
+    'Total Due / Kul Qabil-e-Ada',
     'Amount Paid / Wusool Paya',
     'Payment Method / طریقہ',
     'Remaining Balance / Baqi Rehta'

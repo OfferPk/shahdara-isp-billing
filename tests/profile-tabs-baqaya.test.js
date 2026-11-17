@@ -146,7 +146,9 @@ test('profile tabs: the Baqaya label exists in both languages, Urdu script on th
 
 test('profile tabs: number styling and the sticky fix exist', () => {
   const styles = read('styles.css');
-  assert.ok(styles.includes('.profile-tab-number{font-size:10px;font-weight:800;opacity:.75;margin-right:4px;flex:none}'),
+  // Sharafat 95: the number's gap is logical now (margin-inline-end:4px)
+  // so it stays between the number and its label in Urdu mode.
+  assert.ok(styles.includes('.profile-tab-number{font-size:10px;font-weight:800;opacity:.75;margin-inline-end:4px;flex:none}'),
     'the number span is small, bold and muted, with a 4px gap to its label (1px glued them: "2Customer Info")');
   assert.ok(styles.includes('scrollbar-width:none'), 'the tab bar hides its scrollbar (was a thick grey track on the phone)');
   assert.ok(styles.includes('.profile-tabs::-webkit-scrollbar{display:none}'), 'the tab bar hides its WebKit scrollbar too');

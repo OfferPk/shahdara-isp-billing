@@ -329,7 +329,7 @@ test('DS-0 tabs: equal-flex segmented control, sticky under the topbar', () => {
 
 // --- §4.2: floating buttons -----------------------------------------------------
 
-test('DS-0 floating buttons: scroll-top is 40x40 on the right, shown only past 400px', () => {
+test('DS-0 floating buttons: scroll-top is 40x40 on the inline-end, shown only past 400px', () => {
   const button = ruleBlock(navSrc, '.scroll-top-button {');
   assert.ok(button.includes('width: 40px') && button.includes('height: 40px'), 'scroll-top must be 40x40');
   // The 40px height needs its own override rule: the global
@@ -340,8 +340,9 @@ test('DS-0 floating buttons: scroll-top is 40x40 on the right, shown only past 4
   // Pucho + Profile Header Polish: the scroll-top moved ABOVE the
   // speed-dial trigger (their boxes overlapped; the dial paints above at
   // z-index 1040). Bottom is now a calc (60px nav + 16 gap + 50 dial +
-  // 12 clearance = 138px), not 74px — right: 18px stays.
-  assert.ok(button.includes('bottom: calc(var(--bottom-nav-height, 60px) + 16px + 50px + 12px)') && button.includes('right: 18px'), 'scroll-top must stay on the right, above the dial');
+  // 12 clearance = 138px), not 74px — inset-inline-end: 18px stays
+  // (Sharafat 95: logical, so it mirrors to the left in Urdu mode).
+  assert.ok(button.includes('bottom: calc(var(--bottom-nav-height, 60px) + 16px + 50px + 12px)') && button.includes('inset-inline-end: 18px'), 'scroll-top must stay on the inline-end (right in LTR), above the dial');
   assert.ok(button.includes('background: var(--ds-brand)'), 'scroll-top must use the brand token');
   assert.ok(navJsSrc.includes('scrollY > 400'), 'scroll-top must appear only when scrolled past 400px (was 300)');
   assert.ok(!navJsSrc.includes('scrollY > 300'), 'the old 300px threshold must be gone');

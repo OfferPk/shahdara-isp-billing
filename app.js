@@ -5240,6 +5240,12 @@ function setupDepositOffsetModal() {
       const entry = updated.depositOffsets[updated.depositOffsets.length - 1];
       closeDepositOffsetDialog();
       renderDetail();
+      // Sharafat 99: renderDetail() rebuilds the profile view, so the opener
+      // button the controller just restored focus to is gone — re-focus the
+      // FRESH #profileDepositOffsetBtn (re-queried, never the detached node;
+      // a focus call on it would be a silent no-op). Runs only from the
+      // dialog, never while the edit form is open (Sharafat 77 guards).
+      document.querySelector('#profileDepositOffsetBtn')?.focus?.({ preventScroll: true });
       renderDashboard();
       toast(t('depoff_done_toast', null, { amount: formatAmount(entry?.amount ?? amount) }));
     } catch (err) { toast(err?.message || 'Could not apply the deposit offset.'); }
@@ -10101,6 +10107,13 @@ function renderCustomerProfileView(customer) {
           if (idx >= 0) state.customers[idx] = updated;
           try { persistState(state, localStorage); } catch {}
           renderDetail();
+          // Sharafat 99 (D3): the reversed entry leaves the active offset
+          // list, so its trigger button is gone after the re-render — try
+          // the fresh trigger first, then fall back to
+          // #profileDepositOffsetBtn in the same section (re-queried, never
+          // the detached node).
+          const freshReverseBtn = [...document.querySelectorAll('[data-profile-deposit-offset-reverse]')].find(b => b.getAttribute('data-profile-deposit-offset-reverse') === offsetId);
+          (freshReverseBtn ?? document.querySelector('#profileDepositOffsetBtn'))?.focus?.({ preventScroll: true });
           renderDashboard();
           toast(t('depoff_reversed_toast'));
         } catch (err) { toast(err?.message || 'Could not reverse the deposit offset.'); }

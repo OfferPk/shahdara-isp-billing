@@ -250,8 +250,10 @@ test('month panel controls: two-column grid, Month row full-width', () => {
   assert.equal(decl(controls, 'gap'), '6px');
   const month = baseRule(styles, '.new-customers-month');
   assert.equal(decl(month, 'grid-column'), '1/-1');
-  assert.equal(decl(month, 'margin-left'), '0');
-  assert.doesNotMatch(month, /margin-left:\s*auto/, 'no margin-left:auto left to strand the label');
+  // Sharafat 95: the month label's zero offset is a logical margin now
+  // (margin-inline-start: 0) so it stays on its own row in Urdu mode.
+  assert.equal(decl(month, 'margin-inline-start'), '0');
+  assert.doesNotMatch(month, /margin-inline-start:\s*auto/, 'no margin-inline-start:auto left to strand the label');
   const select = baseRule(styles, '.new-customers-month select');
   assert.equal(decl(select, 'flex'), '1');
   // The rest of the panel is untouched: same margin, same list height.

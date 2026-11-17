@@ -144,8 +144,12 @@ test('kist layout fits the grown canvas, seal present, all commands in bounds, f
   // Plan 573: the new Total Due row adds one finPitch (74px) below the
   // financial box, so the footer sits 74px lower — height 2098, footerY
   // 2074. The row is the proof: the canvas grew by exactly one row.
-  assert.equal(layout.height, 2098);
-  assert.equal(layout.footerY, 2074);
+  // Plan 574: the seal now sits below the financial box with a 402px
+  // clearance band (was 210px), so the footer sits 192px lower still
+  // — height 2290, footerY 2266. The band is the proof: y grew by
+  // exactly the 402 - 210 band growth.
+  assert.equal(layout.height, 2290);
+  assert.equal(layout.footerY, 2266);
   assert.ok(layout.footerY > 0 && layout.footerY <= layout.height, `footerY ${layout.footerY} inside canvas`);
   const seal = layout.commands.find((cmd) => cmd.type === 'seal');
   assert.ok(seal, 'seal command present');
@@ -190,7 +194,11 @@ test('generateReceiptPNG returns a valid image/png DataURL/Blob with non-zero di
   const png = await generateReceiptPNG(receipt, customer, { createCanvas: () => canvas });
   assert.equal(png.mime, PNG_RECEIPT_MIME);
   assert.equal(png.width, 1600);
-  assert.equal(png.height, 2000);
+  // Plan 574: the seal clearance band grows the layout, but the height
+  // is max(model.height, y + 24) — the model height (2000) absorbs
+  // most of the band on this short receipt, so the PNG is 2080px, not
+  // 2000 + 192px. Measured, not derived.
+  assert.equal(png.height, 2080);
   assert.ok(png.width > 0 && png.height > 0, 'non-zero dimensions');
   assert.ok(png.dataUrl.startsWith('data:image/png'), 'valid PNG data URL');
   assert.ok(png.blob && png.blob.type === 'image/png', 'valid PNG blob');
@@ -366,14 +374,19 @@ test('Plan 551: the taxed slip grows by one row with the footer inside the grown
   // taxed footer sits at exactly 2000 and the layout grows to 2024
   // (max(2000, 2000 + 24)) — the footer is inside the grown canvas,
   // and the Issued line (y 1940) still fits the old foot.
-  assert.equal(layout.height, 2024);
-  assert.equal(layout.footerY, 2000);
-  assert.ok(layout.footerY > 0 && layout.footerY <= PNG_RECEIPT_HEIGHT, `footerY ${layout.footerY} inside canvas`);
+  // Plan 574: the seal clearance band grows the layout by 192px — the
+  // taxed footer sits at 2192 and the layout grows to 2216; the
+  // Issued line (y 2132) no longer fits the old 2000 foot, so the
+  // bounds below are the grown layout height, the shape
+  // receipt-footer-studio.test.js already uses.
+  assert.equal(layout.height, 2216);
+  assert.equal(layout.footerY, 2192);
+  assert.ok(layout.footerY > 0 && layout.footerY <= layout.height, `footerY ${layout.footerY} inside canvas`);
   const texts = layout.commands.filter((cmd) => cmd.type === 'text').map((cmd) => cmd.text);
   assert.ok(texts.some((t) => t.includes('+PKR 195')), 'tax row drawn');
   for (const cmd of layout.commands) {
     if (cmd.type === 'text') {
-      assert.ok(cmd.y >= 0 && cmd.y <= PNG_RECEIPT_HEIGHT, 'text y in bounds');
+      assert.ok(cmd.y >= 0 && cmd.y <= layout.height, 'text y in bounds');
     }
   }
 });

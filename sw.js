@@ -1,7 +1,7 @@
 const CACHE_PREFIX = 'shahdara-isp-billing-';
 // build.mjs rewrites CACHE_NAME (adds a content hash) and APP_FILES (every file in dist/) in dist/sw.js (#210).
-const CACHE_NAME = 'shahdara-isp-billing-v37-3d9f25f1e4';
-const APP_FILES = ["./","./app.bundle.css","./app.js","./bulk-collect.js","./chunk-G7OJZBAM.js","./chunk-GC3T6TSD.js","./chunk-H3I6YNPH.js","./chunk-I4S6WV2D.js","./chunk-ILIS2AE2.js","./chunk-J6E6BWRL.js","./chunk-M3IIR2KY.js","./chunk-QEKXQ7F4.js","./chunk-VG74BXWZ.js","./chunk-WP7KUSZN.js","./collect-setup.js","./customer-import.js","./customer-plan.js","./icon.svg","./index.html","./manifest.webmanifest","./payments-inbox.js","./screen-router.js","./urdu-font.css"];
+const CACHE_NAME = 'shahdara-isp-billing-v37-3bfbf03b74';
+const APP_FILES = ["./","./app.bundle.css","./app.js","./bulk-collect.js","./chunk-5IK3M2XI.js","./chunk-G7OJZBAM.js","./chunk-GC3T6TSD.js","./chunk-H3I6YNPH.js","./chunk-I4S6WV2D.js","./chunk-ILIS2AE2.js","./chunk-J6E6BWRL.js","./chunk-M3IIR2KY.js","./chunk-QEKXQ7F4.js","./chunk-WP7KUSZN.js","./collect-setup.js","./customer-import.js","./customer-plan.js","./icon.svg","./index.html","./manifest.webmanifest","./payments-inbox.js","./screen-router.js","./urdu-font.css"];
 
 // Bypass the HTTP cache while precaching so a new worker never stores files from the previous deploy.
 const freshRequest = url => (typeof Request === 'function' ? new Request(url, { cache:'reload' }) : url);
@@ -78,6 +78,28 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetchAndCache(event.request).catch(() => {
       notifyClients({ type: 'SW_OFFLINE_FALLBACK', url: event.request.url, cache: CACHE_NAME });
       return caches.match('./index.html');
+    }));
+    return;
+  }
+  // Plan 690 (Phase 1): a VERSIONED asset request — one carrying a
+  // query string (every app file is pinned ?v=1.11.0) — goes
+  // network-first. Dropping ignoreSearch alone cannot fix staleness
+  // while the stamp is frozen: the stored key 'app.js?v=1.11.0' would
+  // still match the old content. Network-first means a plain reload
+  // after a deploy runs the new code; the cache is only the offline
+  // fallback (any stamp — the content is the same file), and a
+  // 404/500 is never cached (fetchAndCache's cacheable rule).
+  // Unversioned asset requests keep the cache-first behaviour below
+  // (offline-first for the app's own files).
+  if (isAssetRequest(event.request) && new URL(event.request.url).search) {
+    event.respondWith(fetchAndCache(event.request).catch(() => {
+      return caches.match(event.request, { ignoreSearch: true }).then(cached => {
+        if (cached && (cached.ok !== false)) return cached;
+        notifyClients({ type: 'SW_ASSET_OFFLINE', url: event.request.url, cache: CACHE_NAME });
+        return typeof Response === 'function'
+          ? new Response('Offline — file unavailable', { status: 503, headers: { 'Content-Type': 'text/plain' } })
+          : null;
+      });
     }));
     return;
   }

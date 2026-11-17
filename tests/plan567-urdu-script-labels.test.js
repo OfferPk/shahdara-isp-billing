@@ -169,8 +169,12 @@ test('plan567 G1 offset NON-CASH banner: urduReceiptLabel is the Urdu banner tex
   );
 });
 
-test('plan567 G1 map size: 93 → 110 keys (17 new entries, no existing value changed)', () => {
-  assert.equal(Object.keys(RECEIPT_URDU_LABELS).length, 110, 'the map must hold exactly the 93 old + 17 new keys');
+test('plan567 G1 map size: 93 → 110 keys + 1 bare-Kist key (Plan 568 D10, F1)', () => {
+  // Plan 568 (D10, F1) adds ONE more key — the bare 'Kist' — so the
+  // count is 111 on a post-568 base. The intent of this pin is
+  // unchanged: the map holds exactly the 93 old + 17 plan-567 keys +
+  // 1 plan-568 key, and no existing value changed.
+  assert.equal(Object.keys(RECEIPT_URDU_LABELS).length, 111, 'the map must hold exactly the 93 old + 17 new keys + 1 bare-Kist key (Plan 568 D10)');
   // Spot-check the values the new entries sit next to (the map's rule:
   // value = the Urdu half of the bilingual label).
   assert.equal(RECEIPT_URDU_LABELS['Area / علاقہ'], 'علاقہ');

@@ -661,7 +661,7 @@ export function setupMobileBareFiberAdapterModal(state, options = {}) {
         <td style="padding:6px 8px;font-weight:700;">${a.estimatedIlDb || 0} dB</td>
         <td style="padding:6px 8px;"><span style="color:${a.verdict === 'PASS' ? '#10b981' : a.verdict === 'CAUTION' ? '#f59e0b' : '#ef4444'};font-weight:700;">${a.verdict || 'PASS'}</span></td>
         <td style="padding:6px 8px;">
-          <button class="bfa-inspect-btn secondary-button" data-audit-id="${a.id}" type="button" style="padding:2px 6px;font-size:10px;">Inspect</button>
+          <button class="bfa-inspect-btn secondary-button" data-audit-id="${a.id}" type="button" style="padding:2px 6px;font-size: 11px;">Inspect</button>
         </td>
       </tr>
     `).join('');

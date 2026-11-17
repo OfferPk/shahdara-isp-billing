@@ -233,11 +233,13 @@ test('Sharafat 93 pre-action banners + morning-briefing keys survive untouched',
   assert.ok(read('morning-briefing.js').includes('brief_backup_never'), 'morning briefing still uses brief_backup_*');
 });
 
-test('Sharafat 93 EN/UR parity holds (4,672 == 4,672)', () => {
+test('Sharafat 93 EN/UR parity holds (4,671 == 4,671)', () => {
+  // Round 2 (D9): net −1 key — 'cust_card_father_ref_short' and
+  // 'cust_card_tenure_since_short' deleted, 'cust_card_ref_short' added.
   const enKeys = Object.keys(TRANSLATIONS.en);
   const urKeys = Object.keys(TRANSLATIONS.ur);
-  assert.equal(enKeys.length, 4672);
-  assert.equal(urKeys.length, 4672);
+  assert.equal(enKeys.length, 4671);
+  assert.equal(urKeys.length, 4671);
   const diff = enKeys.filter((k) => !TRANSLATIONS.ur[k]).concat(urKeys.filter((k) => !TRANSLATIONS.en[k]));
   assert.deepEqual(diff, []);
 });

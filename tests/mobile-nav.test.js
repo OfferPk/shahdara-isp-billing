@@ -15306,7 +15306,10 @@ test('Backlog Item 8: bottom nav includes dues badge on Collection and More menu
   assert.match(navCss, /\.more-menu-badge\.badge-alert\b/);
   assert.match(navCss, /\.mobile-more-menu button\[aria-current="page"\]/);
   assert.match(navCss, /\[data-theme="dark"\] \.more-menu-badge/);
-  assert.match(navCss, /\[dir="rtl"\] \.more-menu-badge/);
+  // Sharafat 95: the badge margin is logical now (margin-inline-start:auto
+  // in the base rule), so it mirrors without a separate [dir=rtl]
+  // override — the redundant override rule was deleted.
+  assert.match(navCss, /\.more-menu-badge\s*\{[^}]*margin-inline-start:\s*auto/);
 });
 
 test('Backlog Item 8: getMobileNavTabForScreen and syncMobileBottomNav handle collection and route aliases', async () => {

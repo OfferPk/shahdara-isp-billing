@@ -115,7 +115,9 @@ test('unpaid cards: lifetime + tenure pills are coloured — Lifetime green, ten
 });
 
 test('unpaid cards: Outstanding amount uses the Due badge style, + Additional is green with black bold text', () => {
-  assert.ok(app.includes('<span class="customer-billing-badge status-pending">${escapeHtml(formatAmount(outstanding.total))}</span>'), 'outstanding amount is a Due badge');
+  // Sharafat 94: the outstanding amount is isolated in <bdi> so the
+  // Latin "PKR 1,200" does not jump when the card renders in Urdu.
+  assert.ok(app.includes('<span class="customer-billing-badge status-pending"><bdi>${escapeHtml(formatAmount(outstanding.total))}</bdi></span>'), 'outstanding amount is a Due badge');
   assert.match(components, /\.additional-pending-btn \{[^}]*background: var\(--ds-success-bg\);[^}]*color: var\(--ink\);[^}]*font-weight: 800;/s, '+ Additional is green with black bold text (tokens only — components.css stays hex-free)');
 });
 

@@ -194,8 +194,12 @@ test('plan573 G4 layout grows by exactly one finPitch: footerY +74, height follo
   // (png-receipt.test.js); one extra financial row is one finPitch
   // (74px), so post-fix the footer sits 74px lower and the layout
   // height follows it exactly.
-  assert.equal(kistLayout.footerY, 2074, 'the kist footerY must grow by exactly one finPitch (2000 + 74)');
-  assert.equal(kistLayout.height, 2098, 'the kist layout height must grow by exactly one finPitch (2024 + 74)');
+  // Plan 574: the seal clearance band grows the layout by a further
+  // 192px (402px band, was 210px) — the kist footer sits at 2266 and
+  // the layout at 2290. The +74 row growth is unchanged; the band is
+  // the only new growth, and the footer still stays inside the canvas.
+  assert.equal(kistLayout.footerY, 2266, 'the kist footerY must grow by exactly one finPitch (2000 + 74) plus the Plan 574 seal band (192)');
+  assert.equal(kistLayout.height, 2290, 'the kist layout height must grow by exactly one finPitch (2024 + 74) plus the Plan 574 seal band (192)');
   assert.ok(kistLayout.footerY <= kistLayout.height, 'the footer must stay inside the grown canvas');
   for (const cmd of kistLayout.commands) {
     if (cmd.type === 'text') {

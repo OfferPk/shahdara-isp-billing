@@ -189,12 +189,11 @@ export const TRANSLATIONS = {
     // were deleted with the old card; the open-hint / time-with-ISP /
     // health-reasons keys stay — the Urdu pins test guards their
     // English strings.
-    cust_card_father_ref_short: 'Father / Ref',
+    cust_card_ref_short: 'Ref',
     cust_card_alias_short: 'AKA',
     cust_card_lifetime_label: 'Lifetime',
     cust_card_tenure_months_short: '{n} mos',
-    cust_card_tenure_since_short: 'since {date}',
-    cust_card_open_profile: 'Full Profile',
+    cust_card_open_profile: 'Profile',
     cust_bill_not_set: 'Bill not set',
     cust_bill_paid: 'Paid',
     cust_bill_pending: 'Pending',
@@ -2258,7 +2257,7 @@ export const TRANSLATIONS = {
     baqaya_status_adjusted: 'Adjusted',
     baqaya_status_adjusted_partial: 'Partly adjusted',
     baqaya_entry_adjusted_part: 'Adjusted {amount}',
-    addpend_add: '＋ Additional',
+    addpend_add: '+ Additional ▾',
     addpend_edit: 'Edit additional pending',
     addpend_total_label: 'Total pending {amount}',
     addpend_breakdown: 'Bill {bill} + Additional {additional}',
@@ -4995,12 +4994,11 @@ export const TRANSLATIONS = {
     cust_card_chip_fee: '{amount}/ماہ',
     // Customers Cards Compact: condensed pill labels for the new card
     // (Father/reference, lifetime, tenure, Full Profile action).
-    cust_card_father_ref_short: 'والد / حوالہ',
+    cust_card_ref_short: 'حوالہ',
     cust_card_alias_short: 'دیگر نام',
     cust_card_lifetime_label: 'اب تک',
     cust_card_tenure_months_short: '{n} ماہ',
-    cust_card_tenure_since_short: '{date} سے',
-    cust_card_open_profile: 'مکمل پروفائل',
+    cust_card_open_profile: 'پروفائل',
     cust_bill_not_set: 'بل طے نہیں',
     cust_bill_paid: 'ادا شدہ',
     cust_bill_pending: 'زیر التوا',
@@ -7059,7 +7057,7 @@ export const TRANSLATIONS = {
     baqaya_status_adjusted: 'ایڈجسٹ شدہ',
     baqaya_status_adjusted_partial: 'جزوی ایڈجسٹ شدہ',
     baqaya_entry_adjusted_part: 'ایڈجسٹ شدہ {amount}',
-    addpend_add: '＋ اضافی',
+    addpend_add: '+ اضافی ▾',
     addpend_edit: 'اضافی بقایا تبدیل کریں',
     addpend_total_label: 'کل بقایا {amount}',
     addpend_breakdown: 'بل {bill} + اضافی {additional}',

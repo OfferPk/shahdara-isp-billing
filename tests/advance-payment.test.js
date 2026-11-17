@@ -39,7 +39,9 @@
  *    on a point-in-time scoped engine re-run, never today's balance);
  *  - the line prints on HTML (A4 + both thermals), PNG, ESC/POS and
  *    the WhatsApp draft exactly when advance money is involved, and
- *    every surface stays clean (PNG still 1600x2000) when it is not;
+ *    every surface stays clean (PNG 1600x2142 — Plan 574: the seal
+ *    clearance band grows the layout past the 2000px model height)
+ *    when it is not;
  *  - prepay receipts (SISP-61) and voided advances never get the line;
  *  - the Billing Register flags advance-settled rows (💎) from the
  *    same engine signal, cash-settled rows never, CSV/totals untouched.
@@ -416,8 +418,10 @@ test('SISP-194 no advance involvement: the receipt model and every surface stay 
     assert.ok(!html.includes('Remaining Advance Balance'), format);
   }
   // PNG: financial rows are exactly the pre-SISP-194 five plus the
-  // Plan 573 Total Due row (before Amount Paid), and the canvas stays
-  // exactly 1600x2000.
+  // Plan 573 Total Due row (before Amount Paid), and the canvas is
+  // 1600x2142 — Plan 574: the seal clearance band grows the layout,
+  // but the height is max(model.height, y + 24), so only 142px of the
+  // 192px band shows past the 2000px model height. Measured.
   const model = buildPngReceiptModel(receipt, customer);
   assert.deepEqual(model.financial.map((row) => row.label), [
     'Previous Balance / Sabiqa Baqaya',
@@ -429,9 +433,9 @@ test('SISP-194 no advance involvement: the receipt model and every surface stay 
   ]);
   const layout = computePngReceiptLayout(model);
   assert.equal(layout.width, PNG_RECEIPT_WIDTH);
-  assert.equal(layout.height, PNG_RECEIPT_HEIGHT);
+  assert.equal(layout.height, 2142);
   assert.equal(layout.width, 1600);
-  assert.equal(layout.height, 2000);
+  assert.equal(layout.height, 2142);
   // ESC/POS + WhatsApp stay clean too.
   const fields = escPosFieldsFromPaymentReceipt(receipt);
   assert.equal(fields.advanceApplied, '');

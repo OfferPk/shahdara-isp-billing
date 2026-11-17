@@ -20,7 +20,8 @@
 //    history shows; for a SISP-61 prepay that is the recorded net cash);
 //    all recorded kinds count (regular / advance / kist-carrying);
 //  - surfaces: HTML A4 + thermal-80 + thermal-58 (receipt.js), the PNG
-//    model/layout (canvas grows past 2000px ONLY when history exists),
+//    model/layout (canvas grows past 2000px when history exists — and,
+//    since Plan 574, by the seal clearance band even without history),
 //    ESC/POS text (thermal-printer.js), the Quick Collect WhatsApp
 //    draft (nav-quick-collect.js) and the profile WhatsApp draft
 //    (profile-ui.js, caller-attached like the SISP-33 FIFO fields);
@@ -185,7 +186,10 @@ test('0 priors: every surface omits the block and renders byte-identically to a 
   assert.equal(model.historyHeading, '');
   const layout = computePngReceiptLayout(model);
   assert.deepEqual(layout, computePngReceiptLayout(legacyModel), 'PNG layout is unchanged without history');
-  assert.equal(layout.height, PNG_RECEIPT_HEIGHT);
+  // Plan 574: the seal clearance band grows the layout — the height is
+  // max(model.height, y + 24), so only 142px of the 192px band shows
+  // past the 2000px model height on this receipt. Measured.
+  assert.equal(layout.height, 2142);
   const fields = escPosFieldsFromPaymentReceipt(receipt);
   const legacyFields = escPosFieldsFromPaymentReceipt(legacy);
   assert.equal(fields.historyHeading, '');
@@ -254,7 +258,7 @@ function tallReceipt(previousPayments) {
   };
 }
 
-test('PNG: model carries composed history lines; layout grows past 2000px only when history exists', async () => {
+test('PNG: model carries composed history lines; layout grows past 2000px with history (and by the seal band without it)', async () => {
   const cust = { id: 'synthetic-customer', name: 'Synthetic Customer', mohalla: '', zone: '' };
   const rows = [
     { date: '2026-09-18', amount: 3000, method: 'Cash', receiptRef: '', receiptLabel: 'Sep 18 2026' },
@@ -270,8 +274,12 @@ test('PNG: model carries composed history lines; layout grows past 2000px only w
   assert.equal(withHistory.historyHeading, 'Last 3 Payments / پچھلی 3 ادائیگیاں');
 
   const layoutPlain = computePngReceiptLayout(plain);
-  assert.equal(layoutPlain.height, PNG_RECEIPT_HEIGHT, 'no history: canvas stays exactly 2000px');
-  assert.ok(layoutPlain.footerY <= PNG_RECEIPT_HEIGHT, 'fixture sanity: the tall receipt still fits without history');
+  // Plan 574: the seal clearance band grows the layout even without
+  // history — the height is max(model.height, y + 24), so the plain
+  // tall receipt is 2178px, and the footer sits at 2154. Measured.
+  assert.equal(layoutPlain.height, 2178, 'no history: canvas is 2178px (seal band)');
+  assert.equal(layoutPlain.footerY, 2154, 'no history: footer sits at 2154 (2178 - 24)');
+  assert.ok(layoutPlain.footerY <= layoutPlain.height, 'fixture sanity: the tall receipt still fits without history');
 
   const layoutHist = computePngReceiptLayout(withHistory);
   assert.ok(layoutHist.height > PNG_RECEIPT_HEIGHT, 'with history the canvas grows instead of clipping');
@@ -290,8 +298,9 @@ test('PNG: model carries composed history lines; layout grows past 2000px only w
   assert.equal(canvas.height, layoutHist.height, 'the canvas itself was resized before rendering');
   const canvasPlain = stubCanvas();
   const pngPlain = await generateReceiptPNG(tallReceipt([]), cust, { createCanvas: () => canvasPlain });
-  assert.equal(pngPlain.height, PNG_RECEIPT_HEIGHT);
-  assert.equal(canvasPlain.height, PNG_RECEIPT_HEIGHT);
+  // Plan 574: the plain PNG is 2178px (seal band), like the layout.
+  assert.equal(pngPlain.height, 2178);
+  assert.equal(canvasPlain.height, 2178);
 });
 
 test('ESC/POS: history lines print above the footer note; absent history leaves the slip unchanged', () => {

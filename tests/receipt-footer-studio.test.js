@@ -213,7 +213,17 @@ test('PNG slip: model carries the footer lines and the layout draws them inside 
   assert.deepEqual(model.footerLines, EXPECTED_LINES);
   assert.ok(model.height > PNG_RECEIPT_HEIGHT, 'canvas grows for the footer');
   const layout = computePngReceiptLayout(model);
-  assert.equal(layout.height, model.height);
+  // Plan 574: the layout height is the model height PLUS the seal
+  // clearance as absorbed by max(model.height, y + 24) — the band adds
+  // 192px to y, but the 2420px model height absorbs most of it, so the
+  // layout is 2534px (model.height + 114), not model.height + 192.
+  // The parent's +126 restatement holds only when y + 24 already
+  // exceeds the model height (kist/taxed); here the model height
+  // dominates, so the honest pin is the bounded range: never below
+  // the model height, never more than the 192px band growth above it.
+  // model.height itself is NOT grown (Plan 574 is layout-only).
+  assert.ok(layout.height >= model.height && layout.height <= model.height + 192,
+    `layout height ${layout.height} within [model.height ${model.height}, +192 seal band]`);
   assert.ok(layout.footerY <= layout.height, `footerY ${layout.footerY} inside the grown canvas`);
   const texts = layout.commands.filter((cmd) => cmd.type === 'text').map((cmd) => cmd.text);
   for (const line of EXPECTED_LINES) assert.ok(texts.some((value) => value.includes(line)), `layout draws "${line}"`);
@@ -228,7 +238,11 @@ test('PNG slip: unconfigured model is the standard 1600x2000 with no footer line
   assert.equal(model.height, PNG_RECEIPT_HEIGHT);
   assert.deepEqual(model.footerLines, []);
   const layout = computePngReceiptLayout(model);
-  assert.ok(layout.footerY <= PNG_RECEIPT_HEIGHT);
+  // Plan 574: the seal clearance band grows the layout even with no
+  // footer lines — the height is max(model.height, y + 24), so the
+  // footer sits 192px lower than the old 2000 foot; the bound is the
+  // grown layout height, the shape this file already uses elsewhere.
+  assert.ok(layout.footerY <= layout.height, `footerY ${layout.footerY} inside the grown canvas`);
 });
 
 // ---------------------------------------------------------------- WhatsApp

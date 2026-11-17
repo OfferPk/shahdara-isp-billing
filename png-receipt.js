@@ -256,7 +256,8 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   // model so the layout owns their space. Rows come from the receipt
   // snapshot (buildPaymentReceipt derives them from the ledger at build
   // time, voided excluded); a receipt without previousPayments yields
-  // [], and the layout below keeps the exact 2000px canvas it always had.
+  // [], and the layout below grows the canvas by the seal clearance
+  // (Plan 574) even without history — the exact 2000px canvas is gone.
   const history = (Array.isArray(receipt.previousPayments) ? receipt.previousPayments : [])
     .filter((row) => row && typeof row === 'object')
     .map((row) => [text(row.date), money(row.amount), text(row.method), text(row.receiptLabel)].filter(Boolean).join(' · '));
@@ -265,7 +266,9 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   // receipt-footer-studio.js, shared by every receipt format). The slip
   // canvas is exactly full at the standard height, so a configured
   // footer grows the slip height by its own lines — with no footer the
-  // model (and the rendered PNG) stays byte-identical to before.
+  // model stays 2000px, while the layout adds the 192px seal band
+  // (Plan 574: 402px band, was 210px), so the rendered PNG is 2142px,
+  // not 2000px — the 2000px model height absorbs 50px of the band.
   const footerLines = buildReceiptFooterLines(options.receiptFooter);
   // Wrap estimate with the layout's default character measure, so a
   // long footer line that wraps on the slip still fits the grown canvas.
@@ -365,8 +368,9 @@ export function computePngReceiptLayout(model, measureFn) {
   txt(`Receipt #: ${model.receiptNumber || '—'}`, W / 2, y, `500 40px ${FONT_LATIN}`, 'center', MUTED);
   y += 58;
   // SISP-83: the VER code rides the header meta line — a maximal
-  // receipt (kist + arrears) already ends exactly at the canvas foot,
-  // so the stamp must not add a flow line of its own.
+  // receipt (kist + arrears) already runs past the standard canvas
+  // foot (Sharafat 53 grows it), so the stamp must not add a flow
+  // line of its own.
   txt(`Date: ${model.paymentDate || '—'}${model.month ? `  ·  Month: ${model.month}` : ''}${model.verificationCode ? `  ·  VER: ${model.verificationCode}` : ''}`,
     W / 2, y, `500 40px ${FONT_LATIN}`, 'center', MUTED);
   y += 52;
@@ -462,16 +466,31 @@ export function computePngReceiptLayout(model, measureFn) {
   }
   y = finY + finH;
 
-  // Official seal: overlaps the financial box's bottom-right corner, like
-  // a real rubber stamp. Angled, double ring, green PAID / amber PARTIAL.
+  // Plan 574: the official seal sits BELOW the financial box, clear of
+  // every figure — like a real rubber stamp placed under the amounts,
+  // not over them. Sharafat 53 put it over the box's bottom-right
+  // corner BY DESIGN, but the stamp crossed Amount Paid, Payment
+  // Method and Remaining Balance (and its label text crossed wide
+  // values), so the overlap is reversed here. cy = box bottom + 168
+  // puts the seal's top edge exactly on the box bottom; the band after
+  // the box is 402px — the 336px seal diameter, plus the 42px tallest
+  // first-content glyph (the footer/star note is 42px and its glyphs
+  // rise 42px above its baseline), plus 24px of air (the layout's own
+  // bottom-padding rhythm). A 336px band — the prep's derivation — is
+  // NOT enough: the first note line's baseline lands exactly on the
+  // seal's bottom edge and its glyphs rise 42px INTO the seal
+  // (measured: note box y[1754,1796] vs seal bottom 1796). Every
+  // receipt grows by 192px (ordinary 2000 -> 2142). Angled, double
+  // ring, green PAID / amber PARTIAL. The seal design
+  // (kind/label/urdu/sub/color/radius) is unchanged; only cx/cy move.
   const sealR = 168;
   const sealCx = W - M - 260;
-  const sealCy = y - 30;
+  const sealCy = y + 168;
   commands.push({
     type: 'seal', cx: sealCx, cy: sealCy, r: sealR,
     label: model.seal.label, urdu: model.seal.urdu, sub: model.seal.sub, color: model.seal.color,
   });
-  y += 210;
+  y += 402; // Plan 574: seal clearance band (336 diameter + 42 glyph + 24 air).
 
   // SISP-128: "Last 3 Payments" mini-history — receipt BODY content,
   // above the footer note. Drawn only when history exists; the canvas

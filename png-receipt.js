@@ -479,9 +479,10 @@ export function computePngReceiptLayout(model, measureFn) {
   // bottom-padding rhythm). A 336px band — the prep's derivation — is
   // NOT enough: the first note line's baseline lands exactly on the
   // seal's bottom edge and its glyphs rise 42px INTO the seal
-  // (measured: note box y[1754,1796] vs seal bottom 1796). Every
-  // receipt grows by 192px (ordinary 2000 -> 2142). Angled, double
-  // ring, green PAID / amber PARTIAL. The seal design
+  // (measured: note box y[1754,1796] vs seal bottom 1796). The band
+  // grows by 192px; the rendered height grows by less wherever the
+  // 2000px model height dominates (ordinary 2000 -> 2142). Angled,
+  // double ring, green PAID / amber PARTIAL. The seal design
   // (kind/label/urdu/sub/color/radius) is unchanged; only cx/cy move.
   const sealR = 168;
   const sealCx = W - M - 260;

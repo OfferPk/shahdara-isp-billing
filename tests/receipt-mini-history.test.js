@@ -246,7 +246,10 @@ function tallReceipt(previousPayments) {
     nominalPrice: 3000, lateFee: 150, discount: 100, concessionAmount: 200,
     referralCreditAmount: 0, depositOffsetAmount: 0, prepay: null, ticketCharges: [],
     paidAmount: 3000, balanceDueCents: 0, urduNote: '',
-    arrearsBreakdown: { previousArrears: 1000, packageAmount: 3000, kistAmount: 0, kistLines: [], balanceDue: 0 },
+    arrearsBreakdown: { previousArrears: 1000, packageAmount: 3000, kistAmount: 0, kistLines: [], balanceDue: 0,
+      // Plan 573: the real builder always sets totalDue (3000 + 1000);
+      // without it the new Total Due row would read '—' on this fixture.
+      totalDue: 4000 },
     previousPayments
   };
 }

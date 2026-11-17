@@ -1049,7 +1049,12 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
   areaName = 'Shahdara, Islamabad',
-  receiptFooter = null
+  receiptFooter = null,
+  // Plan 569: print-time script choice, mirroring the main receipt
+  // (Plan 168). Anything other than 'urdu' renders exactly as before;
+  // 'urdu' re-labels the fields in Urdu script without touching any
+  // stored value. No caller passes 'urdu' yet (D1(a) wiring-only).
+  script = 'roman'
 } = {}) {
   if (!receipt) return '';
   // Plan 555: the ONE shared receipt money format (receipt-money.js).
@@ -1075,7 +1080,7 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
     documentNumberLabel: 'Receipt #:', variant: 'a4'
   });
   const kistFooter = documentFooterHtml(receiptFooter, { thankYou: '* شکریہ! Shahdara ISP *' });
-  return `<article class="receipt-sheet" data-receipt-format="down-payment-kist">
+  return applyReceiptScript(`<article class="receipt-sheet" data-receipt-format="down-payment-kist">
   ${kistHeader}
   <div class="receipt-divider">================================</div>
   <dl class="receipt-fields">
@@ -1100,7 +1105,7 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
   <footer class="receipt-terms">
     ${kistFooter}
   </footer>
-</article>`;
+</article>`, script);
 }
 
 // SISP-50: Final Disconnection Clearance Receipt. The settlement itself
@@ -1146,7 +1151,12 @@ export function generateDepositSettlementReceiptHtml(receipt, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
   areaName = 'Shahdara, Islamabad',
-  receiptFooter = null
+  receiptFooter = null,
+  // Plan 569: print-time script choice, mirroring the main receipt
+  // (Plan 168). Anything other than 'urdu' renders exactly as before;
+  // 'urdu' re-labels the fields in Urdu script without touching any
+  // stored value. No caller passes 'urdu' yet (D1(a) wiring-only).
+  script = 'roman'
 } = {}) {
   if (!receipt) return '';
   const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName
@@ -1159,7 +1169,7 @@ export function generateDepositSettlementReceiptHtml(receipt, {
   const hardwareRows = (Array.isArray(receipt.hardwareCharges) ? receipt.hardwareCharges : [])
     .map((row) => `<div class="receipt-field"><dt>Unrecovered ${escapeHtml(row.label)}:</dt><dd>${row.amount > 0 ? `-${formatAmount(row.amount)}` : 'No recorded price — PKR 0'}</dd></div>`).join('');
   const statusClass = receipt.status === 'CLEARED' ? 'receipt-status-paid' : 'receipt-status-partial';
-  return `<article class="receipt-sheet a4-receipt" data-receipt-format="deposit-settlement">
+  return applyReceiptScript(`<article class="receipt-sheet a4-receipt" data-receipt-format="deposit-settlement">
   <header class="receipt-head">
     ${brandHeaderContentHtml({ businessName, businessPhone, areaName }, {
       document: 'deposit-settlement', documentNumber: receipt.receiptNumber,
@@ -1191,7 +1201,7 @@ export function generateDepositSettlementReceiptHtml(receipt, {
     </div>
     ${documentFooterHtml(receiptFooter, { thankYou: '* شکریہ! Shahdara ISP *' })}
   </footer>
-</article>`;
+</article>`, script);
 }
 
 // SISP-166: Security Deposit Offset Receipt for an ACTIVE customer.
@@ -1238,7 +1248,12 @@ export function generateDepositOffsetReceiptHtml(receipt, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
   areaName = 'Shahdara, Islamabad',
-  receiptFooter = null
+  receiptFooter = null,
+  // Plan 569: print-time script choice, mirroring the main receipt
+  // (Plan 168). Anything other than 'urdu' renders exactly as before;
+  // 'urdu' re-labels the fields in Urdu script without touching any
+  // stored value. No caller passes 'urdu' yet (D1(a) wiring-only).
+  script = 'roman'
 } = {}) {
   if (!receipt) return '';
   const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName
@@ -1250,7 +1265,7 @@ export function generateDepositOffsetReceiptHtml(receipt, {
   const offsetRows = (Array.isArray(receipt.bills) ? receipt.bills : [])
     .map((row) => `<div class="receipt-field"><dt>Bill offset — ${escapeHtml(row.month)}:</dt><dd>-${formatAmount(row.amount)}</dd></div>`).join('');
   const statusClass = receipt.reversed ? 'receipt-status-partial' : 'receipt-status-paid';
-  return `<article class="receipt-sheet a4-receipt" data-receipt-format="deposit-offset">
+  return applyReceiptScript(`<article class="receipt-sheet a4-receipt" data-receipt-format="deposit-offset">
   <header class="receipt-head">
     ${brandHeaderContentHtml({ businessName, businessPhone, areaName }, {
       document: 'deposit-offset', documentNumber: receipt.receiptNumber,
@@ -1279,5 +1294,5 @@ export function generateDepositOffsetReceiptHtml(receipt, {
   <footer class="receipt-terms">
     ${documentFooterHtml(receiptFooter, { thankYou: '* شکریہ! Shahdara ISP *' })}
   </footer>
-</article>`;
+</article>`, script);
 }

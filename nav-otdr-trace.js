@@ -415,7 +415,7 @@ export function renderMobileOtdrTraceSvg(evalData, options = {}) {
     <svg viewBox="0 0 ${width} ${height}" class="otdr-trace-svg" role="img" aria-label="Mobile OTDR Optical Event Trace Graph" xmlns="http://www.w3.org/2000/svg">
       <style>
         .otdr-t { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        .otdr-t-label { font-size: 10px; fill: var(--text-muted, #64748b); }
+        .otdr-t-label { font-size: 11px; fill: var(--text-muted, #64748b); }
         .otdr-t-val { font-size: 12px; font-weight: 700; fill: var(--text-color, #1e293b); }
         .otdr-grid-line { stroke: rgba(148, 163, 184, 0.2); stroke-dasharray: 4,4; stroke-width: 1; }
       </style>

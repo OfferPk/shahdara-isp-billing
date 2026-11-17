@@ -40,19 +40,22 @@
 //     (Today: PKR 30,800 · Round: 0) Today + Round do share row
 //     1; the button still wraps. The track sits below the row
 //     items now (order 4), never above them as it did before.
-//   Form 360x640: cardScrollH 1,312px vs cardClientH 589px — 723px
+//   Form 360x640: cardScrollH 1,146px vs cardClientH 589px — 557px
 //     OVER the one-screen budget. Recorded, not blessed (PR #1337
-//     precedent). The form has seven sections (back row, 140px
+//     precedent). The form has seven sections (back row, 71px
 //     customer header incl. package/tax line, 62px collapsed
-//     accordion, 331px amount group, date + method + shop ~277px,
+//     accordion, 212px amount group, date + method + shop ~277px,
 //     62px collapsed details, sticky Review button) — no
 //     rearrangement of the same sections fits 589px; reaching one
 //     screen would need hiding whole sections behind accordions, a
 //     product decision this PR does not take. The Review button is
 //     sticky-bottom (pre-existing #281/#279), so the save CTA is
 //     always on screen even while the form scrolls; the flow is
-//     ~2.2 screens, down from the ~4 the base spec measured.
-//   Form 390x844: cardScrollH 1,292px vs cardClientH 776px — 516px
+//     ~1.9 screens, down from the ~2.2 the Overhaul-2 measurement
+//     recorded. The direct-save CTA (Quick Collect polish, D2) sits
+//     beside Review for standard collections, so the operator saves
+//     in one tap without scrolling at all.
+//   Form 390x844: cardScrollH 1,127px vs cardClientH 776px — 351px
 //     OVER. Recorded, not blessed.
 //   The harness shells use representative (not real-rendered) banner
 //   text and a static-filled form; the numbers are the shells'
@@ -74,6 +77,19 @@
 //     (was 2) — the 3-cards gate is met (3 x 143.5 + 2 x 8 =
 //     446.5 <= 460). cardOverX 0, listOverX 0, dialogOverX 0;
 //     100-card render: no overlap, no horizontal overflow.
+//     Quick Collect polish (user decision 2026-11-17, harness
+//     gen-qc-polish-after.mjs, 0 pageerrors): the pills fit ONE row
+//     again (row 96px → 46px, scrollW = clientW at 360px; at 320px
+//     they scroll 4px — D4 accepts the scroll). BUT the cards GREW:
+//     the subtitle moved to a full-width Row 2 and the name wraps
+//     to 2 lines, so at 360px badged cards are 178.3px (two of the
+//     three fixtures) / 160.7px (one fixture) and settled cards are
+//     124.7px — the 3-cards gate is NOT met any more (3 x 178.3 +
+//     2 x 8 = 551 > 460; 2 fully visible + a third partial). At
+//     390px the badged cards are 160.7px (3 x 160.7 + 2 x 8 = 498
+//     > 460 — still 2 fully visible). Recorded, not blessed: the
+//     Row 2 subtitle fixes the truncation the user reported, at
+//     the cost of card height.
 //     Action row: Call 67 / Map 71.4 / Collect 121.6 x 38px, one
 //     row. Long case 360x640: topTotal 471.2px (was 655.4px,
 //     saving 184.2px); banner 77.2px, 3 rows — the long case is
@@ -162,18 +178,19 @@ test('form: the Review button is sticky-bottom — the save CTA never scrolls aw
   assert.ok(rule.includes('bottom: 0;'), 'the actions must stick to the bottom');
 });
 
-test('form: the one-screen budget is recorded as OVER — 1,312px vs 589px at 360x640', () => {
+test('form: the one-screen budget is recorded as OVER — 1,146px vs 589px at 360x640', () => {
   // PR #1337 precedent: a measured overage is RECORDED, not waived
-  // and not hidden. The form step measures cardScrollH 1,312px
-  // against a 589px card at 360x640 (+723px) and 1,292px against
-  // 776px at 390x844 (+516px). The numbers live in this file's
+  // and not hidden. The form step measures cardScrollH 1,146px
+  // against a 589px card at 360x640 (+557px) and 1,127px against
+  // 776px at 390x844 (+351px) after the Quick Collect polish
+  // (was 1,312px / 1,292px). The numbers live in this file's
   // header comment (harness authority); this test pins that the
   // overage is disclosed, so a later reader cannot mistake the
-  // step for fitting. The step is ~2.2 screens, down from the ~4
-  // the base spec measured — progress, not the target.
-  const header = readFileSync(new URL(import.meta.url), 'utf8').slice(0, 4000);
-  assert.ok(header.includes('1,312px vs cardClientH 589px'), 'the 360x640 overage must be recorded');
-  assert.ok(header.includes('1,292px vs cardClientH 776px'), 'the 390x844 overage must be recorded');
+  // step for fitting. The step is ~1.9 screens, down from the ~2.2
+  // the Overhaul-2 measurement recorded — progress, not the target.
+  const header = readFileSync(new URL(import.meta.url), 'utf8').slice(0, 6000);
+  assert.ok(header.includes('1,146px vs cardClientH 589px'), 'the 360x640 overage must be recorded');
+  assert.ok(header.includes('1,127px vs cardClientH 776px'), 'the 390x844 overage must be recorded');
   assert.ok(header.includes('Recorded, not blessed'), 'the overage must be marked as recorded, not blessed');
 });
 

@@ -4595,9 +4595,23 @@ html, body {
     display: none !important;
   }
 
+  /* Thermal receipts on roll-sized pages (Plan 572): named pages so the A4
+     @page rule elsewhere in this sheet does not win — the thermal sheet is
+     already 76mm/48mm, but without a named page the receipt is paginated
+     as an A4 sheet with 13mm margins. */
+  @page thermal80 {
+    size: 80mm auto;
+    margin: 0;
+  }
+  @page thermal58 {
+    size: 58mm auto;
+    margin: 0;
+  }
+
   /* Thermal POS 80mm Print Mode */
   body.printing-thermal #receiptPrintArea,
   body.printing-thermal-80 #receiptPrintArea {
+    page: thermal80;
     width: 76mm !important;
     max-width: 76mm !important;
     margin: 0 auto !important;
@@ -4651,6 +4665,7 @@ html, body {
 
   /* Thermal POS 58mm Mobile Bluetooth Print Mode */
   body.printing-thermal-58 #receiptPrintArea {
+    page: thermal58;
     width: 48mm !important;
     max-width: 48mm !important;
     margin: 0 auto !important;

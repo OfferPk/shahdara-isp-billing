@@ -381,7 +381,7 @@ export function renderBgpRoutingConvergenceSvg(metrics, options = {}) {
         <style>
           .bgp-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
           .bgp-title { font-size: 13px; font-weight: 700; fill: var(--text-color, #1e293b); }
-          .bgp-sub { font-size: 10px; fill: var(--text-muted, #64748b); }
+          .bgp-sub { font-size: 11px; fill: var(--text-muted, #64748b); }
           .bgp-val { font-size: 14px; font-weight: 700; fill: var(--text-color, #1e293b); }
           .bgp-bar-bg { fill: rgba(148, 163, 184, 0.2); rx: 4px; }
           .bgp-grid-line { stroke: rgba(148, 163, 184, 0.25); stroke-dasharray: 3,3; stroke-width: 1; }

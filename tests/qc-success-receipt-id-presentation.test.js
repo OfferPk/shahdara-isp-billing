@@ -9,7 +9,7 @@
 // Pins:
 //  - the header carries "Receipt No." immediately before a
 //    byte-identical id, inside one .qc-receipt-ref wrapper;
-//  - the wrapper carries margin-left: auto (moved off .qc-receipt-id,
+//  - the wrapper carries margin-inline-start: auto (moved off .qc-receipt-id,
 //    whose success-open rule is now scoped to the split card's
 //    direct-child title so the split header stays right-aligned);
 //  - the id carries the existing .qc-txnid-code chip, whose dark
@@ -126,20 +126,24 @@ test('the label and id live inside one .qc-receipt-ref wrapper', () => {
   assert.ok(wrapAt < labelAt && wrapAt < idAt, 'wrapper must open before the label and the id');
 });
 
-test('the wrapper carries margin-left: auto and lays the group out in one row', () => {
+test('the wrapper carries margin-inline-start: auto and lays the group out in one row', () => {
   const ref = ruleBlock(stylesSrc, '.qc-receipt-ref {');
   assert.ok(ref.includes('display: inline-flex'), 'wrapper must lay label + id out in one row');
   assert.ok(ref.includes('align-items: center'), 'wrapper must centre the label against the chip');
   assert.ok(ref.includes('gap: 6px'), 'wrapper gap must be 6px');
   assert.ok(ref.includes('white-space: nowrap'), 'wrapper must not wrap mid-number');
-  assert.ok(ref.includes('margin-left: auto'), 'wrapper must right-align the group');
+  // Sharafat 95: the wrapper's spacer is a logical margin now
+  // (margin-inline-start: auto) so the group still right-aligns in Urdu mode.
+  assert.ok(ref.includes('margin-inline-start: auto'), 'wrapper must right-align the group');
   // The success-open .qc-receipt-id rule is scoped to the split
   // card's direct-child title (the ordinary id is nested inside the
   // wrapper now, so the rule must not reach it — an auto margin on
   // the inner id would split the label and the chip apart).
   const idOverride = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header > .qc-receipt-id {');
   assert.ok(idOverride.includes('white-space: nowrap'), 'split title must still not wrap on success');
-  assert.ok(idOverride.includes('margin-left: auto'), 'split title must stay right-aligned on success');
+  // Sharafat 95: the split title's spacer is a logical margin now
+  // (margin-inline-start: auto) so it still right-aligns in Urdu mode.
+  assert.ok(idOverride.includes('margin-inline-start: auto'), 'split title must stay right-aligned on success');
   assert.ok(!stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-id { white-space: nowrap; margin-left: auto; }'), 'the unscoped id rule must be gone — it would reach the wrapped id');
 });
 

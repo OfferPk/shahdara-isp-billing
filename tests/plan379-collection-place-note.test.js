@@ -480,16 +480,19 @@ test('wiring: Quick Collect without a note records no note fields', async () => 
   assert.equal('collectionMohalla' in recorded, false);
 });
 
-test('wiring: the entry form carries the three fields and passes them on', () => {
+test('wiring: the entry form carries the collector field only; the profile form keeps all three', () => {
+  // Quick Collect polish (2026-11-17, D13): the entry form drops
+  // 'Collected at' and 'Collected in mohalla' (the receipt note line
+  // is lost — disclosed in the PR body). 'Collected by' stays, and the
+  // PROFILE twin keeps all three fields (it is the record of where
+  // and when a payment was collected, not the quick entry).
   assert.ok(indexSrc.includes('id="quickCollectCollectedByInput"'), 'quick collect collector input');
-  assert.ok(indexSrc.includes('id="quickCollectCollectionPlaceSelect"'), 'quick collect place select');
-  assert.ok(indexSrc.includes('id="quickCollectCollectionMohallaInput"'), 'quick collect mohalla input');
+  assert.ok(!indexSrc.includes('id="quickCollectCollectionPlaceSelect"'), 'place select gone from the entry form');
+  assert.ok(!indexSrc.includes('id="quickCollectCollectionMohallaInput"'), 'mohalla input gone from the entry form');
   assert.ok(quickCollectSrc.includes('quickCollectCollectedByInput'), 'quick collect reads the collector input');
-  assert.ok(quickCollectSrc.includes('quickCollectCollectionPlaceSelect'), 'quick collect reads the place select');
-  assert.ok(quickCollectSrc.includes('quickCollectCollectionMohallaInput'), 'quick collect reads the mohalla input');
+  assert.ok(!quickCollectSrc.includes('quickCollectCollectionPlaceSelect'), 'quick collect no longer reads the place select');
+  assert.ok(!quickCollectSrc.includes('quickCollectCollectionMohallaInput'), 'quick collect no longer reads the mohalla input');
   assert.ok(quickCollectSrc.includes('collectedBy:'), 'quick collect passes the collector on');
-  assert.ok(quickCollectSrc.includes('collectionPlace:'), 'quick collect passes the place on');
-  assert.ok(quickCollectSrc.includes('collectionMohalla:'), 'quick collect passes the mohalla on');
   assert.ok(quickCollectSrc.includes("from './collection-place-note.js'"), 'quick collect imports the module');
   assert.ok(appSrc.includes("from './collection-place-note.js'"), 'app imports the module');
   assert.ok(appSrc.includes('collectionNoteMarkup('), 'app shows the note on the transaction');

@@ -99,8 +99,10 @@ test('redesign: CSS hides the table and shows cards at <=700px, tokens only', ()
   assert.ok(block.includes('font: 800 26px'), 'big-figure type for the available quantity');
   assert.ok(block.includes('.inventory-item-chip'), 'category chip rule');
   assert.ok(block.includes('border-radius: var(--radius-pill)'), 'chip radius from token');
-  assert.ok(block.includes('.inventory-item-card--low { border-left: 4px solid var(--color-pending); }'), 'low-stock accent from the pending token');
-  assert.ok(block.includes('.inventory-item-card--out { border-left: 4px solid var(--color-overdue); }'), 'out-of-stock accent from the overdue token');
+  // Sharafat 95: the stock accents are logical borders now
+  // (border-inline-start) so they stay on the row's start edge in Urdu mode.
+  assert.ok(block.includes('.inventory-item-card--low { border-inline-start: 4px solid var(--color-pending); }'), 'low-stock accent from the pending token');
+  assert.ok(block.includes('.inventory-item-card--out { border-inline-start: 4px solid var(--color-overdue); }'), 'out-of-stock accent from the overdue token');
   const noComments = block.replace(/\/\*[\s\S]*?\*\//g, '');
   const hexes = noComments.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || [];
   assert.deepEqual(hexes, [], `no hard-coded hex in the redesign block (found ${hexes})`);

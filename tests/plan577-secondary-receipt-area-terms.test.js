@@ -204,8 +204,8 @@ test('plan577 G4: EN/UR parity stays 4,669/4,669 — no new i18n keys', () => {
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4722, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4722, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4735, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4735, 'UR key count moved');
 });
 
 test('plan577 G4: Urdu-script mode relabels the new Area row on the kist sheet (map already covers it)', () => {

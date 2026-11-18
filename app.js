@@ -8407,7 +8407,26 @@ function renderCustomerProfileView(customer) {
     lastPayment: balanceReplyCurrent ? balanceReplyCurrent.lastPayment : null,
     nextDueDate: balanceReplyCurrent ? balanceReplyCurrent.dueDate : null,
   });
-  const profileHeaderStripSectionHtml = profileHeaderStrip ? profileHeaderStripHtml(profileHeaderStrip, formatAmount) : '';
+  // Plan 591 (D1(a)) — the strip's translated strings reach the pure
+  // profile-header-strip.js module as a labels object (the freshness-
+  // stamp precedent): one object serves both the html strip and the
+  // text sentences; the module defaults to English when it is absent.
+  const profileHeaderStripSectionHtml = profileHeaderStrip ? profileHeaderStripHtml(profileHeaderStrip, formatAmount, {
+    dues: t('phs_dues'),
+    package: t('phs_package'),
+    lastPayment: t('phs_last_payment'),
+    nextDue: t('phs_next_due'),
+    noAmountDue: t('phs_no_amount_due'),
+    noPaymentYet: t('phs_no_payment_yet'),
+    notRecorded: t('phs_not_recorded'),
+    noAmountDueText: t('phs_no_amount_due_text'),
+    noPaymentYetText: t('phs_no_payment_yet_text'),
+    nextDueNotRecorded: t('phs_next_due_not_recorded'),
+    unavailable: t('phs_unavailable'),
+    aria: t('phs_aria'),
+    perMonth: t('phs_per_month'),
+    notSet: t('prof_not_set'),
+  }) : '';
   // Plan 375 — Customer profile data freshness stamp: the latest
   // field-change date or verification-tick date for this profile,
   // shown in plain words. Display only: it reads the two records

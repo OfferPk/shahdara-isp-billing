@@ -229,7 +229,13 @@ test('wiring: the strip is built from the profile balance figures in renderCusto
   assert.ok(appJs.includes('balanceReplyCurrent ? balanceReplyCurrent.outstanding : null'));
   assert.ok(appJs.includes('balanceReplyCurrent ? balanceReplyCurrent.lastPayment : null'));
   assert.ok(appJs.includes('balanceReplyCurrent ? balanceReplyCurrent.dueDate : null'));
-  assert.ok(appJs.includes('profileHeaderStripHtml(profileHeaderStrip, formatAmount)'));
+  // Plan 591 (D1(a)) re-pin: the call now passes the labels object as the
+  // third argument — profileHeaderStripHtml(strip, formatAmount, { … }) —
+  // so the old 2-arg call text is gone by design. The figures it is built
+  // from are unchanged (the four assertions above still pin them).
+  assert.ok(appJs.includes('profileHeaderStripHtml(profileHeaderStrip, formatAmount, {'));
+  assert.ok(appJs.includes("dues: t('phs_dues')"));
+  assert.ok(appJs.includes("notSet: t('prof_not_set')"));
 });
 
 test('wiring: the strip sits at the top of the profile, after the wada banner and before the field groups', () => {

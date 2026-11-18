@@ -1840,6 +1840,19 @@ stat cells become pills. */
 .phs-pill-package{background:#e5efff;color:#174b87;border-color:#adc9f1}
 .phs-pill-last-payment{background:#dcfce7;color:#145b38;border-color:#5fa876}
 .phs-pill-next-due{background:#fef3c7;color:#704600;border-color:#e7c77e}
+/* Plan 591 (D1(a)/D2(a)/D3(a)/D4(d)) — profile header strip: the section,
+   labels and values that profile-header-strip.js used to render with
+   inline style attributes now live here on tokens only. Light values
+   are pixel-identical to the old inline styles (bg --surface-soft and
+   border --line are the nearest existing tokens, a few steps from the
+   old pale fill and border — the nearest-token light shifts are Δ5 and
+   Δ8; the label stays the frozen --phs-label and the value size the new
+   --text-phs-value 15px, both exact). In dark the section blends with
+   the page (--surface-soft vs --surface, 1.11:1) while the pills stay
+   pale by decision (D2(a) — disclosed, not fixed: styles.css:1838–1842). */
+.profile-header-strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3);align-items:stretch;margin:var(--space-2) 0 var(--space-3);padding:var(--space-2-5) var(--space-3);border:1px solid var(--line);border-radius:var(--radius-xs);background:var(--surface-soft)}
+.phs-label{display:block;font-size:var(--text-table-head);color:var(--phs-label)}
+.phs-value{font-size:var(--text-phs-value)}
 .current-bill-grid{gap:8px}
 .current-bill-stat{min-height:70px;border-color:#e0ebe5;box-shadow:0 3px 10px rgba(27,68,51,.035)}
 .current-bill-stat>span{font-size:11px;letter-spacing:.05px}

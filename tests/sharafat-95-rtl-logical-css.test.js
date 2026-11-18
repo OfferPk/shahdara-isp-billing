@@ -253,8 +253,9 @@ test('S1 EN/UR parity holds (4,669 / 4,669 — Round 2 D9 net −1, Quick Collec
   // deletes the six orphan dash_tile_collect_*/dash_tile_closing_*
   // keys, so the count moves to 4,669/4,669.
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4707, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4707, 'UR key count moved');
+  // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4723, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4723, 'UR key count moved');
 });
 
 test('S2 logical-property precedent already exists (conversion follows it)', () => {

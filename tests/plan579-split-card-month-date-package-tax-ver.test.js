@@ -307,7 +307,9 @@ test('plan579 G4: EN/UR parity stays 4,669/4,669 — the rows use hardcoded labe
 
 test('plan579 G4: hex pins hold, and the taxed fully-paid card has 9 grid items (D4(a) placement)', () => {
   assert.equal(hexCount(styles), 613, `styles.css hex count moved (${hexCount(styles)})`);
-  assert.equal(hexCount(navCss), 164, `nav.css hex count moved (${hexCount(navCss)})`);
+  // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
+  // (its only occurrence) is re-tokened to var(--color-brand-700).
+  assert.equal(hexCount(navCss), 163, `nav.css hex count moved (${hexCount(navCss)})`);
   assert.equal(hexCount(components), 0, `components.css hex count moved (${hexCount(components)})`);
   // D4(a) placement, counted: 6 half-width (Customer, Area, Month,
   // Date, Package, Next due date) + 1 tax full-width + 2 leg rows.

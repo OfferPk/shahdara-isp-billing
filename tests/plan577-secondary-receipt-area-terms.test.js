@@ -201,8 +201,9 @@ test('plan577 G4: a reversed offset renders receipt-status-void (Plan 578 flips 
 test('plan577 G4: EN/UR parity stays 4,669/4,669 — no new i18n keys', () => {
   // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
   // dash_tile_collect_*/dash_tile_closing_* keys deleted.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
+  // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4707, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4707, 'UR key count moved');
 });
 
 test('plan577 G4: Urdu-script mode relabels the new Area row on the kist sheet (map already covers it)', () => {

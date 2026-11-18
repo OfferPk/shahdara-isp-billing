@@ -1034,6 +1034,9 @@ export function buildDownPaymentKistReceipt(customer, plan, payment) {
   return {
     customerName: text(customer.name),
     customerId: downPaymentCustomerId,
+    // Plan 577: the customer's own area — polish #12's exact derivation
+    // (mohalla first, zone after). 'Not recorded' when neither is set.
+    area: [text(customer?.mohalla), text(customer?.zone)].filter(Boolean).join(', ') || 'Not recorded',
     receiptNumber: downPaymentReceiptNumber,
     // SISP-83: same VER checksum as payment receipts, over this
     // receipt's number + customer + down payment actually received.
@@ -1105,6 +1108,7 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Payment Date / تاریخ ادائیگی:</dt><dd>${escapeHtml(receipt.paymentDate)}</dd></div>
     <div class="receipt-field"><dt>Customer ID / کھاتہ نمبر:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
     <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(receipt.customerName)}</dd></div>
+    <div class="receipt-field"><dt>Area / علاقہ:</dt><dd>${escapeHtml(receipt.area || 'Not recorded')}</dd></div>
     <div class="receipt-field"><dt>Item / چیز:</dt><dd>${escapeHtml(receipt.itemTitle)}</dd></div>
     <div class="receipt-field"><dt>Payment Method / طریقہ کار:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
     <div class="receipt-divider">--------------------------------</div>
@@ -1120,6 +1124,7 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
   </dl>
   <div class="receipt-divider">--------------------------------</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
+  ${receiptTermsNoteHtml()}
   <footer class="receipt-terms">
     ${kistFooter}
   </footer>
@@ -1145,6 +1150,9 @@ export function buildDepositSettlementReceipt(customer) {
     customerName: text(customer.name),
     customerNameUrdu: urduNameFor(customer),
     customerId: Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
+    // Plan 577: the customer's own area — polish #12's exact derivation
+    // (mohalla first, zone after). 'Not recorded' when neither is set.
+    area: [text(customer?.mohalla), text(customer?.zone)].filter(Boolean).join(', ') || 'Not recorded',
     settlementDate: settlement.settledAt,
     receiptNumber,
     securityDeposit: settlement.securityDeposit,
@@ -1199,6 +1207,7 @@ export function generateDepositSettlementReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Settlement Date / تاریخ تصفیہ:</dt><dd>${escapeHtml(receipt.settlementDate)}</dd></div>
     <div class="receipt-field"><dt>Customer ID / کھاتہ نمبر:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
     <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(displayName)}</dd></div>
+    <div class="receipt-field"><dt>Area / علاقہ:</dt><dd>${escapeHtml(receipt.area || 'Not recorded')}</dd></div>
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Security Deposit Held / سیکیورٹی ڈپازٹ:</dt><dd>${formatAmount(receipt.securityDeposit)}</dd></div>
     <div class="receipt-field"><dt>Arrears Cleared by Deposit Offset / بقایا تصفیہ:</dt><dd>-${formatAmount(receipt.arrearsOffset)}</dd></div>
@@ -1212,6 +1221,7 @@ export function generateDepositSettlementReceiptHtml(receipt, {
   </dl>
   <div class="receipt-divider">================================</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
+  ${receiptTermsNoteHtml()}
   <footer class="receipt-terms">
     <div class="receipt-signatures">
       <div class="receipt-sig-box"><span>دستخط وصول کنندہ / Collector</span></div>
@@ -1243,6 +1253,9 @@ export function buildDepositOffsetReceipt(customer, offsetId) {
     customerName: text(customer.name),
     customerNameUrdu: urduNameFor(customer),
     customerId: Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
+    // Plan 577: the customer's own area — polish #12's exact derivation
+    // (mohalla first, zone after). 'Not recorded' when neither is set.
+    area: [text(customer?.mohalla), text(customer?.zone)].filter(Boolean).join(', ') || 'Not recorded',
     offsetId: entry.id,
     offsetDate: entry.date,
     receiptNumber,
@@ -1297,6 +1310,7 @@ export function generateDepositOffsetReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Offset Date / تاریخ:</dt><dd>${escapeHtml(receipt.offsetDate)}</dd></div>
     <div class="receipt-field"><dt>Customer ID / کھاتہ نمبر:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
     <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(displayName)}</dd></div>
+    <div class="receipt-field"><dt>Area / علاقہ:</dt><dd>${escapeHtml(receipt.area || 'Not recorded')}</dd></div>
     <div class="receipt-field"><dt>Method / طریقہ:</dt><dd>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ</dd></div>
     <div class="receipt-field"><dt><strong>NON-CASH ADJUSTMENT — no cash received / غیر نقد ایڈجسٹمنٹ — کوئی نقد رقم وصول نہیں ہوئی</strong></dt><dd></dd></div>
     <div class="receipt-divider">--------------------------------</div>
@@ -1309,6 +1323,7 @@ export function generateDepositOffsetReceiptHtml(receipt, {
   </dl>
   <div class="receipt-divider">================================</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
+  ${receiptTermsNoteHtml()}
   <footer class="receipt-terms">
     ${documentFooterHtml(receiptFooter, { thankYou: '* شکریہ! Shahdara ISP *' })}
   </footer>

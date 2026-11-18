@@ -18,7 +18,7 @@
   border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; font: inherit;
   border-radius: 12px;
 }
-.tx-compact > button.tx-row:focus-visible { outline: 3px solid #1f7a5a; outline-offset: -3px; }
+.tx-compact > button.tx-row:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 .tx-avatar {
   width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
   background: var(--color-brand-soft); color: var(--color-brand-600); font: 700 12px 'DM Sans', sans-serif;

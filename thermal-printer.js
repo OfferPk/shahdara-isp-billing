@@ -17,6 +17,10 @@
 
 import { buildReceiptFooterLines } from './receipt-footer-studio.js';
 import { formatReceiptMoneyFigure, netArrearsBalanceRupees } from './receipt-money.js';
+// Plan 575: the VER stamp the slip prints — the derivation the HTML
+// receipt uses (receipt.js:724), so the slip's code equals the profile
+// reprint's code for the same payment.
+import { receiptCodeForReceipt, verificationStampText } from './receipt-verifier.js';
 
 export const THERMAL_WIDTH_CHARS = 32;
 export const PRINTER_STORAGE_KEY = 'shahdara_bt_printer';
@@ -78,6 +82,10 @@ function rowLine(label, value, width) {
  *   customerNumber, monthLabel, packageLabel, dateTimeLabel, amount,
  *   method, reference, discount, balanceDue, statusLabel, footerNote,
  *   footerLines (SISP-96 owner footer lines, optional)
+ *   Plan 575: area, salesTax, verificationCode, lateFee,
+ *   depositOffset, creditTransfer, prepayCoverage, prepayDiscount,
+ *   looseChange — '' when the figure is absent, so the ordinary slip
+ *   gains ONLY the Area + VER rows.
  * @param {Object} [options]
  * @param {number} [options.widthChars=32]
  * @returns {{ bytes: Uint8Array, text: string, lines: string[] }}
@@ -115,6 +123,14 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   if (fields.customerNumber) push(rowLine('Customer #', fields.customerNumber, width));
   if (fields.monthLabel) push(rowLine('Month', fields.monthLabel, width));
   if (fields.packageLabel) for (const l of wrapText(`Package: ${fields.packageLabel}`, width)) push(l);
+  // Plan 575 (D1(a) + D3(a)): the area rides the header block, right
+  // after Package — the HTML receipt's order (receipt.js:790). One
+  // rowLine row; it wraps only when a measured area value exceeds
+  // 27 chars (no real mohalla name does — the longest is 11).
+  if (fields.area) {
+    if (String(fields.area).length > 27) for (const l of wrapText(`Area: ${fields.area}`, width)) push(l);
+    else push(rowLine('Area', fields.area, width));
+  }
   push(divider);
   if (fields.method) push(rowLine('Method', fields.method, width));
   if (fields.reference) push(rowLine('Ref', fields.reference, width));
@@ -132,10 +148,24 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
       if (line && line.label) push(rowLine(line.label, line.value ?? '', width));
     }
   }
+  // Plan 575 (D1(a)): the tax + charged late fee + prepay rows print
+  // before AMOUNT PAID, in the HTML receipt's order (receipt.js:790–
+  // 798) — tax first, then the late fee, then prepay coverage and its
+  // discount. Labels are Latin-only (T8); the prepay discount is
+  // UNSIGNED (the adapter's discount convention, D4(a)).
+  if (fields.salesTax) push(rowLine('Sales tax (19.5%)', fields.salesTax, width));
+  if (fields.lateFee) push(rowLine('Late fee', fields.lateFee, width));
+  if (fields.prepayCoverage) push(rowLine('Prepay coverage', fields.prepayCoverage, width));
+  if (fields.prepayDiscount) push(rowLine('Prepay discount', fields.prepayDiscount, width));
   if (fields.discount) push(rowLine('Discount', fields.discount, width));
   if (fields.concession) push(rowLine('Outage concession', fields.concession, width));
   if (fields.lateFeeWaived) push(rowLine('Late fee waived', fields.lateFeeWaived, width));
   if (fields.referralCredit) push(rowLine('Referral credit', fields.referralCredit, width));
+  // Plan 575 (D1(a)): the deposit offset + credit transfer print
+  // after Referral credit, in the HTML receipt's order
+  // (receipt.js:800–801) — before the advance rows.
+  if (fields.depositOffset) push(rowLine('Deposit offset', fields.depositOffset, width));
+  if (fields.creditTransfer) push(rowLine('Credit transfer', fields.creditTransfer, width));
   // SISP-194: advance credit applied + the balance still held after
   // this receipt (short labels — the 32-char slip cannot fit the full
   // receipt wording, the SISP-43 ticket-charge precedent).
@@ -151,6 +181,9 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
     push(rowLine('Balance left', fields.arrearsBalance, width));
   }
   if (fields.amount) push(rowLine('AMOUNT PAID', fields.amount, width));
+  // Plan 575 (D1(a)): the loose-change credit prints right after the
+  // PAID row, like the HTML receipt (receipt.js:812).
+  if (fields.looseChange) push(rowLine('Change kept', fields.looseChange, width));
   if (fields.balanceDue) push(rowLine('Balance due', fields.balanceDue, width));
   if (fields.statusLabel) push(rowLine('Status', fields.statusLabel, width));
   // SISP-128: "Last 3 Payments" mini-history — receipt body content above
@@ -167,6 +200,9 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   // SISP-126: the remainder waada line ("Baqi Rs. X • Waada: DATE"),
   // pre-formatted by the caller; wrapped like the other free-text lines.
   if (fields.remainderWaadaLine) for (const l of wrapText(fields.remainderWaadaLine, width)) push(l);
+  // Plan 575 (D1(a) + D7): the VER stamp prints LAST, after Status /
+  // history / waada, like the HTML receipt (receipt.js:816).
+  if (fields.verificationCode) push(rowLine('Verify', fields.verificationCode, width));
   push(divider);
   const footer = fields.footerNote || 'Thank you! Please keep this receipt.';
   for (const l of wrapText(footer, width)) push(center(l, width));
@@ -268,6 +304,24 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     // builder prints them beside the ticket rows.
     addonCharges: (Array.isArray(receipt.addonCharges) ? receipt.addonCharges : [])
       .map(line => ({ label: `Boost (${line.boostId})`, value: money(line.amount) })),
+    // Plan 575 (D1(a)): the eight parity figures the HTML receipt
+    // prints — tax, area, VER and the charged/credit figures plus
+    // prepay and loose change. ''-for-null like every other row, so
+    // the ordinary slip gains ONLY the Area + VER rows (D2(a)) and
+    // every conditional row stays absent when its figure is absent.
+    // The tax gate is the salesTaxReceiptRows one (number, finite,
+    // > 0); the prepay discount is UNSIGNED (the adapter's discount
+    // convention, D4(a)); VER carries when present and is re-derived
+    // from the receipt's own fields when absent (D7(a)).
+    area: receipt.area ? String(receipt.area) : '',
+    salesTax: (typeof receipt.salesTaxCents === 'number' && Number.isFinite(receipt.salesTaxCents) && receipt.salesTaxCents > 0) ? money(receipt.salesTaxCents / 100) : '',
+    verificationCode: verificationStampText(receipt.verificationCode || receiptCodeForReceipt(receipt)),
+    lateFee: receipt.lateFee > 0 ? money(receipt.lateFee) : '',
+    depositOffset: receipt.depositOffsetAmount > 0 ? money(receipt.depositOffsetAmount) : '',
+    creditTransfer: receipt.creditTransferInAmount > 0 ? money(receipt.creditTransferInAmount) : '',
+    prepayCoverage: receipt.prepay && receipt.prepay.gross > 0 ? money(receipt.prepay.gross) : '',
+    prepayDiscount: receipt.prepay && receipt.prepay.discount > 0 ? money(receipt.prepay.discount) : '',
+    looseChange: receipt.looseChangeCredit > 0 ? money(receipt.looseChangeCredit) : '',
 
     balanceDue: balance,
     statusLabel: receipt.status || '',

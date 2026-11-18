@@ -252,14 +252,17 @@ test('badge: the [UNSHARED RECEIPT] badge uses a 12px Receipt SVG, not 📱', ()
 
 // --- ratchets ---
 
-test('ratchet: styles.css still 613 distinct hex; nav.css 164 -> 163 is ONLY Plan 588 D5(b) dropping #094338', () => {
+test('ratchet: styles.css still 608 distinct hex; nav.css 164 -> 163 is ONLY Plan 588 D5(b) dropping #094338', () => {
   const hexCount = (src) => {
     const stripped = src.replace(/\/\*[\s\S]*?\*\//g, '');
     return new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []).size;
   };
   // 614 → 613 with Customers Cards Compact (item B): deleting the
   // card's health-reasons rule removed its unique hex #62766d.
-  assert.equal(hexCount(stylesSrc), 613, 'styles.css must stay at 613 distinct hex (this item does not touch it)');
+  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
+  // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
+  // re-tokened to var(--green). Five distinct hex leave, none added.
+  assert.equal(hexCount(stylesSrc), 608, 'styles.css must stay at 608 distinct hex (this item does not touch it)');
   // nav.css 162 -> 164: the two new hex are the fallbacks the spec
   // itself mandates — var(--ds-brand, #0F5338) on .pending-wa-btn and
   // var(--color-neutral-100, #f0f4f2) on the close override. Both values

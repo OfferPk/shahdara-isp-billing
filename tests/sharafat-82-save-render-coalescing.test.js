@@ -329,9 +329,15 @@ test('Sharafat 82: the clear handlers keep their synchronous four-call mirror (C
   }
 });
 
-test('Sharafat 82: no other save() call site changed — 94 sites, none using the return value', () => {
+// Hisaab H2: 94 → 96 — the Upstream tab adds exactly two bare save()
+// sites, both following the postOverhead precedent (state reassigned to
+// the mirrored expenses, then save()): the add/correct-bill submit and
+// the bill delete handler in renderUpstream(). The saveUpstreamProviders
+// calls do not match the 'save();' filter. The intent pins — no caller
+// uses the return value, branches on it, or returns it — are unchanged.
+test('Sharafat 82: no other save() call site changed — 96 sites, none using the return value', () => {
   const sites = app.split('\n').filter(l => l.includes('save();'));
-  assert.equal(sites.length, 94, `save() must still have 94 call sites (found ${sites.length})`);
+  assert.equal(sites.length, 96, `save() must still have 96 call sites (found ${sites.length})`);
   assert.ok(!/= save\(\)/.test(app), 'no caller may use save()\'s return value');
   assert.ok(!/if \(save\(\)/.test(app), 'no caller may branch on save()');
   assert.ok(!/return save\(\)/.test(app), 'no caller may return save()');

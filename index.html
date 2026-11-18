@@ -14732,6 +14732,7 @@
           <button id="expenseTabAqib" class="expense-tab-button" type="button" role="tab" aria-controls="aqibSharePanel" aria-selected="false">Aqib share</button>
           <button id="expenseTabSettlement" class="expense-tab-button" type="button" role="tab" aria-controls="partnerSettlementPanel" aria-selected="false">Partner settlement</button>
           <button id="expenseTabOverheads" class="expense-tab-button" type="button" role="tab" aria-controls="overheadsPanel" aria-selected="false">Fixed overheads</button>
+          <button id="expenseTabUpstream" class="expense-tab-button" type="button" role="tab" aria-controls="upstreamPanel" aria-selected="false">Upstream</button>
         </nav>
         <div id="expensesLedgerPanel" role="tabpanel" aria-labelledby="expenseTabLedger">
         <div class="phase3-metric-grid"><article class="phase3-metric"><span>Recorded expenses</span><strong id="expenseEntryCount">Not set</strong><small id="expenseEntryHelp">No expense entries recorded</small></article><article class="phase3-metric"><span>This month’s recorded expenses</span><strong id="expenseCurrentMonthTotal">Not set</strong><small>By actual payment date (PKT)</small></article><article class="phase3-metric"><span>Filtered expenses total</span><strong id="expenseFilteredTotal">PKR 0</strong><small id="expenseFilteredHelp">Matching current filters</small></article></div>
@@ -14825,6 +14826,11 @@
           <p id="overheadsStatus" class="phase3-note" role="status" aria-live="polite"></p>
           <section class="table-card" aria-labelledby="overheadsPostingsHeading"><div class="table-heading"><div><p class="eyebrow">POSTED OVERHEADS</p><h3 id="overheadsPostingsHeading">Posted overheads</h3></div></div>
           <div id="overheadsPostings"></div><p id="overheadsPostingsEmpty" class="empty-state">No overheads posted yet.</p></section>
+        </section>
+        <section id="upstreamPanel" class="table-card overheads-panel" role="tabpanel" aria-labelledby="expenseTabUpstream" hidden>
+          <div class="table-heading"><div><p class="eyebrow">UPSTREAM BANDWIDTH PROVIDERS · SINGLE-WRITE MIRROR</p><h3>Upstream providers</h3></div><label class="payroll-month-label" for="upstreamMonth">Selected month<select id="upstreamMonth"></select></label></div>
+          <p class="phase3-note">Record a provider bill once here and it lands in both places: the provider register and the dated expense ledger, linked so they stay in step. Seed history (Nayatel, May 2025–Oct 2026) is never mirrored — it stays history only. A bill has no account-ID field, by design.</p>
+          <div id="upstreamProviders" aria-live="polite"></div>
         </section>
       </div>
     </section>

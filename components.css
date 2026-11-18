@@ -1474,7 +1474,7 @@ body.field-mode-open { overflow: hidden; }
   white-space: nowrap;
 }
 .backup-health-badge:hover { border-color: var(--muted); }
-.backup-health-badge:focus-visible { outline: 2px solid var(--muted); outline-offset: 2px; }
+.backup-health-badge:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 .backup-health-badge.is-critical { animation: backup-health-pulse 1.6s ease-in-out infinite; }
 @keyframes backup-health-pulse {
   0%, 100% { opacity: 1; }

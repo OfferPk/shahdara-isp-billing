@@ -391,8 +391,9 @@ test('plan566 G1: EN/UR parity stays 4,669/4,669 — the guard adds no i18n keys
   // and no new keys: the count does not move.
   // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
   // dash_tile_collect_*/dash_tile_closing_* keys deleted.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
+  // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4707, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4707, 'UR key count moved');
 });
 
 test('plan566 G2: hex pins hold (styles.css 613 / nav.css 164 / components.css 0, no new hex)', () => {

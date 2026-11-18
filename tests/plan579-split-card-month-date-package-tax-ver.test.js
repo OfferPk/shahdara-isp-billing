@@ -298,8 +298,9 @@ test('plan579 G4: combined HTML sheet + WhatsApp text unchanged (557 precedent)'
 test('plan579 G4: EN/UR parity stays 4,669/4,669 — the rows use hardcoded labels, no new keys', () => {
   // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
   // dash_tile_collect_*/dash_tile_closing_* keys deleted.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
+  // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4707, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4707, 'UR key count moved');
 });
 
 test('plan579 G4: hex pins hold, and the taxed fully-paid card has 9 grid items (D4(a) placement)', () => {

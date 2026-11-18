@@ -387,6 +387,30 @@ export const TRANSLATIONS = {
     ledger_filter_receipt_ph: 'e.g. RCPT-41-202611-01',
     ledger_filter_clear: 'Clear filters',
     ledger_filter_find_receipt: 'Find receipt',
+    // Plan 585 (D1(a)/D4(a)/D5(a)/D6(a)) — global search combobox
+    // (#globalCustomerSearch + renderGlobalSearch): the 12 JS-rendered
+    // strings + the 4 static-region strings. ' · Archived' reuses
+    // cust_card_archived; the placeholder + Clear already live in
+    // PLACEHOLDER_TEXT_UR / VISIBLE_TEXT_UR (switch-time only, which
+    // suffices for those two static elements — but the JS-rendered
+    // Add Payment / Add Wada buttons need real keys here, because a
+    // fresh render after a language switch stays English (SIM5).
+    global_search_recent_receipts: 'Recent receipts: {list}',
+    global_search_more_saved: '{count} more saved',
+    global_search_no_receipts: 'No payment receipts saved.',
+    global_search_no_match: 'No customer, bill, or receipt matches.',
+    global_search_showing: 'Showing {shown} of {total} customers with matching saved history. Service and billing filters affect the customer list only.',
+    global_search_hint: 'Search includes saved customer details, bill status and amounts, and payment date, method, and amount.',
+    global_search_found_one: '1 customer found with saved bill summaries and receipt history.',
+    global_search_found_many: '{count} customers found with saved bill summaries and receipt history.',
+    global_search_ledger_line: 'Bill {bill} · Received {received} · Balance {balance}',
+    global_search_add_payment: 'Add Payment',
+    global_search_add_wada: 'Add Wada',
+    global_search_label: 'Search customers and ledger by name, phone, ID, status, amount, date or method',
+    global_search_help: 'Search saved customers, bill status and amounts, and every actual receipt. Service/billing filters and the transaction-date filter remain active only on their own lists.',
+    global_search_list_aria: 'Matching customers with billing and receipt detail',
+    global_search_region_aria: 'Global customer and ledger search',
+    global_search_show_more: 'Show more (12 per page)',
     cust_newcust_panel_aria: 'New customers by month',
     cust_list_aria: 'Customer list',
     cust_profiles_aria: 'Customer profiles',
@@ -5244,6 +5268,27 @@ export const TRANSLATIONS = {
     ledger_filter_receipt_ph: 'مثلاً RCPT-41-202611-01',
     ledger_filter_clear: 'فلٹر صاف کریں',
     ledger_filter_find_receipt: 'رسید تلاش کریں',
+    // Plan 585 (D1(a)/D4(a)/D5(a)/D6(a)) — global search combobox:
+    // the same 16 keys as the EN block above, in the same order.
+    // 'Add Payment' matches its VISIBLE_TEXT_UR value
+    // ('ادائیگی شامل کریں'); the UR showing line reorders the params
+    // ({total} first), which param composition allows.
+    global_search_recent_receipts: 'حالیہ رسیدیں: {list}',
+    global_search_more_saved: 'اور {count} محفوظ ہیں',
+    global_search_no_receipts: 'کوئی ادائیگی کی رسید محفوظ نہیں ہے۔',
+    global_search_no_match: 'کوئی گاہک، بل، یا رسید مماثل نہیں ہے۔',
+    global_search_showing: '{total} میں سے {shown} گاہک دکھائے جا رہے ہیں جن کا محفوظ ریکارڈ مماثل ہے۔ سروس اور بلنگ کے فلٹر صرف گاہکوں کی فہرست پر اثر ڈالتے ہیں۔',
+    global_search_hint: 'تلاش میں محفوظ گاہک کی تفصیلات، بل کی حیثیت اور رقمیں، اور ادائیگی کی تاریخ، طریقہ اور رقم شامل ہیں۔',
+    global_search_found_one: 'محفوظ بل کی تفصیل اور رسید کے ریکارڈ والا 1 گاہک ملا۔',
+    global_search_found_many: 'محفوظ بل کی تفصیل اور رسید کے ریکارڈ والے {count} گاہک ملے۔',
+    global_search_ledger_line: 'بل {bill} · وصول شدہ {received} · بقایا {balance}',
+    global_search_add_payment: 'ادائیگی شامل کریں',
+    global_search_add_wada: 'وعدہ شامل کریں',
+    global_search_label: 'نام، فون، شناخت، حیثیت، رقم، تاریخ یا طریقے سے گاہک اور لیجر تلاش کریں',
+    global_search_help: 'محفوظ گاہکوں، بل کی حیثیت اور رقموں، اور ہر اصل رسید کو تلاش کریں۔ سروس/بلنگ کے فلٹر اور لین دین کی تاریخ کا فلٹر صرف اپنی اپنی فہرستوں پر لاگو رہتے ہیں۔',
+    global_search_list_aria: 'بلنگ اور رسید کی تفصیل والے مماثل گاہک',
+    global_search_region_aria: 'گاہک اور لیجر کی عالمی تلاش',
+    global_search_show_more: 'مزید دکھائیں (12 فی صفحہ)',
     cust_newcust_panel_aria: 'ماہ کے حساب سے نئے گاہک',
     cust_list_aria: 'گاہکوں کی فہرست',
     cust_profiles_aria: 'گاہکوں کے پروفائلز',

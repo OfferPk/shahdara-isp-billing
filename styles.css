@@ -2776,6 +2776,19 @@ voice-armed controls and the answer-waiting dot. Token colours only. */
   background: #1c322b;
 }
 
+/* Plan 585 (D7(a)): the selected global-search option stays visibly
+   distinct in dark mode. The light rule (.global-result-option
+   [aria-selected=true], styles.css:23) uses var(--mint), which resolves
+   to #16362d in dark mode — barely distinct from the unselected
+   #14241f and dimmer than the hover #1c322b. The dark variant reuses
+   the hover background plus the FCS dark border/shadow; both hexes
+   already occur in this file, so the distinct-hex pin is unchanged. */
+[data-theme="dark"] .global-result-option[aria-selected="true"] {
+  background: #1c322b;
+  border-color: #2dd4bf;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35);
+}
+
 /* ==========================================================================
    Mobile Responsive Navigation & Layout Enhancements (Agent2)
    ========================================================================== */

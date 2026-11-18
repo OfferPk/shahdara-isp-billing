@@ -207,10 +207,14 @@ test('filter pills: four pills at 0.78rem, Emerald active, short High label', ()
   assert.ok(html.includes('data-filter="paid"'), 'the Paid pill must exist');
   assert.ok(html.includes('Paid <span class="qc-count-badge" id="quickCollectPaidCount">0</span>'), 'the Paid pill must carry a counter badge like its siblings');
   // The focus ring goes Emerald with the pill — scoped to the QC
-  // chips only; the global :focus-visible baseline is NOT changed.
+  // chips only; the chip is a RECORDED EXCEPTION (Plan 589 D5(a)) that
+  // keeps var(--ds-brand) while the global baseline is var(--green).
   const focus = ruleBlock(stylesSrc, '#quickCollectModal .quick-collect-filter-chip:focus-visible {');
   assert.ok(focus.includes('outline-color: var(--ds-brand)'), 'the chip focus ring must be Emerald');
-  assert.ok(stylesSrc.includes(':focus-visible {\n  outline: 3px solid #2563eb !important;'), 'the global focus ring baseline must be untouched');
+  // Plan 589 re-pin: the Issue-229 baseline is now one colour, var(--green)
+  // (light #145b4b / dark #29b88f) — the "baseline untouched" contract was
+  // reversed by 589, so this asserts the NEW baseline string.
+  assert.ok(stylesSrc.includes(':focus-visible {\n  outline: 3px solid var(--green) !important;'), 'the global focus ring baseline must be the single Plan 589 colour');
 });
 
 test('mohalla select sits in the 2-column row, full width, no own label', () => {

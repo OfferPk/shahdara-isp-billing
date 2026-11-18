@@ -242,8 +242,12 @@ test('plan570 G4 reminder literal: exactly 3 occurrences in receipt.js — once 
   assert.equal(count, 3, 'the reminder literal must occur exactly 3 times (one per layout branch — a 4th would mean a duplicated line)');
 });
 
-test('plan570 G4 terms-note calls: receiptTermsNoteHtml() is still called exactly 3 times (T3)', () => {
-  assert.equal((receiptJs.match(/receiptTermsNoteHtml\(\)/g) || []).length, 3, 'no 4th terms-note call may be added');
+test('plan570 G4 terms-note calls: receiptTermsNoteHtml() is still called exactly 6 times (T3)', () => {
+  // Plan 577: re-pinned 3 → 6 — 3 main layouts (thermal-58, thermal-80,
+  // A4) + 3 secondary sheets (kist, settlement, offset). The pin's
+  // intent is one call per printable receipt sheet; only the sheet
+  // count grows.
+  assert.equal((receiptJs.match(/receiptTermsNoteHtml\(\)/g) || []).length, 6, 'one call per printable receipt sheet (3 main layouts + 3 secondary sheets — Plan 577, no 7th call may be added)');
 });
 
 test('plan570 G4 parity: EN/UR stays 4,675/4,675 — no new i18n keys', () => {

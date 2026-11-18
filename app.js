@@ -6824,7 +6824,18 @@ function renderTransactions() {
   if (categorySelect) {
     for (const option of categorySelect.options) {
       const count = option.value === 'all' ? categoryCounts.total : (categoryCounts[option.value] ?? 0);
-      option.textContent = option.value === 'all' ? `All categories (${count})` : `${transactionCategoryTagLabel(option.value)} (${count})`;
+      // Plan 584: the option labels are translated through t() — the
+      // count stays a Latin digit, composed after the label. 'other'
+      // reuses bill_method_other (the same word as the method option).
+      // A value with no key here falls back to the tag module's
+      // English label.
+      const label = option.value === 'collection' ? t('ledger_filter_cat_collection')
+        : option.value === 'advance' ? t('ledger_filter_cat_advance')
+        : option.value === 'refund' ? t('ledger_filter_cat_refund')
+        : option.value === 'adjustment' ? t('ledger_filter_cat_adjustment')
+        : option.value === 'other' ? t('bill_method_other')
+        : transactionCategoryTagLabel(option.value);
+      option.textContent = option.value === 'all' ? `${t('ledger_filter_category_all')} (${count})` : `${label} (${count})`;
     }
   }
 
@@ -6840,7 +6851,9 @@ function renderTransactions() {
       collectors.sort((a, b) => a.localeCompare(b));
     }
     collectorSelect.replaceChildren(
-      new Option('All collectors', ''),
+      // Plan 584: the first option is translated; collector NAMES are
+      // data, never translated — they ride as raw ledger values.
+      new Option(t('ledger_filter_collector_all'), ''),
       ...collectors.map((name) => new Option(name, name)),
     );
     collectorSelect.value = collector;
@@ -6859,7 +6872,9 @@ function renderTransactions() {
       bookOptions.push({ id: book, label: book });
     }
     bookSelect.replaceChildren(
-      new Option('All receipt books', ''),
+      // Plan 584: the first option is translated; book labels are data,
+      // never translated — they ride as raw recorded values.
+      new Option(t('ledger_filter_book_all'), ''),
       ...bookOptions.map((option) => new Option(option.label, option.id)),
     );
     bookSelect.value = book;

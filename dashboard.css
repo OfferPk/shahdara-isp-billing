@@ -2526,8 +2526,33 @@
 
 /* Print Styles */
 @media print {
-  body > *:not(#dashboardView):not(dialog[open]) {
+  body:not(.printing-dashboard-summary):not(.printing-receipt):not(.printing-reminder):not(.printing-batch):not(.printing-statement):not(.printing-invoice):not(.printing-audit) > *:not(#dashboardView):not(dialog[open]) {
     display: none !important;
+    /* Plan 581 (D1(a)/D2(a)/D8(a)): the blanket rule used to hide
+       EVERY direct child of body in every print — including main
+       (so the dashboard summary printed blank, because the section's
+       own display block could not undo display none on its
+       ancestor) and the receipt print area (so receipt, thermal and
+       reminder prints were blank too — confirmed in a real browser
+       print preview on the base, all six cells blank). The guard
+       switches the rule off whenever the body carries a print-flow
+       class, so each flow's own visibility rules decide what
+       reaches the paper. The guard lists the seven live flow
+       classes explicitly rather than matching a class-substring
+       attribute selector: the repo's cascade repro and test engine
+       cannot evaluate an attribute selector inside a not, while
+       the explicit list stays verifiable — and any future
+       printing flow class must be added here. Thermal variants
+       always ride with printing-receipt and statement-58 always
+       rides with printing-statement, so the base classes cover
+       them. A plain print with no class still hides everything,
+       exactly as today. The dead not with dashboardView is left
+       untouched (D5(a)); the open briefing dialog still prints
+       blank — it adds no body class and sits inside main — that is
+       its own item (D3(a)). The reminder flow also needs a display
+       block on its area (styles.css, the printing-reminder rule):
+       the base receipt-print-area display none rule hid it even
+       with the blanket guarded off. */
   }
   .view-nav,
   .mobile-bottom-nav,

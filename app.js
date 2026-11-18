@@ -44238,11 +44238,24 @@ $('#showExpensesButton').addEventListener('click',()=>{expenseActiveTab='ledger'
 // Hisaab H3 (D8(a)): "Kharch dekhein" lands on the expenses ledger tab.
 // Bound once at module level (renderDashboard runs on every save, so a
 // binding inside it would stack). The "Poora hisaab dekhein" button is
-// NOT bound here — H4 wires it to the P&L modal.
+// bound just below, by H4, in the same top-level region.
 let hisaabShowExpensesBound = false;
 if (!hisaabShowExpensesBound) {
   hisaabShowExpensesBound = true;
   $('#hisaabShowExpensesBtn')?.addEventListener('click',()=>{expenseActiveTab='ledger';switchView('expenses');renderExpenses();});
+}
+// Hisaab H4 (D1(a)/D3(a)/D5(a)/D6): "Poora hisaab dekhein" opens the P&L
+// modal on the current PKT month — open() takes no argument (it defaults
+// to the controller's currentMonth). Bound once at module level next to
+// the "Kharch dekhein" binding above, with its own flag, so the two
+// Hisaab buttons live and die together. The ?. guard on the controller
+// is load-bearing: it is null until the boot promise resolves. NOT wired
+// through setupPnlModal's openTriggers (D4(a)) — the engine file stays
+// untouched and the Hisaab pair stays in app.js.
+let hisaabOpenPnlBound = false;
+if (!hisaabOpenPnlBound) {
+  hisaabOpenPnlBound = true;
+  $('#hisaabOpenPnlBtn')?.addEventListener('click',()=>{pnlModalController?.open();});
 }
 $('#showHomeBudgetButton').addEventListener('click',()=>{switchView('homeBudget');renderHomeBudget();});
 $('#showLoansButton').addEventListener('click',()=>{switchView('loans');renderLoans();});

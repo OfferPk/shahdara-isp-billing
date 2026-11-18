@@ -1146,15 +1146,24 @@ export function buildDepositSettlementReceipt(customer) {
     paymentId: 'DSET'
   });
   const fullyCleared = settlement.arrearsRemaining <= 0 && settlement.hardwareOutstanding <= 0;
+  const settlementCustomerId = Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '';
   return {
     customerName: text(customer.name),
     customerNameUrdu: urduNameFor(customer),
-    customerId: Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
+    customerId: settlementCustomerId,
     // Plan 577: the customer's own area — polish #12's exact derivation
     // (mohalla first, zone after). 'Not recorded' when neither is set.
     area: [text(customer?.mohalla), text(customer?.zone)].filter(Boolean).join(', ') || 'Not recorded',
     settlementDate: settlement.settledAt,
     receiptNumber,
+    // Plan 578: same VER checksum as the kist receipt, over this
+    // receipt's number + customer + refund actually paid out (D1(a)).
+    verificationCode: receiptVerificationCode({
+      receiptId: receiptNumber,
+      customerId: settlementCustomerId,
+      amountPaid: settlement.refundAmount,
+      date: settlement.settledAt
+    }),
     securityDeposit: settlement.securityDeposit,
     arrearsOffset: settlement.arrearsOffset,
     unrecoveredHardwareCharge: settlement.unrecoveredHardwareCharge,
@@ -1218,6 +1227,7 @@ export function generateDepositSettlementReceiptHtml(receipt, {
     ${receipt.arrearsRemaining > 0 ? `<div class="receipt-field"><dt>Arrears Still Outstanding / بقایا باقی:</dt><dd>${formatAmount(receipt.arrearsRemaining)}</dd></div>` : ''}
     ${receipt.hardwareOutstanding > 0 ? `<div class="receipt-field"><dt>Hardware Charge Still Outstanding:</dt><dd>${formatAmount(receipt.hardwareOutstanding)}</dd></div>` : ''}
     <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}"><strong>${escapeHtml(receipt.status)}</strong></dd></div>
+    ${receipt.verificationCode ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>VER: ${escapeHtml(receipt.verificationCode)}</strong></dd></div>` : ''}
   </dl>
   <div class="receipt-divider">================================</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
@@ -1249,16 +1259,25 @@ export function buildDepositOffsetReceipt(customer, offsetId) {
     paymentDate: entry.date,
     paymentId: entry.id
   });
+  const offsetCustomerId = Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '';
   return {
     customerName: text(customer.name),
     customerNameUrdu: urduNameFor(customer),
-    customerId: Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
+    customerId: offsetCustomerId,
     // Plan 577: the customer's own area — polish #12's exact derivation
     // (mohalla first, zone after). 'Not recorded' when neither is set.
     area: [text(customer?.mohalla), text(customer?.zone)].filter(Boolean).join(', ') || 'Not recorded',
     offsetId: entry.id,
     offsetDate: entry.date,
     receiptNumber,
+    // Plan 578: same VER checksum as the kist receipt, over this
+    // receipt's number + customer + offset applied.
+    verificationCode: receiptVerificationCode({
+      receiptId: receiptNumber,
+      customerId: offsetCustomerId,
+      amountPaid: entry.amount,
+      date: entry.date
+    }),
     method: 'Security Deposit Offset',
     nonCash: true,
     amount: entry.amount,
@@ -1295,7 +1314,10 @@ export function generateDepositOffsetReceiptHtml(receipt, {
   const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const offsetRows = (Array.isArray(receipt.bills) ? receipt.bills : [])
     .map((row) => `<div class="receipt-field"><dt>Bill offset — ${escapeHtml(row.month)}:</dt><dd>-${formatAmount(row.amount)}</dd></div>`).join('');
-  const statusClass = receipt.reversed ? 'receipt-status-partial' : 'receipt-status-paid';
+  // Plan 578: a reversed (cancelled) offset reads as void, not as a
+  // genuine partial payment (D7(a), class only — the void rules already
+  // exist in styles.css; no VOID banner, no CSS change).
+  const statusClass = receipt.reversed ? 'receipt-status-void' : 'receipt-status-paid';
   return applyReceiptScript(`<article class="receipt-sheet a4-receipt" data-receipt-format="deposit-offset">
   <header class="receipt-head">
     ${brandHeaderContentHtml({ businessName, businessPhone, areaName }, {
@@ -1320,6 +1342,7 @@ export function generateDepositOffsetReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Security Deposit Remaining / باقی ڈپازٹ:</dt><dd>${formatAmount(receipt.depositAfter)}</dd></div>
     ${receipt.reversed ? `<div class="receipt-field"><dt>Reversed On / واپسی کی تاریخ:</dt><dd>${escapeHtml(receipt.reversedAt)}</dd></div>` : ''}
     <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}"><strong>${escapeHtml(receipt.status)}</strong></dd></div>
+    ${receipt.verificationCode ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>VER: ${escapeHtml(receipt.verificationCode)}</strong></dd></div>` : ''}
   </dl>
   <div class="receipt-divider">================================</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>

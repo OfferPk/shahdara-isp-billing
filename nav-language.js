@@ -795,18 +795,15 @@ export const TRANSLATIONS = {
     pwr_error_hours: 'Battery backup must be more than 0 hours (e.g. 4).',
     pwr_error_generic: 'Could not complete this power action.',
     dash_actions_region_aria: 'Primary billing actions',
-    dash_tile_collect_aria: 'Payment lo — Receive customer payment (Record customer receipt)',
-    dash_tile_collect_title: 'Payment lo',
-    dash_tile_collect_sub: 'Receive customer payment',
-    dash_tile_customer_aria: 'Customer add - New connection profile',
-    dash_tile_customer_title: 'Customer add',
+    // Plan 582 (D1(b)): the dash_tile_collect_* and dash_tile_closing_*
+    // keys are deleted — their tiles were removed by the Home Dashboard
+    // overhaul, so nothing reads them; dead keys are dead code.
+    dash_tile_customer_aria: 'Add customer - New connection profile',
+    dash_tile_customer_title: 'Add customer',
     dash_tile_customer_sub: 'New connection profile',
     dash_tile_dues_aria: 'Dues list — Top defaulters (who owes how much)',
     dash_tile_dues_title: 'Dues list',
     dash_tile_dues_sub: 'Top defaulters',
-    dash_tile_closing_aria: 'Aaj ka hisaab — Cash till & closing (Cash register & daily closing)',
-    dash_tile_closing_title: 'Aaj ka hisaab',
-    dash_tile_closing_sub: 'Cash till & closing',
     dash_tile_installation_aria: 'Installation — Fees collected & pending (Open the installation dashboard)',
     dash_tile_installation_title: 'Installation',
     dash_tile_installation_sub: 'Fees collected & pending',
@@ -5612,18 +5609,15 @@ export const TRANSLATIONS = {
     pwr_error_hours: 'بیٹری بیک اپ 0 سے زیادہ گھنٹے ہونا چاہیے (مثلاً 4)۔',
     pwr_error_generic: 'یہ پاور عمل مکمل نہیں ہو سکا۔',
     dash_actions_region_aria: 'اہم بلنگ اقدامات',
-    dash_tile_collect_aria: 'ادائیگی لیں — گاہک کی ادائیگی وصول کریں (گاہک کی رسید درج کریں)',
-    dash_tile_collect_title: 'ادائیگی لیں',
-    dash_tile_collect_sub: 'گاہک کی ادائیگی وصول کریں',
+    // Plan 582 (D1(b)): the dash_tile_collect_* and dash_tile_closing_*
+    // keys are deleted — their tiles were removed by the Home Dashboard
+    // overhaul, so nothing reads them; dead keys are dead code.
     dash_tile_customer_aria: 'گاہک شامل کریں — نئے کنکشن کا پروفائل',
     dash_tile_customer_title: 'گاہک شامل کریں',
     dash_tile_customer_sub: 'نئے کنکشن کا پروفائل',
     dash_tile_dues_aria: 'واجبات کی فہرست — بڑے نادہندگان (کس کے کتنے بقایا ہیں)',
     dash_tile_dues_title: 'واجبات کی فہرست',
     dash_tile_dues_sub: 'بڑے نادہندگان',
-    dash_tile_closing_aria: 'آج کا حساب — کیش اور بندش (کیش رجسٹر اور روزانہ بندش)',
-    dash_tile_closing_title: 'آج کا حساب',
-    dash_tile_closing_sub: 'کیش اور روزانہ بندش',
     dash_tile_installation_aria: 'انسٹالیشن — وصول شدہ اور باقی فیس (انسٹالیشن ڈیش بورڈ کھولیں)',
     dash_tile_installation_title: 'انسٹالیشن',
     dash_tile_installation_sub: 'وصول شدہ اور باقی فیس',
@@ -9759,7 +9753,9 @@ export const VISIBLE_TEXT_UR = {
   '+ Add payment': '+ ادائیگی شامل کریں',
   '+ Add Payment': '+ ادائیگی شامل کریں',
   '+ Add Customer': '+ گاہک شامل کریں',
-  'Aaj ka hisaab': 'آج کا حساب',
+  // Plan 582 (D5(a)): the 'Aaj ka hisaab' entry is deleted — nothing
+  // renders that string; the dictionary is keyed only off strings
+  // something actually renders.
   'All': 'تمام',
   'Active': 'فعال',
   'Bulk add': 'یکمشت شامل کریں',
@@ -9783,7 +9779,12 @@ export const VISIBLE_TEXT_UR = {
   'Cohort Drilldown': 'گروہ تفصیل',
   'Collections': 'وصولیاں',
   'Current Month Bill Settlement': 'رواں مہینے کے بل کی تصفیہ',
-  'Customer add': 'گاہک شامل کریں',
+  // Plan 582 (D2(a)/D3(b)/D5(a)): the customer tile reads 'Add customer'
+  // now (verb-first, matching its Urdu value), and the More-menu button
+  // 'Daily Closing' gets its Urdu path — the key must match the button's
+  // exact text (capital C) or the exact-match lookup never fires.
+  'Add customer': 'گاہک شامل کریں',
+  'Daily Closing': 'آج کا حساب',
   'Data Integrity': 'ڈیٹا درستگی',
   'Download all payment details (.txt)': 'تمام ادائیگیوں کی تفصیل ڈاؤن لوڈ کریں (.txt)',
   'Dues Aging (0–90+d)': 'واجبات کی عمر (0–90+ دن)',
@@ -9815,7 +9816,9 @@ export const VISIBLE_TEXT_UR = {
   'Package Revenue': 'پیکیج آمدنی',
   'Paid': 'ادا شدہ',
   'Partial': 'جزوی',
-  'Payment lo': 'ادائیگی لیں',
+  // Plan 582 (D5(a)): the 'Payment lo' entry is deleted — nothing
+  // renders that string; the dictionary is keyed only off strings
+  // something actually renders.
   'Pending': 'زیر التوا',
   'Performance & Collection Analytics': 'کارکردگی و وصولی تجزیہ',
   'Record Expense': 'خرچ درج کریں',

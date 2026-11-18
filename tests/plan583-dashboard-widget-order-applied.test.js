@@ -211,6 +211,7 @@ test('plan583 G4: the static default order in index.html is unchanged', () => {
 test('plan583 G4: parity holds at 4,669/4,669 — the wiring adds no i18n keys', () => {
   // Plan 582 landed first with D1(b) (−6 orphan keys), so the count on
   // this base is 4,669 — read off the base, never the prep's 4,675.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
+  // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4707, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4707, 'UR key count moved');
 });

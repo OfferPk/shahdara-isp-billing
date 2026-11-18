@@ -4914,6 +4914,24 @@ export const TRANSLATIONS = {
     moh_cov_surveyed_count: '{surveyed} of {total} mohallas surveyed — totals cover surveyed mohallas only.',
     moh_cov_no_survey: 'No mohalla surveyed yet — add a premises estimate in the register above.',
     moh_cov_exceeded: 'Estimate exceeded by {count} — re-survey the total',
+    // Plan 591 (D1(a)/D5(a)/D6(a)/D7(a)) — profile header strip labels +
+    // fallbacks (profile-header-strip.js): the strip renders its four
+    // labels, three html fallbacks, three text sentences, the unavailable
+    // line, the aria-label and the /month suffix through these keys.
+    // 'Not set' reuses prof_not_set; the Urdu sentences end with '۔'.
+    phs_dues: 'Dues',
+    phs_package: 'Package',
+    phs_last_payment: 'Last payment',
+    phs_next_due: 'Next due',
+    phs_no_amount_due: 'No amount due',
+    phs_no_payment_yet: 'No payment yet',
+    phs_not_recorded: 'Not recorded',
+    phs_no_amount_due_text: 'No amount due.',
+    phs_no_payment_yet_text: 'No payment yet.',
+    phs_next_due_not_recorded: 'Next due date not recorded.',
+    phs_unavailable: 'Profile header strip unavailable.',
+    phs_aria: 'Customer at a glance',
+    phs_per_month: '/month',
   },
 
   ur: {
@@ -9764,6 +9782,22 @@ export const TRANSLATIONS = {
     moh_cov_surveyed_count: '{total} محلوں میں سے {surveyed} کا سروے ہوا — کل صرف سروے شدہ محلوں کا ہے۔',
     moh_cov_no_survey: 'ابھی کسی محلے کا سروے نہیں ہوا — اوپر رجسٹر میں تخمینہ شامل کریں۔',
     moh_cov_exceeded: 'تخمینہ {count} سے بڑھ گیا — کل دوبارہ گنیں',
+    // Plan 591 (D1(a)/D5(a)/D6(a)/D7(a)) — پروفائل ہیڈر پٹی کے لیبل اور
+    // فال بیک (profile-header-strip.js)۔ 'Not set' کیلئے prof_not_set
+    // استعمال ہوتا ہے؛ اردو جملے '۔' پر ختم ہوتے ہیں۔
+    phs_dues: 'بقایا',
+    phs_package: 'پیکج',
+    phs_last_payment: 'آخری ادائیگی',
+    phs_next_due: 'اگلی ادائیگی',
+    phs_no_amount_due: 'کوئی رقم باقی نہیں',
+    phs_no_payment_yet: 'ابھی تک کوئی ادائیگی نہیں',
+    phs_not_recorded: 'ریکارڈ نہیں',
+    phs_no_amount_due_text: 'کوئی رقم باقی نہیں۔',
+    phs_no_payment_yet_text: 'ابھی تک کوئی ادائیگی نہیں۔',
+    phs_next_due_not_recorded: 'اگلی ادائیگی کی تاریخ ریکارڈ نہیں۔',
+    phs_unavailable: 'پروفائل ہیڈر پٹی دستیاب نہیں۔',
+    phs_aria: 'گاہک کا خلاصہ ایک نظر میں',
+    phs_per_month: '/ماہ',
   }
 };
 

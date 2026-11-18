@@ -6,25 +6,42 @@
 // worked via the `#0e5b4d` fallback — and neither were `--text`,
 // `--bg-muted`, `--border-color`, `--text-color`. This file owns the fix:
 //
-//   G1 — Counts: token-exact var counts (11/9/6/10/10) and usage counts
-//        (17/41/1/16/3); the prefix-grep 31 is asserted as 9+10+12.
-//   G2 — The aliases: defined exactly once in tokens.css, var() refs
-//        only; all 8 .btn-* uses resolve (light) to their fallback
+//   G1 — Counts: token-exact var counts (10/8/4/8/8 after the 8
+//        in-place replaces; base was 11/9/6/10/10) and usage counts
+//        (17/41/1/16/3); the prefix-grep 28 is asserted as 8+8+12.
+//   G2 — The replaces: the 5 variables are UNDEFINED repo-wide (no
+//        aliases — D1(b), not D1(a)); all 8 .btn-* uses reference
+//        value-identical tokens and resolve (light) to their fallback
 //        values; no .btn-* rule references an undefined variable.
 //   G3 — The sampled buttons: fdt Save blue, pending Collect Cash
-//        green via the alias, pending Send WhatsApp ds-brand via the
-//        scoped override, fdt WhatsApp bright, pending Fulfill emerald,
-//        fdt Cancel text via the alias, bulk chips 34px.
+//        green via the in-place token, pending Send WhatsApp ds-brand
+//        via the scoped override, fdt WhatsApp bright, pending Fulfill
+//        emerald, fdt Cancel text via the in-place token, bulk chips
+//        34px.
 //   G4 — Dark (the disclosure group): the fdt dark rule re-tokens
 //        identically; the two pending dark rules keep their literal
 //        values; .btn-primary has no dark rule and resolves #0e5b4d.
 //   G5 — Guards + completeness: ratchet baselines hold (nav.css 163,
 //        down from 164 via #094338), parity unchanged at 4,722/4,722,
 //        `.ds-btn--primary` still #145b4b, base rule + 44px floor
-//        unchanged, the other 13 undefined vars still undefined
-//        (KNOWN-OPEN), and the D1(a) side effect pinned as a known
-//        change: 83 of the 148 repo-wide uses of the five variables
-//        carry a different fallback and recolour to the alias value.
+//        unchanged, all 18 undefined vars still undefined (KNOWN-OPEN —
+//        the 5 named vars stay undefined by design under D1(b)), and
+//        the blast radius is ZERO: 148 repo-wide uses of the five
+//        variables remain, every one still resolving via its own
+//        fallback exactly as on the base (the D1(a) route would have
+//        recoloured 83 of them — parent-verified sweep 148/65/83 on the
+//        base — so the aliases were NOT defined; see the PR body).
+//
+// D1(b) ROUTE NOTE (parent re-decision, 2026-11-18): the prep
+// recommended D1(a) (5 global aliases) on its sim-alias 8/0, which
+// sampled ONLY the 8 button uses. A repo-wide sweep shows the five
+// variables are used 156 times on the base (148 with fallbacks, 65 same
+// / 83 different, plus 8 nested no-fallback uses in dashboard.css that
+// render identically either way because --line is defined) — defining
+// the aliases would have recoloured 83 declarations app-wide, outside
+// "nav.css button classes only". D1(b) (8 in-place replaces) fixes
+// exactly the 8 undefined uses and changes nothing else. The 148 total
+// below is the post-rework count (156 − 8).
 //
 // Token-exact matching throughout — a substring grep counts
 // `var(--text-color` and `var(--text-muted` as `--text` (31, not 9),
@@ -33,7 +50,8 @@
 // no synthetic matches — the assertions are over the real shipped class
 // names, CSS rules, and token values. Rendered pixels are proven by the
 // D8(a) browser sample (sample-before.json / sample-after.json in the
-// implementer scratch), not by this file: no jsdom in the repo.
+// rework scratch .plan588-rework-scratch), not by this file: no jsdom
+// in the repo.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -150,19 +168,21 @@ function ruleBody(css, selectorRegex) {
 
 // ---------- G1 — Counts ----------
 
-test('G1: nav.css carries 11 --primary, 9 --text, 6 --bg-muted, 10 --border-color, 10 --text-color uses (token-exact)', () => {
-  // Spec correction: "--text used 31 times" is the `var(--text` PREFIX
-  // count (9 --text + 10 --text-color + 12 --text-muted). Token-exact
-  // it is 9 (repro B4/S4).
-  assert.equal(countVarUses(navCss, 'primary'), 11, 'var(--primary) uses in nav.css');
-  assert.equal(countVarUses(navCss, 'text'), 9, 'var(--text) uses in nav.css');
-  assert.equal(countVarUses(navCss, 'bg-muted'), 6, 'var(--bg-muted) uses in nav.css');
-  assert.equal(countVarUses(navCss, 'border-color'), 10, 'var(--border-color) uses in nav.css');
-  assert.equal(countVarUses(navCss, 'text-color'), 10, 'var(--text-color) uses in nav.css');
-  assert.equal((navCss.match(/var\(--text/g) || []).length, 31, 'prefix var(--text count (9 + 10 + 12)');
-  assert.equal(countVarUses(navCss, 'text-color'), 10, 'var(--text-color) is 10 of the 31');
-  assert.equal(countVarUses(navCss, 'text-muted'), 12, 'var(--text-muted) is 12 of the 31');
-  assert.equal(9 + 10 + 12, 31, 'the prefix count decomposes exactly');
+test('G1: nav.css carries 10 --primary, 8 --text, 4 --bg-muted, 8 --border-color, 8 --text-color uses (token-exact)', () => {
+  // Base counts were 11/9/6/10/10 (spec correction: "--text used 31
+  // times" is the `var(--text` PREFIX count). D1(b) replaces exactly
+  // the 8 .btn-* uses in place — 1 --primary, 1 --text, 2 --bg-muted,
+  // 2 --border-color, 2 --text-color — so each count drops by the
+  // number of replaced uses in that variable, and nothing else moves.
+  assert.equal(countVarUses(navCss, 'primary'), 10, 'var(--primary) uses in nav.css (11 base − 1 replaced)');
+  assert.equal(countVarUses(navCss, 'text'), 8, 'var(--text) uses in nav.css (9 base − 1 replaced)');
+  assert.equal(countVarUses(navCss, 'bg-muted'), 4, 'var(--bg-muted) uses in nav.css (6 base − 2 replaced)');
+  assert.equal(countVarUses(navCss, 'border-color'), 8, 'var(--border-color) uses in nav.css (10 base − 2 replaced)');
+  assert.equal(countVarUses(navCss, 'text-color'), 8, 'var(--text-color) uses in nav.css (10 base − 2 replaced)');
+  assert.equal((navCss.match(/var\(--text/g) || []).length, 28, 'prefix var(--text count (8 + 8 + 12)');
+  assert.equal(countVarUses(navCss, 'text-color'), 8, 'var(--text-color) is 8 of the 28');
+  assert.equal(countVarUses(navCss, 'text-muted'), 12, 'var(--text-muted) is 12 of the 28');
+  assert.equal(8 + 8 + 12, 28, 'the prefix count decomposes exactly');
 });
 
 test('G1: the token counter itself is token-exact (var(--text) vs var(--text-color) vs var(--text-muted))', () => {
@@ -184,63 +204,73 @@ test('G1: usage counts are btn-primary 17 / btn-secondary 41 / btn-success 1 / b
   assert.equal(countClassToken(html, 'btn-whatsapp'), 16, 'btn-whatsapp in index.html');
 });
 
-// ---------- G2 — The aliases + resolution ----------
+// ---------- G2 — The in-place replaces + resolution ----------
 
-test('G2: the 5 aliases are defined exactly once in tokens.css, in the semantic-alias section, as var() refs only', () => {
+test('G2: the 5 variables are UNDEFINED repo-wide — no aliases are defined anywhere (D1(b), not D1(a))', () => {
+  // WHY (parent re-decision): defining the five aliases globally would
+  // have recoloured 83 declarations app-wide (parent-verified sweep:
+  // 148 uses with fallbacks on the base, 65 same / 83 different). D1(b)
+  // replaces the 8 .btn-* uses in place instead, so the variables stay
+  // undefined and every other use keeps rendering via its own fallback.
   // Body-only definition counting (T3): the anchored `^\s*--name\s*:`
   // form never matches the `.ds-btn--primary:hover` selector, which a
   // naive `--primary:` grep falsely counts as a definition.
   for (const name of ['--primary', '--text', '--text-color', '--bg-muted', '--border-color']) {
     const defs = (tokensCss.match(new RegExp(`^\\s*${name.replace(/-/g, '\\-')}\\s*:`, 'gm')) || []).length;
-    assert.equal(defs, 1, `${name} is defined exactly once in tokens.css`);
+    assert.equal(defs, 0, `${name} is defined nowhere in tokens.css`);
   }
-  // They live in the semantic-alias section (after --amber-bg, before
-  // the DS-0 comment), following the existing alias pattern.
-  const section = tokensCss.slice(tokensCss.indexOf('/* Semantic aliases'), tokensCss.indexOf('/* DS-0 design-system palette'));
-  for (const line of [
-    '--primary: var(--color-brand-600);',
-    '--text: var(--color-slate-700);',
-    '--text-color: var(--color-slate-700);',
-    '--bg-muted: var(--color-slate-100);',
-    '--border-color: var(--color-slate-300);',
-  ]) {
-    assert.ok(section.includes(line), `semantic-alias section defines ${line}`);
+  // The same names are absent from the repo-wide defined set swept from
+  // rule BODIES across all stylesheets (selectors never count).
+  const defined = new Set();
+  for (const css of [tokensCss, stylesCss, componentsCss, dashboardCss, navCss]) {
+    for (const { body } of cssRules(css)) {
+      for (const m of body.matchAll(/--([\w-]+)\s*:/g)) defined.add(`--${m[1]}`);
+    }
   }
-  // var() refs only — no hex in the alias definitions.
   for (const name of ['--primary', '--text', '--text-color', '--bg-muted', '--border-color']) {
-    assert.match(lightDefs[name], /^var\(--[\w-]+\)$/, `${name} aliases to a token, not a literal`);
+    assert.ok(!defined.has(name), `${name} is defined nowhere repo-wide`);
+    assert.equal(resolveToken(name, 'light'), null, `${name} resolves to nothing (undefined)`);
+    assert.equal(resolveToken(name, 'dark'), null, `${name} resolves to nothing in dark too`);
   }
-  // The alias values are the VALUE-identical tokens, not the spec's
-  // suggested ones (sim-spec-replace 1/6): --primary resolves to
-  // #0e5b4d, NOT to --green's #145b4b.
-  assert.equal(resolveToken('--primary', 'light'), '#0e5b4d', '--primary resolves to #0e5b4d');
-  assert.notEqual(resolveToken('--primary', 'light'), '#145b4b', '--primary must NOT resolve to --green (#145b4b)');
-  assert.equal(resolveToken('--text', 'light'), '#334155', '--text resolves to #334155');
-  assert.equal(resolveToken('--bg-muted', 'light'), '#f1f5f9', '--bg-muted resolves to #f1f5f9');
-  assert.equal(resolveToken('--border-color', 'light'), '#cbd5e1', '--border-color resolves to #cbd5e1');
+  // The T3 trap itself: the naive grep DOES "find" --primary in the
+  // .ds-btn--primary:hover selector — which is why the sweep above uses
+  // bodies only.
+  assert.ok(/\.ds-btn--primary:hover/.test(componentsCss), 'the trap selector exists in components.css');
+  assert.ok(!/--primary\s*:/.test(
+    cssRules(componentsCss).map((r) => r.body).join('\n'),
+  ), 'no rule BODY in components.css defines --primary');
 });
 
-test('G2: all 8 .btn-* uses resolve (light) to their current fallback values', () => {
-  // The eight uses (repro R1): .fdt-actions-row .btn-secondary (--text),
-  // .btn-tool-secondary (3), .btn-primary (--primary), .btn-secondary (3).
-  // Each resolves through its alias to exactly the value its fallback
-  // already rendered — that is what "value-preserving" means for the
-  // buttons. The fallbacks are KEPT in the uses (T13 safety net).
+test('G2: all 8 .btn-* uses now reference value-identical tokens and resolve (light) to their fallback values', () => {
+  // The eight uses (repro R1): .fdt-actions-row .btn-secondary (1),
+  // .btn-tool-secondary (3), .btn-primary (1), .btn-secondary (3).
+  // Each now spells the value-identical token WITH its fallback kept
+  // (T13 safety net), so it resolves to exactly the value its old
+  // undefined-var use already rendered. The token values are the ones
+  // the spec's suggested replacements are NOT (--green is #145b4b, not
+  // #0e5b4d — sim-spec-replace 1/6).
   const expected = [
-    [/^\.fdt-actions-row \.btn-secondary$/, '--text', '#334155'],
-    [/^\.btn-tool-secondary$/, '--bg-muted', '#f1f5f9'],
-    [/^\.btn-tool-secondary$/, '--border-color', '#cbd5e1'],
-    [/^\.btn-tool-secondary$/, '--text-color', '#334155'],
-    [/^\.btn-primary$/, '--primary', '#0e5b4d'],
-    [/^\.btn-secondary$/, '--bg-muted', '#f1f5f9'],
-    [/^\.btn-secondary$/, '--text-color', '#334155'],
-    [/^\.btn-secondary$/, '--border-color', '#cbd5e1'],
+    [/^\.fdt-actions-row \.btn-secondary$/, '--color-slate-700', '#334155'],
+    [/^\.btn-tool-secondary$/, '--color-slate-100', '#f1f5f9'],
+    [/^\.btn-tool-secondary$/, '--color-slate-300', '#cbd5e1'],
+    [/^\.btn-tool-secondary$/, '--color-slate-700', '#334155'],
+    [/^\.btn-primary$/, '--color-brand-600', '#0e5b4d'],
+    [/^\.btn-secondary$/, '--color-slate-100', '#f1f5f9'],
+    [/^\.btn-secondary$/, '--color-slate-700', '#334155'],
+    [/^\.btn-secondary$/, '--color-slate-300', '#cbd5e1'],
   ];
-  assert.equal(expected.length, 8, 'exactly the 8 .btn-* undefined uses');
-  for (const [selRe, name, fallback] of expected) {
+  assert.equal(expected.length, 8, 'exactly the 8 .btn-* uses');
+  for (const [selRe, token, fallback] of expected) {
     const body = ruleBody(navCss, selRe);
-    assert.ok(body.includes(`var(${name}, ${fallback})`), `${selRe} still carries var(${name}, ${fallback}) — fallback kept`);
-    assert.equal(resolveVarUse(name, fallback, 'light'), fallback.toLowerCase(), `${name} resolves (light) to its fallback ${fallback}`);
+    assert.ok(body.includes(`var(${token}, ${fallback})`), `${selRe} spells var(${token}, ${fallback}) — token + fallback kept`);
+    assert.equal(resolveToken(token, 'light'), fallback.toLowerCase(), `${token} resolves (light) to ${fallback}`);
+  }
+  // No .btn-* rule still references any of the five undefined names.
+  const btnRules = cssRules(navCss).filter((r) => r.selector.includes('.btn-'));
+  for (const { selector, body } of btnRules) {
+    for (const name of ['--primary', '--text', '--text-color', '--bg-muted', '--border-color']) {
+      assert.ok(!new RegExp(`var\\(${name.replace(/-/g, '\\-')}(?=[,\)])`).test(body), `${selector} no longer references ${name}`);
+    }
   }
 });
 
@@ -253,9 +283,10 @@ test('G2: no .btn-* rule in nav.css references an undefined variable', () => {
       for (const m of body.matchAll(/--([\w-]+)\s*:/g)) defined.add(`--${m[1]}`);
     }
   }
-  // The five aliases are in the defined set (they are the fix).
+  // The five named variables are NOT in the defined set (D1(b)) — the
+  // fix is the in-place re-spelling, not a definition.
   for (const name of ['--primary', '--text', '--text-color', '--bg-muted', '--border-color']) {
-    assert.ok(defined.has(name), `${name} is defined`);
+    assert.ok(!defined.has(name), `${name} stays undefined by design`);
   }
   const btnRules = cssRules(navCss).filter((r) => r.selector.includes('.btn-'));
   assert.ok(btnRules.length >= 20, `the .btn-* family has ${btnRules.length} rule blocks`);
@@ -285,10 +316,10 @@ test('G3: the field-tool Save button resolves blue #0270a8 / 7px 14px / 12.5px',
   assert.ok(!/background:\s*#0270a8/.test(body), 'the blue is token-spelled now (D4(a)), not a literal');
 });
 
-test('G3: pending Collect Cash resolves #0e5b4d via the alias; pending Send WhatsApp still resolves #0F5338 via the scoped override', () => {
+test('G3: pending Collect Cash resolves #0e5b4d via the in-place token; pending Send WhatsApp still resolves #0F5338 via the scoped override', () => {
   const primary = ruleBody(navCss, /^\.btn-primary$/);
-  assert.match(primary, /background:\s*var\(--primary, #0e5b4d\);/, 'unscoped .btn-primary keeps its var(--primary, #0e5b4d)');
-  assert.equal(resolveVarUse('--primary', '#0e5b4d', 'light'), '#0e5b4d', 'pending Collect Cash renders #0e5b4d through the alias');
+  assert.match(primary, /background:\s*var\(--color-brand-600, #0e5b4d\);/, 'unscoped .btn-primary spells var(--color-brand-600, #0e5b4d)');
+  assert.equal(resolveToken('--color-brand-600', 'light'), '#0e5b4d', 'pending Collect Cash renders #0e5b4d through the in-place token');
   // The Send WhatsApp button is overridden by the scoped rule — two
   // classes (0,2,0) beat one (0,1,0) — so it renders ds-brand, NOT the
   // primary green the spec claims (repro B9).
@@ -311,10 +342,10 @@ test('G3: fdt WhatsApp resolves #25d366 (literal, no token exists) and pending F
   assert.match(accept, /background:\s*#10b981;/, '.btn-accept keeps its literal #10b981');
 });
 
-test('G3: fdt Cancel resolves #334155 text via the alias; bulk chips keep min-height 34px + the scoped 34px !important', () => {
+test('G3: fdt Cancel resolves #334155 text via the in-place token; bulk chips keep min-height 34px + the scoped 34px !important', () => {
   const cancel = ruleBody(navCss, /^\.fdt-actions-row \.btn-secondary$/);
-  assert.match(cancel, /color:\s*var\(--text, #334155\);/, 'fdt Cancel text keeps var(--text, #334155)');
-  assert.equal(resolveVarUse('--text', '#334155', 'light'), '#334155', 'fdt Cancel text renders #334155 through the alias');
+  assert.match(cancel, /color:\s*var\(--color-slate-700, #334155\);/, 'fdt Cancel text spells var(--color-slate-700, #334155)');
+  assert.equal(resolveToken('--color-slate-700', 'light'), '#334155', 'fdt Cancel text renders #334155 through the in-place token');
   assert.match(cancel, /padding:\s*7px 12px;/, 'fdt Cancel padding 7px 12px');
   const chips = ruleBody(navCss, /^\.btn-tool-secondary$/);
   assert.match(chips, /min-height:\s*34px;/, 'bulk chips keep min-height 34px');
@@ -352,7 +383,7 @@ test('G4: the fdt dark rule re-tokens identically; the two pending dark rules ke
   }
 });
 
-test('G4: .btn-primary has no dark rule and resolves #0e5b4d in dark via the alias (a token value, not a fallback)', () => {
+test('G4: .btn-primary has no dark rule and resolves #0e5b4d in dark via the in-place token (a token value, not a fallback)', () => {
   // WHY: --color-brand-600 has NO dark value (redefining it would
   // recolour its 10 other var() users app-wide — T8), so in dark the
   // pending Collect Cash button renders the light token value #0e5b4d.
@@ -360,7 +391,6 @@ test('G4: .btn-primary has no dark rule and resolves #0e5b4d in dark via the ali
   const darkPrimary = cssRules(navCss).filter((r) => r.selector.includes('[data-theme="dark"]') && r.selector.includes('.btn-primary'));
   assert.equal(darkPrimary.length, 0, 'no dark rule targets .btn-primary');
   assert.equal(resolveToken('--color-brand-600', 'dark'), '#0e5b4d', '--color-brand-600 has no dark value, so it resolves #0e5b4d in dark too');
-  assert.equal(resolveToken('--primary', 'dark'), '#0e5b4d', '.btn-primary resolves #0e5b4d in dark via the alias');
   // The Send WhatsApp button next to it DOES go token-bright in dark
   // (--ds-brand dark #29b88f) — the asymmetry is real and disclosed.
   assert.equal(resolveToken('--ds-brand', 'dark'), '#29b88f', '--ds-brand dark is #29b88f');
@@ -412,11 +442,13 @@ test('G5: .ds-btn--primary still resolves #145b4b, the base .secondary-button ru
   assert.ok(!/\.btn-sm/.test(navCss), 'nav.css carries no .btn-sm rule');
 });
 
-test('G5: the other 13 undefined vars are still undefined (KNOWN-OPEN — the acceptance covers .btn-* rules only, D2(a))', () => {
-  // WHY: D2(a) fixes the 5 named vars via aliases and leaves the other
-  // 13 (101 uses, all non-button modal chrome) undefined as a different
-  // item. This test pins that boundary so a future plan cannot mistake
-  // "still undefined" for "missed".
+test('G5: all 18 undefined vars are still undefined (KNOWN-OPEN — D2(a) under D1(b))', () => {
+  // WHY: D2(a) covers the `.btn-*` rules only. Under D1(b) the 5 named
+  // vars stay undefined BY DESIGN (no aliases are defined — defining
+  // them would recolour 83 declarations app-wide, parent-verified) and
+  // the other 13 (101 uses, all non-button modal chrome) stay undefined
+  // as a different item. This test pins that boundary so a future plan
+  // cannot mistake "still undefined" for "missed".
   const defined = new Set();
   for (const css of [tokensCss, stylesCss, componentsCss, dashboardCss, navCss]) {
     for (const { body } of cssRules(css)) {
@@ -424,58 +456,82 @@ test('G5: the other 13 undefined vars are still undefined (KNOWN-OPEN — the ac
     }
   }
   const stillOpen = [
+    '--primary', '--text', '--text-color', '--bg-muted', '--border-color',
     '--text-muted', '--border', '--bg-soft', '--surface-sunken',
     '--line-strong', '--bg-surface', '--surface-2', '--surface-subtle',
     '--bg-subtle', '--input-bg', '--surface-secondary', '--topbar-height',
     '--bg-hover',
   ];
-  assert.equal(stillOpen.length, 13, '13 vars stay open');
+  assert.equal(stillOpen.length, 18, '18 vars stay open (5 named + 13 others)');
   for (const name of stillOpen) {
     assert.ok(!defined.has(name), `${name} is still undefined (KNOWN-OPEN)`);
   }
 });
 
-test('G5: the D1(a) side effect is pinned as a KNOWN CHANGE — 83 of 148 repo-wide uses of the five variables recolour to the alias value', () => {
-  // WHY (Plan 588 D1(a)/D2(a), disclosed in the PR body): defining the
-  // five aliases in tokens.css defines the variables ONCE, for every
-  // user — not just the 8 .btn-* uses. 65 of the 148 uses carry a
-  // fallback identical to the alias value and render exactly as before
-  // (including all 8 .btn-* uses — G2). The other 83 carry a DIFFERENT
-  // fallback and recolour to the alias value in light (e.g. --text
-  // #0f172a -> #334155, --border-color #e2e8f0 -> #cbd5e1, --primary
-  // #0284c7 -> #0e5b4d on selected rows). In dark they resolve through
-  // the dark token values where they exist (--color-slate-*) or the
-  // light value where they do not (--color-brand-600). This is the
-  // decided mechanism, NOT a regression — but it is a visible change
-  // outside "nav.css button classes only", so it is pinned here as a
-  // change, never as "unchanged". The value-preserving route would have
-  // been D1(b) (8 in-place replaces); the parent decided D1(a).
-  const alias = { '--primary': '#0e5b4d', '--text': '#334155', '--bg-muted': '#f1f5f9', '--border-color': '#cbd5e1', '--text-color': '#334155' };
-  let same = 0;
-  let diff = 0;
+test('G5: the blast radius is ZERO — all 148 repo-wide uses of the five variables still resolve via their own fallback, exactly as on the base', () => {
+  // WHY (Plan 588 D1(b), parent re-decision — see the PR body): the
+  // prep recommended D1(a) (5 global aliases) on sim-alias 8/0, which
+  // sampled ONLY the 8 button uses. A repo-wide sweep on the base finds
+  // the five variables used 156 times — 148 with fallbacks (65 carrying
+  // a fallback identical to the would-be alias value, 83 carrying a
+  // DIFFERENT fallback) plus 8 nested no-fallback uses in dashboard.css
+  // (see below). Defining the aliases would have recoloured those 83
+  // declarations app-wide (e.g. --text #0f172a -> #334155, --border-color
+  // #e2e8f0 -> #cbd5e1, --primary #0284c7 -> #0e5b4d on selected rows) —
+  // outside "nav.css button classes only" — so the aliases were NOT
+  // defined and the 8 .btn-* uses were replaced in place instead. This
+  // test pins the zero-blast-radius outcome: every remaining use still
+  // resolves through its own fallback, byte-identical to the base.
+  //
+  // Counting method (the trap both earlier sweeps fell into): a regex
+  // like /var\((--[\w-]+)(?:,\s*([^)]+))?\)/ SWALLOWS nested calls —
+  // `var(--line, var(--border-color))` matches as ONE --line use and
+  // the inner --border-color is never seen. This sweep counts short
+  // token-exact matches (`var(--name` followed by `,` or `)`) so nested
+  // calls are found. The 8 nested uses are the ONLY uses without a
+  // fallback, and they sit inside `var(--line, var(--border-color))`
+  // where --line IS defined — so the nested fallback never evaluates
+  // and they render identically under either route.
+  const names = ['--primary', '--text', '--text-color', '--bg-muted', '--border-color'];
+  const useRe = (name) => new RegExp(`var\\(${name.replace(/-/g, '\\-')}(?=[,\)])`, 'g');
+  let total = 0;
   const perFile = {};
-  for (const [name, css] of [['tokens.css', tokensCss], ['styles.css', stylesCss], ['components.css', componentsCss], ['dashboard.css', dashboardCss], ['nav.css', navCss]]) {
-    let s = 0;
-    let d = 0;
-    for (const m of css.matchAll(/var\((--[\w-]+)(?:,\s*([^)]+))?\)/g)) {
-      if (!(m[1] in alias)) continue;
-      if ((m[2] || '').trim().toLowerCase() === alias[m[1]].toLowerCase()) s += 1;
-      else d += 1;
-    }
-    if (s + d > 0) perFile[name] = [s, d];
-    same += s;
-    diff += d;
+  for (const [fname, css] of [['tokens.css', tokensCss], ['styles.css', stylesCss], ['components.css', componentsCss], ['dashboard.css', dashboardCss], ['nav.css', navCss]]) {
+    let n = 0;
+    for (const name of names) n += (css.match(useRe(name)) || []).length;
+    if (n > 0) perFile[fname] = n;
+    total += n;
   }
-  assert.equal(same + diff, 148, '148 repo-wide uses of the five variables');
-  assert.equal(same, 65, '65 uses carry a fallback identical to the alias value');
-  assert.equal(diff, 83, '83 uses carry a different fallback and recolour');
-  assert.deepEqual(perFile['nav.css'], [19, 27], 'nav.css: 19 same / 27 different');
-  assert.deepEqual(perFile['styles.css'], [44, 56], 'styles.css: 44 same / 56 different');
-  assert.deepEqual(perFile['dashboard.css'], [2, 0], 'dashboard.css: 2 same / 0 different');
-  assert.equal(perFile['components.css'], undefined, 'components.css uses none of the five variables');
-  assert.equal(perFile['tokens.css'], undefined, 'tokens.css uses none of the five variables (it defines them)');
-  // Spot-checks on the three most visible recolourings.
-  assert.ok(stylesCss.includes('var(--primary, #0284c7)'), 'selected rows still spell var(--primary, #0284c7) — they now render #0e5b4d');
-  assert.ok(navCss.includes('var(--text-color, #0f172a)'), 'pending-card titles still spell var(--text-color, #0f172a) — they now render #334155');
-  assert.ok(stylesCss.includes('var(--border-color, #e2e8f0)'), 'cards still spell var(--border-color, #e2e8f0) — they now render #cbd5e1');
+  // 156 on the base − 8 replaced in place = 148.
+  assert.equal(total, 148, '148 repo-wide uses of the five variables remain (156 base − 8 replaced)');
+  assert.deepEqual(perFile, { 'nav.css': 38, 'styles.css': 100, 'dashboard.css': 10 }, 'per-file counts: nav.css 38 (46 − 8), styles.css 100, dashboard.css 10');
+  // Every use except the 8 nested dashboard ones carries a fallback.
+  let withFallback = 0;
+  let nestedNoFallback = 0;
+  for (const css of [tokensCss, stylesCss, componentsCss, dashboardCss, navCss]) {
+    for (const m of css.matchAll(/var\((--[\w-]+)(?:,\s*([^)]+))?\)/g)) {
+      if (!names.includes(m[1])) continue;
+      if (m[2] !== undefined) withFallback += 1;
+    }
+    nestedNoFallback += (css.match(/var\(--border-color\)/g) || []).length;
+  }
+  assert.equal(nestedNoFallback, 8, 'exactly the 8 nested no-fallback uses exist, all in dashboard.css');
+  assert.equal(withFallback, 140, '140 uses carry a fallback (148 total − 8 nested)');
+  // The nested fallback never evaluates: --line is defined.
+  assert.equal(resolveToken('--line', 'light'), '#dce6e1', '--line is defined, so var(--line, var(--border-color)) resolves to #dce6e1');
+  assert.ok(dashboardCss.includes('var(--line, var(--border-color))'), 'the nested calls still spell var(--line, var(--border-color))');
+  // Spot-checks: the three surfaces D1(a) would have recoloured still
+  // resolve to their OWN fallbacks, because the variables are undefined.
+  assert.ok(stylesCss.includes('var(--primary, #0284c7)'), 'selected rows still spell var(--primary, #0284c7)');
+  assert.equal(resolveVarUse('--primary', '#0284c7', 'light'), '#0284c7', 'selected rows still render #0284c7 (not #0e5b4d)');
+  assert.ok(navCss.includes('var(--text-color, #0f172a)'), 'pending-card titles still spell var(--text-color, #0f172a)');
+  assert.equal(resolveVarUse('--text-color', '#0f172a', 'light'), '#0f172a', 'pending-card titles still render #0f172a (not #334155)');
+  assert.ok(stylesCss.includes('var(--border-color, #e2e8f0)'), 'cards still spell var(--border-color, #e2e8f0)');
+  assert.equal(resolveVarUse('--border-color', '#e2e8f0', 'light'), '#e2e8f0', 'cards still render #e2e8f0 (not #cbd5e1)');
+  // And the base's 65/83 split is now a historical fact, not a live
+  // change: with the variables undefined, all 140 fallback uses render
+  // their fallback — the 83 "different" ones never move.
+  for (const name of names) {
+    assert.equal(resolveToken(name, 'light'), null, `${name} is undefined, so no use can recolour through it`);
+  }
 });

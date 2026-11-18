@@ -349,3 +349,244 @@ export function summarizeProvider(provider) {
     pendingBill: cleaned.pendingBill,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Hisaab Clearly Visible (H2): single-write mirror (design §2.5).
+//
+// Adding a bill in the Upstream tab writes BOTH records in one call: one
+// provider-register row and one expense-ledger row, linked by
+// `providerBillId` on the expense row. Edit/delete of a provider bill
+// goes through the same path and edits/deletes both rows. Dedupe is by
+// providerBillId (the roznamcha/supplier sync precedent, SISP-45/56/107):
+// a re-save never creates a second expense row.
+//
+// The mirror builds the expense row directly (roznamcha precedent,
+// roznamcha.js syncedRoznamchaExpenseRow) and NEVER goes through
+// addExpense — addExpense builds a fresh object from a fixed field list
+// and silently drops providerBillId. New bills only: seed rows
+// (seeded:true) are never mirrored, so past P&L and partner shares are
+// never restated (design T3). A null-amount bill is refused (D6(a)) —
+// requireAmount already forbids < 0.01 on the expense side, so a bill
+// with an unknown amount can never become an expense row.
+// ---------------------------------------------------------------------------
+
+/** Expense category a provider bill mirrors into (design §2.3 / D4(a)). The frozen EXPENSE_CATEGORIES list is NOT extended. */
+export function providerBillExpenseCategory(name) {
+  return name === 'Nayatel' ? 'Nayatel bill' : 'Other expenses';
+}
+
+/** Notes text for a mirrored expense row. Non-Nayatel rows carry the provider name so the ledger stays readable. */
+export function providerBillExpenseNotes(name, note) {
+  const cleanNote = cleanText(note);
+  if (name === 'Nayatel') return cleanNote;
+  return cleanNote ? `Upstream: ${name} — ${cleanNote}` : `Upstream: ${name}`;
+}
+
+/** Deterministic expense id for a mirrored bill (roznamcha precedent: roz-<id>). One bill id maps to exactly one expense row. */
+export function syncedUpstreamExpenseId(billId) {
+  return `upb-${billId}`;
+}
+
+/** True when an expense row was written by the Upstream-tab mirror. */
+export function isUpstreamMirrorExpense(row) {
+  return !!row && typeof row === 'object' && typeof row.providerBillId === 'string' && row.providerBillId !== '';
+}
+
+function mirrorExpenseRow(bill, providerName, existing, referenceDate = new Date()) {
+  const fields = {
+    date: bill.date,
+    amount: bill.amount,
+    category: providerBillExpenseCategory(providerName),
+    notes: providerBillExpenseNotes(providerName, bill.note),
+    area: '',
+    providerBillId: bill.id,
+  };
+  if (!existing) {
+    return { id: syncedUpstreamExpenseId(bill.id), ...fields, createdAt: new Date(referenceDate).toISOString() };
+  }
+  const drifted = existing.date !== fields.date || existing.amount !== fields.amount
+    || existing.category !== fields.category || existing.notes !== fields.notes
+    || existing.providerBillId !== bill.id;
+  return drifted ? { ...existing, ...fields, updatedAt: new Date(referenceDate).toISOString() } : existing;
+}
+
+function findProviderBill(providersData, billId) {
+  const cleaned = sanitizeUpstreamProviders(providersData);
+  for (const provider of cleaned.providers) {
+    const bill = provider.bills.find(row => row.id === billId);
+    if (bill) return { providers: cleaned, provider, bill };
+  }
+  return { providers: cleaned, provider: null, bill: null };
+}
+
+function withUpdatedBill(providers, providerId, billId, nextBill) {
+  return {
+    providers: providers.providers.map(provider => (provider.id === providerId
+      ? { ...provider, bills: provider.bills.map(bill => (bill.id === billId ? nextBill : bill)) }
+      : provider)),
+  };
+}
+
+/**
+ * Add a provider by fixed-list name (never free-text). Returns the
+ * existing provider when the name is already registered. Pure.
+ */
+export function addUpstreamProvider(providersData, name) {
+  const cleaned = sanitizeUpstreamProviders(providersData);
+  const cleanName = cleanText(name);
+  if (!UPSTREAM_PROVIDER_NAMES.includes(cleanName)) throw new Error('Choose an upstream provider from the list.');
+  const existing = cleaned.providers.find(provider => provider.name === cleanName);
+  if (existing) return { providers: cleaned, provider: existing, added: false };
+  const provider = { id: `prov-${slug(cleanName)}`, name: cleanName, active: true, bills: [], pendingBill: null };
+  return { providers: { providers: [...cleaned.providers, provider] }, provider, added: true };
+}
+
+/**
+ * Create a new (unmirrored) provider bill. Throws on a missing provider,
+ * an invalid date, or a null/unknown amount — a bill with an unknown
+ * amount cannot be mirrored into the expense ledger (D6(a)). Pure.
+ */
+export function createProviderBill(providersData, fields) {
+  const cleaned = sanitizeUpstreamProviders(providersData);
+  const provider = cleaned.providers.find(row => row.id === fields?.providerId) ?? null;
+  if (!provider) throw new Error('Choose an upstream provider first.');
+  const amount = validAmount(fields?.amount);
+  if (amount === null) throw new Error('Enter the amount paid for this bill (PKR). A bill with an unknown amount cannot be mirrored into the expense ledger.');
+  if (!validDate(fields?.date)) throw new Error('Enter a valid payment date (PKT).');
+  const billMonth = typeof fields?.billMonth === 'string' && MONTH_RE.test(fields.billMonth) ? fields.billMonth : '';
+  const bill = {
+    id: `pb-${makeId()}`,
+    date: fields.date,
+    amount,
+    billMonth,
+    method: cleanText(fields?.method).slice(0, 50),
+    note: cleanText(fields?.note).slice(0, 100),
+    seeded: false,
+    mirrored: false,
+  };
+  const providers = {
+    providers: cleaned.providers.map(row => (row.id === provider.id
+      ? { ...row, bills: [...row.bills, bill] }
+      : row)),
+  };
+  return { providers, bill };
+}
+
+/**
+ * Mirror one EXISTING provider bill into the expense ledger. A re-save
+ * is a no-op (added:false, same row, same bill) — dedupe by
+ * providerBillId. A seeded bill is never mirrored (added:false, reason
+ * 'seeded'). A null-amount bill throws (D6(a)). Pure.
+ */
+export function mirrorProviderBill(providersData, expenses, billId, referenceDate = new Date()) {
+  const { providers, provider, bill } = findProviderBill(providersData, billId);
+  if (!bill) throw new Error('Unknown provider bill.');
+  const rows = Array.isArray(expenses) ? expenses : [];
+  if (bill.seeded) return { providers, expenses: rows, bill, expense: null, added: false, reason: 'seeded' };
+  if (bill.amount === null || bill.amount === undefined) throw new Error('This bill has no known amount, so it cannot be mirrored into the expense ledger.');
+  const existing = rows.find(row => isUpstreamMirrorExpense(row) && row.providerBillId === bill.id) ?? null;
+  if (existing) return { providers, expenses: rows, bill, expense: existing, added: false };
+  const expense = mirrorExpenseRow(bill, provider.name, null, referenceDate);
+  const nextBill = { ...bill, mirrored: true };
+  return {
+    providers: withUpdatedBill(providers, provider.id, bill.id, nextBill),
+    expenses: [...rows, expense],
+    bill: nextBill,
+    expense,
+    added: true,
+  };
+}
+
+/**
+ * Add a bill AND mirror it in one call: the Upstream tab's single-write
+ * path. Returns { providers, expenses, bill, expense, added:true }.
+ * The bill comes back with mirrored:true. Pure.
+ */
+export function addProviderBillMirror(providersData, expenses, fields, referenceDate = new Date()) {
+  const created = createProviderBill(providersData, fields);
+  return mirrorProviderBill(created.providers, expenses, created.bill.id, referenceDate);
+}
+
+/**
+ * Edit a provider bill through the mirror path: the provider row AND its
+ * linked expense row are updated in place (same bill id, same expense
+ * id). Missing fields keep their previous value. Seed history cannot be
+ * edited — add a correction bill instead. A null amount throws (D6(a)).
+ * When the linked expense row is missing (never mirrored), one is
+ * written. Pure.
+ */
+export function editProviderBillMirror(providersData, expenses, billId, fields, referenceDate = new Date()) {
+  const { providers, provider, bill } = findProviderBill(providersData, billId);
+  if (!bill) throw new Error('Unknown provider bill.');
+  if (bill.seeded) throw new Error('Seed history cannot be edited — add a correction bill instead.');
+  const amount = fields?.amount === undefined ? bill.amount : validAmount(fields.amount);
+  if (amount === null) throw new Error('Enter the amount paid for this bill (PKR). A bill with an unknown amount cannot be mirrored into the expense ledger.');
+  const date = fields?.date === undefined ? bill.date : fields.date;
+  if (!validDate(date)) throw new Error('Enter a valid payment date (PKT).');
+  const nextBill = {
+    ...bill,
+    date,
+    amount,
+    billMonth: typeof fields?.billMonth === 'string' && MONTH_RE.test(fields.billMonth) ? fields.billMonth : bill.billMonth,
+    method: fields?.method !== undefined ? cleanText(fields.method).slice(0, 50) : bill.method,
+    note: fields?.note !== undefined ? cleanText(fields.note).slice(0, 100) : bill.note,
+    mirrored: true,
+  };
+  const rows = Array.isArray(expenses) ? expenses : [];
+  const existing = rows.find(row => isUpstreamMirrorExpense(row) && row.providerBillId === bill.id) ?? null;
+  const expense = mirrorExpenseRow(nextBill, provider.name, existing, referenceDate);
+  const nextExpenses = existing
+    ? rows.map(row => (row.id === existing.id ? expense : row))
+    : [...rows, expense];
+  return {
+    providers: withUpdatedBill(providers, provider.id, bill.id, nextBill),
+    expenses: nextExpenses,
+    bill: nextBill,
+    expense,
+  };
+}
+
+/**
+ * Delete a provider bill through the mirror path: the provider row AND
+ * its linked expense row are both removed; other bills' rows are
+ * untouched. Seed history cannot be deleted — add a correction bill
+ * instead. Pure.
+ */
+export function deleteProviderBillMirror(providersData, expenses, billId) {
+  const { providers, provider, bill } = findProviderBill(providersData, billId);
+  if (!bill) throw new Error('Unknown provider bill.');
+  if (bill.seeded) throw new Error('Seed history cannot be deleted — add a correction bill instead.');
+  const nextProviders = {
+    providers: providers.providers.map(row => (row.id === provider.id
+      ? { ...row, bills: row.bills.filter(item => item.id !== bill.id) }
+      : row)),
+  };
+  const rows = Array.isArray(expenses) ? expenses : [];
+  return {
+    providers: nextProviders,
+    expenses: rows.filter(row => !(isUpstreamMirrorExpense(row) && row.providerBillId === bill.id)),
+    deleted: true,
+  };
+}
+
+/**
+ * Set (or clear, with null) a provider's pending bill — display-only
+ * (design D7(a)): it writes no expense row and touches neither the
+ * overhead banner nor the month-end wizard. Pure.
+ */
+export function setProviderPendingBill(providersData, providerId, pendingBill) {
+  const cleaned = sanitizeUpstreamProviders(providersData);
+  const provider = cleaned.providers.find(row => row.id === providerId) ?? null;
+  if (!provider) throw new Error('Unknown upstream provider.');
+  let next = null;
+  if (pendingBill !== null && pendingBill !== undefined) {
+    next = sanitizePendingBill(pendingBill);
+    if (!next) throw new Error('Enter a valid pending bill: month (YYYY-MM), amount paid (PKR) and issued date.');
+  }
+  const providers = {
+    providers: cleaned.providers.map(row => (row.id === provider.id
+      ? { ...row, pendingBill: next }
+      : row)),
+  };
+  return { providers, provider: { ...provider, pendingBill: next } };
+}

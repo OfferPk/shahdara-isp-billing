@@ -267,3 +267,128 @@
   color: var(--dk-ink) !important;
   border-color: var(--dk-line) !important;
 }
+
+/* 8. Plan 590 — Dark mode gets dark values for dashboard status colours.
+   The status tokens (--color-paid / --color-overdue / --color-info /
+   --color-whatsapp) are NOT redefined in tokens.css dark blocks: they are
+   solid button backgrounds paired with white text (.advance-badge,
+   .ds-btn--success, .fdt-actions-row .btn-primary — 16 rules in 4 files),
+   and redefining them breaks those pairings (white on redefined paid /
+   success 1.55:1, on redefined info 1.30:1). The fix below is scoped dark
+   overrides in this file only, reusing the dark pairs the chip rules in
+   §7 already established (green #14382a/#8fe0b6, red #402a24/#ffb4a8,
+   blue var(--color-info-bg)/var(--color-info-strong) = #26344d/#d5e2ff).
+   Scope is dashboard/search/ledger only (the 29 sampled uses).
+   Deliberately NOT overridden: --color-success text (4.28:1, a near-miss
+   against the 4.5:1 bar) and --color-emerald text (6.36:1, already passes)
+   — .text-success, .amount-val-zero and the .optimal stat values stay as
+   they are. Whatsapp has no pair of its own — it reuses the green pair's
+   text (#8fe0b6). Every declaration carries !important: several light
+   rules are themselves !important (.text-danger, .text-success) and
+   components.css loads after this file. */
+
+/* Dashboard status text: light red/green/blue text (2.66–2.98:1 on the
+   dark card #14241f) becomes the chip-pair text (9.48–12.41:1). */
+[data-theme="dark"] .text-danger {
+  color: #ffb4a8 !important;
+}
+/* .badge-below-target keeps its translucent red bg/border (a faint tint on
+   a dark card, not a light leak); only the text was unreadable. */
+[data-theme="dark"] .badge-below-target {
+  color: #ffb4a8 !important;
+}
+[data-theme="dark"] .revleak-total {
+  color: #ffb4a8 !important;
+}
+[data-theme="dark"] .revleak-flag {
+  color: #ffb4a8 !important;
+}
+[data-theme="dark"] .revleak-amount {
+  color: #ffb4a8 !important;
+}
+[data-theme="dark"] .hwaudit-count {
+  color: #ffb4a8 !important;
+}
+[data-theme="dark"] .hwaudit-rx {
+  color: #ffb4a8 !important;
+}
+[data-theme="dark"] .power-outage-item-depleted .power-outage-remaining {
+  color: #ffb4a8 !important;
+}
+[data-theme="dark"] .cash-stat {
+  color: #8fe0b6 !important;
+}
+[data-theme="dark"] .digital-stat {
+  color: var(--color-info-strong) !important;
+}
+[data-theme="dark"] .collector-role-badge.digital-gateway {
+  color: var(--color-info-strong) !important;
+}
+/* .collector-role-badge.field-collector carries the light paid bg
+   (#e8f5ed) as well as the light paid text, so it gets the full chip
+   pair, not just the text colour. */
+[data-theme="dark"] .collector-role-badge.field-collector {
+  background: #14382a !important;
+  color: #8fe0b6 !important;
+}
+
+/* Search surface: the Quick Collect undo button is the surface's only
+   status-token use (bulk-collect.css:31) — light red text + border. */
+[data-theme="dark"] #quickCollectUndoBtn {
+  color: #ffb4a8 !important;
+  border-color: #ffb4a8 !important;
+}
+
+/* Ledger surface: recovery list text (styles.css). */
+[data-theme="dark"] .recovery-age-badge {
+  color: #ffb4a8 !important;
+}
+[data-theme="dark"] .recovery-phone-line {
+  color: #8fe0b6 !important;
+}
+
+/* Status icon tiles (D3(b)): the saturated token background is KEPT — a
+   chip-pair background would sit at 1.21–1.29:1 against the dark card and
+   the tiles would vanish, losing their colour-coding. Instead each tile
+   gets a 1px border in the chip text colour, restoring tile-vs-card
+   separation at the tile edge. The tiles carry no border in light, so the
+   rule sets the full border shorthand (width + style + colour);
+   border-color alone would not render. Border-box keeps the tile's outer
+   size (40px summary / 28px KPI / 34px daily-closing); the centred glyph
+   keeps its place. DISCLOSED shortfall: tile-vs-card distinctness stays
+   2.66–2.98:1 (under the 3:1 bar) — the border frames the tile, it does
+   not recolour it. Brand/pending tiles need no border: their tokens
+   already resolve to dark values (#29b88f / #fbbf24). */
+[data-theme="dark"] .ds-stat--paid .ds-stat__icon {
+  border: 1px solid #8fe0b6 !important;
+}
+[data-theme="dark"] .ds-stat--info .ds-stat__icon {
+  border: 1px solid var(--color-info-strong) !important;
+}
+[data-theme="dark"] .ds-stat--overdue .ds-stat__icon {
+  border: 1px solid #ffb4a8 !important;
+}
+[data-theme="dark"] .ds-stat--whatsapp .ds-stat__icon {
+  border: 1px solid #8fe0b6 !important;
+}
+[data-theme="dark"] .home-kpi-card.ds-stat--paid .ds-icon-tile {
+  border: 1px solid #8fe0b6 !important;
+}
+[data-theme="dark"] .home-kpi-card.ds-stat--info .ds-icon-tile {
+  border: 1px solid var(--color-info-strong) !important;
+}
+[data-theme="dark"] .home-kpi-card.ds-stat--overdue .ds-icon-tile {
+  border: 1px solid #ffb4a8 !important;
+}
+[data-theme="dark"] .home-kpi-card.ds-stat--whatsapp .ds-icon-tile {
+  border: 1px solid #8fe0b6 !important;
+}
+[data-theme="dark"] .dc-action-icon--paid {
+  border: 1px solid #8fe0b6 !important;
+}
+[data-theme="dark"] .dc-action-icon--info {
+  border: 1px solid var(--color-info-strong) !important;
+}
+[data-theme="dark"] .dc-action-icon--whatsapp {
+  border: 1px solid #8fe0b6 !important;
+}

@@ -35,6 +35,12 @@
   --text-card-name: 14.5px;
   --text-tab: 13px;
   --text-table-head: 11px;
+  /* Plan 591 (D3(a)/D4(d)) — profile header strip: --phs-label is FROZEN
+     at its light value in both themes (the pills stay pale in both
+     themes, so a theme-aware --muted would read 2.20–2.44:1 on them in
+     dark); --text-phs-value is the 15px value size (no --text-* step). */
+  --phs-label: #5b6472;
+  --text-phs-value: 15px;
   --numeric: tabular-nums; /* money figures always tabular */
 
   /* Spacing — 4pt scale */
@@ -240,6 +246,8 @@
   --color-pending-bg: #2d230d;
   --ink: #e8f3ee;
   --muted: #8ca39a;
+  /* Plan 591 (D3(a)) — frozen: the strip label keeps its light value in dark too. */
+  --phs-label: #5b6472;
   --line: #253d35;
   --surface: #14241f;
   --surface-soft: #192d27;
@@ -349,6 +357,8 @@
     --color-pending-bg: #2d230d;
     --ink: #e8f3ee;
     --muted: #8ca39a;
+    /* Plan 591 (D3(a)) — frozen: the strip label keeps its light value in dark too. */
+    --phs-label: #5b6472;
     --line: #253d35;
     --surface: #14241f;
     --surface-soft: #192d27;

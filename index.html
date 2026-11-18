@@ -473,6 +473,69 @@
           </div>
         </div>
       </section>
+      <!-- Hisaab H3 (D1(a)): the Hisaab section — this month + lifetime
+           aamdani/kharch/munafa, one line per active upstream provider,
+           the seed honesty line, and the two buttons. Sits directly
+           after Today's Summary (list index 5, 6th); the saved widget
+           order can move it. All labels are hardcoded Roman-Urdu/English
+           literals (D5(a)) — H5 owns the hisaab_* i18n keys, so this
+           section adds none. -->
+      <section class="home-today-section" id="hisaabSection" aria-labelledby="hisaabHeading">
+        <div class="home-today-card" id="hisaabCard">
+          <div class="home-today-header">
+            <div class="home-today-title-wrap">
+              <p class="eyebrow">HISAAB · KYA KHOYA, KYA PAYA</p>
+              <h3 id="hisaabHeading" class="home-today-title">Hisaab — Kya khoya, kya paya</h3>
+              <p class="home-today-subtitle">Is mahine aur kul — aamdani, kharch, munafa, ek jhalak mein</p>
+            </div>
+          </div>
+          <p class="eyebrow" id="hisaabMonthLabel">Is mahine</p>
+          <div class="hisaab-metric-grid" id="hisaabMonthGrid">
+            <article class="ds-stat hisaab-metric">
+              <span class="home-kpi-label">Aamdani</span>
+              <strong class="home-kpi-val" id="hisaabMonthIncome">Not set</strong>
+              <small class="home-kpi-sub">Ada shuda</small>
+            </article>
+            <article class="ds-stat hisaab-metric">
+              <span class="home-kpi-label">Kharch</span>
+              <strong class="home-kpi-val" id="hisaabMonthExpenses">Not set</strong>
+              <small class="home-kpi-sub">Ada shuda</small>
+            </article>
+            <article class="ds-stat hisaab-metric">
+              <span class="home-kpi-label">Munafa</span>
+              <strong class="home-kpi-val" id="hisaabMonthProfit">Not set</strong>
+              <small class="home-kpi-sub" id="hisaabMonthMargin">Margin 0%</small>
+            </article>
+          </div>
+          <p class="empty-state" id="hisaabMonthEmpty" hidden>Is mahine koi record nahi</p>
+          <p class="eyebrow">Kul</p>
+          <div class="hisaab-metric-grid" id="hisaabLifeGrid">
+            <article class="ds-stat hisaab-metric">
+              <span class="home-kpi-label">Aamdani</span>
+              <strong class="home-kpi-val" id="hisaabLifeIncome">Not set</strong>
+              <small class="home-kpi-sub">Ada shuda</small>
+            </article>
+            <article class="ds-stat hisaab-metric">
+              <span class="home-kpi-label">Kharch</span>
+              <strong class="home-kpi-val" id="hisaabLifeExpenses">Not set</strong>
+              <small class="home-kpi-sub">Ada shuda</small>
+            </article>
+            <article class="ds-stat hisaab-metric">
+              <span class="home-kpi-label">Munafa</span>
+              <strong class="home-kpi-val" id="hisaabLifeProfit">Not set</strong>
+              <small class="home-kpi-sub">Ada shuda</small>
+            </article>
+          </div>
+          <p class="empty-state" id="hisaabEmpty" hidden>Abhi koi record nahi</p>
+          <p class="phase3-note" id="hisaabLifeSince" hidden></p>
+          <div id="hisaabProviderLines"></div>
+          <p class="phase3-note" id="hisaabHonestyLine" hidden>Nayatel ko May 2025–Oct 2026 tak Rs. 502,820 is register se pehle diye gaye — ye ledger kharch mein nahi, is liye kul munafa is se Rs. 502,820 zyada nazar aata hai.</p>
+          <div class="hisaab-actions">
+            <button id="hisaabOpenPnlBtn" class="primary-button" type="button">Poora hisaab dekhein</button>
+            <button id="hisaabShowExpensesBtn" class="secondary-button" type="button">Kharch dekhein</button>
+          </div>
+        </div>
+      </section>
       <!-- Home Dashboard overhaul: the duplicate bottom KPI grid is
            GONE. Its duplicate metric cards are deleted (each figure
            lives once in the KPI strip above); its registry and
@@ -11763,7 +11826,7 @@
 <h4>Save an order preference</h4>
 <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
 <label style="font-size: 12px;">Operator <input id="dwoOperator" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
-<label style="font-size: 12px;">Widgets in preferred order, one per line <textarea id="dwoWidgetList" rows="4" style="width: 260px;" placeholder="Overdue list&#10;Collections today&#10;Due in 7 days"></textarea></label>
+<label style="font-size: 12px;">Widgets in preferred order, one per line <textarea id="dwoWidgetList" rows="4" style="width: 260px;" placeholder="Overdue list&#10;Collections today&#10;Due in 7 days&#10;Hisaab — Kya khoya, kya paya"></textarea></label>
 <label style="font-size: 12px;">Date set <input id="dwoDate" type="date" style="width: 140px;"></label>
 <button id="dwoSaveBtn" class="secondary-button btn-sm" type="button">Save order</button>
 </div>

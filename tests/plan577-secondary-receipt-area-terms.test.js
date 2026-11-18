@@ -187,10 +187,14 @@ test('plan577 G4: the kist sheet still shows its VER row (578 boundary)', () => 
   assert.ok(kistHtml.includes(`VER: ${kistReceipt.verificationCode}`), 'kist VER row must survive 577');
 });
 
-test('plan577 G4: a reversed offset still renders receipt-status-partial (578 owns the void change)', () => {
+test('plan577 G4: a reversed offset renders receipt-status-void (Plan 578 flips this guard)', () => {
+  // Plan 578: the G4 guard this test file pinned as partial (577 owned
+  // the void change) flips to void — a reversed offset reads as void,
+  // never as a genuine partial payment.
   const reversed = buildDepositOffsetReceipt({ ...offsetCustomer, depositOffsets: offsetCustomer.depositOffsets.map((e) => ({ ...e, reversedAt: '2026-10-20' })) }, 'DOF-101');
   const html = generateDepositOffsetReceiptHtml(reversed, { businessName: 'Shahdara ISP', businessPhone: '03012345678', areaName: 'Shahdara, Islamabad', receiptFooter: '' });
-  assert.ok(html.includes('receipt-status-partial'), 'reversed offset must still render receipt-status-partial');
+  assert.ok(html.includes('receipt-status-void'), 'reversed offset must render receipt-status-void (Plan 578)');
+  assert.ok(!html.includes('receipt-status-partial'), 'reversed offset must not read partial anymore');
   assert.ok(html.includes('REVERSED'), 'reversed offset must still read REVERSED');
 });
 

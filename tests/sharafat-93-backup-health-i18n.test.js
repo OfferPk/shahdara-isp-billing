@@ -243,8 +243,9 @@ test('Sharafat 93 EN/UR parity holds (4,669 == 4,669)', () => {
   // dash_tile_collect_*/dash_tile_closing_* keys: 4,675 − 6 = 4,669.
   const enKeys = Object.keys(TRANSLATIONS.en);
   const urKeys = Object.keys(TRANSLATIONS.ur);
-  assert.equal(enKeys.length, 4669);
-  assert.equal(urKeys.length, 4669);
+  // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
+  assert.equal(enKeys.length, 4707);
+  assert.equal(urKeys.length, 4707);
   const diff = enKeys.filter((k) => !TRANSLATIONS.ur[k]).concat(urKeys.filter((k) => !TRANSLATIONS.en[k]));
   assert.deepEqual(diff, []);
 });

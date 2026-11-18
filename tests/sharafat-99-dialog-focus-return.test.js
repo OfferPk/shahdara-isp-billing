@@ -265,7 +265,7 @@ test('D reverse still reverses the offset, re-renders and toasts', () => {
 
 // ── G — guards (3). ─────────────────────────────────────────────────────
 
-test('G EN/UR parity holds at 4,669/4,669 (Round 2 D9 net −1; Quick Collect polish +4 keys; Plan 582 −6 orphan keys)', () => {
+test('G EN/UR parity holds at 4,722/4,722 (Round 2 D9 net −1; Quick Collect polish +4 keys; Plan 582 −6 orphan keys)', () => {
   // Round 2 (D9): net −1 key — 'cust_card_father_ref_short' and
   // 'cust_card_tenure_since_short' deleted, 'cust_card_ref_short' added.
   // Quick Collect polish (2026-11-17) adds 4 keys (EN + UR) —
@@ -273,12 +273,16 @@ test('G EN/UR parity holds at 4,669/4,669 (Round 2 D9 net −1; Quick Collect po
   // qc_loose_keep_chip. Parity is kept: 4,672 − 1 + 4 = 4,675.
   // Plan 582 (D1(b)) deletes the six orphan
   // dash_tile_collect_*/dash_tile_closing_* keys: 4,675 − 6 = 4,669.
+  // (Test title re-pinned with the asserts by Plan 586 — the parenthetical
+  // is the history of how the count reached 4,669 in 582; the number is
+  // the live pin. Titles and asserts move together from here on.)
   const enKeys = Object.keys(TRANSLATIONS.en);
   const urKeys = Object.keys(TRANSLATIONS.ur);
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
-  assert.equal(enKeys.length, 4723);
-  assert.equal(urKeys.length, 4723);
+  // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
+  assert.equal(enKeys.length, 4722);
+  assert.equal(urKeys.length, 4722);
   const keyDiff = enKeys.filter((k) => !TRANSLATIONS.ur[k]).concat(urKeys.filter((k) => !TRANSLATIONS.en[k]));
   assert.deepEqual(keyDiff, []);
 });

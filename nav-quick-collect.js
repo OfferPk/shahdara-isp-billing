@@ -40,7 +40,7 @@ import {
 } from './core.js';
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel, validateBillPackageSnapshot } from './package-catalog.js';
-import { salesTaxCentsForPrice, salesTaxCentsOfBill, SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
+import { salesTaxCentsForPrice, salesTaxCentsOfBill, salesTaxReceiptLine, SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
 import { firstFiniteRemainingPayable, formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js';
 // Plan 575: the VER stamp the slip prints — the derivation the HTML
 // receipt uses (receipt.js:724), so the slip's code equals the profile
@@ -3222,6 +3222,15 @@ export function setupQuickCollectModal({
   // (existing payments plus one), which is the number the save stamps
   // on the payment. Returns null when there is nothing worth
   // previewing; a split entry previews nothing (no single receipt).
+  // Plan 580: the preview also carries the area and the sales tax.
+  // The area is the receipt's own derivation from the customer
+  // record — mohalla plus zone, 'Not recorded' when neither is set —
+  // never the mohalla-only short form the card shows. The tax is the
+  // selected month's bill through the same helper the receipt uses
+  // (null when the bill carries no tax, so an untaxed or waived bill
+  // previews no tax row). Both are derived above the call, and the
+  // two new arguments ride after `split:` in the call object, so the
+  // 1,200-char wiring slice still contains the split assertion.
   function buildReceiptPreview() {
     if (!activeDefaults || !activeCustomerId) return null;
     const amountVal = Number(amountInput?.value);
@@ -3231,6 +3240,8 @@ export function setupQuickCollectModal({
     // plus pending charges, minus this amount, never below zero) —
     // computed above the call so the wiring slice stays green.
     const remainingBalanceCents = Math.max(0, Math.round((activeDefaults.payableTotal ?? 0) * 100) - Math.round(amountVal * 100));
+    const area = [customer?.mohalla, customer?.zone].filter(Boolean).join(', ') || 'Not recorded';
+    const taxCents = salesTaxReceiptLine(customer?.bills?.find(b => b.month === month))?.taxCents ?? null;
     return receiptPreviewFor({
       customer,
       amount: amountVal,
@@ -3241,6 +3252,8 @@ export function setupQuickCollectModal({
       billMonth: month,
       remainingBalanceCents,
       split: !!splitToggle?.checked,
+      area,
+      salesTaxCents: taxCents,
     });
   }
 

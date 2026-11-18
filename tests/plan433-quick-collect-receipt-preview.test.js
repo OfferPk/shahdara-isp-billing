@@ -76,9 +76,17 @@ test('normalize: a full entry previews every receipt field', () => {
   assert.deepEqual(preview, {
     customerName: 'Customer One',
     customerNumber: '41',
+    // Plan 580: the preview carries the area and the tax too. This
+    // fixture passes neither, so both pin at their defaults — the
+    // area reads 'Not recorded' (the receipt's own default) and the
+    // tax is null (the bill carries no tax). goodInput() is left
+    // alone on purpose: the match tests below rely on it as the
+    // untaxed, no-area fixture against the same receipts.
+    area: 'Not recorded',
     amountCents: 300000,
     amountText: 'PKR 3,000',
     amountWords: 'Three thousand',
+    salesTaxCents: null,
     method: 'Cash',
     receiptNumber: 'RCPT-41-202611-01',
     date: '2026-11-07',
@@ -199,9 +207,13 @@ test('format: money in the app min-0 style', () => {
 });
 
 test('line text: the preview reads in the order the receipt prints it', () => {
+  // Plan 580: the Area row prints directly after the Customer row,
+  // exactly as the receipt prints it. This fixture passes no area,
+  // so it reads the 'Not recorded' default; the tax row is absent —
+  // the bill carries no tax, so no tax row prints, never PKR 0.
   assert.equal(
     receiptPreviewLineText(normalizeReceiptPreview(goodInput())),
-    'Receipt: RCPT-41-202611-01\nDate: 2026-11-07\nBill month: 2026-11\nCustomer: Customer One (#41)\nAmount: PKR 3,000\nAmount in words: Three thousand\nRemaining balance: PKR 0\nMethod: Cash',
+    'Receipt: RCPT-41-202611-01\nDate: 2026-11-07\nBill month: 2026-11\nCustomer: Customer One (#41)\nArea: Not recorded\nAmount: PKR 3,000\nAmount in words: Three thousand\nRemaining balance: PKR 0\nMethod: Cash',
   );
   const noWords = normalizeReceiptPreview({ ...goodInput(), amountWords: '' });
   assert.ok(!receiptPreviewLineText(noWords).includes('Amount in words'));

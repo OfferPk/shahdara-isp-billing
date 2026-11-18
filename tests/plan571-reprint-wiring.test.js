@@ -320,8 +320,10 @@ test('plan571 G4 no money in the stamp: the stamp carries no Rs. and no PKR figu
 });
 
 test('plan571 G4 parity + hex + nbsp: no new i18n keys, no new hex, and the stamp adds no &nbsp; (T7/T13)', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4675, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4675, 'UR key count moved');
+  // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
+  // dash_tile_collect_*/dash_tile_closing_* keys deleted.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
   const en = Object.keys(TRANSLATIONS.en).sort();
   const ur = Object.keys(TRANSLATIONS.ur).sort();
   assert.deepEqual(en, ur, 'the two languages must carry exactly the same keys');

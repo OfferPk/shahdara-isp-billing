@@ -4906,6 +4906,7 @@ html, body {
     visibility: visible !important;
   }
   body.printing-reminder #receiptPrintArea {
+    display: block !important;
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
@@ -4914,6 +4915,11 @@ html, body {
     margin: 0 auto !important;
     padding: 2mm !important;
     background: #fff !important;
+    /* Plan 581 (D2(a)): the reminder's display. The base
+       receipt-print-area display none rule (styles.css:1881) hid
+       this area even with the dashboard.css blanket guarded off —
+       the receipt flow has the same declaration (:1933) but the
+       reminder flow had none, so the reminder printed blank. */
   }
   .reminder-print-slip.thermal-receipt {
     width: 76mm !important;

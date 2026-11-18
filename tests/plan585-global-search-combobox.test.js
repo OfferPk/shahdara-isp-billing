@@ -604,7 +604,10 @@ test('G5: the dark selected rule exists and adds no new hex', () => {
   // The Polish A ratchet, same method: comment-stripped distinct hex.
   const stripped = styles.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
-  assert.equal(distinct.size, 613, 'styles.css stays at 613 distinct hex (no new hard-coded colour)');
+  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
+  // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
+  // re-tokened to var(--green). Five distinct hex leave, none added.
+  assert.equal(distinct.size, 608, 'styles.css stays at 608 distinct hex (no new hard-coded colour)');
 });
 
 test('G5: no new import edge — the FCS module is never imported or called', () => {

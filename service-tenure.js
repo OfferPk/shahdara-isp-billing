@@ -171,5 +171,5 @@ export function serviceTenureSectionHtml(customer, today, labels) {
   const tenure = serviceTenureFor(customer, today);
   const primary = serviceTenureWords(tenure, labels);
   const detail = serviceTenureDetail(tenure, labels);
-  return `<section class="service-tenure-section stv-section" aria-label="${escapeHtml(labels?.heading ?? '')}"><h3>${escapeHtml(labels?.heading ?? '')}</h3><p class="stv-primary">${escapeHtml(primary)}</p>${detail ? `<p class="stv-detail">${escapeHtml(detail)}</p>` : ''}</section>`;
+  return `<section class="service-tenure-section stv-section" aria-label="${escapeHtml(labels?.heading ?? '')}"><h4>${escapeHtml(labels?.heading ?? '')}</h4><p class="stv-primary">${escapeHtml(primary)}</p>${detail ? `<p class="stv-detail">${escapeHtml(detail)}</p>` : ''}</section>`;
 }

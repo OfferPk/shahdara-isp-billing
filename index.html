@@ -510,7 +510,7 @@
            radial chart moved to Reports (its Set / Manage Target
            button still opens the target dialog from there); the
            Disconnection & Reconnection Worklists moved to Collect. -->
-      <section class="recent-payments-section" aria-labelledby="recentPaymentsHeading">
+      <section id="recentPaymentsSection" class="recent-payments-section" aria-labelledby="recentPaymentsHeading">
         <div class="recent-payments-card">
           <div class="recent-payments-header">
             <h3 id="recentPaymentsHeading" class="recent-payments-title" data-i18n="dash_recent_title">💰 Recent Payments</h3>
@@ -6265,7 +6265,7 @@
         </div>
       </dialog>
         <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
-        <article class="summary-card summary-pending-works ds-stat ds-stat--pending ops-card">
+        <article class="summary-card summary-pending-works ds-stat ds-stat--pending ops-card" id="pendingWorksSection">
           <div class="ds-card-head">
             <span class="ds-icon-tile" data-ds-icon="Pin" aria-hidden="true"></span>
             <span class="summary-label" data-i18n="dash_card_pending">Pending Works</span>
@@ -6277,7 +6277,7 @@
             <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Pin" aria-hidden="true"></span><span data-i18n="dash_card_pending">Pending Works</span></button>
           </div>
         </article>
-        <article class="summary-card summary-system-health ds-stat ds-stat--info ops-card">
+        <article class="summary-card summary-system-health ds-stat ds-stat--info ops-card" id="systemHealthSection">
           <div class="ds-card-head">
             <span class="ds-icon-tile" data-ds-icon="Stethoscope" aria-hidden="true"></span>
             <span class="summary-label" data-i18n="dash_card_health">System Health</span>

@@ -47,6 +47,7 @@ import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js'
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements, sanitizePartnerSettings } from './partner-settlement.js';
 import { sanitizeCharityReserveSettings } from './charity-reserve.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
+import { sanitizeUpstreamProviders } from './upstream-providers.js';
 import { sanitizeContactPair } from './contact-cooldown-tracker.js';
 import { sanitizeExpenseBudgets } from './expense-budget-caps.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
@@ -5133,6 +5134,16 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeOverheads(options.overheads);
     if (cleaned.templates.length || cleaned.postings.length) document.settings = { ...(document.settings || {}), overheads: cleaned };
   }
+  // Hisaab Clearly Visible (H1): upstream provider records live outside
+  // the ledger state (localStorage key sisp_upstream_providers_v1), so
+  // they travel in an optional `settings.upstreamProviders` section.
+  // Written only when at least one provider exists; readers that predate
+  // it ignore the unknown field. Placed before the checksum stamp so the
+  // stamp covers it.
+  if (options && typeof options === 'object' && options.upstreamProviders && typeof options.upstreamProviders === 'object' && !Array.isArray(options.upstreamProviders)) {
+    const cleaned = sanitizeUpstreamProviders(options.upstreamProviders);
+    if (cleaned.providers.length) document.settings = { ...(document.settings || {}), upstreamProviders: cleaned };
+  }
   // SISP-134: monthly expense budget caps live outside the ledger
   // state (localStorage key sisp_expense_budgets_v1), so they travel in
   // an optional `settings.expenseBudgets` section. Written only when at
@@ -6403,6 +6414,32 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Fixed overhead records differ from this device' });
     }
   }
+  // Hisaab Clearly Visible (H1): optional upstream-providers section
+  // (see createJsonBackup). Safe-merge rule, same as the fixed
+  // overheads: adopt the backup's records only when this device has
+  // none stored yet; when both sides hold different real records, keep
+  // existing + conflict.
+  let upstreamProviders = null;
+  const rawIncomingProviders = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.upstreamProviders
+    : undefined;
+  if (rawIncomingProviders && typeof rawIncomingProviders === 'object' && !Array.isArray(rawIncomingProviders)) {
+    const incomingProviders = sanitizeUpstreamProviders(rawIncomingProviders);
+    const currentProviders = (options && typeof options === 'object' && options.currentUpstreamProviders && typeof options.currentUpstreamProviders === 'object')
+      ? sanitizeUpstreamProviders(options.currentUpstreamProviders)
+      : { providers: [] };
+    const incomingHasRecords = incomingProviders.providers.length > 0;
+    const currentHasRecords = currentProviders.providers.length > 0;
+    if (incomingHasRecords && sameJson(incomingProviders, currentProviders)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingHasRecords && (!options?.currentUpstreamProvidersStored || !currentHasRecords)) {
+      upstreamProviders = incomingProviders;
+      counts.upstreamProvidersRestored = 1;
+      counts.changes++;
+    } else if (incomingHasRecords) {
+      conflicts.push({ customerNumber:null, name:'', field:'Upstream provider records differ from this device' });
+    }
+  }
   // SISP-134: optional expense budget caps section (see
   // createJsonBackup). Safe-merge rule, same as the fixed overheads:
   // adopt the backup's caps only when this device has none stored yet;
@@ -6544,5 +6581,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, converterSides, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, emergencyRunbook, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, splitterPolish, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied, receiptDelta };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, converterSides, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, emergencyRunbook, splitterBoxGps, overheads, upstreamProviders, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, splitterPolish, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied, receiptDelta };
 }

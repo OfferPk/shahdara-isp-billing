@@ -5528,7 +5528,10 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
 }
 
 .fdt-actions-row .btn-primary {
-  background: #0270a8;
+  /* Plan 588 (D4(a)): #0270a8 re-tokened to its value-identical token —
+     the field-tool Save blue stays blue. .btn-clean keeps the literal
+     #0270a8 (D6(a)). */
+  background: var(--color-info);
   color: #ffffff;
   border: none;
   padding: 7px 14px;
@@ -5600,8 +5603,11 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
 }
 
 [data-theme="dark"] .fdt-actions-row .btn-secondary {
-  border-color: #475569;
-  color: #cbd5e1;
+  /* Plan 588 (D3(b2)): re-tokened identically — #475569 IS the dark
+     value of --color-slate-300, #cbd5e1 IS the dark value of
+     --color-slate-600, so this rule renders exactly as before. */
+  border-color: var(--color-slate-300);
+  color: var(--color-slate-600);
 }
 
 /* Field Technician GPON ONU / ONT Optical BOSA Diagnostics Modal */
@@ -7280,7 +7286,11 @@ body {
 }
 
 .btn-tool-secondary:hover {
-  background: #e2e8f0;
+  /* Plan 588 (D5(b)): #e2e8f0 re-tokened to its value-identical token
+     in light. In dark it resolves to the --ds-line dark value #253d35
+     (today the literal #e2e8f0 renders in dark too) — disclosed in the
+     PR body. */
+  background: var(--ds-line);
 }
 
 .pending-promise-form-container {
@@ -7525,7 +7535,10 @@ body {
 }
 
 .btn-primary:hover {
-  background: #094338;
+  /* Plan 588 (D5(b)): #094338 re-tokened to its value-identical token.
+     This was the only occurrence of #094338 in nav.css, so the distinct
+     hex count drops 164 -> 163. */
+  background: var(--color-brand-700);
 }
 
 .btn-secondary {
@@ -7535,17 +7548,26 @@ body {
 }
 
 .btn-secondary:hover {
-  background: #e2e8f0;
+  /* Plan 588 (D5(b)): #e2e8f0 re-tokened to its value-identical token
+     in light. In dark it resolves to the --ds-line dark value #253d35
+     (today the literal #e2e8f0 renders in dark too) — disclosed in the
+     PR body. */
+  background: var(--ds-line);
 }
 
 .btn-success {
-  background: #10b981;
+  /* Plan 588 (D4(a)): #10b981 re-tokened to its value-identical token —
+     the pending Fulfill emerald stays emerald. .btn-accept keeps the
+     literal #10b981 (D6(a)). */
+  background: var(--color-emerald);
   color: #ffffff;
   border: none;
 }
 
 .btn-success:hover {
-  background: #059669;
+  /* Plan 588 (D5(b)): #059669 re-tokened to its value-identical token.
+     .btn-accept:hover keeps the literal #059669 (D6(a)). */
+  background: var(--color-success);
 }
 
 .pending-actions-empty {

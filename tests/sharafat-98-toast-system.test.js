@@ -362,16 +362,18 @@ test('P dedupe flag + success clears survive (92 F4)', () => {
 
 // ── G — guards (3). ─────────────────────────────────────────────────────
 
-test('G EN/UR parity holds at 4,675/4,675 (Round 2 D9 net −1; Quick Collect polish +4 keys)', () => {
+test('G EN/UR parity holds at 4,669/4,669 (Round 2 D9 net −1; Quick Collect polish +4 keys; Plan 582 −6 orphan keys)', () => {
   // Round 2 (D9): net −1 key — 'cust_card_father_ref_short' and
   // 'cust_card_tenure_since_short' deleted, 'cust_card_ref_short' added.
   // Quick Collect polish (2026-11-17) adds 4 keys (EN + UR) —
   // qc3_collect_advance, qc_head_payable, qc_head_bill_dues,
   // qc_loose_keep_chip. Parity is kept: 4,672 − 1 + 4 = 4,675.
+  // Plan 582 (D1(b)) deletes the six orphan
+  // dash_tile_collect_*/dash_tile_closing_* keys: 4,675 − 6 = 4,669.
   const enKeys = Object.keys(TRANSLATIONS.en);
   const urKeys = Object.keys(TRANSLATIONS.ur);
-  assert.equal(enKeys.length, 4675);
-  assert.equal(urKeys.length, 4675);
+  assert.equal(enKeys.length, 4669);
+  assert.equal(urKeys.length, 4669);
   const keyDiff = enKeys.filter((k) => !TRANSLATIONS.ur[k]).concat(urKeys.filter((k) => !TRANSLATIONS.en[k]));
   assert.deepEqual(keyDiff, []);
 });

@@ -1,11 +1,12 @@
 // QC-11 — Home dashboard top shortcuts: Quick Collect, Bulk Collect,
 // Record Payment at the top of the app, below the search. The home
-// dashboard today has 5 primary tiles (Payment lo, Customer add, Dues
-// list, Aaj ka hisaab, Installation) and no Bulk Collect entry from home
-// (reachable only inside the QC picker / deep link #/bulk-collect); there
-// is no separate Quick Collect or Record Payment tile. "Payment lo" opens
-// Quick Collect (app.js onReceivePayment -> quickCollectModalController
-// .open(), fallback openPaymentEntry()). Verified at the QC-10 head
+// dashboard today has 4 primary tiles (Quick Collect, Add customer, Dues
+// list, Installation) and no Bulk Collect entry from home (reachable only
+// inside the QC picker / deep link #/bulk-collect). The old Receive Payment
+// tile ("Payment lo") and Daily Closing tile are gone — Quick Collect is
+// the same flow (app.js onReceivePayment -> quickCollectModalController
+// .open(), fallback openPaymentEntry()), and Daily Closing lives in the
+// More menu (#mobileMoreDailyClosingBtn). Verified at the QC-10 head
 // 41b6a702: openAddPayment() also routes to the Quick Collect modal
 // (qc.open()) with a profile-form fallback, so Record Payment reuses that
 // existing opener — no duplicate flow is built here.
@@ -159,7 +160,7 @@ test('pin: Home keeps exactly 4 quick actions, in order — Quick Collect, Add C
   assert.ok(!html.includes('id="quickActionDailyClosing"'), 'Daily Closing tile is gone');
 });
 
-test('pin: Payment lo still opens Quick Collect (onReceivePayment unchanged)', () => {
+test('pin: Receive Payment still opens Quick Collect (onReceivePayment unchanged)', () => {
   const start = appSrc.indexOf('setupDashboardQuickActions({');
   assert.ok(start >= 0, 'missing setupDashboardQuickActions call');
   const call = appSrc.slice(start, start + 800);

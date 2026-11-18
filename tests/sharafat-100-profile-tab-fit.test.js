@@ -255,14 +255,16 @@ test('D4: the selected tab is still solid brand', () => {
 
 // --- G — guards (3) -------------------------------------------------------
 
-test('G1: EN/UR parity stays 4,675/4,675 — the count keys changed values, not count', () => {
+test('G1: EN/UR parity stays 4,669/4,669 — the count keys changed values, not count', () => {
   // Rebase (2026-11-17): the pin moves 4,672 → 4,675 — Sharafat 100
   // itself adds no keys. Round 2 (net −1: two keys deleted, one
   // added) moved it 4,672 → 4,671, then the Quick Collect polish
   // (+4 keys: qc3_collect_advance, qc_head_payable, qc_head_bill_dues,
   // qc_loose_keep_chip) moved it 4,671 → 4,675. 4,672 − 1 + 4 = 4,675.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4675, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4675, 'UR key count moved');
+  // Plan 582 (D1(b)) deletes the six orphan
+  // dash_tile_collect_*/dash_tile_closing_* keys: 4,675 − 6 = 4,669.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
   const enKeys = new Set(Object.keys(TRANSLATIONS.en));
   const urKeys = new Set(Object.keys(TRANSLATIONS.ur));
   assert.deepEqual([...enKeys].filter((k) => !urKeys.has(k)), [], 'no EN-only keys');

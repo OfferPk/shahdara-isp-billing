@@ -378,9 +378,11 @@ test('plan568 G4 static: the exact-match mechanism still translates static label
   assert.ok(t80Urdu.includes('قسط'), 'thermal-80 arrears Kist / قسط must still translate');
 });
 
-test('plan568 G4 parity: EN/UR stays 4,675/4,675 — the prefix table adds no i18n keys', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4675, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4675, 'UR key count moved');
+test('plan568 G4 parity: EN/UR stays 4,669/4,669 — the prefix table adds no i18n keys', () => {
+  // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
+  // dash_tile_collect_*/dash_tile_closing_* keys deleted.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
   const en = Object.keys(TRANSLATIONS.en).sort();
   const ur = Object.keys(TRANSLATIONS.ur).sort();
   assert.deepEqual(en, ur, 'the two languages must carry exactly the same keys');

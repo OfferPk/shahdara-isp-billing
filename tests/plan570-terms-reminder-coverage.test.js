@@ -250,9 +250,11 @@ test('plan570 G4 terms-note calls: receiptTermsNoteHtml() is still called exactl
   assert.equal((receiptJs.match(/receiptTermsNoteHtml\(\)/g) || []).length, 6, 'one call per printable receipt sheet (3 main layouts + 3 secondary sheets — Plan 577, no 7th call may be added)');
 });
 
-test('plan570 G4 parity: EN/UR stays 4,675/4,675 — no new i18n keys', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4675, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4675, 'UR key count moved');
+test('plan570 G4 parity: EN/UR stays 4,669/4,669 — no new i18n keys', () => {
+  // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
+  // dash_tile_collect_*/dash_tile_closing_* keys deleted.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
   const en = Object.keys(TRANSLATIONS.en).sort();
   const ur = Object.keys(TRANSLATIONS.ur).sort();
   assert.deepEqual(en, ur, 'the two languages must carry exactly the same keys');

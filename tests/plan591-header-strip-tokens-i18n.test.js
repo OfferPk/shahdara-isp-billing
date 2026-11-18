@@ -448,14 +448,16 @@ test('G5a: parity is 4,735/4,735 and the re-pin set is complete', () => {
   // + plan590's file, which the prep predates), and no file still pins
   // the old count. This file itself asserts 4,735, so the count is 25 —
   // plus Plan 592's new test file, which pins 4,735 as its own G5
-  // guard (the parity VALUE does not move; only the file count does).
+  // guard (the parity VALUE does not move; only the file count does) —
+  // plus Hisaab H3's new test file, which pins 4,735 as its own G5
+  // guard the same way, so the count is 27.
   const testFiles = fs.readdirSync(path.join(ROOT, 'tests')).filter((f) => f.endsWith('.test.js'));
   // This file itself mentions '4722' as the literal it checks against,
   // so it is excluded from the sweep — every OTHER file must be clean.
   const old = testFiles.filter((f) => f !== 'plan591-header-strip-tokens-i18n.test.js' && read(`tests/${f}`).includes('4722'));
   const fresh = testFiles.filter((f) => read(`tests/${f}`).includes('4735'));
   assert.deepEqual(old, [], 'no test file may still pin 4,722');
-  assert.equal(fresh.length, 26, `expected 26 files pinning 4,735 (24 re-pins + this file + plan592), got ${fresh.length}: ${fresh.join(', ')}`);
+  assert.equal(fresh.length, 27, `expected 27 files pinning 4,735 (24 re-pins + this file + plan592 + H3), got ${fresh.length}: ${fresh.join(', ')}`);
 });
 
 test('G5b: the wiring is the labels object, and the module stays pure', () => {

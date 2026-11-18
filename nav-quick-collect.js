@@ -1733,6 +1733,39 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
  * @param {Object} receipt
  * @returns {Promise<Blob|null>}
  */
+// Plan 576 (D5(a)): truncate a canvas string to a pixel budget with an
+// ellipsis — one line, existing y-coords kept (wrapping the name has no
+// free slot: a second line at y≈197 collides with the account line at
+// y=202). The measure is guarded: the 565/566 fake canvas has no
+// measureText, so an unguarded call crashes the existing image tests
+// (T8); the fallback estimates from the font size in force (the
+// png-receipt.js:332 precedent). Binary search on the prefix length —
+// measureText is monotonic in the prefix, so the longest fitting prefix
+// is found exactly. A string truncated without '…' would be a silent
+// cut, not a clamp.
+function clampCanvasText(ctx, text, maxWidth) {
+  const str = String(text ?? '');
+  if (maxWidth <= 0) return '';
+  const fontSize = (() => {
+    const m = /(\d+(?:\.\d+)?)px/.exec(ctx && typeof ctx.font === 'string' ? ctx.font : '');
+    return m ? Number(m[1]) : 14;
+  })();
+  const widthOf = (t) => (ctx && typeof ctx.measureText === 'function')
+    ? ctx.measureText(t).width
+    : t.length * fontSize * 0.55;
+  if (widthOf(str) <= maxWidth) return str;
+  const ellipsis = '…';
+  if (widthOf(ellipsis) >= maxWidth) return ellipsis;
+  let lo = 0;
+  let hi = str.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (widthOf(str.slice(0, mid) + ellipsis) <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  return str.slice(0, lo) + ellipsis;
+}
+
 export async function generateReceiptImageBlob(receipt) {
   if (typeof document === 'undefined') return null;
   const canvas = document.createElement('canvas');
@@ -1777,7 +1810,9 @@ export async function generateReceiptImageBlob(receipt) {
   // Customer info
   ctx.fillStyle = '#1e293b';
   ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
-  ctx.fillText(receipt.customerName || 'Subscriber', 30, 175);
+  // Plan 576 (D5(a)): the name is clamped to the canvas (x=30..570) —
+  // a long name ran past the edge (repro C1).
+  ctx.fillText(clampCanvasText(ctx, receipt.customerName || 'Subscriber', 540), 30, 175);
 
   ctx.fillStyle = '#64748b';
   ctx.font = '14px system-ui, -apple-system, sans-serif';
@@ -1797,6 +1832,26 @@ export async function generateReceiptImageBlob(receipt) {
   ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
   ctx.fillText(`PKR ${formatReceiptMoneyFigure(receipt.amount)}`, 50, 295);
 
+  // Plan 576 (D1(a) + D3(a)): the sales-tax row in the whitespace between
+  // the amount box (bottom 315) and the grid labels (y350) — canvas stays
+  // 600x540, no row moves. y=336 (not 338): the bilingual label's Urdu
+  // descenders hang ~4px below the baseline, and the grid labels'
+  // ascenders rise to ~y341, so 336 keeps 1px clear where 338 would
+  // touch. The label is the bilingual SALES_TAX_RECEIPT_LABEL the card
+  // and draft already use; the figure formats through
+  // formatReceiptMoneyFigure like the amount. A split reads the combined
+  // distinct-bill sum (Plan 557), never one leg's figure. Only when
+  // Number(salesTaxCents) > 0 (the Plan 552 gate).
+  const imageTaxCents = receipt.splitTender ? receipt.splitTender.salesTaxCents : receipt.salesTaxCents;
+  if (Number(imageTaxCents) > 0) {
+    ctx.fillStyle = '#64748b';
+    ctx.font = '13px system-ui, -apple-system, sans-serif';
+    ctx.fillText(SALES_TAX_RECEIPT_LABEL, 30, 336);
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`PKR ${formatReceiptMoneyFigure(imageTaxCents / 100)}`, 420, 336);
+  }
+
   // Grid details
   ctx.fillStyle = '#64748b';
   ctx.font = '13px system-ui, -apple-system, sans-serif';
@@ -1806,7 +1861,9 @@ export async function generateReceiptImageBlob(receipt) {
 
   ctx.fillStyle = '#0f172a';
   ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
-  ctx.fillText(receipt.method || 'Cash', 30, 375);
+  // Plan 576 (D5(a)): the method is clamped to its column (x=30..230) —
+  // a joined split method ran into the Month column (repro C2).
+  ctx.fillText(clampCanvasText(ctx, receipt.method || 'Cash', 200), 30, 375);
   ctx.fillText(receipt.month || '-', 230, 375);
 
   // Plan 565: the image receipt reads the same canonical remaining
@@ -1821,6 +1878,38 @@ export async function generateReceiptImageBlob(receipt) {
   ctx.fillStyle = balColor;
   ctx.fillText(`PKR ${formatReceiptMoneyFigure(remainingPayable)}`, 420, 375);
 
+  // Plan 576 (D1(a) + D4(a)): the VER stamp in the whitespace between the
+  // grid values (y375) and the status line (y420). Derived INSIDE the
+  // function — the receipt.js:724 pattern — from the GENERATED REC-…
+  // receipt number, NOT the QC receipt's RCPT-… display number:
+  // deriving from RCPT-… prints a code that does NOT match the profile
+  // reprint's code for the same payment (proven by probe in Plan 575's
+  // D7 correction — the reprint derives its number via
+  // generateReceiptNumber, receipt.js:329). customerId is the CUSTOMER
+  // NUMBER (T7 — the QC receipt's customerId is the internal id). A
+  // split image carries NO combined VER row — VER is per-leg (the
+  // Bluetooth slip carries the per-leg stamps, Plan 575 D6); the split's
+  // amount is the combined total, so no single leg's code verifies the
+  // receipt as shown.
+  if (!receipt.splitTender) {
+    const verStamp = verificationStampText(receipt.verificationCode || receiptCodeForReceipt({
+      receiptNumber: generateReceiptNumber({
+        customerNumber: receipt.customerNumber,
+        paymentDate: receipt.date,
+        paymentId: receipt.paymentId,
+        billMonth: receipt.month
+      }),
+      customerId: String(receipt.customerNumber),
+      paidAmount: receipt.amount,
+      paymentDate: receipt.date
+    }));
+    if (verStamp) {
+      ctx.fillStyle = '#475569';
+      ctx.font = '13px monospace';
+      ctx.fillText(verStamp, 30, 400);
+    }
+  }
+
   // Status badge line
   ctx.fillStyle = '#64748b';
   ctx.font = 'italic 13px system-ui, -apple-system, sans-serif';
@@ -1831,10 +1920,15 @@ export async function generateReceiptImageBlob(receipt) {
     ctx.fillText(`Txn ID: ${receipt.transactionId}`, 30, 442);
     if (receipt.paidBy) {
       ctx.font = 'italic 13px system-ui, -apple-system, sans-serif';
-      ctx.fillText(`Paid by: ${receipt.paidBy}`, 320, 442);
+      // Plan 576 (D5(a)): the paid-by is clamped to its seat (x=320..570)
+      // — a long name ran past the edge (repro C3).
+      ctx.fillText(clampCanvasText(ctx, `Paid by: ${receipt.paidBy}`, 250), 320, 442);
     }
   } else if (receipt.paidBy) {
-    ctx.fillText(`Paid by: ${receipt.paidBy}`, 30, 442);
+    // Plan 576 (D5(a)): the paid-by alone at (30,442) is clamped to the
+    // canvas (x=30..570); the font in force here is the status line's
+    // italic 13px.
+    ctx.fillText(clampCanvasText(ctx, `Paid by: ${receipt.paidBy}`, 540), 30, 442);
   }
 
   // Footer divider

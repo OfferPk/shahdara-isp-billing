@@ -413,7 +413,11 @@ test('sort dropdown sits in the picker step above the search, default Highest du
   // QC True 1-Row Tightening (item A): the Sort label span is
   // deleted with the other filter labels — the select keeps its
   // aria-label, and the sort options + default are unchanged.
-  assert.ok(!html.includes('qc2_sort_label'), 'no Sort label span may remain in the page');
+  // Plan 584: the key is REUSED by the ledger filter row — its 'Sort by'
+  // label is a span in #txAdvancedFilters (index.html:7134), a different
+  // surface — so the ban is scoped to the picker step (up to the search
+  // input, which the deleted label sat beside), not the whole page.
+  assert.ok(!html.slice(step, search).includes('qc2_sort_label'), 'no Sort label span may remain in the picker step');
   assert.ok(selectTag.includes('aria-label="Sort customers by dues or oldest due date"'), 'the sort select must keep its aria-label');
 });
 

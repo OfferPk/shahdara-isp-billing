@@ -56,7 +56,12 @@ test('KPI strip cards carry the shared card, a tile and their original hooks', (
 });
 
 test('every dashboard summary card adopted the shared card; plain KPI cards got a tile', () => {
-  const articles = html.match(/<article class="summary-card [^"]*">/g) || [];
+  // Plan 583 (D7(a)): the two bottom articles gained id="..." (Pending
+  // Works, System Health) so the widget-order mapping can address them.
+  // The tag-shape regex therefore allows other attributes before/after
+  // class — the intent is unchanged: enumerate every summary card and
+  // check the shared card + accent on each.
+  const articles = html.match(/<article[^>]*class="summary-card [^"]*"[^>]*>/g) || [];
   // Home Dashboard overhaul: 51 -> 32 — the 19 deleted articles
   // are the duplicate bottom-KPI-grid cards (14 tail metrics + the
   // today card + 3 duplicate metric cards + the standalone Cash in
@@ -76,7 +81,7 @@ test('every dashboard summary card adopted the shared card; plain KPI cards got 
   // flex row, so the tile is the head's first child, not the
   // article's. The count is still 2: QC-5 and QC-6 are the only
   // plain KPI summary cards carrying an icon tile.
-  const tiled = html.match(/<article class="summary-card [^"]*">(?:<div class="ds-stat-head">)?<span class="ds-stat__icon"/g) || [];
+  const tiled = html.match(/<article[^>]*class="summary-card [^"]*"[^>]*>(?:<div class="ds-stat-head">)?<span class="ds-stat__icon"/g) || [];
   // Plan 471: the count is 19, not 18 — the new dashboard today card
   // is a plain KPI summary card with an icon tile, same shape as the
   // today's-collection card it follows.

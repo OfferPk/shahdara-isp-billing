@@ -595,7 +595,7 @@ import { validExportFormatVersionDay, normalizeExportFormatVersionList, recordEx
 import { validDataConflictDay, foldDataConflictResolution, normalizeDataConflictList, recordDataConflict, resolveDataConflict, openDataConflicts, dataConflictSummaryText, dataConflictsHtml, openDataConflictsHtml, dataConflictCsv, dataConflictFilename } from './offline-data-conflict.js';
 import { validScreenHelpNoteDay, foldScreenHelpNoteStatus, normalizeScreenHelpNoteList, findScreenHelpNote, recordScreenHelpNote, updateScreenHelpNoteCheck, screenHelpNoteScreens, screenHelpNoteGaps, screenHelpNoteCoverage, screenHelpNoteSummaryText, screenHelpNoteText, screenHelpNoteHtml, screenHelpNotesHtml, screenHelpNoteGapsHtml, screenHelpNoteCoverageHtml, screenHelpNoteCsv, screenHelpNoteFilename } from './screen-help-note.js';
 import { validOperatorNotePinDay, normalizeOperatorNotePinList, findOperatorNotePin, recordOperatorNotePin, unpinOperatorNotePin, activeOperatorNotePins, operatorNotePinsInDisplayOrder, operatorNotePinSummaryText, operatorNotePinText, operatorNotePinHtml, operatorNotePinsHtml, activeOperatorNotePinsHtml, operatorNotePinsInDisplayOrderHtml, operatorNotePinCsv, operatorNotePinFilename } from './operator-note-pin.js';
-import { validDashboardWidgetOrderDay, normalizeDashboardWidgetOrderWidgets, normalizeDashboardWidgetOrderPreferenceList, dashboardWidgetOrderForOperator, dashboardWidgetOrderHistoryForOperator, recordDashboardWidgetOrderPreference, resetDashboardWidgetOrder, dashboardWidgetsInPreferredOrder, dashboardWidgetOrderSummaryText, dashboardWidgetOrderText, dashboardWidgetOrderHtml, dashboardWidgetOrdersHtml, dashboardWidgetOrderCurrentHtml, dashboardWidgetsInPreferredOrderHtml, dashboardWidgetOrderCsv, dashboardWidgetOrderFilename } from './dashboard-widget-order.js';
+import { validDashboardWidgetOrderDay, normalizeDashboardWidgetOrderWidgets, normalizeDashboardWidgetOrderPreferenceList, dashboardWidgetOrderForOperator, dashboardWidgetOrderHistoryForOperator, recordDashboardWidgetOrderPreference, resetDashboardWidgetOrder, dashboardWidgetsInPreferredOrder, dashboardWidgetOrderSummaryText, dashboardWidgetOrderText, dashboardWidgetOrderHtml, dashboardWidgetOrdersHtml, dashboardWidgetOrderCurrentHtml, dashboardWidgetsInPreferredOrderHtml, dashboardWidgetOrderCsv, dashboardWidgetOrderFilename, dashboardWidgetSectionIdsInPreferredOrder } from './dashboard-widget-order.js';
 import { validReportSchedulingNoteDay, foldReportSchedulingNoteCycle, normalizeReportSchedulingNoteList, recordReportSchedulingNote, reportSchedulingNoteForReport, reportSchedulingNoteOverdue, reportSchedulingNoteDueList, markReportSchedulingNoteProduced, reportSchedulingNoteSummaryText, reportSchedulingNoteText, reportSchedulingNoteHtml, reportSchedulingNotesHtml, reportSchedulingNoteDueHtml, reportSchedulingNoteCsv, reportSchedulingNoteFilename } from './report-scheduling-note.js';
 import { validAnonymisationNoteDay, normalizeAnonymisationNoteFields, normalizeAnonymisationNoteList, recordAnonymisationNote, anonymisationNoteForCopy, anonymisationNotesForHolder, unapprovedAnonymisationCopies, anonymisationNoteSummaryText, anonymisationNotesHtml, anonymisationNoteUnapprovedHtml, anonymisationNoteCsv, anonymisationNoteFilename } from './data-anonymisation-note.js';
 import { validTestDataSeparationDay, normalizeTestDataSeparationRecords, normalizeTestDataSeparationNoteList, recordTestDataSeparationNote, testDataSeparationNoteForSet, openTestDataSeparationNotes, clearTestDataSeparationNote, splitTestDataRecords, testDataSeparationNoteSummaryText, testDataSeparationNotesHtml, testDataSeparationOpenHtml, testDataSeparationNoteCsv, testDataSeparationNoteFilename } from './test-data-separation-note.js';
@@ -3825,6 +3825,12 @@ function renderDashboard() {
     }
   });
   updateDataSafetyUi();
+  // Plan 583: apply the saved dashboard widget order BEFORE the Plan 485
+  // place restore below, so the open-section id resolves and the scroll
+  // fires once after layout. (The saved pixel was measured against the
+  // old order — it self-heals on the next scroll, because the place
+  // keeping re-saves continuously; see the PR body.)
+  applyDashboardWidgetOrder();
   // Plan 485: return the dashboard to the operator's saved place —
   // the scroll position and the open section from before the reload.
   // With nothing saved, or after a clear, the dashboard starts at
@@ -39628,6 +39634,66 @@ function saveDashboardWidgetOrders(list) {
   try { localStorage.setItem(DASHBOARD_WIDGET_ORDER_KEY, JSON.stringify(normalizeDashboardWidgetOrderPreferenceList(list))); } catch { /* Dashboard widget order only: a failed save leaves the previous list in place */ }
 }
 
+// Plan 583 (D3(a)) — the current operator's name on this device. The app
+// has no operator identity, so this is a device-local read rule, not an
+// identity: the phone that saved an order is the phone that applies it.
+// Set when an order is saved on this device; absent → the default order.
+const DASHBOARD_WIDGET_ORDER_CURRENT_OPERATOR_KEY = 'shahdara_dwo_current_operator_v1';
+
+// Plan 583 (D3(a)+(b)) — whose saved order applies on this dashboard.
+// The stored name wins when one is saved on this device (even when that
+// operator's latest record is a reset — then the order is null and the
+// default applies). With no stored name and exactly one operator holding
+// a saved ACTIVE order, that operator's order applies (the one-operator
+// device — the shop phone / the field phone each have one operator in
+// practice). Ambiguous (two operators saved) or nobody saved → null, the
+// default order. A reset record is not an active order, so a reset
+// operator never counts toward the single-operator fallback.
+function dashboardWidgetOrderPreferenceForCurrentOperator() {
+  const all = loadDashboardWidgetOrders();
+  let currentOperatorName = '';
+  try { currentOperatorName = (localStorage.getItem(DASHBOARD_WIDGET_ORDER_CURRENT_OPERATOR_KEY) || '').trim(); } catch { currentOperatorName = ''; }
+  if (currentOperatorName) return dashboardWidgetOrderForOperator(all, currentOperatorName);
+  const seen = new Set();
+  const activeOperators = [];
+  for (const pref of all) {
+    const name = (pref.operator || '').trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (dashboardWidgetOrderForOperator(all, name)) activeOperators.push(name);
+  }
+  if (activeOperators.length !== 1) return null;
+  return dashboardWidgetOrderForOperator(all, activeOperators[0]);
+}
+
+// Plan 583 (D1(a)/D5(a)) — apply the saved widget order to the dashboard.
+// Runs at the end of renderDashboard, BEFORE the Plan 485 place restore,
+// so the open-section id resolves and the scroll fires once after layout.
+// Idempotent and cheap: it computes the order, compares it with the
+// current DOM order of the 12 sections, and only touches the DOM when
+// they differ — renderDashboard runs on every save, not just on reload.
+// It scopes to the explicit 12-section list, never to all children
+// (61 of the dashboard's 77 children are dialogs). The sections are
+// re-inserted before the data-safety aside, which stays last; the
+// dialogs are display:none, so moving the sections past them changes
+// nothing visible except the section order itself.
+function applyDashboardWidgetOrder() {
+  const db = $('#billingDashboard');
+  if (!db) return;
+  const orderedIds = dashboardWidgetSectionIdsInPreferredOrder(dashboardWidgetOrderPreferenceForCurrentOperator());
+  const currentOrder = [...db.children].filter((el) => orderedIds.includes(el.id)).map((el) => el.id);
+  if (currentOrder.join('|') === orderedIds.join('|')) return;
+  const aside = document.getElementById('dataSafetyBanner');
+  for (const id of orderedIds) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if (aside) db.insertBefore(el, aside);
+    else db.appendChild(el);
+  }
+}
+
 // Dashboard widget order preference (Plan 338): one order preference per
 // operator — the widget list in preferred order, the operator, and the
 // date set. Recording a new preference supersedes the previous one as the
@@ -39674,6 +39740,12 @@ function renderDashboardWidgetOrders() {
       });
       if (next.length === before.length) { toast('Order not saved: give the operator, at least one widget, and a strict date set.'); return; }
       saveDashboardWidgetOrders(next);
+      // Plan 583 (D3(a)): this device's current operator is the operator
+      // whose order was just saved — the phone that saved the order is
+      // the phone that applies it. The preference record itself is
+      // untouched; this is device state, not a preference.
+      const savedOperator = next[next.length - 1]?.operator ?? '';
+      if (savedOperator) { try { localStorage.setItem(DASHBOARD_WIDGET_ORDER_CURRENT_OPERATOR_KEY, savedOperator); } catch { /* Dashboard widget order only: a failed write leaves the previous current operator in place */ } }
       renderDashboardWidgetOrders();
     });
     $('#dwoResetBtn')?.addEventListener('click', () => {

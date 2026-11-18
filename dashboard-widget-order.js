@@ -253,3 +253,71 @@ export function dashboardWidgetOrderCsv(list) {
 export function dashboardWidgetOrderFilename() {
   return 'dashboard-widget-orders.csv';
 }
+
+// Plan 583 (D2(a)) — the dashboard widget-name → section-id mapping.
+// The preference vocabulary names WIDGETS ('Overdue list', 'Collections
+// today', ...); the dashboard's sections have IDS. Nothing anywhere
+// recorded which name is which section, so the helper alone could never
+// reorder the dashboard — feeding section ids to it left the order
+// byte-identical (the spec-literal trap). Each reorderable section gets
+// its heading-derived display name, in static default order; the aliases
+// below cover the 338 names whose content has a genuine dashboard home.
+// 'Due in 7 days' / 'New customers' have no dashboard section (they live
+// on the Collect / Reports tabs) and are deliberately NOT in the map —
+// the helper's unknown-name rule keeps them at their default position,
+// never vanishing. No entry points at a dialog, a banner, the heading,
+// or the data-safety aside: only the 12 reorderable content sections.
+export const DASHBOARD_WIDGET_SECTIONS = Object.freeze([
+  { name: 'Key performance indicators', id: 'homeKpiStrip' },
+  { name: 'Share / Digest', id: 'homeShareMenu' },
+  { name: 'Primary billing actions', id: 'homePrimaryActions' },
+  { name: 'Morning Briefing', id: 'morningBriefingSection' },
+  { name: "Today's Summary", id: 'homeTodaySection' },
+  { name: 'Recent Payments', id: 'recentPaymentsSection' },
+  { name: 'Expired Vacation Holds', id: 'expiredHoldsSection' },
+  { name: 'WAPDA Outage — Running on Battery', id: 'powerOutageSection' },
+  { name: 'Performance & Collection Analytics', id: 'homeChartsCollapsible' },
+  { name: 'Monthly Provider Cost Breakdown', id: 'homeProviderCostDetails' },
+  { name: 'Pending Works', id: 'pendingWorksSection' },
+  { name: 'System Health', id: 'systemHealthSection' },
+]);
+
+// Plan 583 (D2(a)) — aliases for the 338 vocabulary names whose content
+// has a genuine dashboard home. 'Overdue list' first moves the today
+// section — the Top-3 overdue preview's home — first; it does NOT move a
+// standalone overdue section, because there is none on the dashboard (that
+// section lives on the Collect tab). 'Today at a glance' is the deleted
+// card's name, so an operator saving the old name still gets the today
+// section first.
+export const DASHBOARD_WIDGET_SECTION_ALIASES = Object.freeze({
+  'Collections today': 'homeTodaySection',
+  'Overdue list': 'homeTodaySection',
+  'Today at a glance': 'homeTodaySection',
+});
+
+// Plan 583 (D2(a)) — the dashboard's section ids in a saved order.
+// Resolves each saved widget name to its section's display name (a direct
+// display name, or an alias — matched case-insensitively), orders the
+// default display-name list with the existing helper, and maps back to
+// ids. A null / reset preference returns the default id list. Unknown
+// names are ignored by the helper, so no section ever vanishes. Pure:
+// it reads no storage, clock, network, or page.
+export function dashboardWidgetSectionIdsInPreferredOrder(preference) {
+  const sections = DASHBOARD_WIDGET_SECTIONS;
+  const defaultNames = sections.map((section) => section.name);
+  const defaultIds = sections.map((section) => section.id);
+  const pref = normalizeDashboardWidgetOrderPreference(preference);
+  if (!pref || pref.status !== 'active' || !pref.widgets.length) return [...defaultIds];
+  const displayByLowerName = new Map(sections.map((section) => [section.name.toLowerCase(), section.name]));
+  const aliasByLowerName = new Map(Object.entries(DASHBOARD_WIDGET_SECTION_ALIASES).map(([alias, id]) => {
+    const section = sections.find((item) => item.id === id);
+    return [alias.toLowerCase(), section ? section.name : null];
+  }));
+  const resolved = pref.widgets.map((widget) => {
+    const key = widget.toLowerCase();
+    return displayByLowerName.get(key) ?? aliasByLowerName.get(key) ?? widget;
+  });
+  const orderedNames = dashboardWidgetsInPreferredOrder(defaultNames, { ...pref, widgets: resolved });
+  const idByDisplayName = new Map(sections.map((section) => [section.name, section.id]));
+  return orderedNames.map((name) => idByDisplayName.get(name));
+}

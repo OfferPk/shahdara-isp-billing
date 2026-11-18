@@ -315,7 +315,8 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
     // the count survives as the Total Dues sub-line via
     // dash_today_dues_count in app.js), dash_tile_collect_title /
     // dash_tile_closing_title (Receive Payment / Daily Closing
-    // tiles deleted), dash_today_label_collected (home-today
+    // tiles deleted; Plan 582 removed the keys from TRANSLATIONS
+    // too, so they render nowhere), dash_today_label_collected (home-today
     // metrics grid deleted), dash_card_roznamcha (merged card now
     // uses dash_card_closing), and the 16 dash_card_* labels of
     // the deleted duplicate bottom KPI grid.
@@ -350,7 +351,8 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
   assert.ok(indexSrc.includes('data-i18n-aria-label="dash_kpi_region_aria"'), 'KPI region aria must be wired');
   assert.ok(indexSrc.includes('data-i18n-aria-label="dash_today_wa_aria"'), 'WA button aria must be wired');
   // Home Dashboard overhaul: dash_tile_collect_aria left with the
-  // deleted Receive Payment tile and dash_summary_grid_aria with
+  // deleted Receive Payment tile (Plan 582 removed the key from
+  // TRANSLATIONS too) and dash_summary_grid_aria with
   // the deleted duplicate grid; dash_velocity_aria stays wired on
   // the velocity section in Reports, dash_target_gauge_aria on the
   // target chart in Reports.

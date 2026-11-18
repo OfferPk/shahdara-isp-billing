@@ -544,12 +544,23 @@ export function buildSplitTenderReceipt(state, customerId, groupId, tickets = nu
   const payableRemainingCents = totalDuesCents + ticketChargesPendingCents + addonChargesPendingCents + manualBaqayaPendingCents;
 
   const legTaxes = [];
+  const legBillFigures = [];
   const legs = entries.map(({ leg, payment, bill }) => {
     const receipt = buildPaymentReceipt(customer, bill, payment);
     // Plan 557: the tax on the bill this leg settled, read off the
     // leg's own receipt — never recomputed. Carried alongside the leg
     // so the combined tax below is derived from the legs' receipts.
     legTaxes.push({ month: bill.month, salesTaxCents: receipt.salesTaxCents ?? null });
+    // Plan 575 (D6(a)): the bill-level figures the Bluetooth slip
+    // prints, read off the leg's own receipt — the same distinct-bill
+    // derivation as the tax below. A split has at most one prepay leg.
+    legBillFigures.push({
+      month: bill.month,
+      lateFee: receipt.lateFee ?? 0,
+      depositOffset: receipt.depositOffsetAmount ?? 0,
+      creditTransfer: receipt.creditTransferInAmount ?? 0,
+      prepay: receipt.prepay ?? null
+    });
     return {
       leg,
       paymentId: payment.id,
@@ -585,6 +596,23 @@ export function buildSplitTenderReceipt(state, customerId, groupId, tickets = nu
   }
   const combinedSalesTaxCents = [...salesTaxByBill.values()].reduce((sum, cents) => sum + cents, 0);
 
+  // Plan 575 (D6(a)): the bill-level figures the Bluetooth slip
+  // prints — summed over DISTINCT bills like the tax above, never
+  // per leg: both legs of a normal split settle the SAME bill, so a
+  // naive per-leg sum would print double. The prepay object rides
+  // the leg that carries one (a split has at most one prepay leg);
+  // null when no leg carries one, so splits without one show no rows.
+  const billFiguresByMonth = new Map();
+  for (const fig of legBillFigures) {
+    if (billFiguresByMonth.has(fig.month)) continue;
+    billFiguresByMonth.set(fig.month, fig);
+  }
+  const distinctBillFigures = [...billFiguresByMonth.values()];
+  const combinedLateFee = distinctBillFigures.reduce((sum, fig) => sum + (typeof fig.lateFee === 'number' && fig.lateFee > 0 ? fig.lateFee : 0), 0);
+  const combinedDepositOffset = distinctBillFigures.reduce((sum, fig) => sum + (typeof fig.depositOffset === 'number' && fig.depositOffset > 0 ? fig.depositOffset : 0), 0);
+  const combinedCreditTransfer = distinctBillFigures.reduce((sum, fig) => sum + (typeof fig.creditTransfer === 'number' && fig.creditTransfer > 0 ? fig.creditTransfer : 0), 0);
+  const combinedPrepay = distinctBillFigures.map(fig => fig.prepay).find(prepay => prepay) ?? null;
+
   // Sharafat 1: the form-level fields the legs carry, read off the
   // SAVED records — the combined receipt shows what the ledger
   // actually recorded, never the form's intent. The note, the tag
@@ -618,6 +646,13 @@ export function buildSplitTenderReceipt(state, customerId, groupId, tickets = nu
     // the combined surfaces print no tax line then, never PKR 0).
     // Every combined surface reads it from here.
     salesTaxCents: combinedSalesTaxCents > 0 ? combinedSalesTaxCents : null,
+    // Plan 575 (D6(a)): the bill-level figures the Bluetooth slip
+    // prints — the distinct-bill sums above, in rupees (0 when none,
+    // so the slip shows no row); prepay null when no leg carries one.
+    lateFee: combinedLateFee,
+    depositOffsetAmount: combinedDepositOffset,
+    creditTransferInAmount: combinedCreditTransfer,
+    prepay: combinedPrepay,
     // Sharafat 1: the collection note, the Urdu-script note, the
     // category tag and the promise link — '' / null when the split
     // carries none, so a split without them renders exactly as

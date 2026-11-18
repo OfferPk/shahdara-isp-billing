@@ -153,8 +153,8 @@ export function operatorModeHtml(mode) {
     + `<p>Owner-only actions in collector mode: ${ownerOnlyList}.</p>`
     + `<p>Collector mode still shows customers, transactions, field mode, profiles and Quick Collect, and the same customer's figures are identical in both modes.</p>`
     + `<div style="display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0;">`
-    + `<button data-operator-mode-target="owner" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;"${current === 'owner' ? ' disabled' : ''}>Switch to owner mode</button>`
-    + `<button data-operator-mode-target="collector" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;"${current === 'collector' ? ' disabled' : ''}>Switch to collector mode</button>`
+    + `<button data-operator-mode-target="owner" class="secondary-button btn-sm" type="button"${current === 'owner' ? ' disabled' : ''}>Switch to owner mode</button>`
+    + `<button data-operator-mode-target="collector" class="secondary-button btn-sm" type="button"${current === 'collector' ? ' disabled' : ''}>Switch to collector mode</button>`
     + `</div>`
     + `<p>Switching back to owner mode asks for the owner's confirmation first. The other mode button is in the header (next to the field-mode toggle), so the mode can be switched back even while owner screens are blocked.</p>`
     + `<p>Note: this mode is a guard against accidental taps, not a password lock — the app has no accounts. When the owner PIN lock (SISP-80) is set, its PIN prompts still apply in owner mode.</p>`

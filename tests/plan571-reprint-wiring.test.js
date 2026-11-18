@@ -330,7 +330,10 @@ test('plan571 G4 parity + hex + nbsp: no new i18n keys, no new hex, and the stam
   const en = Object.keys(TRANSLATIONS.en).sort();
   const ur = Object.keys(TRANSLATIONS.ur).sort();
   assert.deepEqual(en, ur, 'the two languages must carry exactly the same keys');
-  assert.equal(hexCount(styles), 613, `styles.css hex count moved (${hexCount(styles)})`);
+  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
+  // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
+  // re-tokened to var(--green). Five distinct hex leave, none added.
+  assert.equal(hexCount(styles), 608, `styles.css hex count moved (${hexCount(styles)})`);
   // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
   // (its only occurrence) is re-tokened to var(--color-brand-700).
   assert.equal(hexCount(navCss), 163, `nav.css hex count moved (${hexCount(navCss)})`);

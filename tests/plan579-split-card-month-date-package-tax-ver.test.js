@@ -306,7 +306,10 @@ test('plan579 G4: EN/UR parity stays 4,669/4,669 — the rows use hardcoded labe
 });
 
 test('plan579 G4: hex pins hold, and the taxed fully-paid card has 9 grid items (D4(a) placement)', () => {
-  assert.equal(hexCount(styles), 613, `styles.css hex count moved (${hexCount(styles)})`);
+  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
+  // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
+  // re-tokened to var(--green). Five distinct hex leave, none added.
+  assert.equal(hexCount(styles), 608, `styles.css hex count moved (${hexCount(styles)})`);
   // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
   // (its only occurrence) is re-tokened to var(--color-brand-700).
   assert.equal(hexCount(navCss), 163, `nav.css hex count moved (${hexCount(navCss)})`);

@@ -11,7 +11,7 @@
 // Customer Card Polish (user request 2026-11-12): the 44px avatar is
 // REMOVED from the card — the user asked for no DP, "abhi k lye" (for
 // now). The avatar CSS rule stays only because its #245e4c is counted
-// in the §8.9 613-hex pin; the markup must carry no avatar at all.
+// in the §8.9 608-hex pin; the markup must carry no avatar at all.
 //
 // Fixtures are generic placeholders only — no real customer data.
 import { test } from 'node:test';
@@ -77,7 +77,7 @@ test('polish: condensed pills replace the metrics boxes (same figures, pill geom
   // live in condensed pills in one flex-start row (B2 — no dead
   // middle). The pills reuse the palette already in the file: the
   // neutral meta/health pills take the ds tokens, the coloured pills
-  // take the health/status hex already present (no new hex — the 613
+  // take the health/status hex already present (no new hex — the 608
   // ratchet is the backstop). Round 2: the meta-pills become ONE
   // muted text line (.customer-card-meta-line) — the meta-pill rule
   // is deleted, and the line carries the muted #475569 text.

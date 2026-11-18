@@ -362,7 +362,7 @@ test('p1 G1g: the height budget rules are tight (margins 5px, rows pad 10px, act
   const actions = cssRule(styles, '.customer-card-actions');
   assert.match(actions, /margin-top:\s*2px/, 'actions row 8px -> 2px');
   assert.match(actions, /padding-top:\s*6px/, 'actions row gains a 6px top pad');
-  assert.match(actions, /border-top:\s*1px solid #eef2f0/, 'actions row gains a hairline divider (a hex already in the 613 set)');
+  assert.match(actions, /border-top:\s*1px solid #eef2f0/, 'actions row gains a hairline divider (a hex already in the 608 set)');
   const list620 = styles.match(/@media \(max-width: 620px\) \{\s*\/\* Phase 1[\s\S]*?\.customer-list, \.archived-customer-list \{([^}]*)\}/);
   assert.ok(list620, 'the <=620px list rule exists');
   assert.match(list620[1], /gap:\s*8px/, 'list gap 9px -> 8px');
@@ -464,9 +464,12 @@ test('p1 G3c: a Critical pill carries health-critical + the rose palette', () =>
   // what the browser computes, now immune to source order.
 });
 
-test('p1 G3d: the category rules use only hexes already in the 613-token set (no new hex)', () => {
+test('p1 G3d: the category rules use only hexes already in the 608-token set (no new hex)', () => {
   const distinct = new Set(styles.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
-  assert.equal(distinct.size, 613, 'styles.css stays at 613 distinct hex (no new hard-coded colour)');
+  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
+  // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
+  // re-tokened to var(--green). Five distinct hex leave, none added.
+  assert.equal(distinct.size, 608, 'styles.css stays at 608 distinct hex (no new hard-coded colour)');
 });
 
 test('p1 G3e: a Good pill stays green (band only, no category class)', () => {

@@ -398,7 +398,7 @@ test('G4: .btn-primary has no dark rule and resolves #0e5b4d in dark via the in-
 
 // ---------- G5 — Guards + completeness ----------
 
-test('G5: ratchet baselines hold — nav.css 163 (down from 164 via #094338), styles.css 613, components.css 0', () => {
+test('G5: ratchet baselines hold — nav.css 163 (down from 164 via #094338), styles.css 608, components.css 0', () => {
   // WHY the exact 163: D5(b) re-tokens .btn-primary:hover #094338 to
   // --color-brand-700, and #094338 occurred exactly once in nav.css.
   // Every other re-tokened hex occurs elsewhere too, so the count drops
@@ -406,7 +406,10 @@ test('G5: ratchet baselines hold — nav.css 163 (down from 164 via #094338), st
   // holds with room to spare.
   assert.equal(distinctHex(navCss), 163, 'nav.css distinct hex is exactly 163');
   assert.ok(distinctHex(navCss) <= 164, 'nav.css distinct hex must not exceed 164');
-  assert.equal(distinctHex(stylesCss), 613, 'styles.css distinct hex is exactly 613');
+  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
+  // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
+  // re-tokened to var(--green). Five distinct hex leave, none added.
+  assert.equal(distinctHex(stylesCss), 608, 'styles.css distinct hex is exactly 608');
   assert.ok(distinctHex(stylesCss) <= 616, 'styles.css distinct hex must not exceed 616');
   assert.equal(distinctHex(componentsCss), 0, 'components.css stays hex-free');
   // #094338 survives only inside the why-comment text (comments are

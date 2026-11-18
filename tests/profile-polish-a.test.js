@@ -149,7 +149,7 @@ test('Polish A (9): the received stat renders only when receipts exist', () => {
 
 // ------------------------------------------------------------ ratchet
 
-test('Polish A ratchet: styles.css still 613 distinct hex (no new hard-coded colour)', () => {
+test('Polish A ratchet: styles.css still 608 distinct hex (no new hard-coded colour)', () => {
   const styles = read('styles.css');
   const stripped = styles.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
@@ -157,7 +157,12 @@ test('Polish A ratchet: styles.css still 613 distinct hex (no new hard-coded col
   // card's health-reasons rule removed its unique hex #62766d; the
   // other candidate #526a61 survives via .transactions-count, so the
   // count is 613, not 612. No new hex was added.
-  assert.equal(distinct.size, 613, 'styles.css must stay at 613 distinct hex (no new hard-coded colour)');
+  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
+  // baselines' #16745a and #0b624b were deleted, #6caa91 (customer
+  // filter month) and #97d7bd (view-nav/phase3 group) were re-tokened
+  // to var(--green), and the dark input rule's #1a5845 was re-tokened
+  // to var(--green). Five distinct hex leave, none added.
+  assert.equal(distinct.size, 608, 'styles.css must stay at 608 distinct hex (no new hard-coded colour)');
 });
 
 test('Polish A: no real customer names or phone numbers in this test', () => {

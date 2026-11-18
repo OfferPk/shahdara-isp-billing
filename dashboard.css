@@ -39,7 +39,7 @@
 }
 
 .quick-action-tile:focus-visible {
-  outline: 3px solid rgba(14, 91, 77, 0.35);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -478,8 +478,8 @@
 }
 
 .chart-range-btn:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
-  outline-offset: 1px;
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
 }
 
 /* Chart action button / link */
@@ -501,7 +501,7 @@
 }
 
 .chart-action-link:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -988,7 +988,7 @@
 }
 
 .donut-slice:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -1012,8 +1012,8 @@
 }
 
 .cohort-card:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
-  outline-offset: 1px;
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
 }
 
 .risk-factors-text {
@@ -1127,7 +1127,7 @@
 }
 
 .heatmap-area-row:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -3359,7 +3359,7 @@
 }
 
 .home-primary-btn:focus-visible {
-  outline: 3px solid rgba(14, 91, 77, 0.35);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 

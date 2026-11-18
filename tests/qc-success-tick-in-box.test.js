@@ -107,9 +107,10 @@ test('tick in box: no focus outline is drawn around the heading in either theme'
   // the row border is the only box now.
   assert.ok(!navSrc.includes('.qc-success-banner h3:focus {'), 'old light :focus outline rule must be gone');
   assert.ok(!navSrc.includes('[data-theme="dark"] .qc-success-banner h3:focus {'), 'old dark :focus outline rule must be gone');
-  // The Issue-229 baseline itself is untouched — it still rings every
+  // The Issue-229 baseline itself is one colour now (Plan 589 re-pin:
+  // var(--green), light #145b4b / dark #29b88f) — it still rings every
   // other interactive element; only this heading is suppressed.
-  assert.ok(stylesSrc.includes('outline: 3px solid #2563eb !important;'), 'Issue-229 :focus-visible baseline must stay');
+  assert.ok(stylesSrc.includes('outline: 3px solid var(--green) !important;'), 'Issue-229 :focus-visible baseline must be the single Plan 589 colour');
 });
 
 test('tick in box: the heading is still programmatically focused on every success entry', () => {

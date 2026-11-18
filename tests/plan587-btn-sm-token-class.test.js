@@ -296,7 +296,7 @@ test('G4: the 10 unstyled buttons inside .analytics-btn-row keep padding 0 8px /
 
 test('G5: ratchet baselines hold and parity is unchanged at 4,722/4,722 (no i18n key touched)', () => {
   // Current exact counts (ratchet ceilings in design-tokens-230):
-  // styles.css 613 (<=616), nav.css 164 (<=164), components.css 0 hex.
+  // styles.css 608 (<=616), nav.css 164 (<=164), components.css 0 hex.
   assert.ok(distinctHex(stylesCss) <= 616, `styles.css distinct hex must not exceed 616 (now ${distinctHex(stylesCss)})`);
   assert.ok(distinctHex(navCss) <= 164, `nav.css distinct hex must not exceed 164 (now ${distinctHex(navCss)})`);
   assert.equal(distinctHex(componentsCss), 0, 'components.css stays hex-free');

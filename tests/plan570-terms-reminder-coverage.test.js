@@ -253,8 +253,9 @@ test('plan570 G4 terms-note calls: receiptTermsNoteHtml() is still called exactl
 test('plan570 G4 parity: EN/UR stays 4,669/4,669 — no new i18n keys', () => {
   // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
   // dash_tile_collect_*/dash_tile_closing_* keys deleted.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
+  // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4707, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4707, 'UR key count moved');
   const en = Object.keys(TRANSLATIONS.en).sort();
   const ur = Object.keys(TRANSLATIONS.ur).sort();
   assert.deepEqual(en, ur, 'the two languages must carry exactly the same keys');

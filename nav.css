@@ -44,7 +44,7 @@
 }
 
 .nav-drawer-toggle:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -156,7 +156,7 @@ body.drawer-open {
 }
 
 .nav-drawer-close:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -219,8 +219,8 @@ body.drawer-open {
 }
 
 .nav-drawer-item button:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
-  outline-offset: 1px;
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
 }
 
 .nav-drawer-icon {
@@ -369,8 +369,8 @@ body.drawer-open {
 }
 
 .sidebar-rail-toggle:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
-  outline-offset: 1px;
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
 }
 
 /* Technical tools drawer details */
@@ -609,7 +609,7 @@ body.drawer-open {
 }
 
 .scroll-top-button:focus-visible {
-  outline: 3px solid var(--color-emerald-light);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -679,7 +679,7 @@ body:has(.mobile-speed-dial.is-open) #scrollTopButton {
 }
 
 .network-status-pill:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -821,7 +821,7 @@ body:has(.mobile-speed-dial.is-open) #scrollTopButton {
 }
 
 .shortcuts-help-button:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -2640,7 +2640,7 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
 }
 
 .breadcrumb-back-btn:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -2679,7 +2679,7 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
 }
 
 .breadcrumb-link:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
+  outline: 3px solid var(--green);
   outline-offset: 2px;
 }
 
@@ -6697,8 +6697,8 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
 }
 
 .language-toggle-btn:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d);
-  outline-offset: 1px;
+  outline: 3px solid var(--green);
+  outline-offset: 2px;
 }
 
 .language-toggle-btn .lang-icon {
@@ -7716,7 +7716,7 @@ body {
 .language-toggle-btn:focus-visible,
 .theme-toggle:focus-visible,
 .shortcuts-modal-card .close-button:focus-visible {
-  outline: 2px solid var(--green, #0e5b4d) !important;
+  outline: 3px solid var(--green) !important;
   outline-offset: 2px !important;
 }
 
@@ -7728,7 +7728,7 @@ body {
 [data-theme="dark"] .language-toggle-btn:focus-visible,
 [data-theme="dark"] .theme-toggle:focus-visible,
 [data-theme="dark"] .shortcuts-modal-card .close-button:focus-visible {
-  outline: 2px solid #2dd4bf !important;
+  outline: 3px solid var(--green) !important;
   outline-offset: 2px !important;
 }
 

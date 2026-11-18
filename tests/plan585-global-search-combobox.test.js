@@ -587,9 +587,12 @@ test('G4: the keydown listener is a separate statement, between input and focus,
 
 // ---------- G5 — completeness ----------
 
-test('G5: parity holds at 4,723/4,723 with equal key sets', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4723, 'EN keys');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4723, 'UR keys');
+test('G5: parity holds at 4,722/4,722 with equal key sets', () => {
+  // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
+  // (Test title re-pinned with the asserts by Plan 586 — titles and
+  // asserts move together from here on.)
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4722, 'EN keys');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4722, 'UR keys');
   assert.deepEqual(Object.keys(TRANSLATIONS.en).sort(), Object.keys(TRANSLATIONS.ur).sort(), 'no key is missing from either dict');
 });
 

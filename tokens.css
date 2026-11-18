@@ -143,6 +143,26 @@
   --amber: var(--color-pending);
   --amber-bg: var(--color-pending-bg);
 
+  /* Plan 588 (D1(a)): aliases for the five variables the .btn-* family
+     references without a definition. Each alias resolves to the fallback
+     its .btn-* uses already render — --primary #0e5b4d, --text /
+     --text-color #334155, --bg-muted #f1f5f9, --border-color #cbd5e1 —
+     so the eight .btn-* uses render exactly as before. DISCLOSED SIDE
+     EFFECT: 83 of the 148 uses of these five variables repo-wide carry
+     a DIFFERENT fallback (27 in nav.css, 56 in styles.css), so those
+     declarations recolour to the alias value (e.g. --text #0f172a ->
+     #334155, --border-color #e2e8f0 -> #cbd5e1, --primary #0284c7 ->
+     #0e5b4d on selected rows). That is the D1(a)/D2(a) mechanism as
+     decided — the aliases define the variables once, for every user —
+     and it is recorded in the PR body and pinned by
+     tests/plan588-nav-btn-token-collapse.test.js G5. The fallbacks in
+     the var() uses are KEPT (T13 safety net). */
+  --primary: var(--color-brand-600);
+  --text: var(--color-slate-700);
+  --text-color: var(--color-slate-700);
+  --bg-muted: var(--color-slate-100);
+  --border-color: var(--color-slate-300);
+
   /* DS-0 design-system palette (2026-11-10 brief): a NEW --ds-* family.
      The existing tokens above are NOT redefined — redefining
      --color-brand-600 (#0e5b4d) or --color-success (#059669) would

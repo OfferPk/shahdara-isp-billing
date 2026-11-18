@@ -4134,3 +4134,22 @@ button:not([hidden]).help-info-btn {
 #areaAnalyticsModule .mohalla-card-collect { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-top: 0; min-width: 0; min-height: 36px; }
 #areaAnalyticsModule .mohalla-card-collect--primary { flex: 1.4; background: var(--ds-brand); border-color: transparent; color: var(--white); }
 #areaAnalyticsModule .mohalla-card-collect--compact { flex: 1; font-size: 11px; padding: 7px 6px; }
+
+/* Plan 587 (D1(a)/D2(a)/D3(a)/D4(a)): the small-button class. Until now
+   .btn-sm was defined nowhere — 1,314 buttons carried the class name
+   while their size came from 446 copies of one inline style
+   (font-size: 11px; padding: 4px 10px;). The class reproduces that size
+   through tokens: font via --text-table-head (11px, the only 11px token
+   — a table-header token by name, reused here by decision, disclosed in
+   the PR body) and padding via --space-1 (4px) / --space-2-5 (10px, the
+   one new token). No min-height: the styles.css:923 floor
+   (44px !important) governs height. No colour, no hex.
+   Per-group outcome (D2(a)): the 446 inline-styled buttons render
+   pixel-identical; the 938 unstyled buttons shrink to this size as the
+   disclosed intended outcome — except where a more-specific container
+   rule still wins (notably .analytics-btn-row .secondary-button, which
+   keeps padding 0 8px / height 42px for its 10 btn-sm buttons). */
+.btn-sm {
+  font-size: var(--text-table-head);
+  padding: var(--space-1) var(--space-2-5);
+}

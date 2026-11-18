@@ -49,7 +49,8 @@ import {
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, paymentEntries, buildAreaIntelligence, buildZoneBandwidthYield, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla, DEFAULT_MOHALLAS
 } from './phase3.js?v=1.11.0';
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
-import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
+import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus, UPSTREAM_TEMPLATE_ID } from './fixed-overheads.js?v=1.11.0';
+import { UPSTREAM_PROVIDERS_KEY, UPSTREAM_PROVIDER_NAMES, loadUpstreamProviders, saveUpstreamProviders, summarizeProvider, addUpstreamProvider, addProviderBillMirror, editProviderBillMirror, deleteProviderBillMirror, setProviderPendingBill } from './upstream-providers.js';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
 import { PROFILE_EMPTY_DASH, profileEmptyText, profileEmptyMoney, profileEmptyTax, profileProfitDisplay, formatReceiptMonth, profileServiceState, profileServiceStatusPillHtml, profileIdentityLine, currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, createWhatsAppFollowupDraft, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
@@ -11062,7 +11063,7 @@ function restoreIdCounters(preview) {
   } catch { /* id counters only: a failed restore leaves max-over-list behaviour */ }
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), complaintsNextId: readComplaintCounter(localStorage), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), ticketsNextId: readTicketCounter(localStorage), inventory: loadInventory(), converterSides: loadConverterSides(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), splitterPolish: loadSplitterPolish(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), complaintsNextId: readComplaintCounter(localStorage), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), ticketsNextId: readTicketCounter(localStorage), inventory: loadInventory(), converterSides: loadConverterSides(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), upstreamProviders: loadUpstreamProviders(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), splitterPolish: loadSplitterPolish(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -11094,6 +11095,10 @@ function backupRestoreOptions() {
   let homeBudgetStored = false;
   let loansStored = false;
   let overheadsStored = false;
+  // Hisaab H2: same treatment as overheads — the flag is read BEFORE
+  // the load call in the return below, so a first-read seed cannot
+  // flip the merge decision.
+  let upstreamProvidersStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
   let receiptFooterStored = false;
   try { receiptFooterStored = localStorage.getItem(RECEIPT_FOOTER_STORAGE_KEY) !== null; } catch { receiptFooterStored = false; }
@@ -11143,13 +11148,14 @@ function backupRestoreOptions() {
   try { homeBudgetStored = localStorage.getItem(HOME_BUDGET_KEY) !== null; } catch { homeBudgetStored = false; }
   try { loansStored = localStorage.getItem(LOAN_KEY) !== null; } catch { loansStored = false; }
   try { overheadsStored = localStorage.getItem(OVERHEAD_KEY) !== null; } catch { overheadsStored = false; }
+  try { upstreamProvidersStored = localStorage.getItem(UPSTREAM_PROVIDERS_KEY) !== null; } catch { upstreamProvidersStored = false; }
   let expenseBudgetsStored = false;
   try { expenseBudgetsStored = localStorage.getItem(EXPENSE_BUDGETS_KEY) !== null; } catch { expenseBudgetsStored = false; }
   let waTemplatesStored = false;
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentConverterSides: loadConverterSides(), currentConverterSidesStored: converterSidesStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentLinemanPayouts: loadLinemanPayouts(), currentLinemanPayoutsStored: linemanPayoutsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentDeadPorts: loadDeadPorts(), currentDeadPortsStored: deadPortsStored, currentFeederCables: loadFeederCables(), currentFeederCablesStored: feederCablesStored, currentFieldBagMovements: loadFieldBagMovements(), currentFieldBagMovementsStored: fieldBagMovementsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentEmergencyRunbook: loadEmergencyRunbook(), currentEmergencyRunbookStored: emergencyRunbookStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentExpenseBudgets: loadExpenseBudgets(), currentExpenseBudgetsStored: expenseBudgetsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentSplitterPolish: loadSplitterPolish(), currentSplitterPolishStored: splitterPolishStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentConverterSides: loadConverterSides(), currentConverterSidesStored: converterSidesStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentLinemanPayouts: loadLinemanPayouts(), currentLinemanPayoutsStored: linemanPayoutsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentDeadPorts: loadDeadPorts(), currentDeadPortsStored: deadPortsStored, currentFeederCables: loadFeederCables(), currentFeederCablesStored: feederCablesStored, currentFieldBagMovements: loadFieldBagMovements(), currentFieldBagMovementsStored: fieldBagMovementsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentEmergencyRunbook: loadEmergencyRunbook(), currentEmergencyRunbookStored: emergencyRunbookStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentUpstreamProviders: loadUpstreamProviders(), currentUpstreamProvidersStored: upstreamProvidersStored, currentExpenseBudgets: loadExpenseBudgets(), currentExpenseBudgetsStored: expenseBudgetsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentSplitterPolish: loadSplitterPolish(), currentSplitterPolishStored: splitterPolishStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 // SISP-102: the device's current sibling collections, in the same shapes a
 // backup's settings sections carry — the delta merge's local side. Read
@@ -12373,6 +12379,13 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.overheads) {
       saveOverheads(pendingBackupPreview.overheads);
+    }
+    // Hisaab H2: same treatment as overheads — whole-register
+    // safe-merge via the core.js manifest entry (H1); the register is
+    // restored as-is. The SISP-102 delta map is left alone (named
+    // follow-up if a multi-device merge of this register is wanted).
+    if (pendingBackupPreview.upstreamProviders) {
+      saveUpstreamProviders(pendingBackupPreview.upstreamProviders);
     }
     if (pendingBackupPreview.expenseBudgets) {
       saveExpenseBudgets(pendingBackupPreview.expenseBudgets);
@@ -42611,8 +42624,8 @@ let nasirShareMonth = '';
 let aqibShareMonth = '';
 
 function syncExpenseTabs() {
-  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib', settlement: '#expenseTabSettlement', overheads: '#expenseTabOverheads' };
-  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel', settlement: '#partnerSettlementPanel', overheads: '#overheadsPanel' };
+  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib', settlement: '#expenseTabSettlement', overheads: '#expenseTabOverheads', upstream: '#expenseTabUpstream' };
+  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel', settlement: '#partnerSettlementPanel', overheads: '#overheadsPanel', upstream: '#upstreamPanel' };
   for (const [key, sel] of Object.entries(tabs)) { const btn = $(sel); if (btn) btn.setAttribute('aria-selected', String(key === expenseActiveTab)); }
   for (const [key, sel] of Object.entries(panels)) { const panel = $(sel); if (panel) panel.hidden = key !== expenseActiveTab; }
 }
@@ -42794,6 +42807,11 @@ function renderPartnerSettlement() {
    The campaign steps unpaid customers one by one; Send & Next opens the
    WhatsApp draft and only then stamps lastRemindedAt on the customer. */
 let overheadsMonth = '';
+// Hisaab Clearly Visible (H2): Upstream tab view state — session-only,
+// same treatment as overheadsMonth (never persisted).
+let upstreamMonth = '';
+let upstreamSelectedProviderId = '';
+let upstreamEditBillId = '';
 function renderOverheads() {
   const monthSelect = $('#overheadsMonth');
   const host = $('#overheadsTemplates');
@@ -42876,6 +42894,167 @@ function renderOverheads() {
       ? `Upstream bandwidth bill for ${monthName(due.month)} is not yet paid — post it above so profit and partner shares stay true.`
       : `Upstream bandwidth bill for ${monthName(due.month)} is paid${due.paidVia === 'expense' ? ' (recorded directly in the expense ledger)' : ''}.`;
   }
+}
+
+// Hisaab Clearly Visible (H2): Upstream tab. One bill entered here is
+// written once into the provider register AND the dated expense ledger
+// by the single-write mirror (addProviderBillMirror) — the P&L, partner
+// shares, Owner Khata and month-end wizard need no change, because the
+// mirror row is an ordinary expense row to them. All strings here are
+// hardcoded literals (no new i18n key — H2 is forbidden them; H5 re-pins
+// them as keys). The generic expense form never edits a mirror row: the
+// ledger table shows a badge instead of Edit/Delete, and the submit
+// handler refuses a providerBillId row (see the H2 guard there).
+function renderUpstream() {
+  const monthSelect = $('#upstreamMonth');
+  const host = $('#upstreamProviders');
+  if (!monthSelect || !host) return;
+  const report = buildPartnerShareReport(state, upstreamMonth, new Date());
+  upstreamMonth = report.month;
+  const monthsKey = report.months.join(',');
+  if (monthSelect.dataset.months !== monthsKey) {
+    monthSelect.innerHTML = report.months.map(month => `<option value="${escapeHtml(month)}">${escapeHtml(monthName(month))}</option>`).join('');
+    monthSelect.dataset.months = monthsKey;
+  }
+  monthSelect.value = report.month;
+  const providersData = loadUpstreamProviders();
+  const providers = providersData.providers;
+  if (!upstreamSelectedProviderId || !providers.some(provider => provider.id === upstreamSelectedProviderId)) {
+    upstreamSelectedProviderId = providers[0]?.id ?? '';
+  }
+  const provider = providers.find(item => item.id === upstreamSelectedProviderId) ?? null;
+  const todayPkt = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+  const defaultDate = report.month === todayPkt.slice(0, 7) ? todayPkt : `${report.month}-01`;
+  const editBill = provider?.bills.find(bill => bill.id === upstreamEditBillId) ?? null;
+  const missingNames = UPSTREAM_PROVIDER_NAMES.filter(name => !providers.some(item => item.name === name));
+  // D5(a): the month's already-posted overhead amount, shown next to the
+  // add form so the operator sees it before duplicating the same bill.
+  // Never a block: a correction post is legitimate. Only for Nayatel —
+  // the overhead template is the Nayatel bandwidth link.
+  let postedLine = '';
+  if (provider?.name === 'Nayatel') {
+    const posting = overheadPostingFor(loadOverheads(), state, UPSTREAM_TEMPLATE_ID, report.month);
+    const directExpense = (state.expenses ?? []).some(row => row.category === 'Nayatel bill' && typeof row.date === 'string' && row.date.slice(0, 7) === report.month);
+    if (posting) postedLine = `Fixed overheads already posted for ${monthName(report.month)}: ${formatAmount(posting.amount)} (Upstream Bandwidth Link) — check before adding the same bill again.`;
+    else if (directExpense) postedLine = `A Nayatel bill is already recorded directly in the expense ledger for ${monthName(report.month)} — check before adding the same bill again.`;
+  }
+  const summary = provider ? summarizeProvider(provider) : null;
+  const billsSorted = provider ? [...provider.bills].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)) : [];
+  host.innerHTML = (providers.length === 0
+    ? '<p class="empty-state">No upstream provider yet — add one below.</p>'
+    : `<label class="payroll-month-label" for="upstreamProviderSelect">Provider<select id="upstreamProviderSelect">${providers.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === provider?.id ? 'selected' : ''}>${escapeHtml(item.name)}</option>`).join('')}</select></label>`
+    + (summary ? `<div class="phase3-metric-grid"><article class="phase3-metric"><span>Total paid</span><strong>${escapeHtml(formatAmount(summary.total))}</strong><small>${summary.knownCount} bill${summary.knownCount === 1 ? '' : 's'}${summary.unknownCount ? ` · ${summary.unknownCount} with unknown amount` : ''}</small></article><article class="phase3-metric"><span>Since</span><strong>${escapeHtml(summary.since ?? 'No bills yet')}</strong><small>Oldest bill date</small></article><article class="phase3-metric"><span>Last bill</span><strong>${summary.lastBill ? escapeHtml(formatAmount(summary.lastBill.amount)) : 'No bills yet'}</strong><small>${summary.lastBill ? escapeHtml(summary.lastBill.date) : '—'}</small></article><article class="phase3-metric"><span>Run-rate (last 3 average)</span><strong>${summary.lastThreeAverage === null ? 'No bills yet' : escapeHtml(formatAmount(summary.lastThreeAverage))}</strong><small>${summary.lastThreeCount} bill${summary.lastThreeCount === 1 ? '' : 's'} averaged</small></article><article class="phase3-metric"><span>Pending bill</span><strong>${summary.pendingBill ? escapeHtml(formatAmount(summary.pendingBill.amount)) : 'None'}</strong><small>${summary.pendingBill ? `${escapeHtml(monthName(summary.pendingBill.month))} · issued ${escapeHtml(summary.pendingBill.issuedDate)}` : 'No pending bill set'}</small></article></div>` : ''))
+    + (missingNames.length
+      ? `<form id="upstreamAddProviderForm" class="phase3-form"><label>Add provider<select id="upstreamAddProviderSelect">${missingNames.map(name => `<option>${escapeHtml(name)}</option>`).join('')}</select></label><div class="form-actions"><button id="upstreamAddProviderBtn" class="secondary-button" type="submit">Add provider</button></div></form>`
+      : '')
+    + (provider ? `<section class="table-card" aria-labelledby="upstreamBillsHeading"><div class="table-heading"><div><p class="eyebrow">BILLS · ${escapeHtml(provider.name.toUpperCase())}</p><h3 id="upstreamBillsHeading">Bills</h3></div></div>`
+      + (billsSorted.length === 0
+        ? '<p class="empty-state">No bills recorded for this provider yet.</p>'
+        : `<div class="table-scroll"><table><thead><tr><th scope="col">Payment date</th><th scope="col">Amount</th><th scope="col">Bill month</th><th scope="col">Method</th><th scope="col">Note</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>${billsSorted.map(bill => `<tr><td>${escapeHtml(bill.date)}</td><td>${bill.amount === null ? 'Amount unknown' : escapeHtml(formatAmount(bill.amount))}</td><td>${escapeHtml(bill.billMonth || '—')}</td><td>${escapeHtml(bill.method || '—')}</td><td>${escapeHtml(bill.note || '—')}</td><td>${bill.seeded ? 'History' : (bill.mirrored ? 'Mirrored' : 'Not mirrored')}</td><td>${bill.seeded ? '' : `<button type="button" class="edit-payment" data-upstream-edit="${escapeHtml(bill.id)}">Edit</button> <button type="button" class="delete-incident" data-upstream-delete="${escapeHtml(bill.id)}">Delete</button>`}</td></tr>`).join('')}</tbody></table></div>`)
+      + `</section>`
+      + (postedLine ? `<p class="phase3-note">${escapeHtml(postedLine)}</p>` : '')
+      + `<section class="table-card" aria-labelledby="upstreamBillFormHeading"><div class="table-heading"><div><p class="eyebrow">${editBill ? 'CORRECT A BILL' : 'NEW BILL · SINGLE-WRITE MIRROR'}</p><h3 id="upstreamBillFormHeading">${editBill ? 'Correct this bill' : 'Add a provider bill'}</h3></div></div>`
+      + `<form id="upstreamBillForm" class="phase3-form" novalidate><input id="upstreamBillId" name="billId" type="hidden" value="${editBill ? escapeHtml(editBill.id) : ''}"><label>Payment date (PKT)<input id="upstreamBillDate" name="date" type="date" required value="${editBill ? escapeHtml(editBill.date) : escapeHtml(defaultDate)}"></label><label>Amount paid (PKR)<input id="upstreamBillAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="Enter actual amount" value="${editBill ? escapeHtml(String(editBill.amount ?? '')) : ''}"></label><label>Bill month<input id="upstreamBillMonth" name="billMonth" type="month" value="${editBill ? escapeHtml(editBill.billMonth || '') : escapeHtml(report.month)}"></label><label>Method (optional)<input id="upstreamBillMethod" name="method" type="text" maxlength="50" autocomplete="off" placeholder="e.g. Easypaisa" value="${editBill ? escapeHtml(editBill.method || '') : ''}"></label><label class="form-wide">Note (optional)<input id="upstreamBillNote" name="note" type="text" maxlength="100" autocomplete="off" placeholder="Optional" value="${editBill ? escapeHtml(editBill.note || '') : ''}"></label><div class="form-actions form-wide"><button id="upstreamBillSubmit" class="primary-button" type="submit">${editBill ? 'Save bill correction' : 'Record provider bill'}</button>${editBill ? '<button id="upstreamBillCancel" class="secondary-button" type="button">Cancel edit</button>' : ''}</div></form></section>`
+      + `<section class="table-card" aria-labelledby="upstreamPendingHeading"><div class="table-heading"><div><p class="eyebrow">NEXT BILL · DISPLAY ONLY</p><h3 id="upstreamPendingHeading">Pending bill</h3></div></div>`
+      + `<p class="phase3-note">${provider.pendingBill ? `Pending: ${escapeHtml(formatAmount(provider.pendingBill.amount))} for ${escapeHtml(monthName(provider.pendingBill.month))}, issued ${escapeHtml(provider.pendingBill.issuedDate)} — payment not confirmed.` : 'No pending bill set for this provider.'}</p>`
+      + `<form id="upstreamPendingForm" class="phase3-form" novalidate><label>Bill month<input id="upstreamPendingMonth" name="month" type="month" required value="${provider.pendingBill ? escapeHtml(provider.pendingBill.month) : ''}"></label><label>Amount (PKR)<input id="upstreamPendingAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="Enter bill amount" value="${provider.pendingBill ? escapeHtml(String(provider.pendingBill.amount)) : ''}"></label><label>Issued date (PKT)<input id="upstreamPendingDate" name="issuedDate" type="date" required value="${provider.pendingBill ? escapeHtml(provider.pendingBill.issuedDate) : ''}"></label><div class="form-actions form-wide"><button id="upstreamPendingSubmit" class="primary-button" type="submit">Set pending bill</button>${provider.pendingBill ? '<button id="upstreamPendingClear" class="secondary-button" type="button">Clear pending bill</button>' : ''}</div></form></section>`
+      : '');
+  const providerSelect = $('#upstreamProviderSelect');
+  providerSelect?.addEventListener('change', event => {
+    upstreamSelectedProviderId = event.currentTarget.value;
+    upstreamEditBillId = '';
+    renderUpstream();
+  });
+  $('#upstreamAddProviderForm')?.addEventListener('submit', event => {
+    event.preventDefault();
+    const name = $('#upstreamAddProviderSelect')?.value ?? '';
+    try {
+      const result = addUpstreamProvider(loadUpstreamProviders(), name);
+      saveUpstreamProviders(result.providers);
+      upstreamSelectedProviderId = result.provider.id;
+      upstreamEditBillId = '';
+      renderUpstream();
+      toast(result.added ? `${name} added as an upstream provider.` : `${name} is already registered.`);
+    } catch (error) { toast(error.message); }
+  });
+  host.querySelectorAll('[data-upstream-edit]').forEach(button => button.addEventListener('click', () => {
+    upstreamEditBillId = button.dataset.upstreamEdit;
+    renderUpstream();
+    $('#upstreamBillForm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }));
+  host.querySelectorAll('[data-upstream-delete]').forEach(button => button.addEventListener('click', async () => {
+    const billId = button.dataset.upstreamDelete;
+    const current = loadUpstreamProviders();
+    const targetProvider = current.providers.find(item => item.id === upstreamSelectedProviderId) ?? null;
+    const bill = targetProvider?.bills.find(item => item.id === billId) ?? null;
+    if (!bill) return;
+    // Deleting a provider bill also deletes its expense row, so the
+    // delete stays owner-only, like an expense delete.
+    if (collectorBlocked('expense-delete')) return;
+    if (!await requireOwnerPin('expense-delete')) return;
+    if (!await appConfirm({ tone: 'danger', title: 'Delete this provider bill?', subject: `${formatAmount(bill.amount ?? 0)} · ${targetProvider.name} · ${bill.date}`, message: 'It will be removed from the provider register and its linked expense row will be removed from the expense ledger.', confirmLabel: 'Delete provider bill' })) return;
+    try {
+      const result = deleteProviderBillMirror(current, state.expenses, billId);
+      saveUpstreamProviders(result.providers);
+      state = { ...state, expenses: result.expenses };
+      save();
+      if (upstreamEditBillId === billId) upstreamEditBillId = '';
+      renderUpstream();
+      renderDashboard();
+      toast('Provider bill deleted from the register and the expense ledger.');
+    } catch (error) { toast(error.message); }
+  }));
+  $('#upstreamBillForm')?.addEventListener('submit', event => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const fields = {
+      providerId: upstreamSelectedProviderId,
+      date: data.get('date'),
+      amount: data.get('amount'),
+      billMonth: data.get('billMonth') || '',
+      method: data.get('method') || '',
+      note: data.get('note') || '',
+    };
+    try {
+      const billId = data.get('billId');
+      const result = billId
+        ? editProviderBillMirror(loadUpstreamProviders(), state.expenses, billId, fields)
+        : addProviderBillMirror(loadUpstreamProviders(), state.expenses, fields);
+      saveUpstreamProviders(result.providers);
+      state = { ...state, expenses: result.expenses };
+      save();
+      upstreamEditBillId = '';
+      renderUpstream();
+      renderDashboard();
+      toast(billId ? 'Provider bill corrected in the register and the expense ledger.' : 'Provider bill recorded in the register and the expense ledger.');
+    } catch (error) { toast(error.message); }
+  });
+  $('#upstreamBillCancel')?.addEventListener('click', () => {
+    upstreamEditBillId = '';
+    renderUpstream();
+  });
+  $('#upstreamPendingForm')?.addEventListener('submit', event => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    try {
+      const result = setProviderPendingBill(loadUpstreamProviders(), upstreamSelectedProviderId, {
+        month: data.get('month'),
+        amount: data.get('amount'),
+        issuedDate: data.get('issuedDate'),
+      });
+      saveUpstreamProviders(result.providers);
+      renderUpstream();
+      toast('Pending bill saved for this provider. It writes no expense row.');
+    } catch (error) { toast(error.message); }
+  });
+  $('#upstreamPendingClear')?.addEventListener('click', () => {
+    try {
+      const result = setProviderPendingBill(loadUpstreamProviders(), upstreamSelectedProviderId, null);
+      saveUpstreamProviders(result.providers);
+      renderUpstream();
+      toast('Pending bill cleared for this provider.');
+    } catch (error) { toast(error.message); }
+  });
 }
 
 let waStudioLang = {};
@@ -43275,12 +43454,18 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
     // SISP-107: rows mirrored from the Supplier Khata carry
     // supplierPayoutId and get the same badge + locked treatment.
     const supplierSynced = typeof row.supplierPayoutId === 'string' && row.supplierPayoutId !== '';
+    // Hisaab H2: rows mirrored from the Upstream tab carry
+    // providerBillId and get the same badge + locked treatment. The
+    // badge is a plain label (no jump — there is no provider
+    // pre-select on the tab yet); the hint is a hardcoded literal,
+    // like the toast below (H2 adds no i18n key; H5 re-pins it).
+    const upstreamSynced = typeof row.providerBillId === 'string' && row.providerBillId !== '';
     // SISP-182: the Roznamcha badge is a button — clicking it opens the
     // Daily Cash Roznamcha on the day this expense came from (handler
     // attached after render). The Saad badge stays a plain label.
-    const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <button type="button" class="expense-roznamcha-badge" data-roznamcha-jump="${phase3Cell(row.id)}" title="${escapeHtml(t('exp_roznamcha_jump_title', null, { date: row.date }))}" aria-label="${escapeHtml(t('exp_roznamcha_jump_title', null, { date: row.date }))}">${escapeHtml(t('exp_roznamcha_badge'))}</button>` : ''}${saadSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_saad_badge'))}</span>` : ''}${supplierSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_supplier_badge'))}</span>` : ''}`;
-    const actionsCell = (synced || saadSynced || supplierSynced)
-      ? `<span class="expense-roznamcha-hint">${escapeHtml(t(synced ? 'exp_roznamcha_synced_hint' : saadSynced ? 'exp_saad_synced_hint' : 'exp_supplier_synced_hint'))}</span>`
+    const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <button type="button" class="expense-roznamcha-badge" data-roznamcha-jump="${phase3Cell(row.id)}" title="${escapeHtml(t('exp_roznamcha_jump_title', null, { date: row.date }))}" aria-label="${escapeHtml(t('exp_roznamcha_jump_title', null, { date: row.date }))}">${escapeHtml(t('exp_roznamcha_badge'))}</button>` : ''}${saadSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_saad_badge'))}</span>` : ''}${supplierSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_supplier_badge'))}</span>` : ''}${upstreamSynced ? ' <span class="expense-roznamcha-badge">Upstream</span>' : ''}`;
+    const actionsCell = (synced || saadSynced || supplierSynced || upstreamSynced)
+      ? `<span class="expense-roznamcha-hint">${escapeHtml(upstreamSynced ? 'This expense is synced from the Upstream tab. Edit or delete the bill there so both ledgers stay in step.' : t(synced ? 'exp_roznamcha_synced_hint' : saadSynced ? 'exp_saad_synced_hint' : 'exp_supplier_synced_hint'))}</span>`
       : `<button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button>`;
     return `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${row.area ? `<span class="expense-area-badge">${escapeHtml(row.area)}</span>` : '<span class="expense-area-unallocated">Unallocated</span>'}</td><td>${notesCell}</td><td class="expense-actions">${actionsCell}</td></tr>`;
   }).join('');
@@ -43353,6 +43538,7 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   if (expenseActiveTab === 'nasir' || expenseActiveTab === 'aqib') renderPartnerShare(expenseActiveTab);
   if (expenseActiveTab === 'settlement') renderPartnerSettlement();
   if (expenseActiveTab === 'overheads') renderOverheads();
+  if (expenseActiveTab === 'upstream') renderUpstream();
 }
 function renderPhase3() { renderAnalytics();renderInventory();renderExpenses();renderHomeBudget(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
@@ -43444,6 +43630,12 @@ $('#expenseForm').addEventListener('submit',async event=>{
     // SISP-107: same for a Supplier-Khata-synced expense — the khata
     // payment owns it and the next sync pass would restore its values.
     if(previous?.supplierPayoutId){toast(t('exp_supplier_edit_blocked_toast'));return;}
+    // Hisaab H2: same for an Upstream-tab-synced expense — the provider
+    // bill owns it, so edit or delete the bill in the Upstream tab.
+    // Hardcoded toast (no new i18n key — H2 is forbidden them; H5
+    // re-pins it as a key). Buttons alone are not enough: the table
+    // lock hides Edit/Delete, but a stale form could still submit.
+    if(previous?.providerBillId){toast('This expense is synced from the Upstream tab. Edit or delete the bill there so both ledgers stay in step.');return;}
     if(previous&&!await appConfirm({tone:'warning',title:'Save this expense correction?',subject:`${formatAmount(previous.amount)} ${previous.category} · ${previous.date}`,message:`Change it to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}.`,confirmLabel:'Save correction'}))return;
     state=id?updateExpense(state,id,fields):addExpense(state,fields);
     save();
@@ -43807,11 +43999,12 @@ $('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
 });
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
-[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement'],['overheads','#expenseTabOverheads']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',async()=>{const pinAction=key==='settlement'?'partner-settlement':(key==='nasir'||key==='aqib')?'partner-shares':null;if(pinAction&&collectorBlocked(pinAction))return;if(pinAction&&!await requireOwnerPin(pinAction))return;expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key!=='ledger')renderPartnerShare(key);});});
+[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement'],['overheads','#expenseTabOverheads'],['upstream','#expenseTabUpstream']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',async()=>{const pinAction=key==='settlement'?'partner-settlement':(key==='nasir'||key==='aqib')?'partner-shares':null;if(pinAction&&collectorBlocked(pinAction))return;if(pinAction&&!await requireOwnerPin(pinAction))return;expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key==='upstream')renderUpstream();else if(key!=='ledger')renderPartnerShare(key);});});
 $('#nasirShareMonth')?.addEventListener('change',event=>{nasirShareMonth=event.currentTarget.value;renderPartnerShare('nasir');});
 $('#aqibShareMonth')?.addEventListener('change',event=>{aqibShareMonth=event.currentTarget.value;renderPartnerShare('aqib');});
 $('#partnerSettlementMonth')?.addEventListener('change',event=>{partnerSettlementMonth=event.currentTarget.value;renderPartnerSettlement();});
 $('#overheadsMonth')?.addEventListener('change',event=>{overheadsMonth=event.currentTarget.value;renderOverheads();});
+$('#upstreamMonth')?.addEventListener('change',event=>{upstreamMonth=event.currentTarget.value;renderUpstream();});
 $('#partnerLedgerForm')?.addEventListener('submit',event=>{
   event.preventDefault();
   try {

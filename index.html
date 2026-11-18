@@ -250,13 +250,13 @@
   </nav>
   <main id="main">
     <div id="shellLoadingBar" class="sr-loading-bar" aria-hidden="true"></div>
-    <section class="global-search-region" aria-label="Global customer and ledger search">
+    <section class="global-search-region" aria-label="Global customer and ledger search" data-i18n-aria-label="global_search_region_aria">
       <div class="global-search-main">
-        <label class="global-search-label" for="globalCustomerSearch">Search customers and ledger by name, phone, ID, status, amount, date or method</label>
+        <label class="global-search-label" for="globalCustomerSearch" data-i18n="global_search_label">Search customers and ledger by name, phone, ID, status, amount, date or method</label>
         <div class="global-search-control"><input id="globalCustomerSearch" type="search" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="globalCustomerOptionList" aria-expanded="false" autocomplete="off" placeholder="Name, ID, status, amount or method"><button id="clearGlobalSearch" class="secondary-button" type="button">Clear</button></div>
-        <p class="global-search-help">Search saved customers, bill status and amounts, and every actual receipt. Service/billing filters and the transaction-date filter remain active only on their own lists.</p>
+        <p class="global-search-help" data-i18n="global_search_help">Search saved customers, bill status and amounts, and every actual receipt. Service/billing filters and the transaction-date filter remain active only on their own lists.</p>
       </div>
-      <div id="globalCustomerResults" class="global-customer-results" hidden><div id="globalCustomerOptionList" role="listbox" aria-label="Matching customers with billing and receipt detail"></div><p id="globalSearchResultCount" class="global-result-count"></p></div>
+      <div id="globalCustomerResults" class="global-customer-results" hidden><div id="globalCustomerOptionList" role="listbox" aria-label="Matching customers with billing and receipt detail" data-i18n-aria-label="global_search_list_aria"></div><p id="globalSearchResultCount" class="global-result-count"></p><button id="globalSearchShowMore" class="secondary-button global-search-show-more" type="button" data-i18n="global_search_show_more" hidden>Show more (12 per page)</button></div>
       <p id="globalSearchStatus" class="sr-only" role="status" aria-live="polite"></p>
     </section>
     <section id="billingDashboard" class="dashboard" aria-labelledby="dashboardTitle">

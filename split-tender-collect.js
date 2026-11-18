@@ -66,6 +66,12 @@ import {
 } from './success-next-steps.js';
 import { formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js';
 import { SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
+// Plan 579 (D2(a)): the month NAME for the split card — the single
+// card's form (nav-quick-collect.js:2478), so the two cards beside
+// each other read alike. monthly-complaint-report.js imports only
+// complaint-register.js / downtime-analytics.js, neither of which
+// leads back here, so there is no cycle.
+import { monthName } from './monthly-complaint-report.js';
 // Sharafat 1: the form-level fields a split used to drop, read back
 // off the SAVED leg records for the combined receipt — every one of
 // these modules is import-free (no cycle risk), and every one is
@@ -985,15 +991,36 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { next
   // that settles every bill while a charge is pending reads "Still
   // owed PKR X", never "Fully paid". Hand-built combined objects
   // without the field fall back to the bill dues, exactly as before.
+  // Plan 579 (D7(b), 566's R11 hand-off): the still-owed figure is read
+  // through a finite-cents guard — a non-finite cents field falls
+  // through to the next finite field, defaulting to 0 (the 566
+  // single-card pattern, firstFiniteRemainingPayable, in cents) — so
+  // Infinity/NaN can never reach the row (the old raw read printed
+  // "PKR ∞" on Infinity).
   const payableCents = typeof combined.payableRemainingCents === 'number' && Number.isFinite(combined.payableRemainingCents)
     ? Math.round(combined.payableRemainingCents)
-    : combined.balanceDueCents;
+    : (typeof combined.balanceDueCents === 'number' && Number.isFinite(combined.balanceDueCents)
+      ? Math.round(combined.balanceDueCents)
+      : 0);
   const remaining = payableCents / 100;
-  const legRows = combined.legs.map(leg => `
+  // Plan 579: the four card rows — month NAME (D2(a)), raw date
+  // (D3(a)), package, tax (D5(a)) — each conditional, so a hand-built
+  // combined without the field renders exactly as before (T6).
+  const billMonthName = monthName(combined.month);
+  const splitPackage = splitPackageDisplay(combined);
+  const taxCents = splitSalesTaxCents(combined);
+  const legRows = combined.legs.map(leg => {
+    // Plan 579 (D1(b)): each leg's VER stamp (the Plan 560 pattern,
+    // re-derived from the leg's own receipt facts) — '' when the leg
+    // carries no receipt number, so hand-built legs without one render
+    // exactly as before.
+    const legVerStamp = splitLegVerificationStamp(leg, combined.customerId);
+    return `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))} · ${escapeHtml(leg.method)}${leg.voided ? ` (${escapeHtml(t('split_voided_leg'))})` : ''}</span>
-          <strong class="qc-meta-val">PKR ${Number(leg.amount).toLocaleString('en-PK')} · ${escapeHtml(shortReceiptNumber(leg.receiptNumber))}${leg.transactionId ? ` · TID ${escapeHtml(leg.transactionId)}` : ''}</strong>
-        </div>`).join('');
+          <strong class="qc-meta-val">PKR ${Number(leg.amount).toLocaleString('en-PK')} · ${escapeHtml(shortReceiptNumber(leg.receiptNumber))}${leg.transactionId ? ` · TID ${escapeHtml(leg.transactionId)}` : ''}${legVerStamp ? ` · ${escapeHtml(legVerStamp)}` : ''}</strong>
+        </div>`;
+  }).join('');
   // Sharafat 1: the waived-fee and remainder-waada rows, in the single
   // card's exact shape (same labels, same dictionary keys) — each
   // only when the split carries it, so the ordinary card renders
@@ -1036,15 +1063,35 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { next
           <span class="qc-meta-label">Area / Location</span>
           ${areaSelectHtml ? areaSelectHtml : `<strong class="qc-meta-val">${escapeHtml(combined.area)}</strong>`}
         </div>
+        ${billMonthName ? `
+        <div class="qc-receipt-item">
+          <span class="qc-meta-label">Month</span>
+          <strong class="qc-meta-val">${escapeHtml(billMonthName)}</strong>
+        </div>` : ''}
+        ${combined.date ? `
+        <div class="qc-receipt-item">
+          <span class="qc-meta-label">Date</span>
+          <strong class="qc-meta-val">${escapeHtml(combined.date)}</strong>
+        </div>` : ''}
+        ${splitPackage ? `
+        <div class="qc-receipt-item">
+          <span class="qc-meta-label">Package</span>
+          <strong class="qc-meta-val">${escapeHtml(splitPackage)}</strong>
+        </div>` : ''}
         ${remaining > 0 ? `
         <div class="qc-receipt-item">
           <span class="qc-meta-label">${escapeHtml(remaining > 0 && chargesPending ? SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT : SUCCESS_NEXT_STEPS_STILL_OWED_TEXT)}</span>
-          <strong class="qc-meta-val has-balance">PKR ${Number(remaining).toLocaleString('en-PK')}</strong>
+          <strong class="qc-meta-val has-balance">PKR ${formatReceiptMoneyFigure(remaining)}</strong>
         </div>` : ''}
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Next due date</span>
           <strong class="qc-meta-val">${escapeHtml(nextDueDateText || SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT)}</strong>
         </div>
+        ${taxCents > 0 ? `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">🧾 ${escapeHtml(SALES_TAX_RECEIPT_LABEL)}</span>
+          <strong class="qc-meta-val">PKR ${formatReceiptMoneyFigure(taxCents / 100)}</strong>
+        </div>` : ''}
         ${legRows}
         ${splitCardExtraRows}
       </div>

@@ -137,10 +137,14 @@ test('wiring: monthName is a MONTH_NAMES sibling export; the card imports and gu
   assert.ok(!cardSrc.includes("toLocaleString('en', { month"), 'the card builder must not format the month with toLocaleString');
 });
 
-test('scope: the draft keeps the raw billing month; the split card is untouched', () => {
+test('scope: the draft keeps the raw billing month; the split card renders the month name (Plan 579)', () => {
   const draft = formatQuickCollectWhatsAppReceipt(receipt()).text;
   assert.ok(draft.includes('2026-11'), 'draft must keep the raw YYYY-MM billing month');
   assert.ok(!draft.includes('>November<') && !draft.includes('Month: November'), 'draft must not gain the card-only Month name');
+  // Plan 579 (D2(a)): the split card DOES gain a month row now — it
+  // imports monthName and renders the month NAME, so the two cards
+  // beside each other read alike ('November', not '2026-11').
   const splitSrc = read('split-tender-collect.js');
-  assert.ok(!splitSrc.includes('monthName'), 'the split card must not gain a month row in this fix');
+  assert.ok(splitSrc.includes("import { monthName } from './monthly-complaint-report.js'"), 'the split card imports monthName (Plan 579)');
+  assert.ok(splitSrc.includes('monthName(combined.month)'), 'the split card reads the month name off the combined object (Plan 579)');
 });

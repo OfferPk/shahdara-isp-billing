@@ -261,7 +261,7 @@ test('detail: the recorded date line matches the status', () => {
 
 test('section: a current customer shows heading, tenure words and the start date', () => {
   const html = serviceTenureSectionHtml(customer({ connectionDate: '2023-11-06' }), '2026-11-06', LABELS);
-  assert.ok(html.includes('<h3>Service tenure</h3>'), 'heading is shown');
+  assert.ok(html.includes('<h4>Service tenure</h4>'), 'heading is shown');
   assert.ok(html.includes('3 years 1 month'), 'tenure in plain words is shown');
   assert.ok(html.includes('Connected since 2023-11-06'), 'start date is shown');
   assert.ok(html.includes('class="service-tenure-section stv-section"'), 'section carries its classes');

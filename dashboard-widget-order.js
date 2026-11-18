@@ -266,13 +266,17 @@ export function dashboardWidgetOrderFilename() {
 // on the Collect / Reports tabs) and are deliberately NOT in the map —
 // the helper's unknown-name rule keeps them at their default position,
 // never vanishing. No entry points at a dialog, a banner, the heading,
-// or the data-safety aside: only the 12 reorderable content sections.
+// or the data-safety aside: only the 13 reorderable content sections.
 export const DASHBOARD_WIDGET_SECTIONS = Object.freeze([
   { name: 'Key performance indicators', id: 'homeKpiStrip' },
   { name: 'Share / Digest', id: 'homeShareMenu' },
   { name: 'Primary billing actions', id: 'homePrimaryActions' },
   { name: 'Morning Briefing', id: 'morningBriefingSection' },
   { name: "Today's Summary", id: 'homeTodaySection' },
+  // Hisaab H3 (D1(a)): the Hisaab section sits directly after Today's
+  // Summary (list index 5, 6th) — the design's "default 4th" is a
+  // counting slip; the anchor is "directly after Today's Summary".
+  { name: 'Hisaab — Kya khoya, kya paya', id: 'hisaabSection' },
   { name: 'Recent Payments', id: 'recentPaymentsSection' },
   { name: 'Expired Vacation Holds', id: 'expiredHoldsSection' },
   { name: 'WAPDA Outage — Running on Battery', id: 'powerOutageSection' },

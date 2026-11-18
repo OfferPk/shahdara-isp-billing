@@ -386,11 +386,13 @@ test('plan566 D5: executeQuickCollection still stamps finite remaining fields on
 
 /* ---------------- G — guards (3) ---------------- */
 
-test('plan566 G1: EN/UR parity stays 4,675/4,675 — the guard adds no i18n keys', () => {
+test('plan566 G1: EN/UR parity stays 4,669/4,669 — the guard adds no i18n keys', () => {
   // D2 picked guard-to-0 (spec), not "unclear" — so no new UI text
   // and no new keys: the count does not move.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4675, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4675, 'UR key count moved');
+  // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
+  // dash_tile_collect_*/dash_tile_closing_* keys deleted.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
 });
 
 test('plan566 G2: hex pins hold (styles.css 613 / nav.css 164 / components.css 0, no new hex)', () => {

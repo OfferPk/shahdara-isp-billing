@@ -17226,6 +17226,7 @@ button:not([hidden]).quick-method-chip.bwb-big {
 .phv-undated{color:#5c6e66;font-size:12px}
 .phv-none{color:#5c6e66;font-size:12px}
 .stv-section{display:grid;gap:4px}
+.stv-section h4{margin:0 0 6px;font:700 15px Manrope,sans-serif}
 .stv-primary{font-weight:600}
 .stv-detail{color:#5c6e66;font-size:12px}
 /* Profile Polish C (15) — section headers show a SMALL pill with just

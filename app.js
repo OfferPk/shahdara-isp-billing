@@ -4759,29 +4759,91 @@ function setManualServiceStatus(customerId, serviceStatus) {
     toast(`Manual service status set to ${label}. No connectivity monitoring is performed.`);
   } catch (error) { toast(error.message); }
 }
+// Plan 585 (D1(a)/D2(a)/D3(a)/D7(a)/D8(a)): the global search is a
+// keyboard combobox — the Fast Customer Search sheet's shape, copied
+// not called (nav-customer-search.js stays untouched). The highlighted
+// index and the shown count live in module state, because
+// renderGlobalSearch rebuilds innerHTML on every debounced keystroke
+// and any highlight stored only in the DOM dies on the next keystroke
+// (T1). Focus never leaves the input: the input carries
+// aria-activedescendant pointing at the highlighted option's id, and
+// the highlight style keys off aria-selected="true" (D7(a)) —
+// :focus-visible never fires on an option under this model. The
+// no-match row and the Show More button are NOT options (T6): the
+// no-match row has no data-global-customer, and the button sits
+// outside the listbox.
+function globalSearchOptionButtons() {
+  const list = $('#globalCustomerOptionList');
+  return list ? Array.from(list.querySelectorAll('[data-global-customer]')) : [];
+}
+function applyGlobalSearchHighlight() {
+  const input = $('#globalCustomerSearch');
+  const buttons = globalSearchOptionButtons();
+  if (globalSearchHighlightedIndex >= buttons.length) globalSearchHighlightedIndex = -1;
+  buttons.forEach((button, index) => button.setAttribute('aria-selected', index === globalSearchHighlightedIndex ? 'true' : 'false'));
+  if (globalSearchHighlightedIndex >= 0 && buttons[globalSearchHighlightedIndex]) input?.setAttribute('aria-activedescendant', buttons[globalSearchHighlightedIndex].id);
+  else input?.removeAttribute('aria-activedescendant');
+}
+function closeGlobalSearchList() {
+  const input = $('#globalCustomerSearch');
+  const box = $('#globalCustomerResults');
+  globalSearchHighlightedIndex = -1;
+  if (box) box.hidden = true;
+  if (input) {
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+  }
+}
+// Plan 585 (T7): Escape priority for the global list. The list claims
+// Escape only when it is open and nothing the document-level handler
+// closes first (More menu, detail view, an open modal) is active —
+// the modal branch must still win when both are open.
+function globalSearchEscapeHasPriority() {
+  const box = $('#globalCustomerResults');
+  if (!box || box.hidden) return false;
+  const menu = $('#mobileMoreMenu');
+  if (menu && !menu.hidden) return false;
+  if (appShell.classList.contains('show-detail') && window.innerWidth <= 620) return false;
+  for (const id of ['accountStatementModal', 'paymentReminderModal', 'batchReceiptModal', 'customerLedgerAuditModal', 'customerBillInvoiceModal', 'wadaFollowupModal', 'reminderStagesModal']) {
+    const modal = $(`#${id}`);
+    if (modal && (modal.open || modal.hasAttribute('open'))) return false;
+  }
+  return true;
+}
 function renderGlobalSearch() {
   const input = $('#globalCustomerSearch');
   const box = $('#globalCustomerResults');
   const options = $('#globalCustomerOptionList');
   const query = input.value.trim();
   if (!query) {
+    // Plan 585 (D1(a)/T1): an empty query restarts the shown page and
+    // the highlight, so the next query starts from a clean page.
+    globalSearchShown = 12;
+    globalSearchHighlightedIndex = -1;
     box.hidden = true;
     options.innerHTML = '';
     $('#globalSearchResultCount').textContent = '';
     input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
     $('#globalSearchStatus').textContent = '';
     return;
   }
   const matches = buildGlobalLedgerSearch(state, query, selectedBillingMonth);
-  const shown = matches.slice(0, 12);
-  options.innerHTML = shown.map(({customer,billing,receipts,receiptCount}) => {
-    const receiptText = receipts.length ? `Recent receipts: ${receipts.map(row => `${humanDate(row.date)} · ${formatAmount(row.amount)} · ${row.method} · ${monthName(row.month)}`).join('  |  ')}${receiptCount > receipts.length ? ` · ${receiptCount - receipts.length} more saved` : ''}` : 'No payment receipts saved.';
-    return `<div class="global-result-item"><button class="global-result-option" type="button" role="option" aria-selected="false" data-global-customer="${escapeHtml(customer.id)}"><span class="global-result-number">#${customer.customerNumber}${customer.archived ? ' · Archived' : ''}</span><span class="global-result-copy"><span class="global-result-name">${escapeHtml(customer.name)}</span>${knownAsInlineHtml(customer, 'global-result-known-as')}<span class="global-result-ledger">${escapeHtml(monthName(billing.month))} · <strong class="customer-billing-badge ${escapeHtml(billing.statusClassName)}">${escapeHtml(billing.statusLabel)}</strong> · Bill ${escapeHtml(billing.billAmountLabel)} · Received ${escapeHtml(billing.receivedAmountLabel)} · Balance ${escapeHtml(billing.balanceDueLabel)}</span><span class="global-result-receipt">${escapeHtml(receiptText)}</span></span></button><div class="global-result-actions"><button type="button" class="secondary-button global-result-action" data-global-add-payment="${escapeHtml(customer.id)}">Add Payment</button><button type="button" class="secondary-button global-result-action" data-global-add-wada="${escapeHtml(customer.id)}">Add Wada</button></div></div>`;
-  }).join('') || '<div class="global-result-no-match" role="option" aria-disabled="true">No customer, bill, or receipt matches.</div>';
-  $('#globalSearchResultCount').textContent = matches.length ? `Showing ${shown.length} of ${matches.length} customers with matching saved history. Service and billing filters affect the customer list only.` : 'Search includes saved customer details, bill status and amounts, and payment date, method, and amount.';
+  const shown = matches.slice(0, globalSearchShown);
+  options.innerHTML = shown.map(({customer,billing,receipts,receiptCount}, index) => {
+    const receiptText = receipts.length ? `${t('global_search_recent_receipts', null, { list: receipts.map(row => `${humanDate(row.date)} · ${formatAmount(row.amount)} · ${row.method} · ${monthName(row.month)}`).join('  |  ') })}${receiptCount > receipts.length ? ` · ${t('global_search_more_saved', null, { count: receiptCount - receipts.length })}` : ''}` : t('global_search_no_receipts');
+    return `<div class="global-result-item"><button class="global-result-option" type="button" role="option" id="global-search-option-${index}" aria-selected="${index === globalSearchHighlightedIndex ? 'true' : 'false'}" data-global-customer="${escapeHtml(customer.id)}"><span class="global-result-number">#${customer.customerNumber}${customer.archived ? ` · ${t('cust_card_archived')}` : ''}</span><span class="global-result-copy"><span class="global-result-name">${escapeHtml(customer.name)}</span>${knownAsInlineHtml(customer, 'global-result-known-as')}<span class="global-result-ledger">${escapeHtml(monthName(billing.month))} · <strong class="customer-billing-badge ${escapeHtml(billing.statusClassName)}">${escapeHtml(billing.statusLabel)}</strong> · ${t('global_search_ledger_line', null, { bill: escapeHtml(billing.billAmountLabel), received: escapeHtml(billing.receivedAmountLabel), balance: escapeHtml(billing.balanceDueLabel) })}</span><span class="global-result-receipt">${escapeHtml(receiptText)}</span></span></button><div class="global-result-actions"><button type="button" class="secondary-button global-result-action" data-global-add-payment="${escapeHtml(customer.id)}">${t('global_search_add_payment')}</button><button type="button" class="secondary-button global-result-action" data-global-add-wada="${escapeHtml(customer.id)}">${t('global_search_add_wada')}</button></div></div>`;
+  }).join('') || `<div class="global-result-no-match" role="option" aria-disabled="true">${t('global_search_no_match')}</div>`;
+  $('#globalSearchResultCount').textContent = matches.length ? t('global_search_showing', null, { shown: shown.length, total: matches.length }) : t('global_search_hint');
   box.hidden = false;
   input.setAttribute('aria-expanded', 'true');
-  $('#globalSearchStatus').textContent = `${matches.length} ${matches.length === 1 ? 'customer' : 'customers'} found with saved bill summaries and receipt history.`;
+  $('#globalSearchStatus').textContent = matches.length === 1 ? t('global_search_found_one') : t('global_search_found_many', null, { count: matches.length });
+  // Plan 585 (D1(a)/D2(a)): the Show More button hides once the whole
+  // list is shown; the highlight is re-applied from module state, so
+  // a re-render never loses it (T1).
+  const showMoreBtn = $('#globalSearchShowMore');
+  if (showMoreBtn) showMoreBtn.hidden = matches.length <= shown.length;
+  applyGlobalSearchHighlight();
   options.querySelectorAll('[data-global-customer]').forEach(button => button.addEventListener('click', () => {
     const customerId = button.dataset.globalCustomer;
     box.hidden = true;
@@ -13601,6 +13663,13 @@ let listSearchDebounceTimer = null;
 let lastRenderedListQuery = null;
 let globalSearchDebounceTimer = null;
 let lastRenderedGlobalQuery = null;
+// Plan 585 (D1(a)/D2(a)): keyboard combobox state for the global
+// search. Plain literal lets — the Sharafat 81 test evals this
+// window's lets in its fake harness (T3), so no DOM or function
+// references here. -1 = no highlighted option; 12 = the first page
+// of results (the receipt-finder pattern, receiptFinderShown).
+let globalSearchHighlightedIndex = -1;
+let globalSearchShown = 12;
 
 $('#customerListSearch').addEventListener('input', () => {
   const effectiveListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
@@ -13679,6 +13748,10 @@ $('#globalCustomerSearch').addEventListener('input', () => {
   clearTimeout(globalSearchDebounceTimer);
   globalSearchDebounceTimer = setTimeout(() => {
     lastRenderedGlobalQuery = String(searchQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+    // Plan 585 (D1(a)/T1): the query changed, so the shown page and
+    // the highlight restart — the receiptFinderShown pattern.
+    globalSearchShown = 12;
+    globalSearchHighlightedIndex = -1;
     // The four renders below include renderCustomers, so the roster
     // now shows this effective list query — record it too, or the
     // next same-text list keystroke is wrongly skipped (R5).
@@ -13689,8 +13762,69 @@ $('#globalCustomerSearch').addEventListener('input', () => {
     renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport();
   }, 150);
 });
+// Plan 585 (D2(a)/D3(a)/D8(a)): the global input is a keyboard
+// combobox — the Fast Customer Search sheet's shape (arrows wrap,
+// Enter mirrors FCS, Escape closes the list). Focus never leaves the
+// input; the highlighted option is announced via aria-activedescendant
+// alone, never by writing its name into the status line. A SEPARATE
+// statement (T4 — never nested inside the input listener, and it adds
+// NO renders): the Sharafat 81/84 harnesses anchor on the input,
+// focus, and clear listeners by indexOf, so this listener sits
+// between them without disturbing those anchors. Only these four
+// keys are claimed — everything else, including '/' and printable
+// characters, falls through untouched (T15).
+$('#globalCustomerSearch').addEventListener('keydown', (event) => {
+  const box = $('#globalCustomerResults');
+  if (!box || box.hidden) return;
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    const buttons = globalSearchOptionButtons();
+    if (!buttons.length) return;
+    event.preventDefault();
+    // Wrap around, FCS-style (updateHighlight, nav-customer-search.js).
+    globalSearchHighlightedIndex = event.key === 'ArrowDown'
+      ? (globalSearchHighlightedIndex + 1 >= buttons.length ? 0 : globalSearchHighlightedIndex + 1)
+      : (globalSearchHighlightedIndex - 1 < 0 ? buttons.length - 1 : globalSearchHighlightedIndex - 1);
+    applyGlobalSearchHighlight();
+    buttons[globalSearchHighlightedIndex]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  } else if (event.key === 'Enter') {
+    const buttons = globalSearchOptionButtons();
+    if (!buttons.length) return;
+    event.preventDefault();
+    if (globalSearchHighlightedIndex >= 0 && buttons[globalSearchHighlightedIndex]) {
+      // Highlighted: open it — the same hide + selectCustomer order
+      // as the option click path.
+      const customerId = buttons[globalSearchHighlightedIndex].dataset.globalCustomer;
+      closeGlobalSearchList();
+      selectCustomer(customerId);
+    } else if (buttons.length === 1) {
+      // No highlight, single result: open it (FCS rule).
+      const customerId = buttons[0].dataset.globalCustomer;
+      closeGlobalSearchList();
+      selectCustomer(customerId);
+    } else {
+      // No highlight, multiple results: highlight the first and open
+      // nothing (FCS rule) — the operator presses Enter again to open.
+      globalSearchHighlightedIndex = 0;
+      applyGlobalSearchHighlight();
+    }
+  } else if (event.key === 'Escape') {
+    // Claim first when the list is open, but only when nothing the
+    // document-level handler closes first is active (T7 — the modal
+    // branch still wins). The document-level fallback below covers
+    // focus tabbed away from the input.
+    if (!globalSearchEscapeHasPriority()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeGlobalSearchList();
+    $('#globalCustomerSearch').focus();
+  }
+});
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });
 $('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; lastRenderedGlobalQuery = ''; lastRenderedListQuery = String(customerListQuery() ?? '').normalize('NFKC').trim().toLocaleLowerCase(); customerRosterShown = 100; archivedRosterShown = 100; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });
+// Plan 585 (D1(a)): Show More reveals the next 12 results — the
+// receipt-finder shape (receiptFinderShown + 25). Wired once here,
+// never inside renderGlobalSearch (which would double-bind).
+$('#globalSearchShowMore')?.addEventListener('click', () => { globalSearchShown += 12; renderGlobalSearch(); });
 $('#showCustomersButton').addEventListener('click', () => switchView('customers'));
 // Plan 33: the header mode button stays reachable in both modes, so the
 // mode can be switched back even while owner screens are blocked.
@@ -16876,6 +17010,14 @@ document.addEventListener('keydown', event => {
         else m.removeAttribute('open');
         return;
       }
+    }
+    // Plan 585 (B8): Escape also closes the global search list when
+    // focus has tabbed away from the input — the input's own keydown
+    // cannot fire then. The menu/detail/modal branches above still
+    // win: this runs only when none of them claimed the key.
+    if (globalSearchEscapeHasPriority()) {
+      closeGlobalSearchList();
+      return;
     }
   }
   if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {

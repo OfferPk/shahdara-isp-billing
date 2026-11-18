@@ -331,7 +331,9 @@ test('plan571 G4 parity + hex + nbsp: no new i18n keys, no new hex, and the stam
   const ur = Object.keys(TRANSLATIONS.ur).sort();
   assert.deepEqual(en, ur, 'the two languages must carry exactly the same keys');
   assert.equal(hexCount(styles), 613, `styles.css hex count moved (${hexCount(styles)})`);
-  assert.equal(hexCount(navCss), 164, `nav.css hex count moved (${hexCount(navCss)})`);
+  // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
+  // (its only occurrence) is re-tokened to var(--color-brand-700).
+  assert.equal(hexCount(navCss), 163, `nav.css hex count moved (${hexCount(navCss)})`);
   assert.equal(hexCount(components), 0, `components.css hex count moved (${hexCount(components)})`);
   const nbsp = (s) => (s.match(/&nbsp;/g) || []).length;
   assert.equal(nbsp(html(paid, 'a4', { reprintCount: 1 })), nbsp(html(paid, 'a4')), 'the reprint stamp must add no &nbsp; to the A4 sheet');

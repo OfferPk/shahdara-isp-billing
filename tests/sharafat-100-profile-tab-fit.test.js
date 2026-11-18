@@ -277,8 +277,11 @@ test('G1: EN/UR parity stays 4,669/4,669 — the count keys changed values, not 
 // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
 // (its only occurrence) is re-tokened to var(--color-brand-700).
 // Title + assert move together (Plan 586 rule).
-test('G2: hex pins hold (styles.css 613 / nav.css 163 / components.css 0, no new hex)', () => {
-  assert.equal(hexCount(styles), 613, `styles.css hex count moved (${hexCount(styles)})`);
+test('G2: hex pins hold (styles.css 608 / nav.css 163 / components.css 0, no new hex)', () => {
+  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
+  // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
+  // re-tokened to var(--green). Five distinct hex leave, none added.
+  assert.equal(hexCount(styles), 608, `styles.css hex count moved (${hexCount(styles)})`);
   assert.equal(hexCount(navCss), 163, `nav.css hex count moved (${hexCount(navCss)})`);
   assert.equal(hexCount(components), 0, `components.css hex count moved (${hexCount(components)})`);
 });

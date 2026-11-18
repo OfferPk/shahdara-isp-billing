@@ -217,15 +217,25 @@ test('plan566 R10 V10 guard: successNextStepsFromReceipt(NaN) is null (the house
   assert.equal(steps, null, 'a panel with a guessed figure is worse than no panel');
 });
 
-test('plan566 R11 BOUNDARY: split card still uses the raw Number(remaining) formula — Plan 579 owns it, 566 deliberately leaves it', () => {
-  // D6: the spec's literal formula lives on the SPLIT card
-  // (split-tender-collect.js:1007), gated by remaining > 0 so NaN
-  // never reaches it; only Infinity → "PKR ∞" is live there. This
-  // pin documents that 566 did NOT touch it — Plan 579 owns the
-  // split card (per the 557/558/559/560 test headers).
+test('plan566 R11 (Plan 579): split card reads the still-owed figure through a finite-cents guard — Infinity/NaN never reach the row', () => {
+  // Plan 579 (D7(b), 566's R11 hand-off): the raw
+  // `PKR ${Number(remaining).toLocaleString('en-PK')}` formula is
+  // gone — the cents read falls through to the next FINITE field,
+  // defaulting to 0, and the render uses formatReceiptMoneyFigure
+  // (the 566 single-card pattern, firstFiniteRemainingPayable, in
+  // cents). Whole-rupee figures print byte-identically; only the
+  // non-finite path changes (Infinity → hidden row, never "PKR ∞").
   assert.ok(
-    splitSrc.includes("PKR ${Number(remaining).toLocaleString('en-PK')}"),
-    'split card still carries the raw formula (579 owns it)'
+    !splitSrc.includes("PKR ${Number(remaining).toLocaleString('en-PK')}"),
+    'split card no longer carries the raw formula (579 fixed it)'
+  );
+  assert.ok(
+    splitSrc.includes('Number.isFinite(combined.balanceDueCents)'),
+    'split card guards the balanceDueCents fallback as finite (579)'
+  );
+  assert.ok(
+    splitSrc.includes('PKR ${formatReceiptMoneyFigure(remaining)}'),
+    'split card renders the guarded figure through the canonical formatter (579)'
   );
 });
 

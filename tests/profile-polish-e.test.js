@@ -181,12 +181,15 @@ test('Polish E (21): the Dues by month rows are teal pills, the total and empty 
 
 // ------------------------------------------------------------ ratchet
 
-test('Polish E ratchet: styles.css still 613 distinct hex (no new hard-coded colour)', () => {
+test('Polish E ratchet: styles.css still 608 distinct hex (no new hard-coded colour)', () => {
   const stripped = styles.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
   // 614 → 613 with Customers Cards Compact (item B): deleting the
   // card's health-reasons rule removed its unique hex #62766d.
-  assert.equal(distinct.size, 613, 'styles.css must stay at 613 distinct hex (no new hard-coded colour)');
+  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
+  // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
+  // re-tokened to var(--green). Five distinct hex leave, none added.
+  assert.equal(distinct.size, 608, 'styles.css must stay at 608 distinct hex (no new hard-coded colour)');
 });
 
 test('Polish E: no real customer names or phone numbers in this test', () => {

@@ -262,8 +262,9 @@ test('S1 EN/UR parity holds (4,669 / 4,669 — Round 2 D9 net −1, Quick Collec
   // Parity is kept: 4,672 − 1 + 4 = 4,675. Plan 582 (D1(b)) deletes
   // the six orphan dash_tile_collect_*/dash_tile_closing_* keys:
   // 4,675 − 6 = 4,669.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
+  // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4707, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4707, 'UR key count moved');
 });
 
 test('S2 global button floor intact', () => {

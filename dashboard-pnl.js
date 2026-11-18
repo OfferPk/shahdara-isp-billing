@@ -303,6 +303,122 @@ export function calculatePnlAnalytics(state = {}, {
 }
 
 /**
+ * Hisaab H3 (D2(a)): lifetime P&L over the WHOLE ledger — the same filters
+ * as calculatePnlAnalytics (void-exclusive income via isVoidedPayment,
+ * all dated expenses), with no month bound. The engine's windowed
+ * summary can never serve this: on the repro state its 6-month summary
+ * is 3000/1000 while the lifetime is 8000/3000. `earliest` is the
+ * ledger-wide first record date (min of non-voided payment dates +
+ * expense dates) — the "Since {date}" line. Entries with no date, a
+ * malformed date, or an impossible calendar day never win it.
+ *
+ * @param {Object} [state={}]
+ * @param {Object} [options={}]
+ * @param {Date} [options.referenceDate=new Date()] — accepted for symmetry
+ *   with calculatePnlAnalytics; the lifetime is windowless, so it is unused.
+ * @returns {{income:number, expenses:number, profit:number, margin:number,
+ *   incomeCount:number, expenseCount:number, earliest:string|null, hasRecords:boolean}}
+ */
+export function calculateLifetimePnl(state = {}, { referenceDate = new Date() } = {}) {
+  // The lifetime has no window: referenceDate is accepted only so the
+  // call site reads the same as the engine's (see JSDoc).
+  const payments = (state.customers || []).flatMap(customer =>
+    (customer.bills || []).flatMap(bill =>
+      (bill.payments || []).filter(payment => !isVoidedPayment(payment)).map(payment => ({
+        customer,
+        bill,
+        payment
+      }))
+    )
+  );
+  const expenses = (state.expenses || []).map(exp => ({ ...exp }));
+  const income = payments.reduce((sum, p) => sum + (Number(p.payment.amount) || 0), 0);
+  const expensesTotal = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const profit = Number((income - expensesTotal).toFixed(2));
+  // Margin mirrors the engine exactly: the ratio when there is income,
+  // -100 when only expenses exist, 0 when the ledger is empty.
+  const margin = income > 0
+    ? Number(((profit / income) * 100).toFixed(1))
+    : (expensesTotal > 0 ? -100.0 : 0);
+  // Ledger-wide earliest date: the first record, payment or expense.
+  // A date counts only when it is a real YYYY-MM-DD calendar day.
+  const ledgerEarliest = [...payments, ...expenses].reduce((earliest, entry) => {
+    const date = entry.payment ? entry.payment.date : entry.date;
+    if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return earliest;
+    const parsed = new Date(`${date}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) return earliest;
+    return earliest === null || date < earliest ? date : earliest;
+  }, null);
+  return {
+    income: Number(income.toFixed(2)),
+    expenses: Number(expensesTotal.toFixed(2)),
+    profit,
+    margin,
+    incomeCount: payments.length,
+    expenseCount: expenses.length,
+    earliest: ledgerEarliest,
+    hasRecords: (income > 0 || expensesTotal > 0)
+  };
+}
+
+/**
+ * Hisaab H3 (D9(a)): calendar-walk duration between two YYYY-MM-DD dates,
+ * in Roman Urdu — "1 saal 6 mahine 13 din", "0 din" for the same day.
+ * Own date math (do NOT reuse owner-insights.js daysBetween — that counts
+ * plain days, not calendar years/months). Returns '' for a missing,
+ * malformed, or impossible date, and for a `today` before `since`.
+ *
+ * @param {string} since — YYYY-MM-DD
+ * @param {string} today — YYYY-MM-DD
+ * @returns {string}
+ */
+export function formatHisaabDuration(since, today) {
+  const parseDay = (value) => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const parsed = new Date(`${value}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) return null;
+    return parsed;
+  };
+  const start = parseDay(since);
+  const end = parseDay(today);
+  if (!start || !end) return '';
+  let years = end.getUTCFullYear() - start.getUTCFullYear();
+  let months = end.getUTCMonth() - start.getUTCMonth();
+  let days = end.getUTCDate() - start.getUTCDate();
+  if (days < 0) {
+    months -= 1;
+    days += new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 0)).getUTCDate();
+  }
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  if (years < 0) return '';
+  const parts = [];
+  if (years > 0) parts.push(`${years} saal`);
+  if (months > 0) parts.push(`${months} mahine`);
+  if (days > 0 || parts.length === 0) parts.push(`${days} din`);
+  return parts.join(' ');
+}
+
+/**
+ * Hisaab H3 (D9(a)): "05 May 2025" from a YYYY-MM-DD date. humanDate()
+ * renders "May 5, 2025" in this runtime's default locale, so the Hisaab
+ * Since line uses this locale-independent local format instead.
+ * Returns '' for a missing, malformed, or impossible date.
+ *
+ * @param {string} date — YYYY-MM-DD
+ * @returns {string}
+ */
+export function formatHisaabDate(date) {
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return '';
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) return '';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${String(parsed.getUTCDate()).padStart(2, '0')} ${months[parsed.getUTCMonth()]} ${parsed.getUTCFullYear()}`;
+}
+
+/**
  * Renders pure vector SVG dual-bar and net profit line chart.
  * 
  * @param {Object} pnlData - Result from calculatePnlAnalytics

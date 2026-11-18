@@ -4632,6 +4632,41 @@
   animation: summary-line-flow 7s linear infinite;
 }
 
+/* Hisaab H3 (D4(a)): the Hisaab metric rows stay 3-across at 360px —
+   repeat(3, minmax(0, 1fr)) with an 8px gap (336px content, ~107px per
+   card). Values wrap, never clip: the .ds-stat chrome gives the card,
+   the value wraps onto a second line when "PKR 502,820" does not fit
+   (recorded, not blessed — H5 owns the 360px fit verification).
+   Token-only: no new hex, no new colour. */
+.hisaab-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+.hisaab-metric-grid .ds-stat {
+  min-width: 0;
+}
+.hisaab-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+.hisaab-metric .home-kpi-val {
+  overflow-wrap: anywhere;
+}
+.hisaab-provider-line {
+  overflow-wrap: anywhere;
+}
+.hisaab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 [data-theme="dark"] .summary-card {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }

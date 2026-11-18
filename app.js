@@ -233,7 +233,7 @@ import { setupBillVoucherDialog } from './a4-voucher-grid-print.js';
 import { setupOwnerPinGuard, guardDecision, loadOwnerPinRecord } from './owner-pin-guard.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
-import { setupPnlModal } from './dashboard-pnl.js';
+import { calculateLifetimePnl, calculatePnlAnalytics, formatDateYmd, formatHisaabDate, formatHisaabDuration, setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal, calculateCollectorCashExpected, getDailyCashHandovers } from './dashboard-daily-closing.js';
 import { buildFieldDayFlow, preserveFieldDayView, restoreFieldDayView, fieldDayFlowStripHtml } from './field-day-flow.js';
@@ -2425,6 +2425,98 @@ function setupAreaAnalyticsModule() {
     jumpSelect.value = '';
   });
 }
+// Hisaab H3 (D1(a)–D9(a)): fills the Hisaab dashboard section — this
+// month's row from the P&L engine, the lifetime row from the new pure
+// derivation, one line per active upstream provider, the seed honesty
+// line. All labels are hardcoded Roman-Urdu/English literals (D5(a)) —
+// H5 owns the hisaab_* i18n keys. Called from renderDashboard, next to
+// the Owner Khata block; renderDashboard runs on every save, so this
+// writes figures only and binds nothing (the "Kharch dekhein" listener
+// is bound once at module level, below).
+function renderHisaabSection(state, referenceDate) {
+  const sectionEl = $('#hisaabSection');
+  if (!sectionEl) return;
+  const month = pakistanMonthNow(referenceDate);
+  const pnl = calculatePnlAnalytics(state, { selectedMonth: month, referenceDate });
+  const monthRow = (pnl.monthlyData || []).find((row) => row.month === month)
+    ?? { income: 0, expenses: 0, netProfit: 0, profitMargin: 0, status: 'NO_ACTIVITY' };
+  const life = calculateLifetimePnl(state, { referenceDate });
+
+  const monthLabelEl = $('#hisaabMonthLabel');
+  if (monthLabelEl) monthLabelEl.textContent = `Is mahine · ${displayMonthName(month)}`;
+  const setMoney = (id, value) => { const el = $(id); if (el) el.textContent = formatAmount(value); };
+  setMoney('#hisaabMonthIncome', monthRow.income);
+  setMoney('#hisaabMonthExpenses', monthRow.expenses);
+  setMoney('#hisaabMonthProfit', monthRow.netProfit);
+  const monthMarginEl = $('#hisaabMonthMargin');
+  if (monthMarginEl) monthMarginEl.textContent = `Margin ${monthRow.profitMargin}%`;
+  const monthEmptyEl = $('#hisaabMonthEmpty');
+  if (monthEmptyEl) monthEmptyEl.hidden = monthRow.status !== 'NO_ACTIVITY';
+
+  const lifeGridEl = $('#hisaabLifeGrid');
+  if (lifeGridEl) lifeGridEl.hidden = !life.hasRecords;
+  const lifeEmptyEl = $('#hisaabEmpty');
+  if (lifeEmptyEl) lifeEmptyEl.hidden = life.hasRecords;
+  setMoney('#hisaabLifeIncome', life.income);
+  setMoney('#hisaabLifeExpenses', life.expenses);
+  setMoney('#hisaabLifeProfit', life.profit);
+  const lifeSinceEl = $('#hisaabLifeSince');
+  if (lifeSinceEl) {
+    lifeSinceEl.hidden = !life.earliest;
+    if (life.earliest) lifeSinceEl.textContent = `Since ${formatHisaabDate(life.earliest)}`;
+  }
+
+  // One line per ACTIVE provider, Nayatel first (register order — the
+  // seed is first). Inactive providers stay hidden (D6(a)).
+  const providersData = loadUpstreamProviders();
+  const providerLinesEl = $('#hisaabProviderLines');
+  if (providerLinesEl) {
+    const todayPkt = formatDateYmd(referenceDate);
+    const lines = (providersData.providers || [])
+      .filter((provider) => provider.active)
+      .map((provider) => {
+        const summary = summarizeProvider(provider);
+        if (!summary) return '';
+        if (summary.billCount === 0) {
+          const pending = summary.pendingBill
+            ? ` · ${displayMonthName(summary.pendingBill.month)} bill ${summary.pendingBill.amount == null ? 'raqam maloom nahi' : formatAmount(summary.pendingBill.amount)} — abhi baqi`
+            : '';
+          return `${summary.name} — Abhi koi bill nahi${pending}`;
+        }
+        const bits = [];
+        bits.push(summary.knownCount > 0
+          ? `Kul ada ${formatAmount(summary.total)}`
+          : 'Kul ada: raqam maloom nahi');
+        if (summary.since) {
+          const duration = formatHisaabDuration(summary.since, todayPkt);
+          bits.push(`${formatHisaabDate(summary.since)} se${duration ? ` (${duration})` : ''}`);
+        }
+        if (summary.lastBill) {
+          bits.push(`Haali bill ${summary.lastBill.amount == null ? 'raqam maloom nahi' : formatAmount(summary.lastBill.amount)} (${displayMonthName(summary.lastBill.date.slice(0, 7))})`);
+        }
+        if (summary.pendingBill) {
+          bits.push(`${displayMonthName(summary.pendingBill.month)} bill ${summary.pendingBill.amount == null ? 'raqam maloom nahi' : formatAmount(summary.pendingBill.amount)} — abhi baqi`);
+        }
+        if (summary.unknownCount > 0) {
+          bits.push(`${summary.unknownCount} bill${summary.unknownCount === 1 ? '' : 's'} raqam maloom nahi`);
+        }
+        return `${summary.name} — ${bits.join(' · ')}`;
+      })
+      .filter(Boolean);
+    providerLinesEl.innerHTML = lines.length
+      ? lines.map((line) => `<p class="phase3-note hisaab-provider-line">${escapeHtml(line)}</p>`).join('')
+      : '<p class="empty-state">Abhi koi upstream provider nahi.</p>';
+  }
+
+  // The honesty line is the verbatim design text, shown only while seeded
+  // history exists in the register.
+  const honestyEl = $('#hisaabHonestyLine');
+  if (honestyEl) {
+    honestyEl.hidden = !(providersData.providers || []).some((provider) =>
+      (provider.bills || []).some((bill) => bill.seeded));
+  }
+}
+
 function renderDashboard() {
   const referenceDate = new Date();
   // SISP-27: upstream bandwidth bill due banner.
@@ -3233,6 +3325,9 @@ function renderDashboard() {
       ? ''
       : `<p><span>${t('dash_khata_shares')}</span><strong><bdi>${escapeHtml(formatAmount(khata.nasirShare))}</bdi> / <bdi>${escapeHtml(formatAmount(khata.aqibShare))}</bdi></strong><small> · ${t('dash_khata_partners')} · ${escapeHtml(t('dash_khata_detail', null, { complaints: khata.totalComplaints, hours: khata.totalDowntime }))}</small></p>${khata.badDebtWrittenOff > 0 ? `<p><span>${t('dash_khata_baddebt', null, { amount: formatAmount(khata.badDebtWrittenOff), count: khata.badDebtCustomerCount })}</span></p>` : ''}`;
   }
+  // Hisaab H3: fill the Hisaab section (this month + lifetime + provider
+  // lines) next to the Owner Khata block.
+  renderHisaabSection(state, referenceDate);
   // SISP-21: digital wallet ledger card (this-month wallet totals + flags).
   const walletSummaryEl = $('#walletLedgerSummary');
   if (walletSummaryEl) {
@@ -44140,6 +44235,15 @@ $('#exportAreaSummaryCsvBtn')?.addEventListener('click', () => {
 });
 $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
 $('#showExpensesButton').addEventListener('click',()=>{expenseActiveTab='ledger';switchView('expenses');renderExpenses();});
+// Hisaab H3 (D8(a)): "Kharch dekhein" lands on the expenses ledger tab.
+// Bound once at module level (renderDashboard runs on every save, so a
+// binding inside it would stack). The "Poora hisaab dekhein" button is
+// NOT bound here — H4 wires it to the P&L modal.
+let hisaabShowExpensesBound = false;
+if (!hisaabShowExpensesBound) {
+  hisaabShowExpensesBound = true;
+  $('#hisaabShowExpensesBtn')?.addEventListener('click',()=>{expenseActiveTab='ledger';switchView('expenses');renderExpenses();});
+}
 $('#showHomeBudgetButton').addEventListener('click',()=>{switchView('homeBudget');renderHomeBudget();});
 $('#showLoansButton').addEventListener('click',()=>{switchView('loans');renderLoans();});
 $('#showWaTemplatesButton').addEventListener('click',()=>{switchView('waTemplates');renderWaTemplates();});

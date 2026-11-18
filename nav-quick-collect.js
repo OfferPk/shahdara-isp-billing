@@ -42,6 +42,10 @@ import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-c
 import { BILL_PACKAGES, billPackageById, billPackageByLabel, validateBillPackageSnapshot } from './package-catalog.js';
 import { salesTaxCentsForPrice, salesTaxCentsOfBill, SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
 import { firstFiniteRemainingPayable, formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js';
+// Plan 575: the VER stamp the slip prints — the derivation the HTML
+// receipt uses (receipt.js:724), so the slip's code equals the profile
+// reprint's code for the same payment.
+import { receiptCodeForReceipt, verificationStampText } from './receipt-verifier.js';
 import { packageSuccessMessage, packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 // Quick Collect polish (2026-11-17, D6): the known-as name for the
@@ -156,7 +160,7 @@ import {
 import { setLiveWaada } from './waada-write.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
 import { ensureUrduFont, t } from './nav-language.js';
-import { buildReceiptPaymentHistory, historyRowLabel, shortReceiptNumber } from './receipt.js';
+import { buildReceiptPaymentHistory, generateReceiptNumber, historyRowLabel, shortReceiptNumber } from './receipt.js';
 import {
   getDigitalPaymentsSettings,
   hasConfiguredDigitalPayments,
@@ -1440,6 +1444,27 @@ export function executeQuickCollection(state, {
     // in integer cents (null when untaxed) — the WhatsApp draft and
     // the share-draft match check read it from here.
     salesTaxCents: salesTaxCentsOfBill(targetBill),
+    // Plan 575 (D6(a)): the bill-level figures the Bluetooth slip
+    // prints — read off the target bill / stored payment, the same
+    // sources buildPaymentReceipt uses (receipt.js:203, :219, :227,
+    // :424–432). Positive-or-zero, so a damaged bill reads as no row
+    // instead of a wrong figure; prepay mirrors receipt.js exactly
+    // (null when the payment carries no prepay terms).
+    lateFee: Number(targetBill?.lateFee) > 0 ? Number(targetBill.lateFee) : 0,
+    depositOffsetAmount: Number(targetBill?.depositOffsetAmount) > 0 ? Number(targetBill.depositOffsetAmount) : 0,
+    creditTransferInAmount: Number(targetBill?.creditTransferInAmount) > 0 ? Number(targetBill.creditTransferInAmount) : 0,
+    prepay: (() => {
+      const terms = prepayTermsOf(newPayment);
+      if (!terms) return null;
+      return {
+        months: terms.months,
+        gross: terms.gross,
+        rate: terms.rate,
+        startMonth: terms.startMonth,
+        discount: Number(newPayment?.discount) > 0 ? Number(newPayment.discount) : 0,
+        cashPaid: Number(newPayment?.amount) > 0 ? Number(newPayment.amount) : 0
+      };
+    })(),
     ticketCharges: settledTicketLines,
     ticketChargesTotal,
     ticketChargesPending: ticketChargesPendingAfter,
@@ -8008,6 +8033,43 @@ export function setupQuickCollectModal({
         // one line per leg (the leg lines ride the slip's extra-lines
         // slot, the same channel SISP-43 ticket charges use).
         const split = activeReceipt.splitTender || null;
+        // Plan 575: the eight parity rows. A split reads them off the
+        // combined object (D6(a) — the tax is the distinct-bill sum,
+        // Plan 557, never a per-leg sum, T14); a single receipt reads
+        // them off itself. The split slip carries NO combined VER row
+        // and NO loose-change row: VER is a per-leg stamp beside its
+        // leg (D6(a)), and the loose-change credit lives per leg, not
+        // on the combined object — the single-receipt path prints it.
+        const slipTaxCents = split ? split.salesTaxCents : activeReceipt.salesTaxCents;
+        const slipArea = split ? qcCardAreaDisplay(split.area) : (activeReceipt.area || '');
+        const slipLateFee = split ? split.lateFee : activeReceipt.lateFee;
+        const slipDepositOffset = split ? split.depositOffsetAmount : activeReceipt.depositOffsetAmount;
+        const slipCreditTransfer = split ? split.creditTransferInAmount : activeReceipt.creditTransferInAmount;
+        const slipPrepay = split ? split.prepay : activeReceipt.prepay;
+        // Plan 575 (D7(a)): the VER stamp, `receipt.js:724` pattern
+        // with `customerId: String(customerNumber)` (T7 — the QC
+        // receipt's customerId is the internal id, never the number).
+        // The receiptId is the PROFILE REPRINT's receipt number, NOT
+        // the QC receipt's RCPT-… display number: the reprint derives
+        // its number via generateReceiptNumber (receipt.js:329,
+        // REC-…), so deriving from the RCPT-… number prints a code
+        // that does NOT match the reprint for the same payment
+        // (proven by probe: the two derivations differ). The
+        // generated number here reproduces the reprint's number
+        // exactly (same customerNumber + paymentDate + paymentId +
+        // billMonth), so the printed code EQUALS the profile
+        // reprint's code — the D7(a) acceptance, tested in G2.
+        const slipVerificationCode = split ? '' : verificationStampText(receiptCodeForReceipt({
+          receiptNumber: generateReceiptNumber({
+            customerNumber: activeReceipt.customerNumber,
+            paymentDate: activeReceipt.date,
+            paymentId: activeReceipt.paymentId,
+            billMonth: activeReceipt.month
+          }),
+          customerId: String(activeReceipt.customerNumber),
+          paidAmount: activeReceipt.amount,
+          paymentDate: activeReceipt.date
+        }));
         const { bytes } = buildEscPosReceipt({
           businessName: 'Shahdara ISP',
           receiptNumber: activeReceipt.receiptNumber || '',
@@ -8016,16 +8078,49 @@ export function setupQuickCollectModal({
           monthLabel: activeReceipt.month || '',
           dateTimeLabel: formatQcReceiptDate(activeReceipt.date),
           amount: money(split ? split.totalReceived : activeReceipt.amount),
-          method: split ? 'Split' : (activeReceipt.method || ''),
-          reference: split ? (split.legs.find(leg => leg.transactionId)?.transactionId || '') : (activeReceipt.transactionId || ''),
+          // Plan 575 (D9(a)): the method row is the legs' methods
+          // joined with ' + ' — the exact expression the image-share
+          // path already uses — never the literal 'Split'.
+          method: split ? split.legs.map(leg => leg.method).join(' + ') : (activeReceipt.method || ''),
+          reference: split ? '' : (activeReceipt.transactionId || ''),
+          area: slipArea,
+          salesTax: typeof slipTaxCents === 'number' && slipTaxCents > 0 ? money(slipTaxCents / 100) : '',
+          verificationCode: slipVerificationCode,
+          lateFee: typeof slipLateFee === 'number' && slipLateFee > 0 ? money(slipLateFee) : '',
+          depositOffset: typeof slipDepositOffset === 'number' && slipDepositOffset > 0 ? money(slipDepositOffset) : '',
+          creditTransfer: typeof slipCreditTransfer === 'number' && slipCreditTransfer > 0 ? money(slipCreditTransfer) : '',
+          prepayCoverage: slipPrepay && typeof slipPrepay.gross === 'number' && slipPrepay.gross > 0 ? money(slipPrepay.gross) : '',
+          prepayDiscount: slipPrepay && typeof slipPrepay.discount === 'number' && slipPrepay.discount > 0 ? money(slipPrepay.discount) : '',
+          looseChange: !split && typeof activeReceipt.advanceCreditGenerated === 'number' && activeReceipt.advanceCreditGenerated > 0 ? money(activeReceipt.advanceCreditGenerated) : '',
           // SISP-43: settled ticket charges print on the slip too.
           // Owner feature (2026-10-29): settled manual baqaya rides the
           // same slip rows with its own short label.
+          // Plan 575 (D5(a)): a split leg rides the slot as THREE
+          // rows — the leg row, then its TID row, then its VER stamp
+          // row — one TID per leg, never both TIDs joined into one
+          // Ref row (the probe proves the join eats the label to 'R'
+          // and emits a 51-char line). The leg VER stamp is derived
+          // from the leg's own receipt facts (D7(a)); the leg's
+          // receiptNumber IS its permanent REC-… number (the combined
+          // object carries receipt.permanentReceiptNumber), so the
+          // stamp equals the leg receipt's own code.
           ticketCharges: split
-            ? split.legs.map(leg => ({
-                label: `${t('split_leg_label', null, { leg: leg.leg })} · ${leg.method}`,
-                value: money(leg.amount)
-              }))
+            ? split.legs.flatMap(leg => {
+                const legLabel = t('split_leg_label', null, { leg: leg.leg });
+                const rows = [{
+                  label: `${legLabel} · ${leg.method}`,
+                  value: money(leg.amount)
+                }];
+                if (leg.transactionId) rows.push({ label: `Ref (${legLabel})`, value: leg.transactionId });
+                const legStamp = verificationStampText(receiptCodeForReceipt({
+                  receiptNumber: leg.receiptNumber,
+                  customerId: String(activeReceipt.customerNumber),
+                  paidAmount: leg.amount,
+                  paymentDate: leg.date
+                }));
+                if (legStamp) rows.push({ label: `Verify (${legLabel})`, value: legStamp });
+                return rows;
+              })
             : [
             ...(activeReceipt.ticketCharges ?? []).map(line => ({
               label: `Murammat (${line.ticketId})`,

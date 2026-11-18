@@ -61,11 +61,15 @@ test('Sharafat 51: live slip is byte-identical to the recorded baseline', () => 
   const { receipt, slip } = slipFor(livePayment);
   assert.equal(receipt.status, 'PAID');
   assert.ok(!hasVoidBlock(slip.lines), 'live slip must not carry the VOID block');
+  // Plan 575 (D2(a)): re-pinned — the ordinary slip gains ONLY the
+  // Area + VER rows (Area: Not recorded after Package, Verify last),
+  // so the hash + byte count change by decision, not by accident.
+  // Previous baseline 6add4e80… / 749 bytes (pre-575).
   assert.equal(
     createHash('sha256').update(slip.text).digest('hex'),
-    '6add4e80b38bdbe262ba2afd41dbf012aaceba8a96368419e5834672d775f624'
+    '6714362273cbc7bfd9804f82cafc2f9d84a679e359bb4fc0f092a4ac54520754'
   );
-  assert.equal(slip.bytes.length, 749);
+  assert.equal(slip.bytes.length, 815);
 });
 
 test('Sharafat 51: every voided-slip line fits the 32-char roll and the block is ASCII-only', () => {

@@ -90,11 +90,14 @@ export const routeHash = screen => `#/${screen}`;
  * screen). Returns null for Home and for anything that is not a router
  * screen, so a header can never be rendered for a screen with no spec.
  * The Bills screen follows the app language, exactly as apply() always did.
+ * Plan 586 (D3(a)): Backup joins it as a one-screen exception — its title
+ * resolves through t('drawer_backup'), the drawer item's own label, so the
+ * heading matches the label the operator tapped in both languages.
  */
 export function headerSpecForScreen(screen) {
   if (screen === HOME || !SCREENS[screen]) return null;
   const spec = SCREENS[screen];
-  const title = screen === 'bills' ? t('bill_screen_title') : spec.title;
+  const title = screen === 'bills' ? t('bill_screen_title') : screen === 'backup' ? t('drawer_backup') : spec.title;
   const subtitle = screen === 'bills' ? t('bill_screen_subtitle') : spec.subtitle;
   const actionLabel = screen === 'bills' ? t('bill_screen_action') : (spec.action?.label ?? null);
   return {

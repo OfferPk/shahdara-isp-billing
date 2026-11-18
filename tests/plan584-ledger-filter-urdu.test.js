@@ -352,12 +352,14 @@ test('Plan 584 G4: the three filter-row buttons are wired (D1(b))', () => {
 
 // ---- G5 — Guards + completeness ----
 
-test('Plan 584 G5: parity holds at 4,707/4,707 with identical key sets', () => {
+test('Plan 584 G5: parity holds at 4,722/4,722 with identical key sets', () => {
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
-  // (Test title keeps the 584-era number, as the 582 title kept 4,669
-  // after the 584 re-pin — the asserts below are the live pin.)
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4723, 'EN count');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4723, 'UR count');
+  // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
+  // (Test title re-pinned with the asserts by Plan 586 — the 585 merge had
+  // left the 584-era number in the title with disclosure; titles and
+  // asserts move together from here on.)
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4722, 'EN count');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4722, 'UR count');
   assert.deepEqual(
     Object.keys(TRANSLATIONS.en).sort(),
     Object.keys(TRANSLATIONS.ur).sort(),

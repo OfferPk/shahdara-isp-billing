@@ -80,7 +80,9 @@ export const TRANSLATIONS = {
     drawer_quick_collect: 'Quick Collect Cash',
     drawer_search: 'Fast Customer Search',
     drawer_rounds: 'Field Collection Route',
-    drawer_settings: 'App Settings',
+    // Plan 586 (D1(a)): drawer_settings ('App Settings') was a dead key —
+    // the drawer item already reads t('drawer_backup') via the drawerNavMap,
+    // so this key labelled nothing. Deleted from BOTH dicts.
     drawer_backup: 'Backup & Restore',
     drawer_collapse: 'Collapse to icon rail',
     drawer_close: 'Close navigation menu',
@@ -4972,7 +4974,9 @@ export const TRANSLATIONS = {
     drawer_quick_collect: 'فوری نقد وصولی',
     drawer_search: 'فوری صارف تلاش',
     drawer_rounds: 'فیلڈ وصولی کا روٹ',
-    drawer_settings: 'ایپ سیٹنگز',
+    // Plan 586 (D1(a)): drawer_settings ('ایپ سیٹنگز') was a dead key —
+    // the drawer item already reads t('drawer_backup') via the drawerNavMap,
+    // so this key labelled nothing. Deleted from BOTH dicts.
     drawer_backup: 'بیک اپ اور بحالی',
     drawer_collapse: 'سائیڈ بار بند کریں',
     drawer_close: 'مینو بند کریں',

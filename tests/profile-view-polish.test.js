@@ -158,7 +158,13 @@ test('profile view polish: zero dues read soft emerald, positive dues stay red, 
   assert.ok(tokens.includes('--phs-dues-zero-border: #A7F3D0'), 'the zero border token exists');
   assert.match(styles, /\.phs-pill\{[^}]*border-radius:12px/, 'strip pills are 12px cards');
   assert.match(styles, /\.phs-pill-dues-zero\{[^}]*background:var\(--phs-dues-zero-bg\)/, 'the zero modifier reads the token, not a literal hex');
-  assert.ok(read('profile-header-strip.js').includes('display: grid; grid-template-columns: repeat(2, minmax(0, 1fr))'), 'the strip container is a 2-column grid');
+  // Plan 591 (D1(a)) re-pin: the 2-column grid moved out of the module's
+  // inline style into the .profile-header-strip class rule (styles.css),
+  // so the module source no longer carries the grid text. The grid
+  // itself is unchanged (same 2 columns, same 12px gap) — the assertion
+  // now pins the class rule that owns it.
+  assert.match(styles, /\.profile-header-strip\{[^}]*display:grid/, 'the strip container is a 2-column grid');
+  assert.match(styles, /\.profile-header-strip\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/, 'the strip grid is 2 columns');
 });
 
 // (8) Completion: one merged <details> with the summary text + neutral

@@ -315,9 +315,11 @@ test('plan569 G5 map size: exactly 111 keys — 569 must not touch the script mo
   assert.equal(RECEIPT_URDU_LABELS.Kist, 'قسط', 'the bare Kist key (568 F1) must still map to قسط');
 });
 
-test('plan569 G5 parity: EN/UR stays 4,675/4,675 — no new i18n keys (T6)', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4675, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4675, 'UR key count moved');
+test('plan569 G5 parity: EN/UR stays 4,669/4,669 — no new i18n keys (T6)', () => {
+  // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
+  // dash_tile_collect_*/dash_tile_closing_* keys deleted.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
   const en = Object.keys(TRANSLATIONS.en).sort();
   const ur = Object.keys(TRANSLATIONS.ur).sort();
   assert.deepEqual(en, ur, 'the two languages must carry exactly the same keys');

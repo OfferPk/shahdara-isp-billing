@@ -340,7 +340,7 @@ export function atRiskHtml(view) {
         `<div style="margin-bottom: 10px;"><strong>${escapeAtRiskHtml(row.customerName)}</strong>` +
         `${row.mohalla ? ` · ${escapeAtRiskHtml(row.mohalla)}` : ''} ` +
         `(${row.signalCount} signal${row.signalCount === 1 ? '' : 's'}) ` +
-        `<button class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;" data-at-risk-customer-id="${escapeAtRiskHtml(row.customerId)}">Open profile</button>` +
+        `<button class="secondary-button btn-sm" type="button" data-at-risk-customer-id="${escapeAtRiskHtml(row.customerId)}">Open profile</button>` +
         `<ul style="margin: 4px 0;">${signalsHtml}</ul></div>`
       );
     })

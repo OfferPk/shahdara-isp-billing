@@ -40,6 +40,12 @@
   /* Spacing — 4pt scale */
   --space-1: 4px;
   --space-2: 8px;
+  /* Plan 587 (D1(a)): the half-step the .btn-sm class needs — the 4pt
+     scale has no 10px step, and the spec's suggested tokens (--text-xs
+     is 12px, --space-2 is 8px) would render the small buttons at
+     12px / 4px 8px instead of the 11px / 4px 10px they render today.
+     One new token only; --text-table-head (11px) supplies the font. */
+  --space-2-5: 10px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 20px;

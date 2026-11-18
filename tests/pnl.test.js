@@ -22,6 +22,8 @@ import {
   escapeXml,
   formatDateYmd
 } from '../dashboard-pnl.js';
+import { pktMonth } from '../phase3.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -443,4 +445,148 @@ test('helper functions - escapeHtml and formatDateYmd', () => {
 
   const formatted = formatDateYmd(new Date('2026-10-18T10:30:00Z'));
   assert.match(formatted, /^\d{4}-\d{2}-\d{2}$/);
+});
+
+/* ---------------- Hisaab H4 — "Poora hisaab dekhein" opens the P&L modal ----------------
+   The Hisaab section's button (#hisaabOpenPnlBtn, H3) calls
+   pnlModalController.open() with no argument (D5(a)). G1 proves the
+   no-argument call shape at runtime; G2–G4 pin the app.js wiring by
+   source-scan (no DOM harness exists for renderDashboard, and app.js
+   cannot be imported in node — the honest limit, per prep §7). */
+
+// G1 — no-arg open() lands on the current PKT month with live figures.
+// The mock <select> mirrors real <select> semantics (the repro's fix):
+// populateMonths() marks the current-month <option> selected=true BEFORE
+// appendChild, and the select's value follows the selected option — a
+// no-op appendChild mock would leave value '' and fake a failure.
+// Expectations are computed from the same engine call the modal uses,
+// so the test holds on any date, not just the month the fixtures sit in.
+test('hisaab H4 G1: open() with no argument opens the current PKT month with live figures', () => {
+  const mockListeners = {};
+  const mockElements = {
+    pnlModal: {
+      showModal: () => { mockElements.pnlModal.open = true; },
+      close: () => { mockElements.pnlModal.open = false; },
+      setAttribute: (k, v) => {},
+      removeAttribute: (k) => {},
+      addEventListener: (evt, cb) => { mockListeners[`modal_${evt}`] = cb; },
+      querySelectorAll: (sel) => []
+    },
+    pnlMonthSelect: (() => {
+      const sel = { value: '', _options: [] };
+      Object.defineProperty(sel, 'innerHTML', { get: () => '', set: () => { sel._options = []; sel.value = ''; } });
+      sel.appendChild = (opt) => { sel._options.push(opt); if (opt.selected) sel.value = opt.value; };
+      sel.addEventListener = () => {};
+      return sel;
+    })(),
+    pnlWindow6Btn: {
+      classList: { add: () => {}, remove: () => {} },
+      addEventListener: (evt, cb) => { mockListeners[`win6_${evt}`] = cb; }
+    },
+    pnlWindow12Btn: {
+      classList: { add: () => {}, remove: () => {} },
+      addEventListener: (evt, cb) => { mockListeners[`win12_${evt}`] = cb; }
+    },
+    pnlChartContainer: { innerHTML: '', clientWidth: 600 },
+    pnlCategoryDonutContainer: { innerHTML: '', clientWidth: 300 },
+    pnlTableBody: { innerHTML: '' },
+    pnlCategoriesList: { innerHTML: '' },
+    pnlEmptyState: { hidden: true },
+    pnlKpiIncome: { textContent: '' },
+    pnlKpiExpenses: { textContent: '' },
+    pnlKpiProfit: { textContent: '', style: {} },
+    pnlKpiMargin: { textContent: '' },
+    pnlKpiOer: { textContent: '' },
+    pnlExportCsvBtn: { addEventListener: (evt, cb) => { mockListeners[`csv_${evt}`] = cb; } },
+    pnlPrintA4Btn: { addEventListener: (evt, cb) => { mockListeners[`printA4_${evt}`] = cb; } },
+    pnlPrintThermalBtn: { addEventListener: (evt, cb) => { mockListeners[`printThermal_${evt}`] = cb; } },
+    pnlCopyBriefingBtn: { addEventListener: (evt, cb) => { mockListeners[`briefing_${evt}`] = cb; } },
+    closePnlModalBtn: { addEventListener: (evt, cb) => { mockListeners[`close_${evt}`] = cb; } },
+    closePnlSecondaryBtn: { addEventListener: (evt, cb) => { mockListeners[`closeSec_${evt}`] = cb; } },
+    quickActionPnl: { addEventListener: (evt, cb) => { mockListeners[`trigger_quick`] = cb; } },
+    openPnlModalBtn: { addEventListener: (evt, cb) => { mockListeners[`trigger_open`] = cb; } }
+  };
+
+  const origDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => mockElements[id] || null,
+    createElement: (tag) => ({ value: '', textContent: '', selected: false }),
+    documentElement: { getAttribute: () => 'light' }
+  };
+
+  try {
+    const state = createMockState();
+    const controller = setupPnlModal(() => state, { onToast: () => {} });
+    const currentMonth = pktMonth(new Date());
+    const expected = calculatePnlAnalytics(state, {
+      selectedMonth: currentMonth, windowMonths: 6, referenceDate: new Date()
+    });
+    controller.open(); // NO argument — the H4 call shape (D5(a)).
+    assert.equal(mockElements.pnlModal.open, true, 'the modal opens');
+    assert.equal(mockElements.pnlMonthSelect.value, currentMonth,
+      'no argument lands on the current PKT month, never a stale month');
+    assert.ok(mockElements.pnlKpiIncome.textContent.includes(
+      expected.summary.totalIncome.toLocaleString('en-US')),
+      `the KPI income is the live engine total for the window (${expected.summary.totalIncome}), not a snapshot`);
+    controller.close();
+    assert.equal(mockElements.pnlModal.open, false);
+  } finally {
+    globalThis.document = origDocument;
+  }
+});
+
+// G2 — exactly one caller of the controller's open() in app.js, and it is
+// the Hisaab button's listener (D1(a)). A second caller would mean the
+// button was double-bound (stacking) or wired twice.
+test('hisaab H4 G2: exactly one caller of pnlModalController.open() in app.js, at the Hisaab button', () => {
+  const appJs = fs.readFileSync(path.resolve(__dirname, '../app.js'), 'utf8');
+  const callers = appJs.match(/pnlModalController\?\.open\(\)|pnlModalController\.open\(/g) || [];
+  assert.equal(callers.length, 1, `expected exactly 1 caller, got ${callers.length}`);
+  assert.equal(callers[0], 'pnlModalController?.open()',
+    'the single caller uses the ?. guard — the controller is null until the boot promise resolves (D3(a))');
+  const at = appJs.indexOf(callers[0]);
+  const around = appJs.slice(Math.max(0, at - 600), at + 100);
+  assert.ok(around.includes("$('#hisaabOpenPnlBtn')"),
+    'the caller sits in the #hisaabOpenPnlBtn listener, adjacent to the Kharch binding');
+});
+
+// G3 — the two buried triggers are untouched, and the engine file carries
+// no Hisaab wiring at all (D4(a)): openTriggers stays exactly 2 entries,
+// and #hisaabOpenPnlBtn never occurs in dashboard-pnl.js.
+test('hisaab H4 G3: buried triggers untouched and no Hisaab wiring in the engine file', () => {
+  const pnlSrc = fs.readFileSync(path.resolve(__dirname, '../dashboard-pnl.js'), 'utf8');
+  const triggers = pnlSrc.match(/document\.getElementById\('(quickActionPnl|openPnlModalBtn)'\)/g) || [];
+  assert.equal(triggers.length, 2, `openTriggers must list exactly the 2 buried triggers, got ${triggers.length}`);
+  assert.ok(triggers.some((t) => t.includes('quickActionPnl')), 'the More-menu tile still opens the modal');
+  assert.ok(triggers.some((t) => t.includes('openPnlModalBtn')), 'the Analytics-view button still opens the modal');
+  assert.ok(!pnlSrc.includes('hisaabOpenPnlBtn'),
+    '#hisaabOpenPnlBtn must not occur in dashboard-pnl.js — the binding lives in app.js, not the engine');
+  assert.ok(!/pnlModalController\?\.open\(\)|pnlModalController\.open\(/.test(pnlSrc),
+    'the new caller is not in dashboard-pnl.js');
+});
+
+// G4 — the binding is once-only, and parity is steady (no new i18n keys).
+// The parity digits are searched as a split literal ('47' + '35'): this
+// file must NOT contain the bare digits — 591's G5a sweep counts every
+// test file containing them and asserts 28, so a literal here would make
+// this the 29th file and break the suite. The count below is re-measured
+// on the 593 merge (28 files pin the current total: the H3-merge 27 plus
+// 593's new test file, which pins it too — the H4 prep's 25 was written
+// on the H2 base and is stale).
+test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag, and parity stays steady', () => {
+  const appJs = fs.readFileSync(path.resolve(__dirname, '../app.js'), 'utf8');
+  const bindings = (appJs.match(/\$\('#hisaabOpenPnlBtn'\)\?\.addEventListener\('click'/g) || []).length;
+  assert.equal(bindings, 1, '"Poora hisaab dekhein" is bound exactly once — a second binding would stack a listener per save');
+  assert.ok(appJs.includes('let hisaabOpenPnlBound = false;'), 'the once-only guard flag exists');
+  assert.ok(appJs.includes('if (!hisaabOpenPnlBound) {'), 'the guard is checked before binding');
+  assert.ok(!appJs.includes('hisaabShowExpensesBound = true;\n  $(\'#hisaabOpenPnlBtn\')'),
+    'the P&L binding does not reuse the Kharch flag — each button has its own flag');
+  const navJs = fs.readFileSync(path.resolve(__dirname, '../nav-language.js'), 'utf8');
+  assert.ok(!/hisaab_/.test(navJs), 'no hisaab_ keys in nav-language.js — H5 owns them');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, Object.keys(TRANSLATIONS.ur).length,
+    'the EN and UR dicts still agree');
+  const parityDigits = '47' + '35';
+  const pinning = fs.readdirSync(path.join(__dirname)).filter((f) =>
+    f.endsWith('.test.js') && fs.readFileSync(path.join(__dirname, f), 'utf8').includes(parityDigits));
+  assert.equal(pinning.length, 28, `expected 28 test files pinning the current parity total, got ${pinning.length}: ${pinning.join(', ')}`);
 });

@@ -131,42 +131,88 @@ export function buildProfileHeaderStrip({
   };
 }
 
-export function profileHeaderStripText(strip, formatAmount = defaultFormatAmount) {
-  if (!strip || typeof strip !== 'object') return 'Profile header strip unavailable.';
+// Plan 591 (D1(a)/D5(a)/D6(a)) — the translated strings reach this pure
+// module as a labels object passed by app.js (the freshness-stamp
+// precedent, app.js:8418): the module cannot pull t() in directly
+// (plan351 :211 bans module imports here), so app.js passes t('phs_*')
+// values and the module defaults to the English strings when no labels
+// are passed — which is why plan351/plan502 tests calling with no
+// labels arg keep passing unchanged. 'Not set' is a DATA value (buildProfileHeaderStrip
+// :119, Plan 502); the render maps that exact sentinel to the
+// translated value via labels.notSet (t('prof_not_set')), never by
+// re-wording the data. The text sentences get their own keys because
+// Urdu sentences end with '۔', not '.' (trap T8).
+const DEFAULT_PHS_LABELS = {
+  dues: 'Dues',
+  package: 'Package',
+  lastPayment: 'Last payment',
+  nextDue: 'Next due',
+  noAmountDue: 'No amount due',
+  noPaymentYet: 'No payment yet',
+  notRecorded: 'Not recorded',
+  noAmountDueText: 'No amount due.',
+  noPaymentYetText: 'No payment yet.',
+  nextDueNotRecorded: 'Next due date not recorded.',
+  unavailable: 'Profile header strip unavailable.',
+  aria: 'Customer at a glance',
+  perMonth: '/month',
+  notSet: 'Not set',
+};
+
+function phsLabels(labels) {
+  if (!labels || typeof labels !== 'object') return { ...DEFAULT_PHS_LABELS };
+  const out = {};
+  for (const key of Object.keys(DEFAULT_PHS_LABELS)) {
+    out[key] = typeof labels[key] === 'string' && labels[key] !== '' ? labels[key] : DEFAULT_PHS_LABELS[key];
+  }
+  return out;
+}
+
+export function profileHeaderStripText(strip, formatAmount = defaultFormatAmount, labels = {}) {
+  const L = phsLabels(labels);
+  if (!strip || typeof strip !== 'object') return L.unavailable;
   const format = typeof formatAmount === 'function' ? formatAmount : defaultFormatAmount;
+  const packageLabel = strip.packageLabel === 'Not set' ? L.notSet : strip.packageLabel;
+  // Plan 591 (D6(a)/T8) — the populated sentences end with the same
+  // terminator as the translated fallback sentences: '.' in English,
+  // '۔' in Urdu. The terminator is derived from the labels object, so
+  // no extra key is needed; the fallback sentences carry their own '۔'.
+  const end = L.noAmountDueText.endsWith('۔') ? '۔' : '.';
   const parts = [];
-  parts.push(strip.duesCents === 0 ? 'No amount due.' : `Dues ${format(strip.dues)}.`);
+  parts.push(strip.duesCents === 0 ? L.noAmountDueText : `${L.dues} ${format(strip.dues)}${end}`);
   if (strip.packagePriceCents === null) {
-    parts.push(`Package ${strip.packageLabel}.`);
+    parts.push(`${L.package} ${packageLabel}${end}`);
   } else {
-    parts.push(`Package ${strip.packageLabel} (${format(strip.packagePrice)}/month).`);
+    parts.push(`${L.package} ${packageLabel} (${format(strip.packagePrice)}${L.perMonth})${end}`);
   }
   if (strip.lastPayment) {
-    parts.push(`Last payment ${format(strip.lastPayment.amount)} on ${strip.lastPayment.date}.`);
+    parts.push(`${L.lastPayment} ${format(strip.lastPayment.amount)} on ${strip.lastPayment.date}${end}`);
   } else {
-    parts.push('No payment yet.');
+    parts.push(L.noPaymentYetText);
   }
   if (strip.nextDueDate) {
-    parts.push(`Next due ${strip.nextDueDate}.`);
+    parts.push(`${L.nextDue} ${strip.nextDueDate}${end}`);
   } else {
-    parts.push('Next due date not recorded.');
+    parts.push(L.nextDueNotRecorded);
   }
   return parts.join(' ');
 }
 
-export function profileHeaderStripHtml(strip, formatAmount = defaultFormatAmount) {
+export function profileHeaderStripHtml(strip, formatAmount = defaultFormatAmount, labels = {}) {
   if (!strip || typeof strip !== 'object') return '';
+  const L = phsLabels(labels);
   const format = typeof formatAmount === 'function' ? formatAmount : defaultFormatAmount;
+  const packageLabel = strip.packageLabel === 'Not set' ? L.notSet : strip.packageLabel;
   const dues = strip.duesCents === 0
-    ? 'No amount due'
+    ? L.noAmountDue
     : escapeHtml(format(strip.dues));
   const packageValue = strip.packagePriceCents === null
-    ? escapeHtml(strip.packageLabel)
-    : `${escapeHtml(strip.packageLabel)} · ${escapeHtml(format(strip.packagePrice))}/month`;
+    ? escapeHtml(packageLabel)
+    : `${escapeHtml(packageLabel)} · ${escapeHtml(format(strip.packagePrice))}${escapeHtml(L.perMonth)}`;
   const lastPayment = strip.lastPayment
     ? `${escapeHtml(format(strip.lastPayment.amount))} · ${escapeHtml(strip.lastPayment.date)}`
-    : 'No payment yet';
-  const nextDue = strip.nextDueDate ? escapeHtml(strip.nextDueDate) : 'Not recorded';
+    : L.noPaymentYet;
+  const nextDue = strip.nextDueDate ? escapeHtml(strip.nextDueDate) : L.notRecorded;
   // Profile View Polish — the strip is a 2-column grid now (Dues |
   // Package on row 1, Last payment | Next due on row 2), and a zero
   // balance reads soft emerald, not alarm red: the dues pill takes the
@@ -174,5 +220,8 @@ export function profileHeaderStripHtml(strip, formatAmount = defaultFormatAmount
   // The base pill colours stay literal hex (Polish B (14) test reads
   // them by regex); only the zero modifier uses tokens. Red for every
   // dues > 0 — there is no amber band anywhere today.
-  return `<section class="profile-header-strip" id="phsStrip" aria-label="Customer at a glance" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: stretch; margin: 8px 0 12px; padding: 10px 12px; border: 1px solid #d8dee9; border-radius: 8px; background: #f7f9fc;"><div class="phs-stat phs-pill phs-pill-dues${strip.duesCents === 0 ? ' phs-pill-dues-zero' : ''}"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Dues</span><strong class="phs-value" style="font-size: 15px;">${dues}</strong></div><div class="phs-stat phs-pill phs-pill-package"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Package</span><strong class="phs-value" style="font-size: 15px;">${packageValue}</strong></div><div class="phs-stat phs-pill phs-pill-last-payment"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Last payment</span><strong class="phs-value" style="font-size: 15px;">${lastPayment}</strong></div><div class="phs-stat phs-pill phs-pill-next-due"><span class="phs-label" style="display: block; font-size: 11px; color: #5b6472;">Next due</span><strong class="phs-value" style="font-size: 15px;">${nextDue}</strong></div></section>`;
+  // Plan 591 — the section/label/value styles moved into
+  // .profile-header-strip / .phs-label / .phs-value (styles.css); the
+  // template carries no inline style attribute and no hex literal.
+  return `<section class="profile-header-strip" id="phsStrip" aria-label="${escapeHtml(L.aria)}"><div class="phs-stat phs-pill phs-pill-dues${strip.duesCents === 0 ? ' phs-pill-dues-zero' : ''}"><span class="phs-label">${L.dues}</span><strong class="phs-value">${dues}</strong></div><div class="phs-stat phs-pill phs-pill-package"><span class="phs-label">${L.package}</span><strong class="phs-value">${packageValue}</strong></div><div class="phs-stat phs-pill phs-pill-last-payment"><span class="phs-label">${L.lastPayment}</span><strong class="phs-value">${lastPayment}</strong></div><div class="phs-stat phs-pill phs-pill-next-due"><span class="phs-label">${L.nextDue}</span><strong class="phs-value">${nextDue}</strong></div></section>`;
 }

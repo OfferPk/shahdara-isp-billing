@@ -4,8 +4,9 @@
 // screen, so the operator copies details by hand and the paper copy
 // drifts from the app. This module is the missing piece: one
 // single-page printable card composed from the profile's own figures
-// (name, known-as name, mohalla, package, current dues, last
-// payment, contact number, handling note), printed from the profile
+// (name, known-as name, mohalla and zone, package, the current
+// month's bill tax, current dues, last payment, contact number,
+// handling note), printed from the profile
 // with a print date. It is a printout only: it changes no bill, no
 // payment, and no customer record, and it holds no store of its own.
 //
@@ -15,7 +16,11 @@
 //     the profile's own balance figures;
 //   - the known-as name comes from the profile's own known-as
 //     derivation, and the handling note from the profile's own
-//     handling-note record.
+//     handling-note record;
+//   - the sales-tax row comes from the current month's bill tax
+//     (through the receipt helper), the zone from the profile's own
+//     zone, and the footer's human date from the caller's human-date
+//     helper — the ISO print date stays the validated field.
 // A figure the record does not carry reads "Not set" when it is a
 // value the operator never entered (name, known-as name, mohalla,
 // package, contact number — the same rule as the profile view's
@@ -27,7 +32,10 @@
 // Dates are strict YYYY-MM-DD calendar dates. The print date is
 // supplied by the caller and is never invented here: a card with
 // no usable print date is refused (null), because a shop file
-// without a print date cannot be trusted. Inputs are never
+// without a print date cannot be trusted. The caller may also pass
+// the same date in human form (printDateDisplay) for the footer;
+// the footer shows it when present and falls back to the ISO date,
+// and the refusal rule still keys to the ISO date alone. Inputs are never
 // mutated, and the module never reads storage, the clock, or the
 // network.
 //
@@ -126,7 +134,14 @@ export function buildProfilePrintCardHtml(input = {}, formatAmount = defaultForm
   const name = text(input.customerName) || 'Not set';
   const number = text(input.customerNumber);
   const knownAs = text(input.knownAs) || 'Not set';
-  const mohalla = text(input.mohalla) || 'Not set';
+  // Plan 592: the Mohalla row carries the zone beside the mohalla,
+  // joined with ' · ' — the card's own intra-row separator. Empties
+  // are filtered first, exactly like the receipts, so a missing
+  // mohalla never prints a stray separator and a missing pair still
+  // reads 'Not set'. (The receipts join with ', ' and the view shows
+  // Area and Zone as separate rows — neither surface joins with ' · ';
+  // the separator is the card's own, chosen by the acceptance.)
+  const mohalla = [text(input.mohalla), text(input.zone)].filter(Boolean).join(' · ') || 'Not set';
   const packageLabel = text(input.packageLabel);
   const packagePriceCents = toLedgerCents(input.packagePrice);
   const packageLine = !packageLabel
@@ -134,6 +149,20 @@ export function buildProfilePrintCardHtml(input = {}, formatAmount = defaultForm
     : packagePriceCents === null
       ? packageLabel
       : `${packageLabel} · ${format(fromCents(packagePriceCents))}/month`;
+  // Plan 592: one sales-tax row, immediately after Package (receipt
+  // order). The figure is the current month's bill tax in integer
+  // cents, supplied by the caller through the receipt helper — never
+  // the raw bill field, so a waived month carries no row. Cents,
+  // never rupees: 19500c is PKR 195. Only a positive integer
+  // renders; 0, negative, non-integer and non-numeric values never
+  // render a row, and the package row stays the ex-tax price
+  // (PKR 1000, never 1195). The label is the receipt label the
+  // caller passes; the default below mirrors it so a direct caller
+  // renders the same row.
+  const salesTaxLabel = text(input.salesTaxLabel) || 'Sales tax / سیلز ٹیکس (19.5%)';
+  const salesTaxCents = Number.isInteger(input.salesTaxCents) && input.salesTaxCents > 0
+    ? input.salesTaxCents
+    : null;
   const duesCents = toLedgerCents(input.outstanding);
   const duesLine = duesCents === null
     ? 'Not recorded'
@@ -150,11 +179,16 @@ export function buildProfilePrintCardHtml(input = {}, formatAmount = defaultForm
     ['Known as', knownAs],
     ['Mohalla', mohalla],
     ['Package', packageLine],
+    ...(salesTaxCents === null ? [] : [[salesTaxLabel, format(fromCents(salesTaxCents))]]),
     ['Current dues', duesLine],
     ['Last payment', lastPaymentLine],
     ['Contact number', contactNumber],
     ['Handling note', handlingNote],
   ];
   const rowsHtml = rows.map(([label, value]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`).join('');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Profile card — ${escapeHtml(name)}</title>\n<style>body{font-family:system-ui,sans-serif;color:#111;margin:0;padding:8px}@page{size:A4;margin:12mm}.ppc-card{max-width:170mm;margin:0 auto;border:2px solid #111;border-radius:10px;padding:16px}.ppc-card h1{font-size:20px;margin:0 0 2px}.ppc-card .ppc-sub{font-size:12px;color:#444;margin:0 0 12px}.ppc-card h2{font-size:17px;margin:0 0 10px}.ppc-card table{width:100%;border-collapse:collapse;font-size:14px}.ppc-card th{text-align:left;padding:6px 8px 6px 0;color:#444;font-weight:600;width:34%;vertical-align:top}.ppc-card td{padding:6px 0;vertical-align:top}.ppc-card .ppc-foot{font-size:11px;color:#444;margin-top:14px;border-top:1px solid #111;padding-top:8px}</style></head><body>\n<div class="ppc-card"><h1>${escapeHtml(businessName)}</h1><p class="ppc-sub">Customer profile card</p>\n<h2>${escapeHtml(name)}${number ? ` <span>#${escapeHtml(number)}</span>` : ''}</h2>\n<table>${rowsHtml}</table>\n<p class="ppc-foot">Printed on ${escapeHtml(printDate)} · Shop file copy — figures as recorded on the print date.</p>\n</div>\n</body></html>`;
+  // Plan 592: the footer shows the caller's human print date when
+  // one is passed and falls back to the ISO print date; the refusal
+  // rule still keys to the ISO date alone.
+  const printDateDisplay = text(input.printDateDisplay) || printDate;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Profile card — ${escapeHtml(name)}</title>\n<style>body{font-family:system-ui,sans-serif;color:#111;margin:0;padding:8px}@page{size:A4;margin:12mm}.ppc-card{max-width:170mm;margin:0 auto;border:2px solid #111;border-radius:10px;padding:16px}.ppc-card h1{font-size:20px;margin:0 0 2px}.ppc-card .ppc-sub{font-size:12px;color:#444;margin:0 0 12px}.ppc-card h2{font-size:17px;margin:0 0 10px}.ppc-card table{width:100%;border-collapse:collapse;font-size:14px}.ppc-card th{text-align:left;padding:6px 8px 6px 0;color:#444;font-weight:600;width:34%;vertical-align:top}.ppc-card td{padding:6px 0;vertical-align:top}.ppc-card .ppc-foot{font-size:11px;color:#444;margin-top:14px;border-top:1px solid #111;padding-top:8px}</style></head><body>\n<div class="ppc-card"><h1>${escapeHtml(businessName)}</h1><p class="ppc-sub">Customer profile card</p>\n<h2>${escapeHtml(name)}${number ? ` <span>#${escapeHtml(number)}</span>` : ''}</h2>\n<table>${rowsHtml}</table>\n<p class="ppc-foot">Printed on ${escapeHtml(printDateDisplay)} · Shop file copy — figures as recorded on the print date.</p>\n</div>\n</body></html>`;
 }

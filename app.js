@@ -89,7 +89,7 @@ import { buildClearDuesConfirm, clearDuesRemainderLine } from './profile-clear-d
 import { setupFieldMode, speakCustomerDue } from './field-mode.js?v=1.11.0';
 import { QUICK_UNDO_WINDOW_MS, createQuickUndoController, findCollectedPayment, quickUndoReceiptRef, reverseCollectedPayment } from './quick-undo-toast.js';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.11.0';
-import { SALES_TAX_RATE_PERCENT, customerSalesTaxCents, formatSalesTaxAmount, salesTaxCentsForPrice, salesTaxDashboardRows, salesTaxDashboardTotals, salesTaxTable } from './package-sales-tax.js?v=1.11.0';
+import { SALES_TAX_RATE_PERCENT, SALES_TAX_RECEIPT_LABEL, customerSalesTaxCents, formatSalesTaxAmount, salesTaxCentsForPrice, salesTaxDashboardRows, salesTaxDashboardTotals, salesTaxReceiptLine, salesTaxTable } from './package-sales-tax.js?v=1.11.0';
 import { receiptShareDraftFor, receiptShareDraftHtml } from './receipt-share-draft.js?v=1.11.0';
 import { executeReceiptWhatsAppShare, markReceiptShared, isReceiptShared } from './nav-quick-profile.js?v=1.11.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.11.0';
@@ -8920,14 +8920,21 @@ function renderCustomerProfileView(customer) {
       businessName: state.settings?.businessName || 'Shahdara ISP',
       knownAs: knownAsNameFor(customer),
       mohalla: customer.mohalla || customer.area || '',
+      zone: customer.zone || '',
       packageLabel: stripPackagePlan ? stripPackagePlan.label : customer.packageSpeed,
       packagePrice: (customer.monthlySellingAmount !== null && customer.monthlySellingAmount !== undefined && String(customer.monthlySellingAmount).trim() !== '')
         ? customer.monthlySellingAmount : (stripPackagePlan ? stripPackagePlan.price : null),
+      // Plan 592: the tax row reads the current month's bill through
+      // the receipt helper — never the derived figure, so a bill the
+      // operator untaxed (or a waived month) carries no row.
+      salesTaxCents: salesTaxReceiptLine(customer?.bills?.find((bill) => bill.month === pakistanMonthNow()))?.taxCents ?? null,
+      salesTaxLabel: SALES_TAX_RECEIPT_LABEL,
       outstanding: balanceReplyCurrent ? balanceReplyCurrent.outstanding : null,
       lastPayment: balanceReplyCurrent ? balanceReplyCurrent.lastPayment : null,
       contactNumber: phone,
       handlingNote: handlingNoteForCustomer(loadHandlingNotes(), customer.id)?.text ?? '',
       printDate: localDate(),
+      printDateDisplay: humanDate(localDate()),
     }, formatAmount);
     if (!cardHtml) {
       toast('Print card unavailable — the print date is missing.');

@@ -118,12 +118,16 @@ test('G3 More-menu button reads Daily Closing with no data-i18n', () => {
 
 // --- G4 — Guards ---
 
-test('G4 parity holds at 4,669 / 4,669 after deleting the six orphan keys', () => {
+test('G4 parity holds at 4,722 / 4,722 after deleting the six orphan keys', () => {
   // Plan 582 (D1(b)): six keys deleted from each dict, 4,675 − 6 = 4,669.
   // Plan 584: re-pinned 4,669 → 4,707 — this matches the count in the other 16 parity-pin files.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
-  assert.equal(Object.keys(en).length, 4723, 'EN key count moved');
-  assert.equal(Object.keys(ur).length, 4723, 'UR key count moved');
+  // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
+  // (Test title re-pinned with the asserts by Plan 586 — the 585 merge had
+  // left the 582-era number in the title with disclosure; titles and
+  // asserts move together from here on.)
+  assert.equal(Object.keys(en).length, 4722, 'EN key count moved');
+  assert.equal(Object.keys(ur).length, 4722, 'UR key count moved');
 });
 
 test('G4 dues, installation and Quick Collect values are byte-identical to base', () => {

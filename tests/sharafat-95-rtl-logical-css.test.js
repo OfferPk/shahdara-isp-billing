@@ -203,9 +203,12 @@ test('F20 margin-left:0 breakpoint overrides convert', () => {
 });
 
 // --- C/S: guards and controls ---
-test('C1 hex pins hold (styles.css 613 / nav.css 164, no new hex)', () => {
+// Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
+// (its only occurrence) is re-tokened to var(--color-brand-700).
+// Title + assert move together (Plan 586 rule).
+test('C1 hex pins hold (styles.css 613 / nav.css 163, no new hex)', () => {
   assert.equal(hexCount(styles), 613, `styles.css hex count moved (${hexCount(styles)})`);
-  assert.equal(hexCount(nav), 164, `nav.css hex count moved (${hexCount(nav)})`);
+  assert.equal(hexCount(nav), 163, `nav.css hex count moved (${hexCount(nav)})`);
 });
 
 test('C2 numeric columns stay right-aligned (text-align:right untouched)', () => {

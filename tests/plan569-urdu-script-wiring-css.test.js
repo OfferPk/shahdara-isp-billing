@@ -276,7 +276,9 @@ test('plan569 G4 no new hex: the new rules set no colour, and the hex pins hold 
   const block = styles.slice(start, styles.indexOf('@media(max-width:620px)', start));
   assert.ok(!/#[0-9a-fA-F]/.test(block), 'the new CSS block must contain no hex colour');
   assert.equal(hexCount(styles), 613, `styles.css hex count moved (${hexCount(styles)})`);
-  assert.equal(hexCount(navCss), 164, `nav.css hex count moved (${hexCount(navCss)})`);
+  // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
+  // (its only occurrence) is re-tokened to var(--color-brand-700).
+  assert.equal(hexCount(navCss), 163, `nav.css hex count moved (${hexCount(navCss)})`);
   assert.equal(hexCount(components), 0, `components.css hex count moved (${hexCount(components)})`);
 });
 

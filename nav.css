@@ -5528,7 +5528,10 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
 }
 
 .fdt-actions-row .btn-primary {
-  background: #0270a8;
+  /* Plan 588 (D4(a)): #0270a8 re-tokened to its value-identical token —
+     the field-tool Save blue stays blue. .btn-clean keeps the literal
+     #0270a8 (D6(a)). */
+  background: var(--color-info);
   color: #ffffff;
   border: none;
   padding: 7px 14px;
@@ -5538,10 +5541,13 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
   cursor: pointer;
 }
 
+/* Plan 588 (D1(b)): --text is undefined repo-wide. The in-place
+   value-identical token resolves to the same #334155 the fallback
+   rendered, and nothing outside this rule changes. */
 .fdt-actions-row .btn-secondary {
   background: transparent;
   border: 1px solid var(--line, #cbd5e1);
-  color: var(--text, #334155);
+  color: var(--color-slate-700, #334155);
   padding: 7px 12px;
   border-radius: 6px;
   font-size: 12px;
@@ -5600,8 +5606,11 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
 }
 
 [data-theme="dark"] .fdt-actions-row .btn-secondary {
-  border-color: #475569;
-  color: #cbd5e1;
+  /* Plan 588 (D3(b2)): re-tokened identically — #475569 IS the dark
+     value of --color-slate-300, #cbd5e1 IS the dark value of
+     --color-slate-600, so this rule renders exactly as before. */
+  border-color: var(--color-slate-300);
+  color: var(--color-slate-600);
 }
 
 /* Field Technician GPON ONU / ONT Optical BOSA Diagnostics Modal */
@@ -7242,10 +7251,14 @@ body {
   flex-wrap: wrap;
 }
 
+/* Plan 588 (D1(b)): the three variables this rule referenced are
+   undefined repo-wide. The in-place value-identical tokens resolve to
+   the same values the fallbacks rendered (#f1f5f9 / #cbd5e1 / #334155),
+   and nothing outside this rule changes. */
 .btn-tool-secondary {
-  background: var(--bg-muted, #f1f5f9);
-  border: 1px solid var(--border-color, #cbd5e1);
-  color: var(--text-color, #334155);
+  background: var(--color-slate-100, #f1f5f9);
+  border: 1px solid var(--color-slate-300, #cbd5e1);
+  color: var(--color-slate-700, #334155);
   padding: 0 10px;
   border-radius: 8px;
   font-size: 12px;
@@ -7280,7 +7293,11 @@ body {
 }
 
 .btn-tool-secondary:hover {
-  background: #e2e8f0;
+  /* Plan 588 (D5(b)): #e2e8f0 re-tokened to its value-identical token
+     in light. In dark it resolves to the --ds-line dark value #253d35
+     (today the literal #e2e8f0 renders in dark too) — disclosed in the
+     PR body. */
+  background: var(--ds-line);
 }
 
 .pending-promise-form-container {
@@ -7518,34 +7535,53 @@ body {
   min-height: 38px !important;
 }
 
+/* Plan 588 (D1(b)): --primary is undefined repo-wide. The in-place
+   value-identical token resolves to the same #0e5b4d the fallback
+   rendered, and nothing outside this rule changes. */
 .btn-primary {
-  background: var(--primary, #0e5b4d);
+  background: var(--color-brand-600, #0e5b4d);
   color: #ffffff;
   border: none;
 }
 
 .btn-primary:hover {
-  background: #094338;
+  /* Plan 588 (D5(b)): #094338 re-tokened to its value-identical token.
+     This was the only occurrence of #094338 in nav.css, so the distinct
+     hex count drops 164 -> 163. */
+  background: var(--color-brand-700);
 }
 
+/* Plan 588 (D1(b)): the three variables this rule referenced are
+   undefined repo-wide. The in-place value-identical tokens resolve to
+   the same values the fallbacks rendered (#f1f5f9 / #334155 / #cbd5e1),
+   and nothing outside this rule changes. */
 .btn-secondary {
-  background: var(--bg-muted, #f1f5f9);
-  color: var(--text-color, #334155);
-  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--color-slate-100, #f1f5f9);
+  color: var(--color-slate-700, #334155);
+  border: 1px solid var(--color-slate-300, #cbd5e1);
 }
 
 .btn-secondary:hover {
-  background: #e2e8f0;
+  /* Plan 588 (D5(b)): #e2e8f0 re-tokened to its value-identical token
+     in light. In dark it resolves to the --ds-line dark value #253d35
+     (today the literal #e2e8f0 renders in dark too) — disclosed in the
+     PR body. */
+  background: var(--ds-line);
 }
 
 .btn-success {
-  background: #10b981;
+  /* Plan 588 (D4(a)): #10b981 re-tokened to its value-identical token —
+     the pending Fulfill emerald stays emerald. .btn-accept keeps the
+     literal #10b981 (D6(a)). */
+  background: var(--color-emerald);
   color: #ffffff;
   border: none;
 }
 
 .btn-success:hover {
-  background: #059669;
+  /* Plan 588 (D5(b)): #059669 re-tokened to its value-identical token.
+     .btn-accept:hover keeps the literal #059669 (D6(a)). */
+  background: var(--color-success);
 }
 
 .pending-actions-empty {

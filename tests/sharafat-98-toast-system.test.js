@@ -384,13 +384,16 @@ test('G EN/UR parity holds at 4,722/4,722 (Round 2 D9 net −1; Quick Collect po
   assert.deepEqual(keyDiff, []);
 });
 
-test('G no new hex: styles.css 613 / nav.css 164 / components.css 0 (test-method count)', () => {
+// Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
+// (its only occurrence) is re-tokened to var(--color-brand-700).
+// Title + assert move together (Plan 586 rule).
+test('G no new hex: styles.css 613 / nav.css 163 / components.css 0 (test-method count)', () => {
   const distinctHex = (name) => {
     const stripped = read(name).replace(/\/\*[\s\S]*?\*\//g, '');
     return new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []).size;
   };
   assert.equal(distinctHex('styles.css'), 613);
-  assert.equal(distinctHex('nav.css'), 164);
+  assert.equal(distinctHex('nav.css'), 163);
   assert.equal(distinctHex('components.css'), 0);
 });
 

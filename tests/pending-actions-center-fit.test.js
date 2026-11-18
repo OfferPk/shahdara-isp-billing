@@ -252,7 +252,7 @@ test('badge: the [UNSHARED RECEIPT] badge uses a 12px Receipt SVG, not 📱', ()
 
 // --- ratchets ---
 
-test('ratchet: styles.css still 613 distinct hex; nav.css 162 -> 164 is ONLY the two spec-mandated fallbacks', () => {
+test('ratchet: styles.css still 613 distinct hex; nav.css 164 -> 163 is ONLY Plan 588 D5(b) dropping #094338', () => {
   const hexCount = (src) => {
     const stripped = src.replace(/\/\*[\s\S]*?\*\//g, '');
     return new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []).size;
@@ -266,7 +266,10 @@ test('ratchet: styles.css still 613 distinct hex; nav.css 162 -> 164 is ONLY the
   // already exist as token values in tokens.css (--ds-brand #0f5338,
   // and #f0f4f2 is the QC close precedent's fallback); no other hex
   // was added. Recorded here, not hidden.
-  assert.equal(hexCount(navSrc), 164, 'nav.css is 164 distinct hex (162 + the two spec-mandated fallbacks)');
+  // 164 -> 163 with Plan 588 D5(b): .btn-primary:hover #094338 is
+  // re-tokened to var(--color-brand-700), and #094338 occurred exactly
+  // once in nav.css. Title + assert move together (Plan 586 rule).
+  assert.equal(hexCount(navSrc), 163, 'nav.css is 163 distinct hex (164 - #094338, re-tokened by Plan 588 D5(b))');
   assert.ok(navSrc.includes('var(--ds-brand, #0F5338)'), '#0F5338 appears only as the --ds-brand fallback');
   assert.ok(navSrc.includes('var(--color-neutral-100, #f0f4f2)'), '#f0f4f2 appears only as the --color-neutral-100 fallback');
   assert.equal(hexCount(compSrc), 0, 'components.css stays hex-free');

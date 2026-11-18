@@ -204,9 +204,12 @@ test('D6 .view-nav-button base already carries 44px', () => {
 });
 
 // --- C/S: guards and controls ---
-test('C1 hex pins hold (styles.css 613 / nav.css 164 / components.css 0, no new hex)', () => {
+// Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
+// (its only occurrence) is re-tokened to var(--color-brand-700).
+// Title + assert move together (Plan 586 rule).
+test('C1 hex pins hold (styles.css 613 / nav.css 163 / components.css 0, no new hex)', () => {
   assert.equal(hexCount(styles), 613, `styles.css hex count moved (${hexCount(styles)})`);
-  assert.equal(hexCount(nav), 164, `nav.css hex count moved (${hexCount(nav)})`);
+  assert.equal(hexCount(nav), 163, `nav.css hex count moved (${hexCount(nav)})`);
   assert.equal(hexCount(components), 0, `components.css hex count moved (${hexCount(components)})`);
 });
 

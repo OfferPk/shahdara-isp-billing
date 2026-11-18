@@ -248,7 +248,9 @@ test('plan578 G4: all settlement/offset figures unchanged (one display field add
   assert.equal(offsetReceipt.depositAfter, 2000, 'deposit-after must not move');
 });
 
-test('plan578 G4: EN/UR parity stays 4,675/4,675 — no new i18n keys', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4675, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4675, 'UR key count moved');
+test('plan578 G4: EN/UR parity stays 4,669/4,669 — no new i18n keys', () => {
+  // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
+  // dash_tile_collect_*/dash_tile_closing_* keys deleted.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4669, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4669, 'UR key count moved');
 });

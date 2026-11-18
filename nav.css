@@ -5541,10 +5541,13 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
   cursor: pointer;
 }
 
+/* Plan 588 (D1(b)): --text is undefined repo-wide. The in-place
+   value-identical token resolves to the same #334155 the fallback
+   rendered, and nothing outside this rule changes. */
 .fdt-actions-row .btn-secondary {
   background: transparent;
   border: 1px solid var(--line, #cbd5e1);
-  color: var(--text, #334155);
+  color: var(--color-slate-700, #334155);
   padding: 7px 12px;
   border-radius: 6px;
   font-size: 12px;
@@ -7248,10 +7251,14 @@ body {
   flex-wrap: wrap;
 }
 
+/* Plan 588 (D1(b)): the three variables this rule referenced are
+   undefined repo-wide. The in-place value-identical tokens resolve to
+   the same values the fallbacks rendered (#f1f5f9 / #cbd5e1 / #334155),
+   and nothing outside this rule changes. */
 .btn-tool-secondary {
-  background: var(--bg-muted, #f1f5f9);
-  border: 1px solid var(--border-color, #cbd5e1);
-  color: var(--text-color, #334155);
+  background: var(--color-slate-100, #f1f5f9);
+  border: 1px solid var(--color-slate-300, #cbd5e1);
+  color: var(--color-slate-700, #334155);
   padding: 0 10px;
   border-radius: 8px;
   font-size: 12px;
@@ -7528,8 +7535,11 @@ body {
   min-height: 38px !important;
 }
 
+/* Plan 588 (D1(b)): --primary is undefined repo-wide. The in-place
+   value-identical token resolves to the same #0e5b4d the fallback
+   rendered, and nothing outside this rule changes. */
 .btn-primary {
-  background: var(--primary, #0e5b4d);
+  background: var(--color-brand-600, #0e5b4d);
   color: #ffffff;
   border: none;
 }
@@ -7541,10 +7551,14 @@ body {
   background: var(--color-brand-700);
 }
 
+/* Plan 588 (D1(b)): the three variables this rule referenced are
+   undefined repo-wide. The in-place value-identical tokens resolve to
+   the same values the fallbacks rendered (#f1f5f9 / #334155 / #cbd5e1),
+   and nothing outside this rule changes. */
 .btn-secondary {
-  background: var(--bg-muted, #f1f5f9);
-  color: var(--text-color, #334155);
-  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--color-slate-100, #f1f5f9);
+  color: var(--color-slate-700, #334155);
+  border: 1px solid var(--color-slate-300, #cbd5e1);
 }
 
 .btn-secondary:hover {

@@ -49141,20 +49141,36 @@ if (typeof document !== 'undefined') {
 
 // SISP-14: QR Khata Card modal — printable wallet card + scannable deep link.
 // The QR encodes only the deep link (id + route), never financial data.
+// Plan 606 — the print card's labels ride one object (601/604 pattern):
+// the module never imports t(); the formatter rides along as formatMoney.
+function qrKhataPrintLabels() {
+  return {
+    connection: t('qrkh_connection'),
+    rate: t('qrkh_rate'),
+    rateNotSet: t('qrkh_rate_not_set'),
+    payAt: t('qrkh_pay_at'),
+    cardSub: t('qrkh_card_sub'),
+    scanNote: t('qrkh_scan_note'),
+    noQr: t('qrkh_no_qr'),
+    printTitle: t('qrkh_print_title'),
+    formatMoney: formatPKR,
+  };
+}
+
 function openQrKhataCard(customer) {
   const dialog = $('#qrKhataCardModal');
   if (!dialog || !customer) return;
   const model = buildKhataCardModel(customer, { baseUrl: resolveQrBaseUrl(window.location?.href) });
   if (!model) return;
   $('#qrKhataCardName').textContent = model.customerName;
-  $('#qrKhataCardConnection').textContent = `Connection ID: ${model.connectionLabel}`;
+  $('#qrKhataCardConnection').textContent = t('qrkh_connection', null, { label: model.connectionLabel });
   $('#qrKhataCardRate').textContent = model.monthlyPackageRate === null
-    ? 'Package rate: Not set'
-    : `Package rate: ${formatAmount(model.monthlyPackageRate)}/month${model.packageSpeed ? ` · ${model.packageSpeed}` : ''}`;
+    ? t('qrkh_rate_not_set')
+    : t('qrkh_rate', null, { amount: formatAmount(model.monthlyPackageRate) }) + (model.packageSpeed ? ` · ${model.packageSpeed}` : '');
   const areaEl = $('#qrKhataCardArea');
   areaEl.textContent = model.areaZone || '';
   areaEl.hidden = !model.areaZone;
-  $('#qrKhataCardShops').textContent = `Pay at: ${model.shops.join(' · ')}`;
+  $('#qrKhataCardShops').textContent = t('qrkh_pay_at', null, { shops: model.shops.join(' · ') });
   const linkEl = $('#qrKhataCardLink');
   linkEl.textContent = model.deepLink;
   linkEl.href = model.deepLink;
@@ -49187,7 +49203,7 @@ function openQrKhataCard(customer) {
       toast('Print window blocked — allow pop-ups for this site and try again.');
       return;
     }
-    win.document.write(buildKhataCardPrintHtml(model, qrDataUrl));
+    win.document.write(buildKhataCardPrintHtml(model, qrDataUrl, qrKhataPrintLabels()));
     win.document.close();
     win.focus();
     win.print();

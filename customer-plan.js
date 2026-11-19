@@ -227,8 +227,8 @@ export function setupInlineBillEdit({ win = window, doc = document, getControlle
           </p>
 
           <div class="modal-actions">
-            <button id="inlineBillCancelBtn" class="secondary-button" type="button" data-close-dialog>Cancel</button>
-            <button id="inlineBillSaveBtn" class="primary-button" type="submit">Save Bill</button>
+            <button id="inlineBillCancelBtn" class="secondary-button btn-glass-secondary" type="button" data-close-dialog>Cancel</button>
+            <button id="inlineBillSaveBtn" class="primary-button btn-neon-glass" type="submit">Save Bill</button>
           </div>
         </form>
       </div>`;

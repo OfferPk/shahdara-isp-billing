@@ -2443,13 +2443,21 @@ function renderHisaabSection(state, referenceDate) {
   const life = calculateLifetimePnl(state, { referenceDate });
 
   const monthLabelEl = $('#hisaabMonthLabel');
-  if (monthLabelEl) monthLabelEl.textContent = `Is mahine · ${displayMonthName(month)}`;
+  if (monthLabelEl) monthLabelEl.textContent = t('hisaab_month_label', null, { month: displayMonthName(month) });
   const setMoney = (id, value) => { const el = $(id); if (el) el.textContent = formatAmount(value); };
   setMoney('#hisaabMonthIncome', monthRow.income);
   setMoney('#hisaabMonthExpenses', monthRow.expenses);
   setMoney('#hisaabMonthProfit', monthRow.netProfit);
+  // Hisaab H5 (D3(a)): munafa text colour only — profit (≥ 0, zero
+  // counts as profit) in brand-500, loss in danger (both ≥ 4.5:1 in
+  // both themes). Never --color-paid / --color-overdue (fail in dark).
+  const monthProfitEl = $('#hisaabMonthProfit');
+  if (monthProfitEl) {
+    monthProfitEl.classList.toggle('hisaab-metric--profit', monthRow.netProfit >= 0);
+    monthProfitEl.classList.toggle('hisaab-metric--loss', monthRow.netProfit < 0);
+  }
   const monthMarginEl = $('#hisaabMonthMargin');
-  if (monthMarginEl) monthMarginEl.textContent = `Margin ${monthRow.profitMargin}%`;
+  if (monthMarginEl) monthMarginEl.textContent = t('hisaab_month_margin', null, { margin: monthRow.profitMargin });
   const monthEmptyEl = $('#hisaabMonthEmpty');
   if (monthEmptyEl) monthEmptyEl.hidden = monthRow.status !== 'NO_ACTIVITY';
 
@@ -2460,10 +2468,15 @@ function renderHisaabSection(state, referenceDate) {
   setMoney('#hisaabLifeIncome', life.income);
   setMoney('#hisaabLifeExpenses', life.expenses);
   setMoney('#hisaabLifeProfit', life.profit);
+  const lifeProfitEl = $('#hisaabLifeProfit');
+  if (lifeProfitEl) {
+    lifeProfitEl.classList.toggle('hisaab-metric--profit', life.profit >= 0);
+    lifeProfitEl.classList.toggle('hisaab-metric--loss', life.profit < 0);
+  }
   const lifeSinceEl = $('#hisaabLifeSince');
   if (lifeSinceEl) {
     lifeSinceEl.hidden = !life.earliest;
-    if (life.earliest) lifeSinceEl.textContent = `Since ${formatHisaabDate(life.earliest)}`;
+    if (life.earliest) lifeSinceEl.textContent = t('hisaab_since', null, { date: formatHisaabDate(life.earliest) });
   }
 
   // One line per ACTIVE provider, Nayatel first (register order — the
@@ -2472,6 +2485,14 @@ function renderHisaabSection(state, referenceDate) {
   const providerLinesEl = $('#hisaabProviderLines');
   if (providerLinesEl) {
     const todayPkt = formatDateYmd(referenceDate);
+    // Hisaab H5 (D9(a)): duration unit templates for this render's
+    // language — the formatter stays pure and takes them as a param.
+    const durationLabels = {
+      year: t('hisaab_duration_year'),
+      monthOne: t('hisaab_duration_month_one'),
+      monthMany: t('hisaab_duration_month_many'),
+      day: t('hisaab_duration_day'),
+    };
     const lines = (providersData.providers || [])
       .filter((provider) => provider.active)
       .map((provider) => {
@@ -2479,33 +2500,33 @@ function renderHisaabSection(state, referenceDate) {
         if (!summary) return '';
         if (summary.billCount === 0) {
           const pending = summary.pendingBill
-            ? ` · ${displayMonthName(summary.pendingBill.month)} bill ${summary.pendingBill.amount == null ? 'raqam maloom nahi' : formatAmount(summary.pendingBill.amount)} — abhi baqi`
+            ? ` · ${t('hisaab_provider_pending', null, { month: displayMonthName(summary.pendingBill.month), amount: summary.pendingBill.amount == null ? t('hisaab_amount_unknown') : formatAmount(summary.pendingBill.amount) })}`
             : '';
-          return `${summary.name} — Abhi koi bill nahi${pending}`;
+          return `${summary.name} — ${t('hisaab_provider_no_bills')}${pending}`;
         }
         const bits = [];
         bits.push(summary.knownCount > 0
-          ? `Kul ada ${formatAmount(summary.total)}`
-          : 'Kul ada: raqam maloom nahi');
+          ? t('hisaab_provider_paid_total', null, { amount: formatAmount(summary.total) })
+          : t('hisaab_provider_paid_unknown'));
         if (summary.since) {
-          const duration = formatHisaabDuration(summary.since, todayPkt);
-          bits.push(`${formatHisaabDate(summary.since)} se${duration ? ` (${duration})` : ''}`);
+          const duration = formatHisaabDuration(summary.since, todayPkt, durationLabels);
+          bits.push(`${t('hisaab_provider_since', null, { date: formatHisaabDate(summary.since) })}${duration ? ` (${duration})` : ''}`);
         }
         if (summary.lastBill) {
-          bits.push(`Haali bill ${summary.lastBill.amount == null ? 'raqam maloom nahi' : formatAmount(summary.lastBill.amount)} (${displayMonthName(summary.lastBill.date.slice(0, 7))})`);
+          bits.push(t('hisaab_provider_last_bill', null, { amount: summary.lastBill.amount == null ? t('hisaab_amount_unknown') : formatAmount(summary.lastBill.amount), month: displayMonthName(summary.lastBill.date.slice(0, 7)) }));
         }
         if (summary.pendingBill) {
-          bits.push(`${displayMonthName(summary.pendingBill.month)} bill ${summary.pendingBill.amount == null ? 'raqam maloom nahi' : formatAmount(summary.pendingBill.amount)} — abhi baqi`);
+          bits.push(t('hisaab_provider_pending', null, { month: displayMonthName(summary.pendingBill.month), amount: summary.pendingBill.amount == null ? t('hisaab_amount_unknown') : formatAmount(summary.pendingBill.amount) }));
         }
         if (summary.unknownCount > 0) {
-          bits.push(`${summary.unknownCount} bill${summary.unknownCount === 1 ? '' : 's'} raqam maloom nahi`);
+          bits.push(t(summary.unknownCount === 1 ? 'hisaab_provider_unknown_one' : 'hisaab_provider_unknown_many', null, { count: summary.unknownCount }));
         }
         return `${summary.name} — ${bits.join(' · ')}`;
       })
       .filter(Boolean);
     providerLinesEl.innerHTML = lines.length
       ? lines.map((line) => `<p class="phase3-note hisaab-provider-line">${escapeHtml(line)}</p>`).join('')
-      : '<p class="empty-state">Abhi koi upstream provider nahi.</p>';
+      : `<p class="empty-state">${t('hisaab_provider_none')}</p>`;
   }
 
   // The honesty line is the verbatim design text, shown only while seeded
@@ -43559,15 +43580,15 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
     // Hisaab H2: rows mirrored from the Upstream tab carry
     // providerBillId and get the same badge + locked treatment. The
     // badge is a plain label (no jump — there is no provider
-    // pre-select on the tab yet); the hint is a hardcoded literal,
-    // like the toast below (H2 adds no i18n key; H5 re-pins it).
+    // pre-select on the tab yet); the hint is keyed (H5 D2(b) — the one
+    // Upstream sentence that became a key), like the toast below.
     const upstreamSynced = typeof row.providerBillId === 'string' && row.providerBillId !== '';
     // SISP-182: the Roznamcha badge is a button — clicking it opens the
     // Daily Cash Roznamcha on the day this expense came from (handler
     // attached after render). The Saad badge stays a plain label.
     const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <button type="button" class="expense-roznamcha-badge" data-roznamcha-jump="${phase3Cell(row.id)}" title="${escapeHtml(t('exp_roznamcha_jump_title', null, { date: row.date }))}" aria-label="${escapeHtml(t('exp_roznamcha_jump_title', null, { date: row.date }))}">${escapeHtml(t('exp_roznamcha_badge'))}</button>` : ''}${saadSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_saad_badge'))}</span>` : ''}${supplierSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_supplier_badge'))}</span>` : ''}${upstreamSynced ? ' <span class="expense-roznamcha-badge">Upstream</span>' : ''}`;
     const actionsCell = (synced || saadSynced || supplierSynced || upstreamSynced)
-      ? `<span class="expense-roznamcha-hint">${escapeHtml(upstreamSynced ? 'This expense is synced from the Upstream tab. Edit or delete the bill there so both ledgers stay in step.' : t(synced ? 'exp_roznamcha_synced_hint' : saadSynced ? 'exp_saad_synced_hint' : 'exp_supplier_synced_hint'))}</span>`
+      ? `<span class="expense-roznamcha-hint">${escapeHtml(t(upstreamSynced ? 'exp_upstream_synced_hint' : synced ? 'exp_roznamcha_synced_hint' : saadSynced ? 'exp_saad_synced_hint' : 'exp_supplier_synced_hint'))}</span>`
       : `<button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button>`;
     return `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${row.area ? `<span class="expense-area-badge">${escapeHtml(row.area)}</span>` : '<span class="expense-area-unallocated">Unallocated</span>'}</td><td>${notesCell}</td><td class="expense-actions">${actionsCell}</td></tr>`;
   }).join('');
@@ -43734,10 +43755,10 @@ $('#expenseForm').addEventListener('submit',async event=>{
     if(previous?.supplierPayoutId){toast(t('exp_supplier_edit_blocked_toast'));return;}
     // Hisaab H2: same for an Upstream-tab-synced expense — the provider
     // bill owns it, so edit or delete the bill in the Upstream tab.
-    // Hardcoded toast (no new i18n key — H2 is forbidden them; H5
-    // re-pins it as a key). Buttons alone are not enough: the table
-    // lock hides Edit/Delete, but a stale form could still submit.
-    if(previous?.providerBillId){toast('This expense is synced from the Upstream tab. Edit or delete the bill there so both ledgers stay in step.');return;}
+    // Keyed toast (H5 D2(b) — the one Upstream sentence that became a
+    // key). Buttons alone are not enough: the table lock hides
+    // Edit/Delete, but a stale form could still submit.
+    if(previous?.providerBillId){toast(t('exp_upstream_synced_hint'));return;}
     if(previous&&!await appConfirm({tone:'warning',title:'Save this expense correction?',subject:`${formatAmount(previous.amount)} ${previous.category} · ${previous.date}`,message:`Change it to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}.`,confirmLabel:'Save correction'}))return;
     state=id?updateExpense(state,id,fields):addExpense(state,fields);
     save();

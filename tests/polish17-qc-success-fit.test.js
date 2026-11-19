@@ -226,11 +226,11 @@ test('fit budget: the compact header, banner, callout, card and action values th
   assert.ok(card.includes('gap: 6px'), 'C2: card gap must be 6px on success');
 
   // C3 — card header badges stop wrapping; the receipt reference group
-  // sits on the same row now (nowrap) — it drops to its own
-  // right-aligned line only at 320px, where it cannot fit.
-  // (QC success-receipt polish, TOP, 2026-11-19: wrap → nowrap + the
-  // badge/ref/chip shaves, so badge + Receipt No. fit one row at 360px.)
-  assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: nowrap; }'), 'C3: header must keep badge + ref on one row (nowrap)');
+  // sits on its own right-aligned line now that the badge shows the FULL
+  // stored number (QC receipt-bottom polish, 2026-11-19: badge + ref is
+  // 371px vs the 292px one-row budget at 360px, so the header wraps and
+  // the ref drops to its own line — the number is never re-shortened).
+  assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }'), 'C3: header must wrap so the full-number ref drops to its own line');
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }'), 'C3: receipt badges must not wrap');
 
   // C4 — amount 1.5rem → 1.3rem, row padding 4 → 2.
@@ -292,14 +292,16 @@ test('fit budget: the compact header, banner, callout, card and action values th
   assert.ok(lineRule.includes('white-space: nowrap'), 'summary line must be a single line');
 
   // Actions — primary 48px solid brand; output grid 3-col; next row
-  // 2-col; empty-amount text button; Done full-width ghost.
+  // 2-col; empty-amount secondary button; Done full-width ghost.
   const primary = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-wa-btn {');
   assert.ok(primary.includes('min-height: 48px'), 'primary must be 48px');
   assert.ok(primary.includes('background: var(--ds-brand)'), 'primary must be the solid brand');
   assert.ok(stylesSrc.includes('.qc-output-grid'), 'output grid must exist');
   assert.ok(stylesSrc.includes('.qc-next-row'), 'next-action row must exist');
   const empty = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-empty-amount-btn {');
-  assert.ok(empty.includes('min-height: 24px'), 'empty-amount button must be a 24px text button');
+  assert.ok(!empty.includes('min-height: 24px'), 'empty-amount button must no longer be a 24px text button');
+  assert.ok(!empty.includes('text-decoration: underline'), 'empty-amount button must no longer be underlined');
+  assert.ok(pageSrc.includes('secondary-button qc-empty-amount-btn'), 'empty-amount button must carry the secondary-button treatment');
 });
 
 test('fit budget: grid math — the fully-paid taxed card has 6 half-width items in 3 rows', () => {
@@ -328,7 +330,7 @@ test('fit budget: grid math — the fully-paid taxed card has 6 half-width items
   assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row — 5 items still fill 3 rows');
 });
 
-test('fit budget: measured totals are recorded — 1,075px at 360px (25px over the 1,050px budget), 1,103px at 320px', () => {
+test('fit budget: measured totals are recorded — 1,119px at 360px (69px over the 1,050px budget), 1,147px at 320px', () => {
   // The harness is the authority (~/workspace/shahdara-qc-receipt-modal-harness/,
   // measure-qc-360.json / measure-qc-320.json, 0 pageerrors). These
   // pins record the measured totals so a regression is caught here;
@@ -339,18 +341,21 @@ test('fit budget: measured totals are recorded — 1,075px at 360px (25px over t
   // run — the harness cannot run in this sandbox, so the next harness
   // run must re-measure to confirm. Derivation: one 43px grid row
   // (the hidden Still-owed row: 17.28 label + 19.68 value + 6 gap)
-  // leaves, and the amount pill's 1px border adds 2px: 1,116 − 43 + 2
-  // = 1,075 at 360px; 1,144 − 43 + 2 = 1,103 at 320px. The breakdown
-  // at 360px (variant A): header 44 + banner 104 + callout 104 +
-  // card 474.6 + accordion 66 + actions 242.4 + step gaps/dialog
-  // padding ~40 = 1,075px. Variant B (loaded) measures 1,114px —
-  // within its ≤1,160px budget.
-  const MEASURED_360_PX = 1075;
-  const MEASURED_320_PX = 1103;
+  // leaves, the amount pill's 1px border adds 2px, the Empty amount
+  // restyle (24px text button -> 44px secondary button) adds 20px,
+  // and the full-number header wrap adds one ~24px row (the badge row:
+  // 12px font x 1.5 line-height + 4px padding + 2px border): 1,116
+  // − 43 + 2 + 20 + 24 = 1,119 at 360px; 1,144 − 43 + 2 + 20 + 24
+  // = 1,147 at 320px. The breakdown at 360px (variant A): header 44
+  // + banner 104 + callout 104 + card 498.6 + accordion 66 + actions
+  // 262.4 + step gaps/dialog padding ~40 = 1,119px. Variant B
+  // (loaded) measures 1,114px — within its ≤1,160px budget.
+  const MEASURED_360_PX = 1119;
+  const MEASURED_320_PX = 1147;
   const BUDGET_360_PX = 1050;
   const BUDGET_320_PX = 1075;
-  assert.equal(MEASURED_360_PX, 1075, 'measured 360px total must be 1,075px (harness measure-qc-360.json cardScrollH, minus the hidden 43px Still-owed row plus the 2px pill border)');
-  assert.equal(MEASURED_320_PX, 1103, 'measured 320px total must be 1,103px (harness measure-qc-320.json cardScrollH, minus the hidden 43px Still-owed row plus the 2px pill border)');
+  assert.equal(MEASURED_360_PX, 1119, 'measured 360px total must be 1,119px (harness measure-qc-360.json cardScrollH, minus the hidden 43px Still-owed row plus the 2px pill border plus the 20px Empty-amount restyle plus the 24px header-wrap row)');
+  assert.equal(MEASURED_320_PX, 1147, 'measured 320px total must be 1,147px (harness measure-qc-320.json cardScrollH, minus the hidden 43px Still-owed row plus the 2px pill border plus the 20px Empty-amount restyle plus the 24px header-wrap row)');
   assert.ok(MEASURED_360_PX > BUDGET_360_PX, `360px total ${MEASURED_360_PX}px is ${MEASURED_360_PX - BUDGET_360_PX}px OVER the ${BUDGET_360_PX}px budget — recorded here, not waived`);
   assert.ok(MEASURED_320_PX > BUDGET_320_PX, `320px total ${MEASURED_320_PX}px is ${MEASURED_320_PX - BUDGET_320_PX}px OVER the ${BUDGET_320_PX}px budget — recorded here, not waived`);
   // The overflow fix itself holds: the draft <pre> was the ONE source

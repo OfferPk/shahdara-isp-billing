@@ -149,8 +149,8 @@ test('G9 this file carries neither the current nor the previous parity bare digi
   // contains them (plan591 G5a sweeps the whole tests/ tree for the bare
   // digits of the previous total). This file asserts no parity total.
   const selfSrc = read('tests/plan602-profile-contact-action-links-44px.test.js');
-  assert.ok(!selfSrc.includes('51' + '68'), 'this file carries the current parity bare digits');
-  assert.ok(!selfSrc.includes('51' + '62'), 'this file carries the previous parity bare digits');
+  assert.ok(!selfSrc.includes('51' + '87'), 'this file carries the current parity bare digits');
+  assert.ok(!selfSrc.includes('51' + '68'), 'this file carries the previous parity bare digits');
   // The import path is built from split literals too: the assertion string
   // itself must never contain the path it forbids.
   assert.ok(!selfSrc.includes("from '../nav-" + "language.js'"), 'this file must not touch the language dicts');

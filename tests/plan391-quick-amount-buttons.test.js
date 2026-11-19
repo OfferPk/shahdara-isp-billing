@@ -277,7 +277,10 @@ test('Plan 391: the package and 500 buttons reuse the existing chip class — no
 // packageChipLabel are no longer wired in (the module still exports
 // them, and its pure tests above still pass).
 test('Plan 391: the collector imports the package price helper', () => {
-  assert.ok(navSrc.includes("import { packagePriceForCustomer } from './quick-amount-buttons.js';"));
+  // QC Step 2 polish (2026-11-19): the import also brings
+  // dedupeQuickAmountChips — the refresh block dedupes the chip row
+  // by fill value on every open.
+  assert.ok(navSrc.includes("import { packagePriceForCustomer, dedupeQuickAmountChips } from './quick-amount-buttons.js';"));
   assert.ok(!navSrc.includes("resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js'"));
 });
 
@@ -353,12 +356,15 @@ test('Plan 391: the module is pure — no page, storage, clock, network, or stor
     assert.ok(!moduleSrc.includes(banned), `module must not contain ${banned}`);
   }
   assert.ok(!/\bOLT\b/.test(moduleSrc), 'module must not contain the standalone word OLT');
-  // Exactly the three intended exports, no more.
+  // Exactly the four intended exports, no more.
+  // QC Step 2 polish (2026-11-19): dedupeQuickAmountChips joins the
+  // module — the pure value-dedupe helper for the chip row.
   const exports = moduleSrc.match(/^export function \w+/gm) || [];
   assert.deepEqual(exports, [
     'export function packagePriceForCustomer',
     'export function resolveQuickAmount',
     'export function packageChipLabel',
+    'export function dedupeQuickAmountChips',
   ]);
 });
 

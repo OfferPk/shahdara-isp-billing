@@ -8491,9 +8491,21 @@ function renderCustomerProfileView(customer) {
   // the change itself still happens only through the profile Edit
   // form, and a ready preview shown here is kept so its note can
   // ride on that change's package-history entry.
-  const packageChangeSelectedPlan = BILL_PACKAGES.find((plan) => plan.label === customer.packageSpeed)
+  // Plan 610 — the preview never offers the package the customer
+  // already has: the current plan is excluded from the select, so the
+  // operator cannot "change" to the package already in effect and the
+  // initial preview is a real change candidate, not a no-change. The
+  // current plan is the label-then-id match (the same resolution as
+  // before) WITHOUT the catalogue-first fallback: a customer whose
+  // stored package matches no catalogue plan keeps all six options,
+  // and the first of those stays the initial preview.
+  const packageChangeCurrentPlan = BILL_PACKAGES.find((plan) => plan.label === customer.packageSpeed)
     || BILL_PACKAGES.find((plan) => plan.id === customer.packageSpeed)
-    || BILL_PACKAGES[0];
+    || null;
+  const packageChangeOptions = packageChangeCurrentPlan
+    ? BILL_PACKAGES.filter((plan) => plan.id !== packageChangeCurrentPlan.id)
+    : BILL_PACKAGES;
+  const packageChangeSelectedPlan = packageChangeOptions[0];
   const packageChangeInitial = packageChangeSelectedPlan ? buildPackageChangePreview({
     customerId: customer.id,
     customerName: customer.name || customer.customerName,
@@ -8510,7 +8522,7 @@ function renderCustomerProfileView(customer) {
   // Profile Inner Tabs Overhaul (§6) — the preview collapses into an
   // accordion, default closed; the kept pill, form and result all ride
   // inside it, so nothing about the section's content changes.
-  const packageChangeSectionHtml = `<details class="profile-custody-section profile-accordion" aria-label="${t('prv_pc_heading')}"><summary>${t('prv_pc_heading')}</summary><div class="profile-accordion-body"><p class="pcp-explainer">${t('prv_pc_explainer')}</p><p id="packageChangePreviewKept" class="pcp-kept-pill" role="status" aria-live="polite">${escapeHtml(packageChangePreviewStoredText(packageChangeKept, packageChangeLabels()))}</p><div class="pcp-form"><label><span class="pcp-field-pill">${t('prv_pc_proposed_package')}</span> <select id="packageChangePreviewPackage">${BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(t('prv_pc_option', null, { label: plan.label, amount: formatAmount(plan.price) }))}</option>`).join('')}</select></label> <label><span class="pcp-field-pill">${t('prv_pc_effective_date')}</span> <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label><span class="pcp-field-pill">${t('prv_pc_next_bill_month')}</span> <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label><span class="pcp-field-pill">${t('prv_pc_estimate')}</span> <select id="packageChangePreviewMode"><option value="auto">${t('prv_pc_mode_auto')}</option><option value="full">${t('prv_fb_full_month')}</option><option value="prorata">${t('prv_fb_prorata')}</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">${t('prv_fb_show')}</button></div><div id="packageChangePreviewResult" role="status" aria-live="polite">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount, packageChangeLabels()) : `<p class="empty-state">${t('prv_pc_no_package')}</p>`}</div></div></details>`;
+  const packageChangeSectionHtml = `<details class="profile-custody-section profile-accordion" aria-label="${t('prv_pc_heading')}"><summary>${t('prv_pc_heading')}</summary><div class="profile-accordion-body"><p class="pcp-explainer">${t('prv_pc_explainer')}</p><p id="packageChangePreviewKept" class="pcp-kept-pill" role="status" aria-live="polite">${escapeHtml(packageChangePreviewStoredText(packageChangeKept, packageChangeLabels()))}</p><div class="pcp-form"><label><span class="pcp-field-pill">${t('prv_pc_proposed_package')}</span> <select id="packageChangePreviewPackage">${packageChangeOptions.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(t('prv_pc_option', null, { label: plan.label, amount: formatAmount(plan.price) }))}</option>`).join('')}</select></label> <label><span class="pcp-field-pill">${t('prv_pc_effective_date')}</span> <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label><span class="pcp-field-pill">${t('prv_pc_next_bill_month')}</span> <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label><span class="pcp-field-pill">${t('prv_pc_estimate')}</span> <select id="packageChangePreviewMode"><option value="auto">${t('prv_pc_mode_auto')}</option><option value="full">${t('prv_fb_full_month')}</option><option value="prorata">${t('prv_fb_prorata')}</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">${t('prv_fb_show')}</button></div><div id="packageChangePreviewResult" role="status" aria-live="polite">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount, packageChangeLabels()) : `<p class="empty-state">${t('prv_pc_no_package')}</p>`}</div></div></details>`;
   // Plan 47 (Plan 1-100) — Speed and service-quality log. The package
   // speed alongside each entry comes from the catalogue match on the
   // customer's package label/id, else the number inside the label;

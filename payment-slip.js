@@ -209,9 +209,39 @@ export function buildPaymentSlipText(slip) {
   return lines.join('\n');
 }
 
-export function paymentSlipSummaryText(slip) {
-  if (!slip) return 'Payment slip unavailable.';
-  return `Payment history: ${slip.liveCount} live payment(s), ${slip.voidedCount} voided, subtotal ${formatAmount(slip.subtotal)}, current balance ${formatAmount(slip.balance)}.`;
+// Plan 600 — the preview chrome renders through a caller-supplied
+// labels object (the 591 header-strip pattern), so this module stays
+// import-free. Defaults are the English strings, so old callers (and
+// old tests) keep byte-identical output. 'Payment slip unavailable.'
+// is the shared template key (dft_slip_unavailable); 'Not sent yet.'
+// is shared with status-reply; 'Current balance:' with balance-reply.
+// The VOID stamp stays 'VOID' in both languages (a code stamp, like
+// the draft text's own VOID marking).
+const DEFAULT_PAYMENT_SLIP_LABELS = {
+  unavailable: 'Payment slip unavailable.',
+  summary: 'Payment history: {live} live payment(s), {voided} voided, subtotal {subtotal}, current balance {balance}.',
+  notSent: 'Not sent yet.',
+  sent: 'Sent {count} time(s), last {last}.',
+  noPayments: 'No payments listed.',
+  subtotal: 'Subtotal (live payments):',
+  currentLine: 'Current balance:',
+  voidStamp: 'VOID',
+  voidedExcluded: '{count} voided payment(s) excluded from the subtotal — not successful payments.',
+  skippedRows: '{count} payment row(s) could not be listed (no usable date or amount).',
+  unavailableLong: 'Payment slip unavailable — the balance figure is missing or unusable.',
+};
+function slipLabel(labels, key) {
+  return (labels && typeof labels[key] === 'string' && labels[key] !== '') ? labels[key] : DEFAULT_PAYMENT_SLIP_LABELS[key];
+}
+function slipFill(template, params) {
+  let out = String(template);
+  for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+export function paymentSlipSummaryText(slip, labels = DEFAULT_PAYMENT_SLIP_LABELS) {
+  if (!slip) return slipLabel(labels, 'unavailable');
+  return slipFill(slipLabel(labels, 'summary'), { live: slip.liveCount, voided: slip.voidedCount, subtotal: formatAmount(slip.subtotal), balance: formatAmount(slip.balance) });
 }
 
 // The send log: one entry per send (customer, time, channel,
@@ -238,24 +268,24 @@ export function findPaymentSlipSends(list, customerId) {
   return list.filter((entry) => entry && entry.customerId === id);
 }
 
-export function paymentSlipSentText(sends) {
+export function paymentSlipSentText(sends, labels = DEFAULT_PAYMENT_SLIP_LABELS) {
   const list = Array.isArray(sends) ? sends : [];
-  if (list.length === 0) return 'Not sent yet.';
-  return `Sent ${list.length} time(s), last ${list[list.length - 1].sentAt}.`;
+  if (list.length === 0) return slipLabel(labels, 'notSent');
+  return slipFill(slipLabel(labels, 'sent'), { count: list.length, last: list[list.length - 1].sentAt });
 }
 
-export function paymentSlipHtml(slip, { draftText = '', sends = [] } = {}) {
-  if (!slip) return '<p class="empty-state">Payment slip unavailable — the balance figure is missing or unusable.</p>';
+export function paymentSlipHtml(slip, { draftText = '', sends = [], labels = DEFAULT_PAYMENT_SLIP_LABELS } = {}) {
+  if (!slip) return `<p class="empty-state">${escapeHtml(slipLabel(labels, 'unavailableLong'))}</p>`;
   const rows = slip.payments.length === 0
-    ? '<li>No payments listed.</li>'
-    : slip.payments.map((row) => `<li>${escapeHtml(row.date)} — ${escapeHtml(formatAmount(row.amount))} — ${escapeHtml(row.channel)}${row.voided ? ' — <strong>VOID</strong>' : ''}</li>`).join('');
+    ? `<li>${escapeHtml(slipLabel(labels, 'noPayments'))}</li>`
+    : slip.payments.map((row) => `<li>${escapeHtml(row.date)} — ${escapeHtml(formatAmount(row.amount))} — ${escapeHtml(row.channel)}${row.voided ? ` — <strong>${escapeHtml(slipLabel(labels, 'voidStamp'))}</strong>` : ''}</li>`).join('');
   const fields = [
-    `Subtotal (live payments): ${escapeHtml(formatAmount(slip.subtotal))}`,
-    `Current balance: ${escapeHtml(formatAmount(slip.balance))}`,
+    `${slipLabel(labels, 'subtotal')} ${escapeHtml(formatAmount(slip.subtotal))}`,
+    `${slipLabel(labels, 'currentLine')} ${escapeHtml(formatAmount(slip.balance))}`,
   ];
-  if (slip.voidedCount > 0) fields.push(`${slip.voidedCount} voided payment(s) excluded from the subtotal — not successful payments.`);
-  if (slip.skippedUnusable > 0) fields.push(`${slip.skippedUnusable} payment row(s) could not be listed (no usable date or amount).`);
-  return `<p>${escapeHtml(paymentSlipSummaryText(slip))}</p><ul style="font-size: 12px;">${rows}</ul><ul style="font-size: 12px;">${fields.map((field) => `<li>${field}</li>`).join('')}</ul>`
+  if (slip.voidedCount > 0) fields.push(slipFill(slipLabel(labels, 'voidedExcluded'), { count: slip.voidedCount }));
+  if (slip.skippedUnusable > 0) fields.push(slipFill(slipLabel(labels, 'skippedRows'), { count: slip.skippedUnusable }));
+  return `<p>${escapeHtml(paymentSlipSummaryText(slip, labels))}</p><ul style="font-size: 12px;">${rows}</ul><ul style="font-size: 12px;">${fields.map((field) => `<li>${field}</li>`).join('')}</ul>`
     + (draftText ? `<p style="font-size: 12px; white-space: pre-wrap;">${escapeHtml(draftText)}</p>` : '')
-    + `<p style="font-size: 12px;">${escapeHtml(paymentSlipSentText(sends))}</p>`;
+    + `<p style="font-size: 12px;">${escapeHtml(paymentSlipSentText(sends, labels))}</p>`;
 }

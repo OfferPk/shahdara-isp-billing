@@ -235,6 +235,37 @@ function byPromisedThenId(a, b) {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
+// Plan 601 — labels object: the app passes t('prv_wr_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t(). The `Rs {amount}` amount part stays module-internal
+// money (the S6 analogue), and the month/weekday names in
+// formatWadaDate are date formatting, not chrome.
+const DEFAULT_LABELS = {
+  noWadas: 'No wadas recorded for this customer.',
+  health: 'Wada health: {kept} kept on time · {keptLate} kept late · {broken} broken · {pending} still open.',
+  promisedBy: 'promised by {date}',
+  keptOn: ' — kept on {date}',
+  keptLateOn: ' — kept late on {date}',
+  broken: ' — broken',
+  overdueSuffix: ' — overdue',
+  overdueLabel: ' · Overdue',
+  note: ' — “{note}”',
+  poora: 'Poora hua',
+  toota: 'Wada toota',
+  remove: 'Remove',
+};
+
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
 export function wadaRecordsSorted(list) {
   return normalizeWadaRecordList(list).sort(byPromisedThenId);
 }
@@ -278,47 +309,55 @@ export function wadaHealthForCustomer(list, customerId) {
   return health;
 }
 
-export function wadaHealthText(list, customerId) {
+export function wadaHealthText(list, customerId, labels) {
+  const L = resolveLabels(labels);
   const health = wadaHealthForCustomer(list, customerId);
-  if (!health.total) return 'No wadas recorded for this customer.';
-  return `Wada health: ${health.kept} kept on time · ${health.keptLate} kept late · ${health.broken} broken · ${health.pending} still open.`;
+  if (!health.total) return L.noWadas;
+  return fill(L.health, {
+    kept: health.kept,
+    keptLate: health.keptLate,
+    broken: health.broken,
+    pending: health.pending,
+  });
 }
 
-export function wadaRecordText(record, today) {
+export function wadaRecordText(record, today, labels) {
+  const L = resolveLabels(labels);
   const normalized = normalizeWadaRecord(record);
   if (!normalized) return '';
   const amountPart = normalized.amountPromised !== null ? `Rs ${normalized.amountPromised} ` : '';
-  const notePart = normalized.note ? ` — “${normalized.note}”` : '';
+  const notePart = normalized.note ? fill(L.note, { note: normalized.note }) : '';
   const state = wadaRecordBannerState(normalized, today);
   if (normalized.status === WADA_STATUSES.KEPT) {
-    return `${amountPart}promised by ${formatWadaDate(normalized.promisedDate)} — kept on ${normalized.closedDate}${notePart}.`;
+    return `${amountPart}${fill(L.promisedBy, { date: formatWadaDate(normalized.promisedDate) })}${fill(L.keptOn, { date: normalized.closedDate })}${notePart}.`;
   }
   if (normalized.status === WADA_STATUSES.KEPT_LATE) {
-    return `${amountPart}promised by ${formatWadaDate(normalized.promisedDate)} — kept late on ${normalized.closedDate}${notePart}.`;
+    return `${amountPart}${fill(L.promisedBy, { date: formatWadaDate(normalized.promisedDate) })}${fill(L.keptLateOn, { date: normalized.closedDate })}${notePart}.`;
   }
   if (normalized.status === WADA_STATUSES.BROKEN) {
-    return `${amountPart}promised by ${formatWadaDate(normalized.promisedDate)} — broken${notePart}.`;
+    return `${amountPart}${fill(L.promisedBy, { date: formatWadaDate(normalized.promisedDate) })}${L.broken}${notePart}.`;
   }
-  const overdue = state === 'overdue' ? ' — overdue' : '';
-  return `${amountPart}promised by ${formatWadaDate(normalized.promisedDate)}${overdue}${notePart}.`;
+  const overdue = state === 'overdue' ? L.overdueSuffix : '';
+  return `${amountPart}${fill(L.promisedBy, { date: formatWadaDate(normalized.promisedDate) })}${overdue}${notePart}.`;
 }
 
-export function wadaRecordHtml(record, today) {
+export function wadaRecordHtml(record, today, labels) {
+  const L = resolveLabels(labels);
   const normalized = normalizeWadaRecord(record);
   if (!normalized) return '';
   const state = wadaRecordBannerState(normalized, today);
   const stateClass = state === 'overdue' ? 'wada-banner-overdue' : state === 'onTrack' ? 'wada-banner-on-track' : '';
-  const stateLabel = state === 'overdue' ? ' · Overdue' : '';
+  const stateLabel = state === 'overdue' ? L.overdueLabel : '';
   const amountPart = normalized.amountPromised !== null ? `Rs ${normalized.amountPromised} ` : '';
-  const notePart = normalized.note ? ` — “${escapeHtml(normalized.note)}”` : '';
+  const notePart = normalized.note ? fill(L.note, { note: escapeHtml(normalized.note) }) : '';
   const outcomePart = normalized.status === WADA_STATUSES.KEPT
-    ? ` — kept on ${escapeHtml(normalized.closedDate)}`
+    ? fill(L.keptOn, { date: escapeHtml(normalized.closedDate) })
     : normalized.status === WADA_STATUSES.KEPT_LATE
-      ? ` — kept late on ${escapeHtml(normalized.closedDate)}`
+      ? fill(L.keptLateOn, { date: escapeHtml(normalized.closedDate) })
       : normalized.status === WADA_STATUSES.BROKEN
-        ? ' — broken'
+        ? L.broken
         : '';
-  return `<p class="wada-banner-row ${stateClass}"><span>${escapeHtml(amountPart)}promised by ${escapeHtml(formatWadaDate(normalized.promisedDate))}${escapeHtml(stateLabel)}${escapeHtml(outcomePart)}${notePart}</span></p>`;
+  return `<p class="wada-banner-row ${stateClass}"><span>${escapeHtml(amountPart)}${escapeHtml(fill(L.promisedBy, { date: formatWadaDate(normalized.promisedDate) }))}${escapeHtml(stateLabel)}${escapeHtml(outcomePart)}${notePart}</span></p>`;
 }
 
 /**
@@ -326,7 +365,8 @@ export function wadaRecordHtml(record, today) {
  * Each row carries its own Poora hua / Wada toota actions; the host
  * wires those buttons and re-renders after each close.
  */
-export function wadaBannerHtml(records, today) {
+export function wadaBannerHtml(records, today, labels) {
+  const L = resolveLabels(labels);
   const active = (Array.isArray(records) ? records : [])
     .map((record) => normalizeWadaRecord(record))
     .filter((record) => record && record.status === WADA_STATUSES.PENDING)
@@ -334,21 +374,22 @@ export function wadaBannerHtml(records, today) {
   return active.map((record) => {
     const state = wadaRecordBannerState(record, today);
     const stateClass = state === 'overdue' ? 'wada-banner-overdue' : 'wada-banner-on-track';
-    const stateLabel = state === 'overdue' ? ' · Overdue' : '';
+    const stateLabel = state === 'overdue' ? L.overdueLabel : '';
     const amountPart = record.amountPromised !== null ? `Rs ${record.amountPromised} ` : '';
-    const notePart = record.note ? ` — “${escapeHtml(record.note)}”` : '';
-    return `<div class="wada-banner-row ${stateClass}"><span>${escapeHtml(amountPart)}promised by ${escapeHtml(formatWadaDate(record.promisedDate))}${escapeHtml(stateLabel)}${notePart}</span><span class="wada-banner-actions"><button type="button" class="wada-banner-kept" data-wada-kept="${escapeHtml(record.id)}">Poora hua</button><button type="button" class="wada-banner-broken" data-wada-broken="${escapeHtml(record.id)}">Wada toota</button></span></div>`;
+    const notePart = record.note ? fill(L.note, { note: escapeHtml(record.note) }) : '';
+    return `<div class="wada-banner-row ${stateClass}"><span>${escapeHtml(amountPart)}${escapeHtml(fill(L.promisedBy, { date: formatWadaDate(record.promisedDate) }))}${escapeHtml(stateLabel)}${notePart}</span><span class="wada-banner-actions"><button type="button" class="wada-banner-kept" data-wada-kept="${escapeHtml(record.id)}">${escapeHtml(L.poora)}</button><button type="button" class="wada-banner-broken" data-wada-broken="${escapeHtml(record.id)}">${escapeHtml(L.toota)}</button></span></div>`;
   }).join('');
 }
 
 /** History rows for a customer's closed wadas, with each outcome named. */
-export function wadaHistoryHtml(records, today) {
+export function wadaHistoryHtml(records, today, labels) {
+  const L = resolveLabels(labels);
   const closed = (Array.isArray(records) ? records : [])
     .map((record) => normalizeWadaRecord(record))
     .filter((record) => record && record.status !== WADA_STATUSES.PENDING)
     .sort(byPromisedThenId);
   if (!closed.length) return '';
-  return `<ul class="wada-history">${closed.map((record) => `<li>${escapeHtml(wadaRecordText(record, today))} <button type="button" class="wada-history-remove" data-wada-remove="${escapeHtml(record.id)}">Remove</button></li>`).join('')}</ul>`;
+  return `<ul class="wada-history">${closed.map((record) => `<li>${escapeHtml(wadaRecordText(record, today, labels))} <button type="button" class="wada-history-remove" data-wada-remove="${escapeHtml(record.id)}">${escapeHtml(L.remove)}</button></li>`).join('')}</ul>`;
 }
 
 export function wadaRecordCsv(list) {

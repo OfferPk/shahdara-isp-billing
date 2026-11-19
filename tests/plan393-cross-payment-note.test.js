@@ -317,9 +317,11 @@ test('Plan 393: the payer picker never lists the account holder as their own cro
 
 test('Plan 393: the payer\'s own profile shows the payments they made for others, after the profile info groups', () => {
   // Polish #28 Phase A — the cross-payments section follows the money
-  // fragment inside the Financial section body.
+  // fragment inside the Financial section body. Plan 601 — the section
+  // call now passes the cross-payments labels object (keyed chrome);
+  // the section itself is unchanged.
   assert.equal(appSrc.includes('${profileInfoGroupFragments.money}${crossPaymentsMadeSectionMarkup}'), true);
-  assert.equal(appSrc.includes('crossPaymentsMadeSectionHtml(customer, crossPaymentsMadeBy(listTransactions(state), customer.id), formatAmount)'), true);
+  assert.equal(appSrc.includes('crossPaymentsMadeSectionHtml(customer, crossPaymentsMadeBy(listTransactions(state), customer.id), formatAmount, crossPaymentsLabels())'), true);
 });
 
 test('Plan 393: nav-quick-collect.js reads the three fields, resolves the payer name, and passes the note on the single-payment path', () => {

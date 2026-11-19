@@ -8714,6 +8714,7 @@ function renderCustomerProfileView(customer) {
     save: t('save'),
     remove: t('prof_handling_remove'),
     none: t('prof_handling_none'),
+    add: t('prof_note_add', null, { heading: t('prof_handling_heading') }),
   });
   // Plan 390 — Transaction standing instruction note: the usual amount,
   // usual day of the month, and usual method for a regular monthly
@@ -8731,6 +8732,7 @@ function renderCustomerProfileView(customer) {
     save: t('save'),
     remove: t('prof_sin_remove'),
     none: t('prof_sin_none'),
+    add: t('prof_note_add', null, { heading: t('prof_sin_heading') }),
   });
   // Plan 393 — Transaction paying for another customer's account:
   // the payments this customer made for other customers' accounts,
@@ -8751,6 +8753,7 @@ function renderCustomerProfileView(customer) {
     save: t('save'),
     remove: t('prof_spoken_lang_remove'),
     none: t('prof_spoken_lang_none'),
+    add: t('prof_note_add', null, { heading: t('prof_spoken_lang_heading') }),
   });
   // Plan 367 — Customer gate and access instruction: how to reach the
   // customer at the door, shown at the top of the profile and beside
@@ -8764,6 +8767,7 @@ function renderCustomerProfileView(customer) {
     save: t('save'),
     remove: t('prof_gate_access_remove'),
     none: t('prof_gate_access_none'),
+    add: t('prof_note_add', null, { heading: t('prof_gate_access_heading') }),
   });
   // Plan 368 — Customer emergency contact: the second person to call
   // when the account holder cannot be reached, shown at the top of the
@@ -8780,6 +8784,7 @@ function renderCustomerProfileView(customer) {
     save: t('save'),
     remove: t('prof_emc_remove'),
     none: t('prof_emc_none'),
+    add: t('prof_note_add', null, { heading: t('prof_emc_heading') }),
   });
   // Plan 369 — Customer profile quick actions row: the four everyday
   // actions, each opening its screen with this customer already

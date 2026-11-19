@@ -91,7 +91,60 @@ export function normalizeFirstPeriodMode(value) {
   return mode === 'full' || mode === 'prorata' ? mode : 'auto';
 }
 
-export function buildFirstBillPreview(input = {}) {
+// Plan 601 — labels object: the app passes t('prv_fb_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t(). The three zero-amount defaults stay VERBATIM
+// ('Not recorded — counted as Rs 0' etc.): the dict carries them as
+// {amount} templates because Sharafat 85 forbids the legacy currency
+// token in nav-language.js, and the module fills 'Rs 0' at runtime —
+// the fill is idempotent across both shapes, so the rendered English
+// is byte-identical either way.
+const DEFAULT_LABELS = {
+  noPreview: 'No first-bill preview',
+  summaryIncomplete: 'First-bill preview incomplete: {reasons}',
+  lineInstallation: 'Installation fee',
+  lineFirstPeriod: 'First-period charge',
+  lineDeposit: 'Security deposit',
+  waived: 'Waived — free connection',
+  feeNotRecorded: 'Not recorded — counted as Rs 0',
+  depositNotRecorded: 'No deposit recorded — counted as Rs 0',
+  feeAssumption: 'Installation fee not recorded — counted as Rs 0',
+  prorataNote: '{charged} of {days} days (from {date})',
+  assumptions: 'Assumptions: {list}',
+  incomplete: 'Preview incomplete — {reasons}. No total is shown until the monthly price and a valid start date are set.',
+  summaryReady: '{name}First bill preview — installation PKR {fee}, first period PKR {charge} ({note}), deposit PKR {deposit}, total due PKR {total}',
+  notShown: 'First-bill preview not shown yet',
+  shownOn: 'First-bill preview shown on {date}',
+  reasonPrice: 'monthly-price-missing',
+  reasonDate: 'start-date-invalid',
+  missingFigures: 'missing figures',
+  tableItem: 'Item',
+  tableAmount: 'Amount',
+  tableNote: 'Note',
+  totalDue: 'Total due',
+  previewOnly: 'Preview only — no bill has been raised',
+  fullMonth: 'Full month',
+};
+
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+function reasonLabel(reason, labels) {
+  if (reason === 'monthly-price-missing') return labels.reasonPrice;
+  if (reason === 'start-date-invalid') return labels.reasonDate;
+  return reason;
+}
+
+export function buildFirstBillPreview(input = {}, labels) {
+  const L = resolveLabels(labels);
   const source = input ?? {};
   const customerName = text(source.customerName ?? source.name);
   const monthlyAmount = moneyOrNull(source.monthlyAmount ?? source.monthlySellingAmount);
@@ -114,13 +167,13 @@ export function buildFirstBillPreview(input = {}) {
   if (isFreeConnection) {
     installationFee = 0;
     installationFeeWaived = true;
-    installationFeeNote = 'Waived — free connection';
+    installationFeeNote = L.waived;
   } else if (recordedFee !== null) {
     installationFee = recordedFee;
   } else {
     installationFee = 0;
-    assumptions.push('Installation fee not recorded — counted as Rs 0');
-    installationFeeNote = 'Not recorded — counted as Rs 0';
+    assumptions.push(fill(L.feeAssumption, { amount: 'Rs 0' }));
+    installationFeeNote = fill(L.feeNotRecorded, { amount: 'Rs 0' });
   }
 
   // Deposit: optional, so an unrecorded deposit is 0, noted as such
@@ -130,7 +183,7 @@ export function buildFirstBillPreview(input = {}) {
   if (recordedDeposit !== null) {
     deposit = recordedDeposit;
   } else {
-    depositNote = 'No deposit recorded — counted as Rs 0';
+    depositNote = fill(L.depositNotRecorded, { amount: 'Rs 0' });
   }
 
   // First-period charge.
@@ -148,8 +201,8 @@ export function buildFirstBillPreview(input = {}) {
     chargedDays = resolvedMode === 'full' ? daysInMonth : daysInMonth - day + 1;
     firstPeriodCharge = roundMoney((monthlyAmount * chargedDays) / daysInMonth);
     firstPeriodNote = resolvedMode === 'full'
-      ? 'Full month'
-      : `${chargedDays} of ${daysInMonth} days (from ${startDate})`;
+      ? L.fullMonth
+      : fill(L.prorataNote, { charged: chargedDays, days: daysInMonth, date: startDate });
   }
 
   const ready = reasons.length === 0;
@@ -160,19 +213,19 @@ export function buildFirstBillPreview(input = {}) {
   const lines = [
     {
       id: 'installation-fee',
-      label: 'Installation fee',
+      label: L.lineInstallation,
       amount: installationFee,
       note: installationFeeNote,
     },
     {
       id: 'first-period',
-      label: 'First-period charge',
+      label: L.lineFirstPeriod,
       amount: firstPeriodCharge,
       note: firstPeriodNote,
     },
     {
       id: 'deposit',
-      label: 'Security deposit',
+      label: L.lineDeposit,
       amount: deposit,
       note: depositNote,
     },
@@ -205,7 +258,8 @@ export function buildFirstBillPreview(input = {}) {
 // the settings the operator already uses for that customer. The
 // start date defaults to the customer's connection date when the
 // caller does not supply one; the caller may always override it, and
-// overriding it changes only the pro-rata figure.
+// overriding it changes only the pro-rata figure. Labels ride in
+// options.labels (Plan 601) and reach buildFirstBillPreview.
 export function previewFromCustomer(customer = {}, options = {}) {
   const source = customer ?? {};
   const opts = options ?? {};
@@ -217,22 +271,39 @@ export function previewFromCustomer(customer = {}, options = {}) {
     isFreeConnection: source.isFreeConnection,
     startDate: opts.startDate ?? source.connectionDate,
     firstPeriodMode: opts.firstPeriodMode,
+  }, opts.labels);
+}
+
+export function firstBillPreviewSummaryText(preview, labels) {
+  const L = resolveLabels(labels);
+  if (!preview) return L.noPreview;
+  if (preview.status !== 'ready') {
+    return fill(L.summaryIncomplete, {
+      reasons: preview.reasons.map((reason) => reasonLabel(reason, L)).join(', ') || L.missingFigures,
+    });
+  }
+  const name = preview.customerName ? `${preview.customerName}: ` : '';
+  // Plan 601 fix found while keying: buildFirstBillPreview never put
+  // firstPeriodNote on the returned preview (only on the first-period
+  // line), so the base rendered "(undefined)" here and a bare fill
+  // would render "({note})". The note lives on the line — read it
+  // from there, so the summary reads "(Full month)" as intended.
+  const note = preview.firstPeriodNote
+    ?? preview.lines?.find((line) => line.id === 'first-period')?.note
+    ?? '';
+  return fill(L.summaryReady, {
+    name,
+    fee: preview.installationFee,
+    charge: preview.firstPeriodCharge,
+    note,
+    deposit: preview.deposit,
+    total: preview.totalDue,
   });
 }
 
-export function firstBillPreviewSummaryText(preview) {
-  if (!preview) return 'No first-bill preview';
-  if (preview.status !== 'ready') {
-    return `First-bill preview incomplete: ${preview.reasons.join(', ') || 'missing figures'}`;
-  }
-  const name = preview.customerName ? `${preview.customerName}: ` : '';
-  return `${name}First bill preview — installation PKR ${preview.installationFee}, `
-    + `first period PKR ${preview.firstPeriodCharge} (${preview.firstPeriodNote}), `
-    + `deposit PKR ${preview.deposit}, total due PKR ${preview.totalDue}`;
-}
-
-export function firstBillPreviewHtml(preview, formatAmount) {
-  if (!preview) return '<p class="empty-state">No first-bill preview</p>';
+export function firstBillPreviewHtml(preview, formatAmount, labels) {
+  const L = resolveLabels(labels);
+  if (!preview) return `<p class="empty-state">${escapeHtml(L.noPreview)}</p>`;
   const fmt = typeof formatAmount === 'function'
     ? formatAmount
     : (amount) => (amount === null || amount === undefined ? '—' : `PKR ${amount}`);
@@ -241,14 +312,14 @@ export function firstBillPreviewHtml(preview, formatAmount) {
     + `<td>${money(line.amount)}</td>`
     + `<td>${line.note ? escapeHtml(line.note) : ''}</td></tr>`).join('');
   const assumptions = preview.assumptions.length
-    ? `<p class="first-bill-preview-assumptions">Assumptions: ${escapeHtml(preview.assumptions.join(' · '))}</p>`
+    ? `<p class="first-bill-preview-assumptions">${escapeHtml(fill(L.assumptions, { list: preview.assumptions.join(' · ') }))}</p>`
     : '';
   const incomplete = preview.status !== 'ready'
-    ? `<p class="first-bill-preview-incomplete" role="alert">Preview incomplete — ${escapeHtml(preview.reasons.join(', '))}. No total is shown until the monthly price and a valid start date are set.</p>`
+    ? `<p class="first-bill-preview-incomplete" role="alert">${escapeHtml(fill(L.incomplete, { reasons: preview.reasons.map((reason) => reasonLabel(reason, L)).join(', ') }))}</p>`
     : '';
-  return `<div class="first-bill-preview"><table><thead><tr><th>Item</th><th>Amount</th><th>Note</th></tr></thead>`
+  return `<div class="first-bill-preview"><table><thead><tr><th>${escapeHtml(L.tableItem)}</th><th>${escapeHtml(L.tableAmount)}</th><th>${escapeHtml(L.tableNote)}</th></tr></thead>`
     + `<tbody>${rows}</tbody>`
-    + `<tfoot><tr><td>Total due</td><td><strong>${money(preview.totalDue)}</strong></td><td>Preview only — no bill has been raised</td></tr></tfoot></table>`
+    + `<tfoot><tr><td>${escapeHtml(L.totalDue)}</td><td><strong>${money(preview.totalDue)}</strong></td><td>${escapeHtml(L.previewOnly)}</td></tr></tfoot></table>`
     + `${assumptions}${incomplete}</div>`;
 }
 
@@ -275,7 +346,8 @@ export function recordFirstBillPreviewShown(list, customerId, shownAt) {
   return base;
 }
 
-export function firstBillPreviewShownText(entry) {
-  if (!entry) return 'First-bill preview not shown yet';
-  return `First-bill preview shown on ${entry.shownAt}`;
+export function firstBillPreviewShownText(entry, labels) {
+  const L = resolveLabels(labels);
+  if (!entry) return L.notShown;
+  return fill(L.shownOn, { date: entry.shownAt });
 }

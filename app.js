@@ -301,7 +301,7 @@ import { DEFAULT_ESCALATION_THRESHOLDS, ESCALATION_DRAFT_VARIANTS, normalizeEsca
 import { buildPaymentConfirmationList, logConfirmationSent, paymentConfirmationSummaryText, paymentConfirmationFilename, paymentConfirmationHtml, paymentConfirmationCsv } from './payment-confirmation.js';
 import { BROADCAST_TEMPLATE_KINDS, BROADCAST_DRAFT_VARIANTS, buildBroadcastMohallaOptions, normalizeBroadcastTemplates, buildBroadcastDraft, broadcastWhatsAppUrl, logBroadcastSent, broadcastSummaryText, broadcastFilename, broadcastHtml, broadcastCsv } from './mohalla-broadcast.js';
 import { CONTACT_PREFERENCE_LANGUAGES, normalizeContactPreferences, findContactPreference, upsertContactPreference, removeContactPreference, contactPreferencesSummaryText, contactPreferenceHtml, contactPreferenceCsv } from './contact-preferences.js';
-import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickOnboardingStep, findOnboardingTicks, upsertOnboardingChecklist, buildOnboardingEntry, pendingOnboardingList, onboardingSummaryText, onboardingChecklistHtml, onboardingPendingHtml, onboardingChecklistCsv } from './onboarding-checklist.js';
+import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickOnboardingStep, findOnboardingTicks, upsertOnboardingChecklist, buildOnboardingEntry, pendingOnboardingList, onboardingSummaryText, onboardingChecklistHtml, onboardingPendingHtml, onboardingChecklistCsv, onboardingStepLabel } from './onboarding-checklist.js';
 import { buildPendingInstallationQueue, findPromisedInstallDate, upsertPromisedInstallDate, removePromisedInstallDate, pendingInstallationSummaryText, pendingInstallationHtml, pendingInstallationCsv, pendingInstallationFilename } from './pending-installations.js';
 import { normalizeTicketList, createTicket, updateTicketStatus, filterTicketList, sortTicketList, ticketSummary, ticketSummaryText, ticketHtml, ticketCsv, ticketFilename } from './ticket-log.js';
 import { normalizeOutageList, createOutage, openOutageList, outageForTicket, linkTicketToOutage, unlinkTicketFromOutage, updateOutageStatus, resolveOutage, ticketsForOutage, pendingResolutionTickets, buildOutageStatusDraft, outageSummary, outageSummaryText, outageHtml, outageCsv, outageFilename } from './outage-grouping.js';
@@ -1648,7 +1648,7 @@ function profileUrduNoteMarkup(payment) {
 // words. Empty when the payment carries no note, so a normal
 // payment shows nothing extra.
 function profileCrossPaymentMarkup(payment) {
-  return crossPaymentNoteMarkup(payment);
+  return crossPaymentNoteMarkup(payment, crossPaymentsLabels());
 }
 // Plan 393: the cross-payment note fields for the payment form —
 // who paid for this customer's account, and their relationship in
@@ -8316,12 +8316,12 @@ function renderCustomerProfileView(customer) {
   const custodySectionHtml = `<section class="profile-custody-section profile-hardware-custody" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${occupancyHtml}${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
   const firstBillPreviewShownEntry = findFirstBillPreviewShown(loadFirstBillPreviews(), customer.id);
   const firstBillPreviewDefaultDate = customer.connectionDate || localDate();
-  const firstBillPreviewInitial = previewFromCustomer(customer, { startDate: firstBillPreviewDefaultDate });
+  const firstBillPreviewInitial = previewFromCustomer(customer, { startDate: firstBillPreviewDefaultDate, labels: firstBillPreviewLabels() });
   // Profile Inner Tabs Overhaul (§4 + §6) — the first-bill preview is
   // for before the first bill only: a customer who already has bills
   // gets no section at all (not even the banner), and the section
   // itself collapses into an accordion, default closed.
-  const firstBillPreviewSectionHtml = (customer.bills ?? []).length > 0 ? '' : `<details class="profile-custody-section profile-accordion" aria-label="First-bill preview"><summary>First-bill preview</summary><div class="profile-accordion-body"><p>Show the new customer this first bill before activation — installation fee, first-period charge and deposit — so nothing arrives as a surprise. This preview creates no bill; the first bill is only raised by the normal billing flow.</p><p id="firstBillPreviewShown">${escapeHtml(firstBillPreviewShownText(firstBillPreviewShownEntry))}</p><div class="pcp-form"><label>Start date <input id="firstBillPreviewStartDate" type="date" value="${escapeHtml(firstBillPreviewDefaultDate)}"></label> <label>First period <select id="firstBillPreviewMode"><option value="auto">By start date (1st = full month, later = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="firstBillPreviewShowBtn">Show preview</button></div><div id="firstBillPreviewResult">${firstBillPreviewHtml(firstBillPreviewInitial, formatAmount)}</div></div></details>`;
+  const firstBillPreviewSectionHtml = (customer.bills ?? []).length > 0 ? '' : `<details class="profile-custody-section profile-accordion" aria-label="${t('prv_fb_heading')}"><summary>${t('prv_fb_heading')}</summary><div class="profile-accordion-body"><p>${t('prv_fb_explainer')}</p><p id="firstBillPreviewShown">${escapeHtml(firstBillPreviewShownText(firstBillPreviewShownEntry, firstBillPreviewLabels()))}</p><div class="pcp-form"><label>${t('prv_fb_start_date')} <input id="firstBillPreviewStartDate" type="date" value="${escapeHtml(firstBillPreviewDefaultDate)}"></label> <label>${t('prv_fb_first_period')} <select id="firstBillPreviewMode"><option value="auto">${t('prv_fb_mode_auto')}</option><option value="full">${t('prv_fb_full_month')}</option><option value="prorata">${t('prv_fb_prorata')}</option></select></label> <button type="button" class="secondary-button" id="firstBillPreviewShowBtn">${t('prv_fb_show')}</button></div><div id="firstBillPreviewResult">${firstBillPreviewHtml(firstBillPreviewInitial, formatAmount, firstBillPreviewLabels())}</div></div></details>`;
   // Plan 19 (Plan 1-100) — Welcome pack draft on the profile. The
   // draft is built from this profile's own package, monthly amount,
   // and latest bill due date; with no bill yet, the billing cycle's
@@ -8350,14 +8350,14 @@ function renderCustomerProfileView(customer) {
   // bills keep their old due dates, and the pre-due reminder queue reads
   // each bill's own due date, so it follows the customer's own date.
   const billingCycleChoice = findBillingCycleChoice(loadBillingCycleChoices(), customer.id);
-  const billingCycleSectionHtml = `<section class="profile-custody-section" aria-label="Billing cycle"><h4>Billing cycle</h4><p>Match the due date to the household's payday — a customer paid on the 15th should not always be late on a 5th due date. The next bill raised gets the new due date; every earlier bill keeps its old one.</p>${billingCycleChoiceHtml(billingCycleChoice)}<div><label>Due day of month <input id="billingCycleDueDay" type="number" min="1" max="31" value="${escapeHtml(String(billingCycleChoice ? billingCycleChoice.dueDay : DEFAULT_BILL_DUE_DAY))}"></label> <button type="button" class="secondary-button" id="billingCycleSaveBtn">Save billing cycle</button></div></section>`;
+  const billingCycleSectionHtml = `<section class="profile-custody-section" aria-label="${t('prv_bc_heading')}"><h4>${t('prv_bc_heading')}</h4><p>${t('prv_bc_explainer')}</p>${billingCycleChoiceHtml(billingCycleChoice, billingCycleLabels())}<div><label>${t('prv_bc_due_day')} <input id="billingCycleDueDay" type="number" min="1" max="31" value="${escapeHtml(String(billingCycleChoice ? billingCycleChoice.dueDay : DEFAULT_BILL_DUE_DAY))}"></label> <button type="button" class="secondary-button" id="billingCycleSaveBtn">${t('prv_bc_save')}</button></div></section>`;
   // Plan 40: the profile shows the customer's preferred payment
   // channel and lets the operator change it. Saving here changes
   // no payment, Waada, balance or bill — it only decides which
   // instruction line that customer's own drafts (Plans 11, 12, 13,
   // 39) carry when they are sent. No wallet number is recorded.
   const paymentChannelRecord = findPaymentChannelRecord(loadPaymentChannels(), customer.id);
-  const paymentChannelSectionHtml = `<section class="profile-custody-section" aria-label="Preferred payment channel"><h4>Preferred payment channel</h4><p>Cash customers should be told to pay the collector, and wallet customers should be told the wallet route — not the other way round. Set the channel once and every reminder, escalation, confirmation and statement draft sent to this customer carries the matching instructions.</p>${paymentChannelHtml(paymentChannelRecord)}<div><label>Preferred channel <select id="paymentChannelSelect"><option value="">Not set (neutral instructions)</option><option value="${PAYMENT_CHANNELS.CASH}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.CASH ? 'selected' : ''}>Cash via collector</option><option value="${PAYMENT_CHANNELS.WALLET}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.WALLET ? 'selected' : ''}>Easypaisa/wallet</option></select></label> <button type="button" class="secondary-button" id="paymentChannelSaveBtn">Save payment channel</button>${paymentChannelRecord ? ' <button type="button" class="secondary-button" id="paymentChannelRemoveBtn">Remove channel</button>' : ''}</div></section>`;
+  const paymentChannelSectionHtml = `<section class="profile-custody-section" aria-label="${t('prv_pch_heading')}"><h4>${t('prv_pch_heading')}</h4><p>${t('prv_pch_explainer')}</p>${paymentChannelHtml(paymentChannelRecord, paymentChannelLabels())}<div><label>${t('prv_pch_preferred_channel')} <select id="paymentChannelSelect"><option value="">${t('prv_pch_not_set')}</option><option value="${PAYMENT_CHANNELS.CASH}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.CASH ? 'selected' : ''}>${t('prv_pch_cash')}</option><option value="${PAYMENT_CHANNELS.WALLET}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.WALLET ? 'selected' : ''}>${t('prv_pch_wallet')}</option></select></label> <button type="button" class="secondary-button" id="paymentChannelSaveBtn">${t('prv_pch_save')}</button>${paymentChannelRecord ? ` <button type="button" class="secondary-button" id="paymentChannelRemoveBtn">${t('prv_pch_remove')}</button>` : ''}</div></section>`;
   // Plan 39 (Plan 1-100) — Monthly statement draft on the profile.
   // One statement per customer per month, composed from this profile's
   // own bills and payments (opening, this month's charges, payments
@@ -8505,12 +8505,12 @@ function renderCustomerProfileView(customer) {
     priceHistory: loadPriceHistory(),
     billMonth: localDate().slice(0, 7),
     effectiveDate: localDate(),
-  }) : null;
+  }, packageChangeLabels()) : null;
   const packageChangeKept = findPackageChangePreview(loadPackageChangePreviews(), customer.id);
   // Profile Inner Tabs Overhaul (§6) — the preview collapses into an
   // accordion, default closed; the kept pill, form and result all ride
   // inside it, so nothing about the section's content changes.
-  const packageChangeSectionHtml = `<details class="profile-custody-section profile-accordion" aria-label="Package change preview"><summary>Package change preview</summary><div class="profile-accordion-body"><p class="pcp-explainer">Before agreeing a faster or cheaper package, show the customer what the next bill will actually be — current package, proposed package, monthly price difference, effective date, and the estimated next bill (full month, or pro-rata by the change date). This preview applies nothing; the change itself is still made through the profile Edit form, and a ready preview shown here is kept as a note on that change.</p><p id="packageChangePreviewKept" class="pcp-kept-pill">${escapeHtml(packageChangePreviewStoredText(packageChangeKept))}</p><div class="pcp-form"><label><span class="pcp-field-pill">Proposed package</span> <select id="packageChangePreviewPackage">${BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('')}</select></label> <label><span class="pcp-field-pill">Effective date</span> <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label><span class="pcp-field-pill">Next bill month</span> <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label><span class="pcp-field-pill">Estimate</span> <select id="packageChangePreviewMode"><option value="auto">By effective date (start = full month, inside = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">Show preview</button></div><div id="packageChangePreviewResult">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount) : '<p class="empty-state">No catalogue package to preview.</p>'}</div></div></details>`;
+  const packageChangeSectionHtml = `<details class="profile-custody-section profile-accordion" aria-label="${t('prv_pc_heading')}"><summary>${t('prv_pc_heading')}</summary><div class="profile-accordion-body"><p class="pcp-explainer">${t('prv_pc_explainer')}</p><p id="packageChangePreviewKept" class="pcp-kept-pill">${escapeHtml(packageChangePreviewStoredText(packageChangeKept, packageChangeLabels()))}</p><div class="pcp-form"><label><span class="pcp-field-pill">${t('prv_pc_proposed_package')}</span> <select id="packageChangePreviewPackage">${BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(t('prv_pc_option', null, { label: plan.label, amount: formatAmount(plan.price) }))}</option>`).join('')}</select></label> <label><span class="pcp-field-pill">${t('prv_pc_effective_date')}</span> <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label><span class="pcp-field-pill">${t('prv_pc_next_bill_month')}</span> <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label><span class="pcp-field-pill">${t('prv_pc_estimate')}</span> <select id="packageChangePreviewMode"><option value="auto">${t('prv_pc_mode_auto')}</option><option value="full">${t('prv_fb_full_month')}</option><option value="prorata">${t('prv_fb_prorata')}</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">${t('prv_fb_show')}</button></div><div id="packageChangePreviewResult">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount, packageChangeLabels()) : `<p class="empty-state">${t('prv_pc_no_package')}</p>`}</div></div></details>`;
   // Plan 47 (Plan 1-100) — Speed and service-quality log. The package
   // speed alongside each entry comes from the catalogue match on the
   // customer's package label/id, else the number inside the label;
@@ -8520,7 +8520,7 @@ function renderCustomerProfileView(customer) {
   const qualityPackagePlan = BILL_PACKAGES.find((plan) => plan.label === customer.packageSpeed) || BILL_PACKAGES.find((plan) => plan.id === customer.packageSpeed) || null;
   const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
   const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
-  const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p class="pcp-explainer">When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary" class="ql-summary-pill">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><details class="profile-accordion"><summary>Record measurement</summary><div class="profile-accordion-body"><div class="pcp-form"><label><span class="pcp-field-pill">Date</span> <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div></div></details><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
+  const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="${t('prv_ql_heading')}"><h4>${t('prv_ql_heading')}</h4><p class="pcp-explainer">${t('prv_ql_explainer')}</p><p id="qualityLogSummary" class="ql-summary-pill">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed, qualityLogLabels()))}</p><details class="profile-accordion"><summary>${t('prv_ql_record')}</summary><div class="profile-accordion-body"><div class="pcp-form"><label><span class="pcp-field-pill">${t('prv_ql_date')}</span> <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>${t('prv_ql_download')} <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>${t('prv_ql_upload')} <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>${t('prv_ql_where')} <select id="qualityLogLocation"><option value="Near router">${t('prv_ql_near_router')}</option><option value="Far room">${t('prv_ql_far_room')}</option></select></label> <label>${t('prv_ql_other_location')} <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="${t('prv_ql_other_placeholder')}"></label> <label>${t('prv_ql_note')} <input id="qualityLogNote" type="text" maxlength="200" placeholder="${t('prv_ql_optional')}"></label> <label>${t('prv_ql_linked_ticket')} <input id="qualityLogTicket" type="text" maxlength="64" placeholder="${t('prv_ql_optional')}"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">${t('prv_ql_record')}</button></div></div></details><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed, qualityLogLabels())}</div></section>`;
   // Plan 351 — Customer profile at-a-glance header strip: the four
   // counter questions (dues, package, last payment, next due) in one
   // read-only strip at the top of the profile, composed from this
@@ -8697,7 +8697,7 @@ function renderCustomerProfileView(customer) {
     label: stripPackagePlan ? stripPackagePlan.label : customer.packageSpeed,
     price: (customer.monthlySellingAmount !== null && customer.monthlySellingAmount !== undefined && String(customer.monthlySellingAmount).trim() !== '')
       ? customer.monthlySellingAmount : (stripPackagePlan ? stripPackagePlan.price : null),
-  }, formatAmount);
+  }, formatAmount, packageHistoryLabels());
   // Plan 360 — Service start date and tenure display: the recorded
   // connection date and the whole years and months since it, in plain
   // words. Read-only: it never changes any record, and it creates no
@@ -8732,6 +8732,7 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_handling_remove'),
     none: t('prof_handling_none'),
     add: t('prof_note_add', null, { heading: t('prof_handling_heading') }),
+    explainer: t('prv_note_handling_explainer'),
   });
   // Plan 390 — Transaction standing instruction note: the usual amount,
   // usual day of the month, and usual method for a regular monthly
@@ -8750,6 +8751,9 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_sin_remove'),
     none: t('prof_sin_none'),
     add: t('prof_note_add', null, { heading: t('prof_sin_heading') }),
+    explainer: t('prv_note_sin_explainer'),
+    line: t('prv_note_sin_line'),
+    byMethod: t('prv_note_sin_by_method'),
   });
   // Plan 393 — Transaction paying for another customer's account:
   // the payments this customer made for other customers' accounts,
@@ -8757,7 +8761,7 @@ function renderCustomerProfileView(customer) {
   // about whose money settled whose bill. A note only: it moves no
   // dues between customers and never changes any bill, payment
   // total, credit transfer, or customer record by itself.
-  const crossPaymentsMadeSectionMarkup = crossPaymentsMadeSectionHtml(customer, crossPaymentsMadeBy(listTransactions(state), customer.id), formatAmount);
+  const crossPaymentsMadeSectionMarkup = crossPaymentsMadeSectionHtml(customer, crossPaymentsMadeBy(listTransactions(state), customer.id), formatAmount, crossPaymentsLabels());
   // Plan 366 — Customer spoken language note: the language the customer
   // speaks comfortably, shown at the top of the profile so Saad greets
   // each household in the right language. Profile note only: it never
@@ -8771,6 +8775,7 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_spoken_lang_remove'),
     none: t('prof_spoken_lang_none'),
     add: t('prof_note_add', null, { heading: t('prof_spoken_lang_heading') }),
+    explainer: t('prv_note_spoken_explainer'),
   });
   // Plan 367 — Customer gate and access instruction: how to reach the
   // customer at the door, shown at the top of the profile and beside
@@ -8785,6 +8790,7 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_gate_access_remove'),
     none: t('prof_gate_access_none'),
     add: t('prof_note_add', null, { heading: t('prof_gate_access_heading') }),
+    explainer: t('prv_note_gate_explainer'),
   });
   // Plan 368 — Customer emergency contact: the second person to call
   // when the account holder cannot be reached, shown at the top of the
@@ -8802,6 +8808,7 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_emc_remove'),
     none: t('prof_emc_none'),
     add: t('prof_note_add', null, { heading: t('prof_emc_heading') }),
+    explainer: t('prv_note_emc_explainer'),
   });
   // Plan 369 — Customer profile quick actions row: the four everyday
   // actions, each opening its screen with this customer already
@@ -8845,7 +8852,7 @@ function renderCustomerProfileView(customer) {
   const profileSectionConnectionBody = `${profileInfoGroupFragments.install}`;
   const profileSectionNetworkBody = `${profileInfoGroupFragments.network}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${mikrotikSectionHtml}${routerCredSectionHtml}`;
   const profileSectionHardwareBody = `${profileInfoGroupFragments.hardware}${custodySectionHtml}${nocSectionHtml}`;
-  const profileSectionHistoryBody = `${lastInteractionLineMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${statusReplySectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;
+  const profileSectionHistoryBody = `${lastInteractionLineMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${lifecycleJourneyHtml(buildLifecycleJourney(customer, lifecycleLabels()), lifecycleLabels())}${statusReplySectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName, onboardingLabels())}${renderRelocationTimeline(customer)}`;
   const profileSectionCustomerHtml = profileDetailSectionHtml({ key: 'customer', heading: t('prof_sec_customer'), summary: `${customer.name || customer.customerName || t('prof_not_set')} · ${profileEmptyText(phone)}`, body: profileSectionCustomerBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'customer'), editLabel: t('prof_view_edit') });
   // Profile Polish C (15) — the Service section header shows a SMALL
   // pill with just the status word (Active green, Vacation amber,
@@ -9124,13 +9131,13 @@ function renderCustomerProfileView(customer) {
   $('#customerProfileView').querySelector('#firstBillPreviewShowBtn')?.addEventListener('click', () => {
     const startDate = document.querySelector('#firstBillPreviewStartDate')?.value || '';
     const mode = document.querySelector('#firstBillPreviewMode')?.value || 'auto';
-    const preview = previewFromCustomer(customer, { startDate, firstPeriodMode: mode });
+    const preview = previewFromCustomer(customer, { startDate, firstPeriodMode: mode, labels: firstBillPreviewLabels() });
     const resultEl = document.querySelector('#firstBillPreviewResult');
-    if (resultEl) resultEl.innerHTML = firstBillPreviewHtml(preview, formatAmount);
+    if (resultEl) resultEl.innerHTML = firstBillPreviewHtml(preview, formatAmount, firstBillPreviewLabels());
     if (preview.status === 'ready') {
       saveFirstBillPreviews(recordFirstBillPreviewShown(loadFirstBillPreviews(), customer.id, localDate()));
       const shownEl = document.querySelector('#firstBillPreviewShown');
-      if (shownEl) shownEl.textContent = firstBillPreviewShownText(findFirstBillPreviewShown(loadFirstBillPreviews(), customer.id));
+      if (shownEl) shownEl.textContent = firstBillPreviewShownText(findFirstBillPreviewShown(loadFirstBillPreviews(), customer.id), firstBillPreviewLabels());
     }
   });
   // Plan 46: show the package change preview for this customer.
@@ -9151,13 +9158,13 @@ function renderCustomerProfileView(customer) {
       billMonth: $('#customerProfileView').querySelector('#packageChangePreviewMonth')?.value || '',
       effectiveDate: $('#customerProfileView').querySelector('#packageChangePreviewDate')?.value || '',
       mode: $('#customerProfileView').querySelector('#packageChangePreviewMode')?.value || 'auto',
-    });
+    }, packageChangeLabels());
     const resultEl = $('#customerProfileView').querySelector('#packageChangePreviewResult');
-    if (resultEl) resultEl.innerHTML = packageChangePreviewHtml(preview, formatAmount);
+    if (resultEl) resultEl.innerHTML = packageChangePreviewHtml(preview, formatAmount, packageChangeLabels());
     if (preview.status === 'ready') {
       savePackageChangePreviews(recordPackageChangePreview(loadPackageChangePreviews(), preview));
       const keptEl = $('#customerProfileView').querySelector('#packageChangePreviewKept');
-      if (keptEl) keptEl.textContent = packageChangePreviewStoredText(findPackageChangePreview(loadPackageChangePreviews(), customer.id));
+      if (keptEl) keptEl.textContent = packageChangePreviewStoredText(findPackageChangePreview(loadPackageChangePreviews(), customer.id), packageChangeLabels());
     }
   });
   $('#customerProfileView').querySelector('#qualityLogAddBtn')?.addEventListener('click', () => {
@@ -9176,16 +9183,16 @@ function renderCustomerProfileView(customer) {
     });
     const messageEl = view.querySelector('#qualityLogMessage');
     if (next === current) {
-      if (messageEl) messageEl.textContent = 'Could not record: check the date, both speeds, and the location.';
+      if (messageEl) messageEl.textContent = t('prv_ql_not_recorded_msg');
       return;
     }
     saveQualityLog(next);
     const entries = entriesForCustomer(next, customer.id);
     const summaryEl = view.querySelector('#qualityLogSummary');
-    if (summaryEl) summaryEl.textContent = qualityLogSummaryText(entries, qualityPackageSpeed);
+    if (summaryEl) summaryEl.textContent = qualityLogSummaryText(entries, qualityPackageSpeed, qualityLogLabels());
     const listEl = view.querySelector('#qualityLogList');
-    if (listEl) listEl.innerHTML = qualityLogHtml(entries, qualityPackageSpeed);
-    if (messageEl) messageEl.textContent = 'Measurement recorded.';
+    if (listEl) listEl.innerHTML = qualityLogHtml(entries, qualityPackageSpeed, qualityLogLabels());
+    if (messageEl) messageEl.textContent = t('prv_ql_recorded_msg');
   });
   $('#customerProfileView').querySelector('#welcomePackSendBtn')?.addEventListener('click', (event) => {
     const sendBtn = event.currentTarget;
@@ -10637,6 +10644,240 @@ async function removeManualBaqayaEntryFlow(customerId, entryId) {
   }
 }
 
+// Plan 601 — labels objects for the preview/tool sections. Each builds
+// the module's labels from t() at call time, so a language switch is
+// picked up on the next render. Modules never import t(); app.js is
+// the only place t('prv_*') is called. Shared words reuse one key
+// across modules (prv_fb_full_month / prv_fb_prorata / prv_fb_show /
+// prv_ql_note / prv_table_* / prv_fb_missing_figures / prof_not_set /
+// prof_not_recorded) instead of minting a second key for the same
+// English string.
+function firstBillPreviewLabels() {
+  return {
+    noPreview: t('prv_fb_no_preview'),
+    summaryIncomplete: t('prv_fb_summary_incomplete'),
+    lineInstallation: t('prv_fb_line_installation'),
+    lineFirstPeriod: t('prv_fb_line_first_period'),
+    lineDeposit: t('prv_fb_line_deposit'),
+    waived: t('prv_fb_waived'),
+    feeNotRecorded: t('prv_fb_fee_not_recorded'),
+    depositNotRecorded: t('prv_fb_deposit_not_recorded'),
+    feeAssumption: t('prv_fb_fee_assumption'),
+    prorataNote: t('prv_fb_prorata_note'),
+    assumptions: t('prv_fb_assumptions'),
+    incomplete: t('prv_fb_incomplete'),
+    summaryReady: t('prv_fb_summary_ready'),
+    notShown: t('prv_fb_not_shown'),
+    shownOn: t('prv_fb_shown_on'),
+    reasonPrice: t('prv_fb_reason_price'),
+    reasonDate: t('prv_fb_reason_date'),
+    missingFigures: t('prv_fb_missing_figures'),
+    tableItem: t('prv_table_item'),
+    tableAmount: t('prv_table_amount'),
+    tableNote: t('prv_ql_note'),
+    totalDue: t('prv_fb_total_due'),
+    previewOnly: t('prv_fb_preview_only'),
+    fullMonth: t('prv_fb_full_month'),
+  };
+}
+function packageChangeLabels() {
+  return {
+    noPreview: t('prv_pc_no_preview'),
+    summaryIncomplete: t('prv_pc_summary_incomplete'),
+    directionUpgrade: t('prv_pc_direction_upgrade'),
+    directionDowngrade: t('prv_pc_direction_downgrade'),
+    directionLateral: t('prv_pc_direction_lateral'),
+    estimateAfter: t('prv_pc_estimate_after'),
+    estimateFullRequested: t('prv_pc_estimate_full_requested'),
+    estimateFullStart: t('prv_pc_estimate_full_start'),
+    estimateProrata: t('prv_pc_estimate_prorata'),
+    dayOne: t('prv_pc_day_one'),
+    dayMany: t('prv_pc_day_many'),
+    lineFullEffect: t('prv_pc_line_full_effect'),
+    lineBefore: t('prv_pc_line_before'),
+    lineFrom: t('prv_pc_line_from'),
+    reasonPackage: t('prv_pc_reason_package'),
+    reasonEffective: t('prv_pc_reason_effective'),
+    reasonMonth: t('prv_pc_reason_month'),
+    reasonCurrentPrice: t('prv_pc_reason_current_price'),
+    reasonProposedPrice: t('prv_pc_reason_proposed_price'),
+    summaryReady: t('prv_pc_summary_ready'),
+    incomplete: t('prv_pc_incomplete'),
+    estimatedBill: t('prv_pc_estimated_bill'),
+    previewOnly: t('prv_pc_preview_only'),
+    storedNone: t('prv_pc_stored_none'),
+    storedKept: t('prv_pc_stored_kept'),
+    missingFigures: t('prv_fb_missing_figures'),
+    tableItem: t('prv_table_item'),
+    tableAmount: t('prv_table_amount'),
+    tableNote: t('prv_ql_note'),
+    fullMonth: t('prv_fb_full_month'),
+  };
+}
+function billingCycleLabels() {
+  return {
+    noChoice: t('prv_bc_no_choice'),
+    dueOn: t('prv_bc_due_on'),
+    changedOn: t('prv_bc_changed_on'),
+    changeNotRecorded: t('prv_bc_change_not_recorded'),
+    note: t('prv_bc_note'),
+    day: t('prv_bc_day'),
+  };
+}
+function paymentChannelLabels() {
+  return {
+    noChannelCustomer: t('prv_pch_no_channel_customer'),
+    preferredLabel: t('prv_pch_preferred_label'),
+    noChannelYet: t('prv_pch_no_channel_yet'),
+    summaryOne: t('prv_pch_summary_one'),
+    summaryMany: t('prv_pch_summary_many'),
+    cash: t('prv_pch_cash'),
+    wallet: t('prv_pch_wallet'),
+  };
+}
+function qualityLogLabels() {
+  return {
+    noMeasurements: t('prv_ql_no_measurements'),
+    summary: t('prv_ql_summary'),
+    packageNotSet: t('prv_ql_package_not_set'),
+    packageSpeed: t('prv_ql_package_speed'),
+    below: t('prv_ql_below'),
+    above: t('prv_ql_above'),
+    at: t('prv_ql_at'),
+    belowPkg: t('prv_ql_below_pkg'),
+    noPackage: t('prv_ql_no_package'),
+    headerDate: t('prv_ql_date'),
+    headerDownload: t('prv_ql_header_download'),
+    headerUpload: t('prv_ql_header_upload'),
+    headerWhere: t('prv_ql_where'),
+    headerPackage: t('prv_ql_header_package'),
+    headerComparison: t('prv_ql_header_comparison'),
+    headerNote: t('prv_ql_note'),
+    headerTicket: t('prv_ql_header_ticket'),
+    locNear: t('prv_ql_loc_near'),
+    farRoom: t('prv_ql_far_room'),
+    notSet: t('prof_not_set'),
+    notRecorded: t('prof_not_recorded'),
+  };
+}
+function lifecycleLabels() {
+  return {
+    active: t('prv_lc_active'),
+    offline: t('prv_lc_offline'),
+    notSet: t('prof_not_set'),
+    notRecorded: t('prof_not_recorded'),
+    notSetMoney: t('prv_lc_not_set'),
+    archived: t('prv_lc_archived'),
+    disconnectedReason: t('prv_lc_disconnected_reason'),
+    onHold: t('prv_lc_on_hold'),
+    holdResumes: t('prv_lc_hold_resumes'),
+    holdSince: t('prv_lc_hold_since'),
+    serviceNotRecorded: t('prv_lc_service_not_recorded'),
+    serviceStatus: t('prv_lc_service_status'),
+    added: t('prv_lc_added'),
+    addedSeparate: t('prv_lc_added_separate'),
+    addedSame: t('prv_lc_added_same'),
+    connected: t('prv_lc_connected'),
+    connectedDetail: t('prv_lc_connected_detail'),
+    packageChanged: t('prv_lc_package_changed'),
+    packageDetail: t('prv_lc_package_detail'),
+    statusChanged: t('prv_lc_status_changed'),
+    holdStarted: t('prv_lc_hold_started'),
+    holdResume: t('prv_lc_hold_resume'),
+    holdNoResume: t('prv_lc_hold_no_resume'),
+    holdEnded: t('prv_lc_hold_ended'),
+    holdResumed: t('prv_lc_hold_resumed'),
+    disconnected: t('prv_lc_disconnected'),
+    disconnectDetail: t('prv_lc_disconnect_detail'),
+    eligible: t('prv_lc_eligible'),
+    notEligible: t('prv_lc_not_eligible'),
+    disconnectNote: t('prv_lc_disconnect_note'),
+    disconnectNodate: t('prv_lc_disconnect_nodate'),
+    reasonShifted: t('prv_lc_reason_shifted'),
+    reasonCompetitor: t('prv_lc_reason_competitor'),
+    reasonAffordability: t('prv_lc_reason_affordability'),
+    reasonTravel: t('prv_lc_reason_travel'),
+    winbackSent: t('prv_lc_winback_sent'),
+    winbackDetail: t('prv_lc_winback_detail'),
+    restored: t('prv_lc_restored'),
+    restoredDetail: t('prv_lc_restored_detail'),
+    journey: t('prv_lc_journey'),
+    journeyAria: t('prv_lc_journey_aria'),
+    currentStatus: t('prv_lc_current_status'),
+    dateNotRecorded: t('prv_lc_date_not_recorded'),
+    undatedNote: t('prv_lc_undated_note'),
+    noEvents: t('prv_lc_no_events'),
+  };
+}
+function onboardingLabels() {
+  return {
+    stepEnquiry: t('prv_ob_step_enquiry'),
+    stepSurvey: t('prv_ob_step_survey'),
+    stepCable: t('prv_ob_step_cable'),
+    stepDevice: t('prv_ob_step_device'),
+    stepCredentials: t('prv_ob_step_credentials'),
+    stepActivation: t('prv_ob_step_activation'),
+    stepFirstBill: t('prv_ob_step_first_bill'),
+    noChecklists: t('prv_ob_no_checklists'),
+    summary: t('prv_ob_summary'),
+    noChecklist: t('prv_ob_no_checklist'),
+    complete: t('prv_ob_complete'),
+    state: t('prv_ob_state'),
+    heading: t('prv_ob_heading'),
+    footer: t('prv_ob_footer'),
+    noPending: t('prv_ob_no_pending'),
+  };
+}
+function packageHistoryLabels() {
+  return {
+    notRecordedPkg: t('prv_ph_not_recorded_pkg'),
+    priceNotRecorded: t('prv_ph_price_not_recorded'),
+    priceMonth: t('prv_ph_price_month'),
+    since: t('prv_ph_since'),
+    sinceNotRecorded: t('prv_ph_since_not_recorded'),
+    startNotRecorded: t('prv_ph_start_not_recorded'),
+    endNotRecorded: t('prv_ph_end_not_recorded'),
+    dates: t('prv_ph_dates'),
+    currentSuffix: t('prv_ph_current_suffix'),
+    unavailable: t('prv_ph_unavailable'),
+    noHistory: t('prv_ph_no_history'),
+    undatedOne: t('prv_ph_undated_one'),
+    undatedMany: t('prv_ph_undated_many'),
+    priceNotRecordedCap: t('prv_ph_price_not_recorded_cap'),
+    sinceCap: t('prv_ph_since_cap'),
+    sinceNotRecordedCap: t('prv_ph_since_not_recorded_cap'),
+    current: t('prv_ph_current'),
+    gap: t('prv_ph_gap'),
+    none: t('prv_ph_none'),
+    heading: t('prv_ph_heading'),
+    explainer: t('prv_ph_explainer'),
+  };
+}
+function crossPaymentsLabels() {
+  return {
+    heading: t('prv_cp_heading'),
+    explainer: t('prv_cp_explainer'),
+    paidBy: t('prv_cp_paid_by'),
+    paidByRel: t('prv_cp_paid_by_rel'),
+  };
+}
+function wadaRecordLabels() {
+  return {
+    noWadas: t('prv_wr_no_wadas'),
+    health: t('prv_wr_health'),
+    promisedBy: t('prv_wr_promised_by'),
+    keptOn: t('prv_wr_kept_on'),
+    keptLateOn: t('prv_wr_kept_late_on'),
+    broken: t('prv_wr_broken'),
+    overdueSuffix: t('prv_wr_overdue_suffix'),
+    overdueLabel: t('prv_wr_overdue_label'),
+    note: t('prv_wr_note'),
+    poora: t('prv_wr_poora'),
+    toota: t('prv_wr_toota'),
+    remove: t('prv_wr_remove'),
+  };
+}
+
 // Profile polish #5 — top-of-profile Wada banner: the customer's
 // still-open wadas first (green when on track, red when overdue),
 // then the quick-add form, then wada health and the closed-wada
@@ -10651,16 +10892,16 @@ function wadaProfileBannerHtml(customer) {
   const all = loadWadaRecords();
   const active = activeWadaRecordsForCustomer(all, customer.id);
   const mine = wadaRecordsForCustomer(all, customer.id);
-  const banner = wadaBannerHtml(active, today);
-  const health = wadaHealthText(all, customer.id);
-  const history = wadaHistoryHtml(mine, today);
+  const banner = wadaBannerHtml(active, today, wadaRecordLabels());
+  const health = wadaHealthText(all, customer.id, wadaRecordLabels());
+  const history = wadaHistoryHtml(mine, today, wadaRecordLabels());
   const scoreBadge = waadaScoreBadgeHtml(state, customer, getTodayDateString());
   // Profile Inner Tabs Overhaul (§4) — one empty state only: the
   // wada-health line below reads 'No wadas recorded for this customer.'
   // when there are none, so the duplicate 'No open wada' line is gone
   // (the .wada-banner-none CSS rule stays, unreferenced — Plan 506
   // precedent — and the health line itself is untouched).
-  return `<section class="profile-wada-banner" aria-label="Wada promises"><h4>Wada — promises to pay ${helpButtonMarkup('waada')}</h4>${banner}<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="fifth">${t('prof_waada_chip_5th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="29th">29th</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="30th">30th</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="31st">31st</button></div><label for="wadaQuickDate"><span class="pcp-field-pill">Promised date</span><input id="wadaQuickDate" type="date" required></label><label for="wadaQuickAmount"><span class="pcp-field-pill">Amount promised (Rs, optional)</span><input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 100"></label><label for="wadaQuickNote"><span class="pcp-field-pill">Note (optional)</span><input id="wadaQuickNote" type="text" maxlength="140" placeholder="e.g. in next bill"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">Add Wada</button></form><p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
+  return `<section class="profile-wada-banner" aria-label="${t('prv_wd_aria')}"><h4>${t('prv_wd_heading')} ${helpButtonMarkup('waada')}</h4>${banner}<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="fifth">${t('prof_waada_chip_5th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="29th">${t('prv_wd_chip_29')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="30th">${t('prv_wd_chip_30')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="31st">${t('prv_wd_chip_31')}</button></div><label for="wadaQuickDate"><span class="pcp-field-pill">${t('prv_wd_promised_date')}</span><input id="wadaQuickDate" type="date" required></label><label for="wadaQuickAmount"><span class="pcp-field-pill">${t('prv_wd_amount')}</span><input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="${t('prv_wd_amount_ph')}"></label><label for="wadaQuickNote"><span class="pcp-field-pill">${t('prv_wd_note')}</span><input id="wadaQuickNote" type="text" maxlength="140" placeholder="${t('prv_wd_note_ph')}"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">${t('prv_wd_add')}</button></form><p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
 }
 
 // Plan 518 — Zone datalist: offer the zone spellings already used under
@@ -15018,7 +15259,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
         const savedIdx = state.customers.findIndex(c => c.id === selectedCustomerId);
         if (savedIdx >= 0) {
           const history = [...savedCustomerForPreview.packageHistory];
-          history[history.length - 1] = attachPreviewNoteToChange(lastChange, keptPackageChangePreview);
+          history[history.length - 1] = attachPreviewNoteToChange(lastChange, keptPackageChangePreview, packageChangeLabels());
           state.customers[savedIdx] = { ...savedCustomerForPreview, packageHistory: history };
         }
         savePackageChangePreviews(removePackageChangePreview(loadPackageChangePreviews(), selectedCustomerId));
@@ -18424,18 +18665,18 @@ function renderOnboardingChecklists() {
   const stored = loadOnboardingChecklists();
   const entries = (state.customers ?? []).filter((c) => !c.archived)
     .map((c) => buildOnboardingEntry(c, findOnboardingTicks(stored, c.id)));
-  bodyEl.innerHTML = onboardingPendingHtml(entries);
+  bodyEl.innerHTML = onboardingPendingHtml(entries, onboardingLabels());
   const summaryEl = $('#onboardingChecklistsSummary');
-  if (summaryEl) summaryEl.textContent = onboardingSummaryText(entries.map((e) => e.checklist));
+  if (summaryEl) summaryEl.textContent = onboardingSummaryText(entries.map((e) => e.checklist), onboardingLabels());
   const selectEl = $('#onboardingChecklistsCustomer');
   if (selectEl && document.activeElement !== selectEl) {
     selectEl.innerHTML = entries.map((e) => `<option value="${escapeHtml(e.customerId)}">${escapeHtml(e.customerName)}</option>`).join('')
-      || '<option value="">No customers yet</option>';
+      || `<option value="">${t('prv_ob_no_customers')}</option>`;
   }
   const stepEl = $('#onboardingChecklistsStep');
   if (stepEl && !stepEl.dataset.filled) {
     stepEl.dataset.filled = '1';
-    stepEl.innerHTML = ONBOARDING_STEPS.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.label)}</option>`).join('');
+    stepEl.innerHTML = ONBOARDING_STEPS.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(onboardingStepLabel(s.id, onboardingLabels()))}</option>`).join('');
   }
   if (!onboardingChecklistsBound) {
     onboardingChecklistsBound = true;

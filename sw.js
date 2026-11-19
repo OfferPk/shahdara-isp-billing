@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'shahdara-isp-billing-';
 // build.mjs rewrites CACHE_NAME (adds a content hash) and APP_FILES (every file in dist/) in dist/sw.js (#210).
-const CACHE_NAME = 'shahdara-isp-billing-v37-3180cb719c';
+const CACHE_NAME = 'shahdara-isp-billing-v37-3e8863c580';
 const APP_FILES = ["./","./app.bundle.css","./app.js","./bulk-collect.js","./chunk-AZVNCQM6.js","./chunk-BKRAZITG.js","./chunk-D6QHKDLC.js","./chunk-I4S6WV2D.js","./chunk-LOKFJYX6.js","./chunk-MO4RQYNI.js","./chunk-N6DPV5NW.js","./chunk-TGCFOQ5S.js","./chunk-XWA42EPX.js","./chunk-YEZINQ4J.js","./collect-setup.js","./customer-import.js","./customer-plan.js","./icon.svg","./index.html","./manifest.webmanifest","./payments-inbox.js","./screen-router.js","./urdu-font.css"];
 
 // Bypass the HTTP cache while precaching so a new worker never stores files from the previous deploy.

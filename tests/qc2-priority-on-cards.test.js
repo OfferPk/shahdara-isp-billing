@@ -445,8 +445,12 @@ test('field mode builds the same priority map and renders the badge, reason and 
 
 test('qc2_ keys exist in EN and UR, with Urdu script in the Urdu values', () => {
   assert.equal(en.qc2_sort_label, 'Sort by');
-  assert.equal(en.qc2_sort_amount, 'Highest dues first');
-  assert.equal(en.qc2_sort_oldest, 'Oldest due first');
+  // QC picker overflow (2026-11-19, item 2): the sort labels are
+  // shortened so they fit the 2-col filter row at 360px without
+  // clipping — "Highest dues first" → "Highest dues",
+  // "Oldest due first" → "Oldest due" (EN+UR values).
+  assert.equal(en.qc2_sort_amount, 'Highest dues');
+  assert.equal(en.qc2_sort_oldest, 'Oldest due');
   assert.equal(en.qc2_priority_high, 'High priority');
   assert.equal(en.qc2_priority_medium, 'Medium priority');
   assert.equal(en.qc2_priority_low, 'Low priority');

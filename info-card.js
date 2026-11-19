@@ -206,13 +206,53 @@ export function buildInfoCard({
   return card;
 }
 
-export function infoCardSummaryText(card) {
-  if (!card) return 'Info card unavailable — the package or monthly price is missing or unusable.';
+// Plan 600 — the preview chrome renders through a caller-supplied
+// labels object (the 591 header-strip pattern), so this module stays
+// import-free. Defaults are the English strings, so old callers (and
+// old tests) keep byte-identical output. 'Customer:' is shared with
+// balance-reply, 'Package:' with welcome-pack (one key each). The
+// draft text's own 'not recorded' fallbacks (buildInfoCardText) are
+// draft content and stay literal; only the preview fields are keyed.
+const DEFAULT_INFO_CARD_LABELS = {
+  unavailable: 'Info card unavailable — the package or monthly price is missing or unusable.',
+  summary: '{package} — {price} / month.',
+  summaryDue: ' Next due date {date}.',
+  summaryPending: ' Package change noted: {package} (current package stays in force until applied).',
+  notSent: 'Info card not sent yet.',
+  sent1: 'Info card sent on {date}.',
+  sentN1: 'Info card sent on {date} and 1 more time — re-send anytime from here.',
+  sentN: 'Info card sent on {date} and {count} more times — re-send anytime from here.',
+  customer: 'Customer:',
+  package: 'Package:',
+  monthlyPrice: 'Monthly price:',
+  cycleDue: 'Billing cycle: due on day {day}',
+  cycleDueDefault: 'Billing cycle: due on day {day} (default)',
+  cycleNotRecorded: 'Billing cycle: not recorded',
+  nextDue: 'Next due date:',
+  nextDueNotRecorded: 'Next due date: not recorded',
+  status: 'Connection status:',
+  expiry: 'Package expiry:',
+  expiryNotRecorded: 'Package expiry: not recorded',
+  support: 'Support contact:',
+  changeNoted: 'Package change noted: {package} — current package stays in force until applied',
+  notRecorded: 'not recorded',
+};
+function icLabel(labels, key) {
+  return (labels && typeof labels[key] === 'string' && labels[key] !== '') ? labels[key] : DEFAULT_INFO_CARD_LABELS[key];
+}
+function icFill(template, params) {
+  let out = String(template);
+  for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+export function infoCardSummaryText(card, labels = DEFAULT_INFO_CARD_LABELS) {
+  if (!card) return icLabel(labels, 'unavailable');
   const pending = card.pendingChange
-    ? ` Package change noted: ${card.pendingChange.proposedPackage} (current package stays in force until applied).`
+    ? icFill(icLabel(labels, 'summaryPending'), { package: card.pendingChange.proposedPackage })
     : '';
-  const due = card.nextDueDate ? ` Next due date ${card.nextDueDate}.` : '';
-  return `${card.package} — ${formatAmount(card.monthlyPrice)} / month.${due}${pending}`;
+  const due = card.nextDueDate ? icFill(icLabel(labels, 'summaryDue'), { date: card.nextDueDate }) : '';
+  return `${icFill(icLabel(labels, 'summary'), { package: card.package, price: formatAmount(card.monthlyPrice) })}${due}${pending}`;
 }
 
 // Append a send to the log (customer, time, channel, variant),
@@ -240,35 +280,36 @@ export function findInfoCardSends(log, customerId) {
   return log.filter((entry) => text(entry?.customerId) === id);
 }
 
-export function infoCardSentText(sends) {
+export function infoCardSentText(sends, labels = DEFAULT_INFO_CARD_LABELS) {
   const list = Array.isArray(sends) ? sends : [];
-  if (list.length === 0) return 'Info card not sent yet.';
+  if (list.length === 0) return icLabel(labels, 'notSent');
   const first = list[0];
   const datePart = text(first?.sentAt).slice(0, 10);
   const shown = validInfoCardDate(datePart) || datePart;
-  if (list.length === 1) return `Info card sent on ${shown}.`;
-  return `Info card sent on ${shown} and ${list.length - 1} more time${list.length - 1 === 1 ? '' : 's'} — re-send anytime from here.`;
+  if (list.length === 1) return icFill(icLabel(labels, 'sent1'), { date: shown });
+  if (list.length - 1 === 1) return icFill(icLabel(labels, 'sentN1'), { date: shown });
+  return icFill(icLabel(labels, 'sentN'), { date: shown, count: list.length - 1 });
 }
 
-export function infoCardHtml(card, { draftText = '', sends = [] } = {}) {
-  if (!card) return '<p class="empty-state">Info card unavailable — the package or monthly price is missing or unusable.</p>';
+export function infoCardHtml(card, { draftText = '', sends = [], labels = DEFAULT_INFO_CARD_LABELS } = {}) {
+  if (!card) return `<p class="empty-state">${escapeHtml(icLabel(labels, 'unavailable'))}</p>`;
   const fields = [
-    `Customer: ${escapeHtml(card.customerName || card.customerId)}`,
-    `Package: ${escapeHtml(card.package)}`,
-    `Monthly price: ${escapeHtml(formatAmount(card.monthlyPrice))}`,
+    `${icLabel(labels, 'customer')} ${escapeHtml(card.customerName || card.customerId)}`,
+    `${icLabel(labels, 'package')} ${escapeHtml(card.package)}`,
+    `${icLabel(labels, 'monthlyPrice')} ${escapeHtml(formatAmount(card.monthlyPrice))}`,
     card.cycleDueDay === null
-      ? 'Billing cycle: not recorded'
-      : `Billing cycle: due on day ${card.cycleDueDay}${card.cycleIsDefault ? ' (default)' : ''}`,
-    card.nextDueDate ? `Next due date: ${escapeHtml(card.nextDueDate)}` : 'Next due date: not recorded',
-    `Connection status: ${escapeHtml(card.connectionStatus || 'not recorded')}`,
-    card.expiryDate ? `Package expiry: ${escapeHtml(card.expiryDate)}` : 'Package expiry: not recorded',
-    `Support contact: ${escapeHtml(card.supportContact || 'not recorded')}`,
+      ? icLabel(labels, 'cycleNotRecorded')
+      : icFill(icLabel(labels, card.cycleIsDefault ? 'cycleDueDefault' : 'cycleDue'), { day: card.cycleDueDay }),
+    card.nextDueDate ? `${icLabel(labels, 'nextDue')} ${escapeHtml(card.nextDueDate)}` : icLabel(labels, 'nextDueNotRecorded'),
+    `${icLabel(labels, 'status')} ${escapeHtml(card.connectionStatus || icLabel(labels, 'notRecorded'))}`,
+    card.expiryDate ? `${icLabel(labels, 'expiry')} ${escapeHtml(card.expiryDate)}` : icLabel(labels, 'expiryNotRecorded'),
+    `${icLabel(labels, 'support')} ${escapeHtml(card.supportContact || icLabel(labels, 'notRecorded'))}`,
   ];
   if (card.pendingChange) {
-    fields.push(`Package change noted: ${escapeHtml(card.pendingChange.proposedPackage)} — current package stays in force until applied`);
+    fields.push(icFill(icLabel(labels, 'changeNoted'), { package: escapeHtml(card.pendingChange.proposedPackage) }));
   }
   const rows = fields.map((field) => `<li>${field}</li>`).join('');
   const textBlock = draftText ? `<pre>${escapeHtml(draftText)}</pre>` : '';
-  const sentLine = `<p>${escapeHtml(infoCardSentText(sends))}</p>`;
+  const sentLine = `<p>${escapeHtml(infoCardSentText(sends, labels))}</p>`;
   return `<ul>${rows}</ul>${textBlock}${sentLine}`;
 }

@@ -23,8 +23,8 @@ test('Plan 505 (as folded by Plan 507): the Waada line is gone, not reverted to 
     'the hand-rolled "PKR ${Number(...).toLocaleString()}" Waada amount must be gone'
   );
   assert.ok(
-    appSrc.includes('wadaBannerHtml(active, today)'),
-    'the current promise still renders, from wada records in the banner'
+    appSrc.includes('wadaBannerHtml(active, today, wadaRecordLabels())'),
+    'the current promise still renders, from wada records in the banner (Plan 601: the banner call now passes the labels object)'
   );
 });
 

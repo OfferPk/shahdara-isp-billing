@@ -177,17 +177,17 @@ describe('Plan 596: empty profile note sections collapse', () => {
   });
 
   test('G13 parity moves to the new total in both languages', () => {
-    assert.equal(Object.keys(TRANSLATIONS.en).length, 4906, 'EN parity 4,906');
-    assert.equal(Object.keys(TRANSLATIONS.ur).length, 4906, 'UR parity 4,906');
+    assert.equal(Object.keys(TRANSLATIONS.en).length, 5138, 'EN parity 5,138');
+    assert.equal(Object.keys(TRANSLATIONS.ur).length, 5138, 'UR parity 5,138');
   });
 
   test('G14 this file pins the new total and stays free of the previous total digits', () => {
     const selfSrc = read('tests/plan596-note-sections-collapse.test.js');
-    assert.ok(selfSrc.includes('4906'), 'this file pins the new total');
+    assert.ok(selfSrc.includes('5138'), 'this file pins the new total');
     // The previous total's digits are built, never spelled, so this guard
     // cannot trip the sweep it guards.
-    assert.ok(!selfSrc.includes('47' + '66'), 'this file must stay free of the previous-count literal');
-    assert.ok(!selfSrc.includes('47' + '22'), 'this file must stay free of the older-count literal');
+    assert.ok(!selfSrc.includes('49' + '06'), 'this file must stay free of the previous-count literal');
+    assert.ok(!selfSrc.includes('47' + '67'), 'this file must stay free of the older-count literal');
   });
 
   test('G15 styles split: the five sections target the accordion body, other sections keep the old form', () => {

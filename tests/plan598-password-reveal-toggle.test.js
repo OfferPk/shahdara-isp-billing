@@ -261,9 +261,9 @@ test('Plan 598: the toggle label reuses the vault words, no new i18n key', () =>
   assert.equal(TRANSLATIONS.ur.rcred_hide, 'چھپائیں');
   assert.ok(bindSrc.includes("t('rcred_show')") && bindSrc.includes("t('rcred_hide')"), 'the binding uses the existing keys');
   assert.ok(!bindSrc.includes('aria-label'), 'no hardcoded English aria-label on the toggle');
-  // Parity moved with Plan 600's keys: both dicts now hold the new
+  // Parity moved with Plan 601's keys: both dicts now hold the new
   // total, counted without spelling the digits (see the file header).
-  const total = Number('49' + '06');
+  const total = Number('51' + '38');
   assert.equal(Object.keys(TRANSLATIONS.en).length, total);
   assert.equal(Object.keys(TRANSLATIONS.ur).length, total);
 });
@@ -273,6 +273,6 @@ test('Plan 598: this file stays free of the parity-count digits it must not pin'
   // the previous total's digits, and counts every file containing the
   // current total's digits. The digits are built, never spelled, so this
   // guard cannot trip the sweep it guards.
-  assert.ok(!selfSrc.includes('49' + '06'), 'this file must stay free of the current-count literal');
-  assert.ok(!selfSrc.includes('47' + '67'), 'this file must stay free of the previous-count literal');
+  assert.ok(!selfSrc.includes('51' + '38'), 'this file must stay free of the current-count literal');
+  assert.ok(!selfSrc.includes('49' + '06'), 'this file must stay free of the previous-count literal');
 });

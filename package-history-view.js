@@ -267,29 +267,78 @@ export function packageHistorySegmentsFor({
 
 const defaultFormatAmount = (value) => `PKR ${String(value ?? '')}`;
 
+// Plan 601 — labels object: the app passes t('prv_ph_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t(). The lowercase / capitalized pairs (price / Price,
+// since / Since) are separate keys by exact string, never folded
+// (Trap 6: dedup by exact string only).
+const DEFAULT_LABELS = {
+  notRecordedPkg: 'Package not recorded',
+  priceNotRecorded: 'price not recorded',
+  priceMonth: '{amount}/month',
+  since: 'since {date}',
+  sinceNotRecorded: 'since (start not recorded)',
+  startNotRecorded: '(start not recorded)',
+  endNotRecorded: '(end not recorded)',
+  dates: '{start} to {end}',
+  currentSuffix: ' (current)',
+  unavailable: 'Package history unavailable.',
+  noHistory: 'No package history recorded.',
+  undatedOne: '1 package change without a recorded date.',
+  undatedMany: '{count} package changes without a recorded date.',
+  priceNotRecordedCap: 'Price not recorded',
+  sinceCap: 'Since {date}',
+  sinceNotRecordedCap: 'Since (start not recorded)',
+  current: 'Current',
+  gap: 'Gap in the record',
+  none: 'No package or monthly selling-rate changes have been recorded.',
+  heading: 'Package history',
+  explainer: 'Every package this customer has been on, with the dates and the price at the time — from the package changes already recorded on the profile. This view sets no package and re-prices nothing; a package is only changed through the profile Edit form.',
+};
+
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+function undatedLine(count, labels) {
+  return count === 1
+    ? labels.undatedOne
+    : fill(labels.undatedMany, { count });
+}
+
 // One period in plain words, for text summaries and CSV rows.
-export function packageHistorySegmentText(segment, formatAmount = defaultFormatAmount) {
+export function packageHistorySegmentText(segment, formatAmount = defaultFormatAmount, labels) {
+  const L = resolveLabels(labels);
   if (!segment || typeof segment !== 'object') return '';
   const format = typeof formatAmount === 'function' ? formatAmount : defaultFormatAmount;
-  const label = text(segment.packageLabel) || 'Package not recorded';
-  const price = segment.priceCents === null ? 'price not recorded' : `${format(segment.price)}/month`;
+  const label = text(segment.packageLabel) || L.notRecordedPkg;
+  const price = segment.priceCents === null ? L.priceNotRecorded : fill(L.priceMonth, { amount: format(segment.price) });
   const dates = segment.isCurrent
-    ? (segment.startDate ? `since ${segment.startDate}` : 'since (start not recorded)')
-    : (`${segment.startDate || '(start not recorded)'} to ${segment.endDate || '(end not recorded)'}`);
-  const current = segment.isCurrent ? ' (current)' : '';
+    ? (segment.startDate ? fill(L.since, { date: segment.startDate }) : L.sinceNotRecorded)
+    : (fill(L.dates, {
+      start: segment.startDate || L.startNotRecorded,
+      end: segment.endDate || L.endNotRecorded,
+    }));
+  const current = segment.isCurrent ? L.currentSuffix : '';
   return `${label} — ${price}, ${dates}${current}`;
 }
 
 // The whole view in plain words, newest first.
-export function packageHistoryViewText(view, formatAmount = defaultFormatAmount) {
-  if (!view || typeof view !== 'object') return 'Package history unavailable.';
+export function packageHistoryViewText(view, formatAmount = defaultFormatAmount, labels) {
+  const L = resolveLabels(labels);
+  if (!view || typeof view !== 'object') return L.unavailable;
   const segments = Array.isArray(view.segments) ? view.segments : [];
-  if (segments.length === 0) return 'No package history recorded.';
-  const parts = segments.map((segment) => packageHistorySegmentText(segment, formatAmount));
+  if (segments.length === 0) return L.noHistory;
+  const parts = segments.map((segment) => packageHistorySegmentText(segment, formatAmount, labels));
   if (view.undatedCount > 0) {
-    parts.push(view.undatedCount === 1
-      ? '1 package change without a recorded date.'
-      : `${view.undatedCount} package changes without a recorded date.`);
+    parts.push(undatedLine(view.undatedCount, L));
   }
   return parts.join(' ');
 }
@@ -298,7 +347,8 @@ export function packageHistoryViewText(view, formatAmount = defaultFormatAmount)
 // { label, price } from the profile itself; formatAmount formats a
 // monthly amount in PKR. No form, no button: the view sets no
 // package and re-prices nothing.
-export function packageHistoryViewSectionHtml(customer, currentPackage = {}, formatAmount = defaultFormatAmount) {
+export function packageHistoryViewSectionHtml(customer, currentPackage = {}, formatAmount = defaultFormatAmount, labels) {
+  const L = resolveLabels(labels);
   const format = typeof formatAmount === 'function' ? formatAmount : defaultFormatAmount;
   const history = Array.isArray(customer?.packageHistory) ? customer.packageHistory : [];
   const view = packageHistorySegmentsFor({
@@ -307,15 +357,18 @@ export function packageHistoryViewSectionHtml(customer, currentPackage = {}, for
     currentPackagePrice: currentPackage?.price,
   });
   const rows = view.segments.map((segment) => {
-    const label = text(segment.packageLabel) || 'Package not recorded';
+    const label = text(segment.packageLabel) || L.notRecordedPkg;
     const price = segment.priceCents === null
-      ? 'Price not recorded'
-      : `${escapeHtml(format(segment.price))}/month`;
+      ? L.priceNotRecordedCap
+      : fill(L.priceMonth, { amount: escapeHtml(format(segment.price)) });
     const dates = segment.isCurrent
-      ? (segment.startDate ? `Since ${escapeHtml(segment.startDate)}` : 'Since (start not recorded)')
-      : (`${segment.startDate ? escapeHtml(segment.startDate) : '(start not recorded)'} to ${segment.endDate ? escapeHtml(segment.endDate) : '(end not recorded)'}`);
-    const current = segment.isCurrent ? ' <span class="phv-current">Current</span>' : '';
-    const gap = segment.gapBefore ? ' <span class="phv-gap">Gap in the record</span>' : '';
+      ? (segment.startDate ? fill(L.sinceCap, { date: escapeHtml(segment.startDate) }) : L.sinceNotRecordedCap)
+      : (fill(L.dates, {
+        start: segment.startDate ? escapeHtml(segment.startDate) : L.startNotRecorded,
+        end: segment.endDate ? escapeHtml(segment.endDate) : L.endNotRecorded,
+      }));
+    const current = segment.isCurrent ? ` <span class="phv-current">${escapeHtml(L.current)}</span>` : '';
+    const gap = segment.gapBefore ? ` <span class="phv-gap">${escapeHtml(L.gap)}</span>` : '';
     return `<li><span class="phv-package">${escapeHtml(label)}</span> <span class="phv-price">${price}</span> <span class="phv-dates">${dates}</span>${current}${gap}</li>`;
   }).join('');
   const list = rows
@@ -323,12 +376,12 @@ export function packageHistoryViewSectionHtml(customer, currentPackage = {}, for
     // Plan 509 — the view section is the profile's only package-history
     // list, so its empty state carries the one pinned empty-state
     // wording: the static section's text, which the plan quotes.
-    : '<p class="phv-none">No package or monthly selling-rate changes have been recorded.</p>';
+    : `<p class="phv-none">${escapeHtml(L.none)}</p>`;
   const undated = view.undatedCount > 0
-    ? `<p class="phv-undated">${view.undatedCount === 1 ? '1 package change without a recorded date.' : `${view.undatedCount} package changes without a recorded date.`}</p>`
+    ? `<p class="phv-undated">${escapeHtml(undatedLine(view.undatedCount, L))}</p>`
     : '';
   const summary = view.segments.length > 0
-    ? `<p class="phv-summary">${escapeHtml(packageHistoryViewText(view, format))}</p>`
+    ? `<p class="phv-summary">${escapeHtml(packageHistoryViewText(view, format, labels))}</p>`
     : '';
-  return `<section class="profile-package-history" aria-label="Package history"><h4>Package history</h4><p class="phv-explainer">Every package this customer has been on, with the dates and the price at the time — from the package changes already recorded on the profile. This view sets no package and re-prices nothing; a package is only changed through the profile Edit form.</p>${list}${undated}${summary}</section>`;
+  return `<section class="profile-package-history" aria-label="${escapeHtml(L.heading)}"><h4>${escapeHtml(L.heading)}</h4><p class="phv-explainer">${escapeHtml(L.explainer)}</p>${list}${undated}${summary}</section>`;
 }

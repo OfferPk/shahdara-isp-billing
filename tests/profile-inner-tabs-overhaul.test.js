@@ -117,7 +117,12 @@ test('Inner Tabs: Wada keeps one empty state — the health line', () => {
   assert.ok(!fn.includes('No open wada for this customer.'), 'the duplicate empty text is gone from the banner');
   assert.ok(fn.includes('class="wada-health"'), 'the health line is the single empty state');
   const record = read('wada-record.js');
-  assert.ok(record.includes("return 'No wadas recorded for this customer.'"), 'no wadas reads through the health line');
+  // Plan 601 — the health line reads the label from the labels object:
+  // the module default is the same English sentence, and the dict value
+  // is what the operator actually sees.
+  assert.ok(record.includes("noWadas: 'No wadas recorded for this customer.'"), 'the module default still carries the no-wadas sentence');
+  assert.ok(record.includes('if (!health.total) return L.noWadas;'), 'the health line returns the label when there are no wadas');
+  assert.equal(TRANSLATIONS.en.prv_wr_no_wadas, 'No wadas recorded for this customer.', 'the dict value is the sentence the operator sees');
 });
 
 test('Inner Tabs: the Wada form is chips on one row above a 2-col date | amount row', () => {
@@ -193,9 +198,14 @@ test('Inner Tabs (D1): editing from Billing lands on the Info tab, where the for
 test('Inner Tabs (§6): the four secondary forms collapse into accordions, default closed', () => {
   const app = read('app.js');
   const ui = read('profile-ui.js');
-  assert.ok(app.includes('<details class="profile-custody-section profile-accordion" aria-label="Package change preview"><summary>Package change preview</summary>'), 'package preview is a collapsed accordion');
-  assert.ok(app.includes('<details class="profile-custody-section profile-accordion" aria-label="First-bill preview"><summary>First-bill preview</summary>'), 'first-bill preview is a collapsed accordion');
-  assert.ok(app.includes('<details class="profile-accordion"><summary>Record measurement</summary>'), 'the quality-log form is a collapsed accordion');
+  // Plan 601 — the accordion headings are keyed: the template calls
+  // t() and the dict carries the English heading the operator sees.
+  assert.ok(app.includes('<details class="profile-custody-section profile-accordion" aria-label="${t(\'prv_pc_heading\')}"><summary>${t(\'prv_pc_heading\')}</summary>'), 'package preview is a collapsed accordion');
+  assert.equal(TRANSLATIONS.en.prv_pc_heading, 'Package change preview', 'the package-change heading reads as before');
+  assert.ok(app.includes('<details class="profile-custody-section profile-accordion" aria-label="${t(\'prv_fb_heading\')}"><summary>${t(\'prv_fb_heading\')}</summary>'), 'first-bill preview is a collapsed accordion');
+  assert.equal(TRANSLATIONS.en.prv_fb_heading, 'First-bill preview', 'the first-bill heading reads as before');
+  assert.ok(app.includes('<details class="profile-accordion"><summary>${t(\'prv_ql_record\')}</summary>'), 'the quality-log form is a collapsed accordion');
+  assert.equal(TRANSLATIONS.en.prv_ql_record, 'Record measurement', 'the quality-log heading reads as before');
   assert.ok(app.includes("<details class=\"profile-accordion\"><summary>${t('prof_kist_add_title')}</summary>"), 'the kist add form is a collapsed accordion');
   assert.ok(ui.includes("<details class=\"profile-accordion\"><summary>${esc(t('boost_add'))}</summary>"), 'the boost add form is a collapsed accordion');
   for (const source of [app, ui]) {

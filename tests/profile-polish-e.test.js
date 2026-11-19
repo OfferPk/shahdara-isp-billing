@@ -54,8 +54,13 @@ test('Polish E (18): the Preview incomplete note is an info pill, wording unchan
 // ------------------------------------------------------------ (18b) speed / service-quality log
 
 test('Polish E (18): the quality-log explainer is an info note, wording unchanged', () => {
-  assert.ok(app.includes('<p class="pcp-explainer">When a customer says'), 'the explainer carries its info-note class');
-  assert.ok(app.includes('This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p>'), 'the explainer wording is unchanged');
+  // Plan 601 keyed the explainer: the template now carries a t() call
+  // and the English wording lives in nav-language.js. What this test
+  // pins is the structure — the info-note class — plus that the key's
+  // English value is the unchanged wording.
+  assert.ok(app.includes('<p class="pcp-explainer">${t(\'prv_ql_explainer\')}</p>'), 'the explainer carries its info-note class');
+  assert.ok(TRANSLATIONS.en.prv_ql_explainer.startsWith('When a customer says'), 'the explainer wording is unchanged');
+  assert.ok(TRANSLATIONS.en.prv_ql_explainer.includes('This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.'), 'the explainer wording is unchanged');
 });
 
 test('Polish E (18): the quality-log summary and empty state are pills; the module strings are unchanged', () => {
@@ -73,22 +78,31 @@ test('Polish E (18): the quality-log summary and empty state are pills; the modu
 });
 
 test('Polish E (18): the quality-log Date field carries the pill chip, in the wrapping form', () => {
-  assert.ok(app.includes('<div class="pcp-form"><label><span class="pcp-field-pill">Date</span> <input id="qualityLogDate"'), 'the Date label sits in a pill chip inside the wrapping form');
+  // Plan 601 keyed the Date label: the template now carries
+  // t('prv_ql_date') and the English wording lives in nav-language.js.
+  assert.ok(app.includes('<div class="pcp-form"><label><span class="pcp-field-pill">${t(\'prv_ql_date\')}</span> <input id="qualityLogDate"'), 'the Date label sits in a pill chip inside the wrapping form');
+  assert.equal(TRANSLATIONS.en.prv_ql_date, 'Date', 'the Date label wording is unchanged');
   assert.ok(app.includes('id="qualityLogDate"'), 'the Date control id is unchanged');
 });
 
 // ------------------------------------------------------------ (19) preview fields, one button style
 
 test('Polish E (19): all four preview fields carry the pill chip, control ids unchanged', () => {
-  assert.ok(app.includes('<span class="pcp-field-pill">Proposed package</span> <select id="packageChangePreviewPackage">'), 'Proposed package keeps its chip');
-  assert.ok(app.includes('<span class="pcp-field-pill">Effective date</span> <input id="packageChangePreviewDate"'), 'Effective date gains its chip');
-  assert.ok(app.includes('<span class="pcp-field-pill">Next bill month</span> <input id="packageChangePreviewMonth"'), 'Next bill month gains its chip');
-  assert.ok(app.includes('<span class="pcp-field-pill">Estimate</span> <select id="packageChangePreviewMode">'), 'Estimate gains its chip');
+  // Plan 601 keyed the four field labels: the template now carries
+  // t() calls and the English wording lives in nav-language.js.
+  assert.ok(app.includes('<span class="pcp-field-pill">${t(\'prv_pc_proposed_package\')}</span> <select id="packageChangePreviewPackage">'), 'Proposed package keeps its chip');
+  assert.ok(app.includes('<span class="pcp-field-pill">${t(\'prv_pc_effective_date\')}</span> <input id="packageChangePreviewDate"'), 'Effective date gains its chip');
+  assert.ok(app.includes('<span class="pcp-field-pill">${t(\'prv_pc_next_bill_month\')}</span> <input id="packageChangePreviewMonth"'), 'Next bill month gains its chip');
+  assert.ok(app.includes('<span class="pcp-field-pill">${t(\'prv_pc_estimate\')}</span> <select id="packageChangePreviewMode">'), 'Estimate gains its chip');
+  assert.equal(TRANSLATIONS.en.prv_pc_proposed_package, 'Proposed package', 'the Proposed package wording is unchanged');
+  assert.equal(TRANSLATIONS.en.prv_pc_effective_date, 'Effective date', 'the Effective date wording is unchanged');
+  assert.equal(TRANSLATIONS.en.prv_pc_next_bill_month, 'Next bill month', 'the Next bill month wording is unchanged');
+  assert.equal(TRANSLATIONS.en.prv_pc_estimate, 'Estimate', 'the Estimate wording is unchanged');
   assert.ok(app.includes('id="packageChangePreviewShowBtn"'), 'the Show preview button is unchanged');
 });
 
 test('Polish E (19): the preview form wraps instead of clipping — one flex row, one control treatment', () => {
-  assert.ok(app.includes('<div class="pcp-form"><label><span class="pcp-field-pill">Proposed package</span>'), 'the preview form carries the wrapping class');
+  assert.ok(app.includes('<div class="pcp-form"><label><span class="pcp-field-pill">${t(\'prv_pc_proposed_package\')}</span>'), 'the preview form carries the wrapping class');
   const formRule = styles.match(/\.pcp-form\{[^}]*\}/);
   assert.ok(formRule && formRule[0].includes('display:flex') && formRule[0].includes('flex-wrap:wrap'), 'the form is a wrapping flex row');
   const labelRule = styles.match(/\.pcp-form label\{[^}]*\}/);
@@ -150,9 +164,14 @@ test('Polish E (21): the Wada none line, health line and history rows are pills;
   assert.ok(healthRule && healthRule[0].includes('border-radius:999px') && healthRule[0].includes('background:#e7f2ec'), 'the health line is a teal pill');
   const historyRule = styles.match(/\.wada-history li\{[^}]*\}/);
   assert.ok(historyRule && historyRule[0].includes('border-radius:999px') && historyRule[0].includes('background:#e7f2ec'), 'each history row is a teal pill');
-  assert.ok(app.includes('<label for="wadaQuickDate"><span class="pcp-field-pill">Promised date</span><input id="wadaQuickDate"'), 'the date label carries its chip');
-  assert.ok(app.includes('<label for="wadaQuickAmount"><span class="pcp-field-pill">Amount promised (Rs, optional)</span><input id="wadaQuickAmount"'), 'the amount label carries its chip');
-  assert.ok(app.includes('<label for="wadaQuickNote"><span class="pcp-field-pill">Note (optional)</span><input id="wadaQuickNote"'), 'the note label carries its chip');
+  // Plan 601 keyed the three quick-form labels: the template now
+  // carries t() calls and the English wording lives in nav-language.js.
+  assert.ok(app.includes('<label for="wadaQuickDate"><span class="pcp-field-pill">${t(\'prv_wd_promised_date\')}</span><input id="wadaQuickDate"'), 'the date label carries its chip');
+  assert.ok(app.includes('<label for="wadaQuickAmount"><span class="pcp-field-pill">${t(\'prv_wd_amount\')}</span><input id="wadaQuickAmount"'), 'the amount label carries its chip');
+  assert.ok(app.includes('<label for="wadaQuickNote"><span class="pcp-field-pill">${t(\'prv_wd_note\')}</span><input id="wadaQuickNote"'), 'the note label carries its chip');
+  assert.equal(TRANSLATIONS.en.prv_wd_promised_date, 'Promised date', 'the Promised date wording is unchanged');
+  assert.equal(TRANSLATIONS.en.prv_wd_amount, 'Amount promised (Rs, optional)', 'the Amount promised wording is unchanged');
+  assert.equal(TRANSLATIONS.en.prv_wd_note, 'Note (optional)', 'the Note wording is unchanged');
   assert.ok(app.includes('id="wadaQuickForm"') && app.includes('id="wadaQuickSaveBtn"'), 'the quick-form ids are unchanged');
   assert.ok(app.includes('data-wada-kept') && app.includes('data-wada-broken') && app.includes('data-wada-remove'), 'the banner/history action attributes are unchanged');
 });

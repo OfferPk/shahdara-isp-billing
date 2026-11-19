@@ -137,7 +137,10 @@ export function handlingNoteSectionHtml(customer, list, labels = {}) {
   const removeLabel = cleanHandlingNoteText(labels.remove) || 'Remove';
   const noneText = cleanHandlingNoteText(labels.none) || 'No handling note for this customer.';
   const addLabel = cleanHandlingNoteText(labels.add) || `Add ${heading}`;
-  const explainerHtml = `<p>The one instruction that matters for this household is read before the money moves, not discovered after a mistake at the counter. This note blocks nothing and grants nothing; editing it changes only this note.</p>`;
+  // Plan 601 — the explainer rides labels.explainer (t('prv_note_handling_explainer'));
+  // the English paragraph below is the default when no labels are passed.
+  const explainer = cleanHandlingNoteText(labels.explainer) || 'The one instruction that matters for this household is read before the money moves, not discovered after a mistake at the counter. This note blocks nothing and grants nothing; editing it changes only this note.';
+  const explainerHtml = `<p>${escapeHandlingNoteHtml(explainer)}</p>`;
   const currentHtml = note
     ? `<p class="chn-current"><strong>${escapeHandlingNoteHtml(note.text)}</strong>${note.updatedBy || note.updatedDate ? `<span class="chn-meta"> — ${escapeHandlingNoteHtml([note.updatedBy, note.updatedDate].filter(Boolean).join(', '))}</span>` : ''}</p>`
     : `<p class="chn-none">${escapeHandlingNoteHtml(noneText)}</p>`;

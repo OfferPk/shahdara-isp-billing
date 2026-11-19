@@ -179,15 +179,35 @@ export function formatStandingInstructionAmount(amountCents) {
  * The note in one plain sentence: "Usually pays PKR 3,000 on the 5th
  * by Easypaisa" — the method part only when a method is recorded.
  * Unescaped: callers must escape before inserting into HTML.
+ * Plan 601: the app passes a sentence template (labels.line +
+ * labels.byMethod, t('prv_note_sin_line') / t('prv_note_sin_by_method'))
+ * because Urdu word order differs from English; the older word-level
+ * labels (usually / onThe / by) still compose the same sentence when
+ * no template is supplied, so existing callers are unchanged.
  */
 export function standingInstructionLineText(note, labels = {}) {
   const clean = normalizeStandingInstruction(note);
   if (!clean) return '';
+  const amount = formatStandingInstructionAmount(clean.amountCents);
+  const day = standingInstructionDayLabel(clean.dayOfMonth);
+  const lineTemplate = cleanStandingInstructionText(labels.line);
+  if (lineTemplate) {
+    // Plan 601 fix found while keying: cleanStandingInstructionText
+    // trims, so the leading space in labels.byMethod (' by {method}')
+    // never survives — the sentence came out '5thby Cash'. The
+    // separator space belongs here, at the join, in both languages
+    // (the Urdu byMethod keeps its own '—' after the same space).
+    const byMethod = cleanStandingInstructionText(labels.byMethod) || 'by {method}';
+    const methodPart = clean.method ? ` ${byMethod.replaceAll('{method}', clean.method)}` : '';
+    return lineTemplate
+      .replaceAll('{dayOrdinal}', day)
+      .replaceAll('{amount}', amount)
+      .replaceAll('{day}', String(clean.dayOfMonth))
+      .replaceAll('{methodPart}', methodPart);
+  }
   const usually = cleanStandingInstructionText(labels.usually) || 'Usually pays';
   const onThe = cleanStandingInstructionText(labels.onThe) || 'on the';
   const by = cleanStandingInstructionText(labels.by) || 'by';
-  const amount = formatStandingInstructionAmount(clean.amountCents);
-  const day = standingInstructionDayLabel(clean.dayOfMonth);
   let line = `${usually} ${amount} ${onThe} ${day}`;
   if (clean.method) line += ` ${by} ${clean.method}`;
   return line;
@@ -219,9 +239,12 @@ export function standingInstructionSectionHtml(customer, list, labels = {}) {
   const removeLabel = cleanStandingInstructionText(labels.remove) || 'Remove';
   const noneText = cleanStandingInstructionText(labels.none) || 'No standing instruction for this customer.';
   const addLabel = cleanStandingInstructionText(labels.add) || `Add ${heading}`;
-  const explainerHtml = `<p>The regulars pay the same amount on the same day every month. Write that pattern down once, and the operator expects them on their usual day — a regular who does not come is noticed in days, not in months. This note never auto-debits, auto-records, or auto-sends anything.</p>`;
+  // Plan 601 — the explainer rides labels.explainer (t('prv_note_sin_explainer'));
+  // the English paragraph below is the default when no labels are passed.
+  const explainer = cleanStandingInstructionText(labels.explainer) || 'The regulars pay the same amount on the same day every month. Write that pattern down once, and the operator expects them on their usual day — a regular who does not come is noticed in days, not in months. This note never auto-debits, auto-records, or auto-sends anything.';
+  const explainerHtml = `<p>${escapeStandingInstructionHtml(explainer)}</p>`;
   const currentHtml = note
-    ? `<p class="sin-current"><strong>${escapeStandingInstructionHtml(standingInstructionLineText(note))}</strong>${note.recordedBy || note.recordedDate ? `<span class="sin-meta"> — ${escapeStandingInstructionHtml([note.recordedBy, note.recordedDate].filter(Boolean).join(', '))}</span>` : ''}</p>`
+    ? `<p class="sin-current"><strong>${escapeStandingInstructionHtml(standingInstructionLineText(note, labels))}</strong>${note.recordedBy || note.recordedDate ? `<span class="sin-meta"> — ${escapeStandingInstructionHtml([note.recordedBy, note.recordedDate].filter(Boolean).join(', '))}</span>` : ''}</p>`
     : `<p class="sin-none">${escapeStandingInstructionHtml(noneText)}</p>`;
   const amountRupees = note ? String(note.amountCents / 100) : '';
   const formHtml = `<form class="sin-form" id="sinForm"><label for="sinAmount">${escapeStandingInstructionHtml(amountLabel)}<input id="sinAmount" type="number" min="1" max="1000000" step="1" value="${escapeStandingInstructionHtml(amountRupees)}" required></label><label for="sinDay">${escapeStandingInstructionHtml(dayLabel)}<input id="sinDay" type="number" min="1" max="31" step="1" value="${note ? escapeStandingInstructionHtml(String(note.dayOfMonth)) : ''}" required></label><label for="sinMethod">${escapeStandingInstructionHtml(methodLabel)}<input id="sinMethod" type="text" maxlength="60" placeholder="${escapeStandingInstructionHtml(methodPlaceholder)}" value="${note ? escapeStandingInstructionHtml(note.method) : ''}"></label><label for="sinBy">${escapeStandingInstructionHtml(notedByLabel)}<input id="sinBy" type="text" maxlength="60" value="${note ? escapeStandingInstructionHtml(note.recordedBy) : ''}"></label><label for="sinDate">${escapeStandingInstructionHtml(dateLabel)}<input id="sinDate" type="date" value="${note ? escapeStandingInstructionHtml(note.recordedDate) : ''}"></label><button type="submit" class="primary-button" id="sinSaveBtn">${escapeStandingInstructionHtml(saveLabel)}</button>${note ? `<button type="button" class="secondary-button" id="sinRemoveBtn">${escapeStandingInstructionHtml(removeLabel)}</button>` : ''}</form>`;

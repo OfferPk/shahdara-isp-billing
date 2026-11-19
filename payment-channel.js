@@ -37,6 +37,31 @@ export const PAYMENT_CHANNELS = Object.freeze({
   WALLET: 'wallet',
 });
 
+// Plan 601 — labels object: the app passes t('prv_pch_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t(). `cash` / `wallet` are shared with the profile template's
+// option labels, so the two surfaces can never drift apart.
+const DEFAULT_LABELS = {
+  noChannelCustomer: 'No preferred payment channel recorded for this customer.',
+  preferredLabel: 'Preferred payment channel: ',
+  noChannelYet: 'No preferred payment channel recorded yet.',
+  summaryOne: '{count} customer with a recorded channel: {cash} cash via collector, {wallet} Easypaisa/wallet.',
+  summaryMany: '{count} customers with a recorded channel: {cash} cash via collector, {wallet} Easypaisa/wallet.',
+  cash: 'Cash via collector',
+  wallet: 'Easypaisa/wallet',
+};
+
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
 export const PAYMENT_CHANNEL_VARIANTS = Object.freeze({
   ROMAN: 'roman',
   URDU: 'urdu',
@@ -194,20 +219,22 @@ export function tailorDraftWithPaymentChannel(draft, list, customerId) {
   };
 }
 
-export function paymentChannelSummaryText(list) {
+export function paymentChannelSummaryText(list, labels) {
+  const L = resolveLabels(labels);
   const records = normalizePaymentChannelRecords(list);
-  if (records.length === 0) return 'No preferred payment channel recorded yet.';
+  if (records.length === 0) return L.noChannelYet;
   const cash = records.filter((r) => r.channel === PAYMENT_CHANNELS.CASH).length;
   const wallet = records.length - cash;
-  return `${records.length} customer${records.length === 1 ? '' : 's'} with a recorded channel: ${cash} cash via collector, ${wallet} Easypaisa/wallet.`;
+  return fill(records.length === 1 ? L.summaryOne : L.summaryMany, {
+    count: records.length, cash, wallet,
+  });
 }
 
-export function paymentChannelHtml(record) {
-  if (!record) return '<p class="empty-state">No preferred payment channel recorded for this customer.</p>';
-  const label = record.channel === PAYMENT_CHANNELS.CASH
-    ? 'Cash via collector'
-    : 'Easypaisa/wallet';
-  return `<p>Preferred payment channel: <strong>${escapeHtml(label)}</strong>${record.note ? ` — ${escapeHtml(record.note)}` : ''}</p>`;
+export function paymentChannelHtml(record, labels) {
+  const L = resolveLabels(labels);
+  if (!record) return `<p class="empty-state">${escapeHtml(L.noChannelCustomer)}</p>`;
+  const label = record.channel === PAYMENT_CHANNELS.CASH ? L.cash : L.wallet;
+  return `<p>${escapeHtml(L.preferredLabel)}<strong>${escapeHtml(label)}</strong>${record.note ? ` — ${escapeHtml(record.note)}` : ''}</p>`;
 }
 
 export function paymentChannelCsv(list) {

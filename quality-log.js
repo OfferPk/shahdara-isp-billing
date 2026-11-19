@@ -181,23 +181,80 @@ export function qualityLogSummary(entries, packageSpeedMbps) {
   };
 }
 
-export function qualityLogSummaryText(entries, packageSpeedMbps) {
-  const summary = qualityLogSummary(entries, packageSpeedMbps);
-  if (summary.count === 0) return 'No speed measurements recorded yet.';
-  const packagePart = summary.packageSpeedMbps === null
-    ? 'package speed not set'
-    : `package ${summary.packageSpeedMbps} Mbps`;
-  const belowPart = summary.packageSpeedMbps === null
-    ? ''
-    : `, ${summary.belowPackageCount} below the package speed`;
-  return `${summary.count} measurement${summary.count === 1 ? '' : 's'}, latest ${summary.latestDate}, average ${summary.averageDownloadMbps} Mbps down / ${summary.averageUploadMbps} Mbps up (${packagePart}${belowPart}).`;
+// Plan 601 — labels object: the app passes t('prv_ql_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t(). The stored location stays the canonical 'Near router' /
+// 'Far room' (data, never translated at record time); the Html maps
+// those two canonical values to labels at render time, and any other
+// operator wording renders verbatim.
+const DEFAULT_LABELS = {
+  noMeasurements: 'No speed measurements recorded yet.',
+  summary: '{count} measurement{plural}, latest {date}, average {down} Mbps down / {up} Mbps up ({package}{below}).',
+  packageNotSet: 'package speed not set',
+  packageSpeed: 'package {speed} Mbps',
+  below: ', {count} below the package speed',
+  above: 'Above package',
+  at: 'At package',
+  belowPkg: 'Below package',
+  noPackage: 'No package speed',
+  headerDate: 'Date',
+  headerDownload: 'Download',
+  headerUpload: 'Upload',
+  headerWhere: 'Where measured',
+  headerPackage: 'Package',
+  headerComparison: 'Comparison',
+  headerNote: 'Note',
+  headerTicket: 'Ticket',
+  locNear: 'Near router',
+  farRoom: 'Far room',
+  notSet: 'Not set',
+  notRecorded: 'Not recorded',
+};
+
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
 }
 
-export function qualityLogHtml(entries, packageSpeedMbps) {
+function locationLabel(location, labels) {
+  if (location === 'Near router') return labels.locNear;
+  if (location === 'Far room') return labels.farRoom;
+  return location;
+}
+
+export function qualityLogSummaryText(entries, packageSpeedMbps, labels) {
+  const L = resolveLabels(labels);
+  const summary = qualityLogSummary(entries, packageSpeedMbps);
+  if (summary.count === 0) return L.noMeasurements;
+  const packagePart = summary.packageSpeedMbps === null
+    ? L.packageNotSet
+    : fill(L.packageSpeed, { speed: summary.packageSpeedMbps });
+  const belowPart = summary.packageSpeedMbps === null
+    ? ''
+    : fill(L.below, { count: summary.belowPackageCount });
+  return fill(L.summary, {
+    count: summary.count,
+    plural: summary.count === 1 ? '' : 's',
+    date: summary.latestDate,
+    down: summary.averageDownloadMbps,
+    up: summary.averageUploadMbps,
+    package: packagePart,
+    below: belowPart,
+  });
+}
+
+export function qualityLogHtml(entries, packageSpeedMbps, labels) {
+  const L = resolveLabels(labels);
   const rows = qualityEntriesWithComparison(entries, packageSpeedMbps);
-  if (rows.length === 0) return '<p class="empty-state">No speed measurements recorded yet.</p>';
-  const comparisonLabel = { above: 'Above package', at: 'At package', below: 'Below package', unknown: 'No package speed' };
-  return `<table class="quality-log-table"><thead><tr><th>Date</th><th>Download</th><th>Upload</th><th>Where measured</th><th>Package</th><th>Comparison</th><th>Note</th><th>Ticket</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(String(row.downloadMbps))} Mbps</td><td>${escapeHtml(String(row.uploadMbps))} Mbps</td><td>${escapeHtml(row.location)}</td><td>${row.packageSpeedMbps === null ? 'Not set' : `${escapeHtml(String(row.packageSpeedMbps))} Mbps`}</td><td>${escapeHtml(comparisonLabel[row.comparison])}</td><td>${row.note === null ? 'Not recorded' : escapeHtml(row.note)}</td><td>${row.linkedTicketId === null ? '—' : escapeHtml(row.linkedTicketId)}</td></tr>`).join('')}</tbody></table>`;
+  if (rows.length === 0) return `<p class="empty-state">${escapeHtml(L.noMeasurements)}</p>`;
+  const comparisonLabel = { above: L.above, at: L.at, below: L.belowPkg, unknown: L.noPackage };
+  return `<table class="quality-log-table"><thead><tr><th>${escapeHtml(L.headerDate)}</th><th>${escapeHtml(L.headerDownload)}</th><th>${escapeHtml(L.headerUpload)}</th><th>${escapeHtml(L.headerWhere)}</th><th>${escapeHtml(L.headerPackage)}</th><th>${escapeHtml(L.headerComparison)}</th><th>${escapeHtml(L.headerNote)}</th><th>${escapeHtml(L.headerTicket)}</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(String(row.downloadMbps))} Mbps</td><td>${escapeHtml(String(row.uploadMbps))} Mbps</td><td>${escapeHtml(locationLabel(row.location, L))}</td><td>${row.packageSpeedMbps === null ? escapeHtml(L.notSet) : `${escapeHtml(String(row.packageSpeedMbps))} Mbps`}</td><td>${escapeHtml(comparisonLabel[row.comparison])}</td><td>${row.note === null ? escapeHtml(L.notRecorded) : escapeHtml(row.note)}</td><td>${row.linkedTicketId === null ? '—' : escapeHtml(row.linkedTicketId)}</td></tr>`).join('')}</tbody></table>`;
 }
 
 export function qualityLogCsv(entries, packageSpeedMbps) {

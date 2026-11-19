@@ -313,7 +313,12 @@ test('wiring: renderList passes the active mohalla to the picker and writes the 
   // call — the assertion tolerates it and still pins that the active
   // mohalla is passed as the 5th argument.
   assert.ok(/renderQuickCollectPickerHtml\(state, query, activeFilter, activeCustomerId, activeMohallaFilter(, \{[^}]*\})?\)/.test(renderList[0]), 'renderList must pass the active mohalla to the picker');
-  assert.ok(renderList[0].includes('quickCollectMohallaFilterSummaryText(picked.customers, activeMohallaFilter)'), 'renderList must write the filtered count line');
+  // QC picker overflow item 2 (2026-11-19): the summary call is now
+  // 3-arg with the row PKR when filtered, the pool total with no
+  // filter — the PKR moved off the clipped option labels onto this
+  // line ("8 customers · PKR 13,500.").
+  assert.ok(/quickCollectMohallaFilterSummaryText\(\s*picked\.customers, activeMohallaFilter, row \? row\.pendingPkr : 0,?\s*\)/.test(renderList[0]), 'renderList must write the filtered count line with the row PKR');
+  assert.ok(/quickCollectMohallaFilterSummaryText\(\s*picked\.customers, '', counts\.totalPendingPkr,?\s*\)/.test(renderList[0]), 'renderList must write the pool total with no filter');
 });
 
 test('wiring: the picker applies the filter and keeps the all-collected state for the whole round only', () => {

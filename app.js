@@ -15773,7 +15773,7 @@ $('#editProfileButton').addEventListener('click', () => {
   profileEditMode = true;
   $('#customerProfileView').hidden = true;
   $('#customerProfileForm').hidden = false;
-  $('#mohallaInput').focus();
+  $('#profileNameInput').focus();
 });
 
 // Profile "Clear dues" (2026-11-10): the green button in the header

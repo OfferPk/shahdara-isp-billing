@@ -16,6 +16,7 @@ import {
   welcomePackSentText,
   welcomePackHtml,
 } from '../welcome-pack.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const base = {
   customerId: 'c1',
@@ -207,4 +208,9 @@ test('html escapes names and lists the missing fields instead of hiding them', (
   const incomplete = welcomePackHtml(buildWelcomePack({ customerId: 'c1' }), { draftText: '', sends: [] });
   assert.match(incomplete, /Missing on the profile/);
   assert.match(incomplete, /package/);
+});
+
+test('Plan 600: the welcome-pack summary renders in Urdu through labels', () => {
+  const pack = buildWelcomePack(base);
+  assert.equal(welcomePackSummaryText(pack, { ready: TRANSLATIONS.ur.dft_wp_ready }), 'ویلکم پیک تیار ہے Ahmed کے لیے — 20 Mbps، PKR 3,000۔');
 });

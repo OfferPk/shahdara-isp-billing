@@ -50,6 +50,65 @@ function text(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+// Plan 601 — labels object: the app passes t('prv_ob_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t(). Step labels are keyed for the HTML only: ONBOARDING_STEPS
+// keeps the canonical English labels, and the CSV still writes those
+// (Trap: CSV keeps EN). The Html resolves each step's label — and the
+// next step's label — from the labels object by step id.
+const STEP_LABEL_KEYS = Object.freeze({
+  enquiry: 'stepEnquiry',
+  survey: 'stepSurvey',
+  cable: 'stepCable',
+  device: 'stepDevice',
+  credentials: 'stepCredentials',
+  activation: 'stepActivation',
+  first_bill: 'stepFirstBill',
+});
+
+const DEFAULT_LABELS = {
+  stepEnquiry: 'Enquiry',
+  stepSurvey: 'Survey / feasibility',
+  stepCable: 'Cable laid',
+  stepDevice: 'Device installed',
+  stepCredentials: 'Credentials issued',
+  stepActivation: 'Service activated',
+  stepFirstBill: 'First bill raised',
+  noChecklists: 'No onboarding checklists yet',
+  summary: '{complete} of {total} fully onboarded · {pending} pending',
+  noChecklist: 'No onboarding checklist',
+  complete: 'Complete — all steps done',
+  state: '{done} of {total} steps done · next: {next}',
+  heading: 'Onboarding checklist — {name}',
+  footer: 'An incomplete checklist blocks nothing; it only shows what is still waiting.',
+  noPending: 'No pending onboardings',
+};
+
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+function stepLabel(stepId, fallback, labels) {
+  const key = STEP_LABEL_KEYS[stepId];
+  return key && labels[key] ? labels[key] : fallback;
+}
+
+// Plan 601 — one step's label in the operator's language, for the
+// app's own Html surfaces (the checklist step picker). The CSV keeps
+// the canonical English labels from ONBOARDING_STEPS.
+export function onboardingStepLabel(stepId, labels) {
+  const L = resolveLabels(labels);
+  const canonical = ONBOARDING_STEPS.find((step) => step.id === stepId);
+  return stepLabel(stepId, canonical ? canonical.label : '', L);
+}
+
 function isCompleted(value) {
   return value === true || value === 'true' || value === 1;
 }
@@ -230,7 +289,8 @@ export function pendingOnboardingList(entries) {
     });
 }
 
-export function onboardingSummaryText(checklists) {
+export function onboardingSummaryText(checklists, labels) {
+  const L = resolveLabels(labels);
   const list = (Array.isArray(checklists) ? checklists : [])
     .map((entry) => (entry?.steps ? entry
       : entry?.checklist?.steps ? entry.checklist
@@ -239,12 +299,13 @@ export function onboardingSummaryText(checklists) {
       )));
   const complete = list.filter((entry) => entry.complete).length;
   const pending = list.length - complete;
-  if (list.length === 0) return 'No onboarding checklists yet';
-  return `${complete} of ${list.length} fully onboarded · ${pending} pending`;
+  if (list.length === 0) return L.noChecklists;
+  return fill(L.summary, { complete, total: list.length, pending });
 }
 
-export function onboardingChecklistHtml(checklist, customerName) {
-  if (!checklist) return '<p class="empty-state">No onboarding checklist</p>';
+export function onboardingChecklistHtml(checklist, customerName, labels) {
+  const L = resolveLabels(labels);
+  if (!checklist) return `<p class="empty-state">${escapeHtml(L.noChecklist)}</p>`;
   const name = text(customerName) || checklist.customerId;
   // Profile Polish F: the li carries a done/pending class so the CSS can
   // pill completed steps green and pending steps neutral — a styling hook
@@ -254,25 +315,33 @@ export function onboardingChecklistHtml(checklist, customerName) {
     const detail = step.completed
       ? [step.date, step.by].filter(Boolean).join(' · ')
       : '';
-    return `<li class="${step.completed ? 'onb-done' : 'onb-pending'}">${mark} ${escapeHtml(step.label)}${detail ? ` — ${escapeHtml(detail)}` : ''}</li>`;
+    return `<li class="${step.completed ? 'onb-done' : 'onb-pending'}">${mark} ${escapeHtml(stepLabel(step.stepId, step.label, L))}${detail ? ` — ${escapeHtml(detail)}` : ''}</li>`;
   }).join('');
   const state = checklist.complete
-    ? 'Complete — all steps done'
-    : `${checklist.done} of ${checklist.total} steps done · next: ${escapeHtml(checklist.nextStepLabel)}`;
-  return `<section class="onboarding-checklist"><h4>Onboarding checklist — ${escapeHtml(name)}</h4>`
+    ? L.complete
+    : fill(L.state, {
+      done: checklist.done,
+      total: checklist.total,
+      next: stepLabel(checklist.nextStepId, checklist.nextStepLabel, L),
+    });
+  return `<section class="onboarding-checklist"><h4>${escapeHtml(fill(L.heading, { name }))}</h4>`
     + `<p>${escapeHtml(state)} (${checklist.progressPercent}%)</p>`
     + `<ol>${rows}</ol>`
-    + '<p>An incomplete checklist blocks nothing; it only shows what is still waiting.</p></section>';
+    + `<p>${escapeHtml(L.footer)}</p></section>`;
 }
 
-export function onboardingPendingHtml(entries) {
+export function onboardingPendingHtml(entries, labels) {
+  const L = resolveLabels(labels);
   const pending = pendingOnboardingList(entries);
-  if (pending.length === 0) return '<p class="empty-state">No pending onboardings</p>';
+  if (pending.length === 0) return `<p class="empty-state">${escapeHtml(L.noPending)}</p>`;
   const rows = pending.map((entry) => {
     const mohalla = entry.mohalla ? ` (${escapeHtml(entry.mohalla)})` : '';
     return `<li>${escapeHtml(entry.customerName)}${mohalla} — `
-      + `${entry.checklist.done} of ${entry.checklist.total} steps done · `
-      + `next: ${escapeHtml(entry.checklist.nextStepLabel)}</li>`;
+      + `${escapeHtml(fill(L.state, {
+        done: entry.checklist.done,
+        total: entry.checklist.total,
+        next: stepLabel(entry.checklist.nextStepId, entry.checklist.nextStepLabel, L),
+      }))}</li>`;
   }).join('');
   return `<ul>${rows}</ul>`;
 }

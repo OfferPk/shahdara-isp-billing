@@ -8646,7 +8646,7 @@ function renderCustomerProfileView(customer) {
       mohalla: t('prof_pvt_field_mohalla'),
       package: t('prof_pvt_field_package'),
     },
-    save: t('save'),
+    save: t('prof_save_pvt'),
     remove: t('prof_pvt_remove'),
     none: t('prof_pvt_none'),
   }, humanDate);
@@ -8661,7 +8661,7 @@ function renderCustomerProfileView(customer) {
     returnDate: t('prof_taw_return_date'),
     note: t('prof_taw_note'),
     notePlaceholder: t('prof_taw_note_placeholder'),
-    save: t('save'),
+    save: t('prof_save_taw'),
     remove: t('prof_taw_remove'),
     none: t('prof_taw_none'),
     awayUntil: t('prof_taw_away_until'),
@@ -8740,7 +8740,7 @@ function renderCustomerProfileView(customer) {
     placeholder: t('prof_handling_placeholder'),
     notedBy: t('prof_handling_noted_by'),
     date: t('prof_handling_date'),
-    save: t('save'),
+    save: t('prof_save_handling'),
     remove: t('prof_handling_remove'),
     none: t('prof_handling_none'),
     add: t('prof_note_add', null, { heading: t('prof_handling_heading') }),
@@ -8759,7 +8759,7 @@ function renderCustomerProfileView(customer) {
     method: t('prof_sin_method'),
     notedBy: t('prof_sin_noted_by'),
     date: t('prof_sin_date'),
-    save: t('save'),
+    save: t('prof_save_sin'),
     remove: t('prof_sin_remove'),
     none: t('prof_sin_none'),
     add: t('prof_note_add', null, { heading: t('prof_sin_heading') }),
@@ -8783,7 +8783,7 @@ function renderCustomerProfileView(customer) {
     placeholder: t('prof_spoken_lang_placeholder'),
     notedBy: t('prof_spoken_lang_noted_by'),
     date: t('prof_spoken_lang_date'),
-    save: t('save'),
+    save: t('prof_save_spoken'),
     remove: t('prof_spoken_lang_remove'),
     none: t('prof_spoken_lang_none'),
     add: t('prof_note_add', null, { heading: t('prof_spoken_lang_heading') }),
@@ -8798,7 +8798,7 @@ function renderCustomerProfileView(customer) {
     placeholder: t('prof_gate_access_placeholder'),
     notedBy: t('prof_gate_access_noted_by'),
     date: t('prof_gate_access_date'),
-    save: t('save'),
+    save: t('prof_save_gate'),
     remove: t('prof_gate_access_remove'),
     none: t('prof_gate_access_none'),
     add: t('prof_note_add', null, { heading: t('prof_gate_access_heading') }),
@@ -8816,7 +8816,7 @@ function renderCustomerProfileView(customer) {
     namePlaceholder: t('prof_emc_name_placeholder'),
     relationshipPlaceholder: t('prof_emc_relationship_placeholder'),
     phonePlaceholder: t('prof_emc_phone_placeholder'),
-    save: t('save'),
+    save: t('prof_save_emc'),
     remove: t('prof_emc_remove'),
     none: t('prof_emc_none'),
     add: t('prof_note_add', null, { heading: t('prof_emc_heading') }),
@@ -8998,7 +8998,7 @@ function renderCustomerProfileView(customer) {
     reasonPlaceholder: t('prof_pcd_reason_placeholder'),
     notedBy: t('prof_pcd_noted_by'),
     date: t('prof_pcd_date'),
-    save: t('save'),
+    save: t('prof_save_pcd'),
     remove: t('prof_pcd_remove'),
   }));
   // Polish #28 Phase C (Req 5) — per-section Edit: the same full edit
@@ -9687,7 +9687,7 @@ function renderCustomerProfileView(customer) {
       });
       saveHandlingNotes(next);
       renderDetail();
-      toast('Handling note saved.');
+      toast(t('prof_saved_handling'));
     });
     handlingNoteSectionEl.querySelector('#chnRemoveBtn')?.addEventListener('click', () => {
       saveHandlingNotes(removeHandlingNote(loadHandlingNotes(), customer.id));
@@ -9722,7 +9722,7 @@ function renderCustomerProfileView(customer) {
       });
       saveStandingInstructionNotes(next);
       renderDetail();
-      toast('Standing instruction saved.');
+      toast(t('prof_saved_sin'));
     });
     standingInstructionSectionEl.querySelector('#sinRemoveBtn')?.addEventListener('click', () => {
       saveStandingInstructionNotes(removeStandingInstruction(loadStandingInstructionNotes(), customer.id));
@@ -9751,7 +9751,7 @@ function renderCustomerProfileView(customer) {
       });
       saveSpokenLanguageNotes(next);
       renderDetail();
-      toast('Spoken language saved.');
+      toast(t('prof_saved_spoken'));
     });
     spokenLanguageNoteSectionEl.querySelector('#slnRemoveBtn')?.addEventListener('click', () => {
       saveSpokenLanguageNotes(removeSpokenLanguageNote(loadSpokenLanguageNotes(), customer.id));
@@ -9781,7 +9781,7 @@ function renderCustomerProfileView(customer) {
       });
       saveGateAccessInstructions(next);
       renderDetail();
-      toast('Gate access instruction saved.');
+      toast(t('prof_saved_gate'));
     });
     gateAccessInstructionSectionEl.querySelector('#gaiRemoveBtn')?.addEventListener('click', () => {
       saveGateAccessInstructions(removeGateAccessInstruction(loadGateAccessInstructions(), customer.id));
@@ -9813,7 +9813,7 @@ function renderCustomerProfileView(customer) {
       });
       saveProfileVerificationTicks(next);
       renderDetail();
-      toast('Profile verification saved.');
+      toast(t('prof_saved_pvt'));
     });
     profileVerificationTickSectionEl.querySelector('#pvtRemoveBtn')?.addEventListener('click', () => {
       saveProfileVerificationTicks(removeProfileVerificationTick(loadProfileVerificationTicks(), customer.id));
@@ -9844,7 +9844,7 @@ function renderCustomerProfileView(customer) {
       });
       saveTemporarilyAwayFlags(next);
       renderDetail();
-      toast('Temporarily-away flag saved.');
+      toast(t('prof_saved_taw'));
     });
     temporarilyAwayFlagSectionEl.querySelector('#tawRemoveBtn')?.addEventListener('click', () => {
       saveTemporarilyAwayFlags(removeTemporarilyAwayFlag(loadTemporarilyAwayFlags(), customer.id));
@@ -9873,7 +9873,7 @@ function renderCustomerProfileView(customer) {
       });
       saveCustomerEmergencyContacts(next);
       renderDetail();
-      toast('Emergency contact saved.');
+      toast(t('prof_saved_emc'));
     });
     customerEmergencyContactSectionEl.querySelector('#emcRemoveBtn')?.addEventListener('click', () => {
       saveCustomerEmergencyContacts(removeCustomerEmergencyContact(loadCustomerEmergencyContacts(), customer.id));
@@ -9917,7 +9917,7 @@ function renderCustomerProfileView(customer) {
       if (!fresh) { toast('Preferred collection day not saved: pick a real weekday or a date from 1 to 31.'); return; }
       savePreferredCollectionDayNotes(recordPreferredCollectionDay(loadPreferredCollectionDayNotes(), fresh));
       renderDetail();
-      toast('Preferred collection day saved.');
+      toast(t('prof_saved_pcd'));
     });
     pcdSectionEl.querySelector('#pcdRemoveBtn')?.addEventListener('click', () => {
       savePreferredCollectionDayNotes(removePreferredCollectionDay(loadPreferredCollectionDayNotes(), customer.id));
@@ -15431,17 +15431,17 @@ async function saveProfileField(control, button, labelText) {
         }
       }
     }
-    toast(`${fieldLabel} saved.`);
-    button.textContent = 'Saved ✓';
+    toast(t('prof_field_saved_toast', null, { field: fieldLabel }));
+    button.textContent = t('prof_field_saved');
     // Plan 500 — the button stays visible through the 1.5s feedback,
     // then the sync hides it: the stored record now matches the field,
     // so it reads clean. (syncProfileFieldSaveButtons is deliberately
     // NOT called in the finally below — it would hide the button
     // mid-feedback.)
-    setTimeout(() => { if (!document.body.contains(button)) return; button.textContent = 'Save'; syncProfileFieldSaveButtons(); }, 1500);
+    setTimeout(() => { if (!document.body.contains(button)) return; button.textContent = t('save'); syncProfileFieldSaveButtons(); }, 1500);
   } catch (error) {
     showProfileFormError(error?.i18nKey ? t(error.i18nKey) : error.message, control.id);
-    button.textContent = 'Save';
+    button.textContent = t('save');
   } finally {
     button.disabled = false;
     // Plan 499 — a per-field save just changed the stored record, so a
@@ -15484,13 +15484,16 @@ function bindProfileFieldSaveButtons() {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'secondary-button profile-field-save';
-    button.textContent = 'Save';
+    // Plan 612 — the visible text is the shared 'Save' by
+    // design (the button sits on its own field's line); the
+    // aria-label names the field in the operator's language.
+    button.textContent = t('save');
     // Plan 500 — a per-field Save starts hidden: a freshly opened form
     // shows no Save buttons at all, and syncProfileFieldSaveButtons
     // (below) reveals exactly the fields that are dirty.
     button.classList.add('is-clean');
     const fieldLabel = profileFieldMainLabel(label);
-    button.setAttribute('aria-label', `Save ${fieldLabel || 'field'}`);
+    button.setAttribute('aria-label', t('prof_field_save_aria', null, { field: fieldLabel || 'field' }));
     button.addEventListener('click', () => saveProfileField(control, button, fieldLabel));
     row.appendChild(button);
   });
@@ -15570,7 +15573,7 @@ function syncProfileFieldSaveButtons() {
   const controls = profileFieldControls();
   const dirty = new Set(customer ? dirtyProfileFieldKeys(customer, controls, profileCancelOpenValues) : []);
   profileFieldSaveButtons().forEach((button) => {
-    if (button.textContent === 'Saved ✓') return;
+    if (button.textContent === t('prof_field_saved')) return;
     const control = button.closest('.profile-field-row')?.querySelector('input, select, textarea');
     const key = control ? PROFILE_FIELD_SAVE_MAP[control.id] : undefined;
     button.classList.toggle('is-clean', !key || !dirty.has(key));

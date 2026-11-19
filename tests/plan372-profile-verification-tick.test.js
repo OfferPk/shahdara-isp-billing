@@ -175,7 +175,16 @@ test('Plan 372: a profile never verified shows the none line and the add form, n
   assert.ok(!html.includes('pvt-current'));
   assert.match(html, /id="pvtForm"/);
   assert.ok(!html.includes('pvtRemoveBtn'));
-  assert.match(html, /name="pvtField" value="name" checked/);
+  // Plan 597: a fresh form starts unchecked — the old assert pinned the
+  // pre-checked defect (all four boxes checked with no tick). The test's
+  // intent is "never verified → none line + add form, never a tick".
+  // NOTE: count ` checked>` (attribute form) — the bare ` checked`
+  // substring also matches the prose "Not checked yet." / "Fields checked".
+  assert.equal((html.match(/ checked>/g) || []).length, 0, 'no checkbox is checked on a never-verified profile');
+  for (const field of ['name', 'number', 'mohalla', 'package']) {
+    assert.ok(html.includes(`name="pvtField" value="${field}"`), `the ${field} checkbox renders`);
+    assert.ok(!html.includes(`name="pvtField" value="${field}" checked`), `the ${field} checkbox starts unchecked`);
+  }
   assert.equal(profileVerificationTickSectionHtml(null, [tick()]), '');
   assert.equal(profileVerificationTickSectionHtml('not an object', [tick()]), '');
 });

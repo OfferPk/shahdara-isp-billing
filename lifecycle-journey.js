@@ -41,19 +41,87 @@
 
 const DATE_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])/;
 
-const SERVICE_STATUS_LABELS = Object.freeze({
+// Plan 601 — labels object: the app passes t('prv_lc_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t(). `notSet` / `notRecorded` reuse the shared prof_* keys
+// (the same words); `notSetMoney` is the lowercase money-label
+// 'not set'. Status words are lowercased by the module for the
+// composed 'Service {status}' shapes — in Urdu the lowercasing is
+// an identity, so the same code serves both languages.
+const DEFAULT_LABELS = {
   active: 'Active',
   offline: 'Offline',
-  'not-set': 'Not set',
-});
+  notSet: 'Not set',
+  notRecorded: 'Not recorded',
+  notSetMoney: 'not set',
+  archived: 'Archived',
+  disconnectedReason: 'Disconnected · Reason: {reason}',
+  onHold: 'On hold',
+  holdResumes: 'Hold since {date} · resumes {resume}',
+  holdSince: 'Hold since {date}',
+  serviceNotRecorded: 'Service status not recorded',
+  serviceStatus: 'Service {status}',
+  added: 'Customer added',
+  addedSeparate: 'Profile created; connection followed separately.',
+  addedSame: 'Profile created.',
+  connected: 'Connected',
+  connectedDetail: 'Service connection date recorded.',
+  packageChanged: 'Package changed',
+  packageDetail: '{old} → {new} · {oldPrice} → {newPrice}{staff}',
+  statusChanged: 'Manual service status changed to {status}.',
+  holdStarted: 'Hold started',
+  holdResume: 'Billing paused · scheduled resume {date}.',
+  holdNoResume: 'Billing paused · no resume date recorded.',
+  holdEnded: 'Hold ended',
+  holdResumed: 'Billing resumed after hold · skipped months: {months}. Resume date not recorded.',
+  disconnected: 'Disconnected',
+  disconnectDetail: 'Reason: {reason} · Win-back {eligibility}{note}',
+  eligible: 'eligible',
+  notEligible: 'not eligible',
+  disconnectNote: ' · Note: {note}',
+  disconnectNodate: 'Reason: {reason} · archive date not recorded.',
+  reasonShifted: 'Shifted',
+  reasonCompetitor: 'Competitor',
+  reasonAffordability: 'Affordability',
+  reasonTravel: 'Temporary travel',
+  winbackSent: 'Win-back offer sent',
+  winbackDetail: 'Free-reconnection offer draft opened for this customer.',
+  restored: 'Restored to active',
+  restoredDetail: 'Previously disconnected, then restored. Restore date not recorded.',
+  journey: 'Customer journey',
+  journeyAria: 'Customer lifecycle journey',
+  currentStatus: 'Current status: ',
+  dateNotRecorded: 'Date not recorded',
+  undatedNote: 'Undated events (dates were never recorded, so none is guessed):',
+  noEvents: 'No lifecycle events recorded yet.',
+};
 
-const DISCONNECT_REASON_LABELS = Object.freeze({
-  shifted: 'Shifted',
-  competitor: 'Competitor',
-  affordability: 'Affordability',
-  'temporary-travel': 'Temporary travel',
-  '': 'Not recorded',
-});
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+function serviceStatusLabel(status, labels) {
+  if (status === 'active') return labels.active;
+  if (status === 'offline') return labels.offline;
+  return labels.notSet;
+}
+
+function disconnectReasonLabel(reason, labels) {
+  if (reason === 'shifted') return labels.reasonShifted;
+  if (reason === 'competitor') return labels.reasonCompetitor;
+  if (reason === 'affordability') return labels.reasonAffordability;
+  if (reason === 'temporary-travel') return labels.reasonTravel;
+  return labels.notRecorded;
+}
+
+const SERVICE_STATUS_KEYS = Object.freeze(['active', 'offline', 'not-set']);
 
 const TYPE_ORDER = Object.freeze({
   added: 0,
@@ -75,10 +143,10 @@ function cleanText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function moneyLabel(value) {
-  if (value === null || value === undefined || value === '') return 'not set';
+function moneyLabel(value, labels) {
+  if (value === null || value === undefined || value === '') return labels.notSetMoney;
   const number = Number(value);
-  return Number.isFinite(number) ? `PKR ${number}` : 'not set';
+  return Number.isFinite(number) ? `PKR ${number}` : labels.notSetMoney;
 }
 
 function escapeHtml(value) {
@@ -87,23 +155,20 @@ function escapeHtml(value) {
   }[ch]));
 }
 
-function disconnectReasonLabel(reason) {
-  return DISCONNECT_REASON_LABELS[reason] ?? 'Not recorded';
-}
-
 /**
  * The one canonical lifecycle status for a customer. Returns
  * { key, label, detail } where key is 'archived' | 'on-hold' |
  * 'active' | 'offline' | 'not-set'.
  */
-export function resolveLifecycleStatus(customer) {
+export function resolveLifecycleStatus(customer, labels) {
+  const L = resolveLabels(labels);
   const source = customer && typeof customer === 'object' ? customer : {};
   if (source.archived === true) {
-    const reason = disconnectReasonLabel(cleanText(source.disconnectReason));
+    const reason = disconnectReasonLabel(cleanText(source.disconnectReason), L);
     return {
       key: 'archived',
-      label: 'Archived',
-      detail: `Disconnected · Reason: ${reason}`,
+      label: L.archived,
+      detail: fill(L.disconnectedReason, { reason }),
     };
   }
   const pauseStart = datePart(source.pauseStartDate);
@@ -111,26 +176,27 @@ export function resolveLifecycleStatus(customer) {
     const resume = datePart(source.autoResumeDate);
     return {
       key: 'on-hold',
-      label: 'On hold',
+      label: L.onHold,
       detail: resume
-        ? `Hold since ${pauseStart} · resumes ${resume}`
-        : `Hold since ${pauseStart}`,
+        ? fill(L.holdResumes, { date: pauseStart, resume })
+        : fill(L.holdSince, { date: pauseStart }),
     };
   }
-  const serviceStatus = SERVICE_STATUS_LABELS[source.serviceStatus]
+  const serviceStatus = SERVICE_STATUS_KEYS.includes(source.serviceStatus)
     ? source.serviceStatus
     : 'not-set';
   return {
     key: serviceStatus,
-    label: SERVICE_STATUS_LABELS[serviceStatus],
+    label: serviceStatusLabel(serviceStatus, L),
     detail: serviceStatus === 'not-set'
-      ? 'Service status not recorded'
-      : `Service ${SERVICE_STATUS_LABELS[serviceStatus].toLowerCase()}`,
+      ? L.serviceNotRecorded
+      : fill(L.serviceStatus, { status: serviceStatusLabel(serviceStatus, L).toLowerCase() }),
   };
 }
 
 /** Build the full journey for one customer record. Never mutates it. */
-export function buildLifecycleJourney(customer) {
+export function buildLifecycleJourney(customer, labels) {
+  const L = resolveLabels(labels);
   const source = customer && typeof customer === 'object' ? customer : {};
   const events = [];
   const undatedEvents = [];
@@ -147,18 +213,18 @@ export function buildLifecycleJourney(customer) {
     push({
       type: 'added',
       date: addedOn,
-      title: 'Customer added',
+      title: L.added,
       detail: connectionDate && connectionDate !== addedOn
-        ? 'Profile created; connection followed separately.'
-        : 'Profile created.',
+        ? L.addedSeparate
+        : L.addedSame,
     });
   }
   if (connectionDate && connectionDate !== addedOn) {
     push({
       type: 'connected',
       date: connectionDate,
-      title: 'Connected',
-      detail: 'Service connection date recorded.',
+      title: L.connected,
+      detail: L.connectedDetail,
     });
   }
   // Package changes, in stored order (sorting below fixes the timeline).
@@ -167,14 +233,20 @@ export function buildLifecycleJourney(customer) {
       if (!change || typeof change !== 'object') continue;
       const date = datePart(change.date);
       if (!date) continue;
-      const oldPackage = cleanText(change.oldPackage) || 'not set';
-      const newPackage = cleanText(change.newPackage) || 'not set';
+      const oldPackage = cleanText(change.oldPackage) || L.notSetMoney;
+      const newPackage = cleanText(change.newPackage) || L.notSetMoney;
       const staff = cleanText(change.staffName);
       push({
         type: 'package-change',
         date,
-        title: 'Package changed',
-        detail: `${oldPackage} → ${newPackage} · ${moneyLabel(change.oldMonthlyRate)} → ${moneyLabel(change.newMonthlyRate)}${staff ? ` · ${staff}` : ''}`,
+        title: L.packageChanged,
+        detail: fill(L.packageDetail, {
+          old: oldPackage,
+          new: newPackage,
+          oldPrice: moneyLabel(change.oldMonthlyRate, L),
+          newPrice: moneyLabel(change.newMonthlyRate, L),
+          staff: staff ? ` · ${staff}` : '',
+        }),
       });
     }
   }
@@ -185,13 +257,13 @@ export function buildLifecycleJourney(customer) {
       if (!entry || typeof entry !== 'object') continue;
       const date = datePart(entry.at);
       if (!date) continue;
-      const status = SERVICE_STATUS_LABELS[entry.status] ? entry.status : null;
+      const status = SERVICE_STATUS_KEYS.includes(entry.status) ? entry.status : null;
       if (!status) continue;
       push({
         type: 'service-status',
         date,
-        title: `Service ${SERVICE_STATUS_LABELS[status].toLowerCase()}`,
-        detail: `Manual service status changed to ${SERVICE_STATUS_LABELS[status].toLowerCase()}.`,
+        title: fill(L.serviceStatus, { status: serviceStatusLabel(status, L).toLowerCase() }),
+        detail: fill(L.statusChanged, { status: serviceStatusLabel(status, L).toLowerCase() }),
       });
     }
   }
@@ -203,10 +275,10 @@ export function buildLifecycleJourney(customer) {
     push({
       type: 'hold-started',
       date: pauseStart,
-      title: 'Hold started',
+      title: L.holdStarted,
       detail: resume
-        ? `Billing paused · scheduled resume ${resume}.`
-        : 'Billing paused · no resume date recorded.',
+        ? fill(L.holdResume, { date: resume })
+        : L.holdNoResume,
     });
   }
   const skippedMonths = Array.isArray(source.pauseSkippedMonths)
@@ -216,8 +288,8 @@ export function buildLifecycleJourney(customer) {
     undatedEvents.push({
       type: 'hold-resumed',
       date: null,
-      title: 'Hold ended',
-      detail: `Billing resumed after hold · skipped months: ${skippedMonths.join(', ')}. Resume date not recorded.`,
+      title: L.holdEnded,
+      detail: fill(L.holdResumed, { months: skippedMonths.join(', ') }),
     });
   }
 
@@ -230,46 +302,54 @@ export function buildLifecycleJourney(customer) {
       const date = datePart(entry.archivedAt);
       if (!date) continue;
       historyDates.add(date);
-      const reason = disconnectReasonLabel(cleanText(entry.disconnectReason));
+      const reason = disconnectReasonLabel(cleanText(entry.disconnectReason), L);
       const note = cleanText(entry.disconnectNote);
       push({
         type: 'archived',
         date,
-        title: 'Disconnected',
-        detail: `Reason: ${reason} · Win-back ${entry.winBackEligible === true ? 'eligible' : 'not eligible'}${note ? ` · Note: ${note}` : ''}`,
+        title: L.disconnected,
+        detail: fill(L.disconnectDetail, {
+          reason,
+          eligibility: entry.winBackEligible === true ? L.eligible : L.notEligible,
+          note: note ? fill(L.disconnectNote, { note }) : '',
+        }),
       });
     }
   }
   if (source.archived === true) {
     const archivedAt = datePart(source.archivedAt);
     if (archivedAt && !historyDates.has(archivedAt)) {
-      const reason = disconnectReasonLabel(cleanText(source.disconnectReason));
+      const reason = disconnectReasonLabel(cleanText(source.disconnectReason), L);
       const note = cleanText(source.disconnectNote);
       push({
         type: 'archived',
         date: archivedAt,
-        title: 'Disconnected',
-        detail: `Reason: ${reason} · Win-back ${source.winBackEligible === true ? 'eligible' : 'not eligible'}${note ? ` · Note: ${note}` : ''}`,
+        title: L.disconnected,
+        detail: fill(L.disconnectDetail, {
+          reason,
+          eligibility: source.winBackEligible === true ? L.eligible : L.notEligible,
+          note: note ? fill(L.disconnectNote, { note }) : '',
+        }),
       });
     } else if (!archivedAt && historyDates.size === 0) {
-      const reason = disconnectReasonLabel(cleanText(source.disconnectReason));
+      const reason = disconnectReasonLabel(cleanText(source.disconnectReason), L);
       undatedEvents.push({
         type: 'archived',
         date: null,
-        title: 'Disconnected',
-        detail: `Reason: ${reason} · archive date not recorded.`,
+        title: L.disconnected,
+        detail: fill(L.disconnectNodate, { reason }),
       });
     }
   }
 
-  // Win-back offer sent (a draft opened, not a reconnection).
+  // Win-back offer event (a draft opened, not a reconnection).
   const offerSent = datePart(source.winBackOfferSentAt);
   if (offerSent) {
     push({
       type: 'winback-offer-sent',
       date: offerSent,
-      title: 'Win-back offer sent',
-      detail: 'Free-reconnection offer draft opened for this customer.',
+      title: L.winbackSent,
+      detail: L.winbackDetail,
     });
   }
 
@@ -278,8 +358,8 @@ export function buildLifecycleJourney(customer) {
     undatedEvents.push({
       type: 'restored',
       date: null,
-      title: 'Restored to active',
-      detail: 'Previously disconnected, then restored. Restore date not recorded.',
+      title: L.restored,
+      detail: L.restoredDetail,
     });
   }
 
@@ -288,7 +368,7 @@ export function buildLifecycleJourney(customer) {
     return (TYPE_ORDER[a.type] ?? 99) - (TYPE_ORDER[b.type] ?? 99);
   });
 
-  const currentStatus = resolveLifecycleStatus(source);
+  const currentStatus = resolveLifecycleStatus(source, labels);
   return {
     customerId: source.id ?? null,
     customerNumber: source.customerNumber ?? null,
@@ -301,13 +381,14 @@ export function buildLifecycleJourney(customer) {
 }
 
 /** Render a journey as profile HTML. All values are escaped. */
-export function lifecycleJourneyHtml(journey) {
+export function lifecycleJourneyHtml(journey, labels) {
+  const L = resolveLabels(labels);
   if (!journey || typeof journey !== 'object') return '';
-  const status = journey.currentStatus ?? { label: 'Not set', detail: '' };
+  const status = journey.currentStatus ?? { label: L.notSet, detail: '' };
   const dated = (journey.events ?? []).map((event) => `<li><strong>${escapeHtml(event.date)}</strong> — ${escapeHtml(event.title)}<span>${escapeHtml(event.detail)}</span></li>`).join('');
-  const undated = (journey.undatedEvents ?? []).map((event) => `<li><strong>Date not recorded</strong> — ${escapeHtml(event.title)}<span>${escapeHtml(event.detail)}</span></li>`).join('');
+  const undated = (journey.undatedEvents ?? []).map((event) => `<li><strong>${escapeHtml(L.dateNotRecorded)}</strong> — ${escapeHtml(event.title)}<span>${escapeHtml(event.detail)}</span></li>`).join('');
   const body = dated || undated
-    ? `<ol class="lifecycle-timeline">${dated}</ol>${undated ? `<p class="lifecycle-undated-note">Undated events (dates were never recorded, so none is guessed):</p><ol class="lifecycle-timeline lifecycle-undated">${undated}</ol>` : ''}`
-    : '<p class="lifecycle-empty">No lifecycle events recorded yet.</p>';
-  return `<section class="profile-lifecycle-section" aria-label="Customer lifecycle journey"><h4>Customer journey</h4><p class="lifecycle-status-banner">Current status: <strong>${escapeHtml(status.label)}</strong>${status.detail ? ` · ${escapeHtml(status.detail)}` : ''}</p>${body}</section>`;
+    ? `<ol class="lifecycle-timeline">${dated}</ol>${undated ? `<p class="lifecycle-undated-note">${escapeHtml(L.undatedNote)}</p><ol class="lifecycle-timeline lifecycle-undated">${undated}</ol>` : ''}`
+    : `<p class="lifecycle-empty">${escapeHtml(L.noEvents)}</p>`;
+  return `<section class="profile-lifecycle-section" aria-label="${escapeHtml(L.journeyAria)}"><h4>${escapeHtml(L.journey)}</h4><p class="lifecycle-status-banner">${escapeHtml(L.currentStatus)}<strong>${escapeHtml(status.label)}</strong>${status.detail ? ` · ${escapeHtml(status.detail)}` : ''}</p>${body}</section>`;
 }

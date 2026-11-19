@@ -140,7 +140,7 @@ test('chip rules keep their old sizes and colours', () => {
   // No new sizes: padding / font-size / radius are exactly as before —
   // EXCEPT the Quick Collect polish (2026-11-17, D1/D4) cuts, recorded
   // not blessed: the date chips go to 8px 6px / 0.76rem (38px tall),
-  // the filter chips to 5px 10px / 0.78rem (still 44px tall). The
+  // the filter chips to 5px 12px / 0.78rem (still 44px tall). The
   // filter-chip comment below is updated: the fit at 360px comes from
   // the nowrap + scroll row (D4), not from the padding alone.
   assert.equal(decl(baseRule(styles, '.quick-amount-chip'), 'padding'), '4px 10px');
@@ -152,8 +152,10 @@ test('chip rules keep their old sizes and colours', () => {
   // 6px 10px (with the 12.5px font) so Pending / High ≥ 2k / All fit
   // on one row at 360px. Quick Collect polish (D4) moves it again to
   // 5px 10px / 0.78rem; min-height stays 44px; every other chip
-  // rule keeps its old size.
-  assert.equal(decl(baseRule(styles, '.quick-collect-filter-chip'), 'padding'), '5px 10px');
+  // rule keeps its old size. QC picker overflow (2026-11-19, item 3)
+  // moves it to 5px 12px / 0.78rem — the chips no longer shrink, so
+  // the count badges keep their breathing room and the row scrolls.
+  assert.equal(decl(baseRule(styles, '.quick-collect-filter-chip'), 'padding'), '5px 12px');
   assert.equal(decl(baseRule(styles, '.quick-collect-filter-chip'), 'font-size'), '0.78rem');
   assert.equal(decl(baseRule(components, '.loose-change-chip'), 'padding'), '4px 10px');
   assert.equal(decl(baseRule(components, '.qc-shop-chip'), 'padding'), '7px 12px');

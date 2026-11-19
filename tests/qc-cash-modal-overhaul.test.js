@@ -172,10 +172,14 @@ test('search placeholder is shortened, in the markup and in the i18n key', () =>
   // never matched area by substring — the old text promised a fourth
   // field it did not search) and gains the 🔍, so the box reads
   // "🔍 Search #ID, name, or phone" in the markup and in the key.
-  assert.ok(html.includes('placeholder="🔍 Search #ID, name, or phone"'), 'the static placeholder must be the shortened text');
+  // QC picker overflow (2026-11-19, item 4): the 🔍 was the
+  // placeholder's FIRST CHARACTER, so the caret overlapped it — the
+  // magnifier is now a separate ds-icon element and the 🔍 leaves
+  // the placeholder (EN+UR values) entirely.
+  assert.ok(html.includes('placeholder="Search #ID, name, or phone"'), 'the static placeholder must be the shortened text');
   assert.ok(!html.includes('Search name, #ID, phone, or area...'), 'the old placeholder must be gone from the markup');
   assert.ok(!html.includes('Search by name, #ID'), 'the old long placeholder must be gone from the markup');
-  assert.equal(en.qc_search_placeholder, '🔍 Search #ID, name, or phone', 'the EN key must match the shortened placeholder');
+  assert.equal(en.qc_search_placeholder, 'Search #ID, name, or phone', 'the EN key must match the shortened placeholder');
 });
 
 test('filter pills: four pills at 0.78rem, Emerald active, short High label', () => {
@@ -183,12 +187,16 @@ test('filter pills: four pills at 0.78rem, Emerald active, short High label', ()
   // the chips (the deleted Bill-status dropdown's paid pool).
   // Quick Collect polish (2026-11-17, D4): the pills fit one row at
   // 360px now (row 96px → 46px) — the ≤620px rule is nowrap +
-  // overflow-x:auto, and the chip is 0.78rem / 5px 10px (was 12.5px /
+  // overflow-x:auto, and the chip is 0.78rem / 5px 12px (was 12.5px /
   // 6px 10px; 0.78rem is 12.48px, the same size in rem). The 44px
-  // tap target and the nowrap label are unchanged.
+  // tap target and the nowrap label are unchanged. QC picker overflow
+  // (2026-11-19, item 3): padding 5px 10px → 5px 12px, and the chips
+  // gain flex-shrink: 0 — the count badges keep their breathing
+  // room and the row scrolls instead of squeezing them.
   const chip = ruleBlock(stylesSrc, '.quick-collect-filter-chip {');
   assert.ok(chip.includes('font-size: 0.78rem'), 'pills must be 0.78rem');
-  assert.ok(chip.includes('padding: 5px 10px'), 'pills must be 5px 10px');
+  assert.ok(chip.includes('padding: 5px 12px'), 'pills must be 5px 12px');
+  assert.ok(chip.includes('flex-shrink: 0'), 'pills must not shrink — the row scrolls');
   assert.ok(chip.includes('min-height: 44px'), 'pills must keep their 44px tap target');
   assert.ok(chip.includes('white-space: nowrap'), 'pill labels must not wrap mid-label');
   const active = ruleBlock(stylesSrc, '.quick-collect-filter-chip.is-active {');

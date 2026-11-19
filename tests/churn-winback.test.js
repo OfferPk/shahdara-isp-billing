@@ -254,7 +254,11 @@ test('i18n audit: every winback_* key used in code exists in BOTH dictionaries',
   const used = new Set();
   for (const file of ['churn-winback.js', 'profile-ui.js', 'app.js', 'index.html']) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
-    for (const match of source.matchAll(/winback_[a-z_]+/g)) used.add(match[0]);
+    // Plan 601 — the match must start a key token, not sit inside one:
+    // app.js calls t('prv_lc_winback_sent') / t('prv_lc_winback_detail')
+    // for the lifecycle journey, and the bare substring winback_sent /
+    // winback_detail inside those prv_ keys is not a winback_* key.
+    for (const match of source.matchAll(/(?<![a-z_])winback_[a-z_]+/g)) used.add(match[0]);
   }
   assert.ok(used.size >= 20, `expected a real key set, found ${used.size}`);
   for (const key of used) {

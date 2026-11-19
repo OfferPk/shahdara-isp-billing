@@ -69,16 +69,41 @@ export function crossPaymentNoteOf(payment) {
   return normalizeCrossPaymentNote(payment.crossPayment);
 }
 
+// Plan 601 — labels object: the app passes t('prv_cp_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t().
+const DEFAULT_LABELS = {
+  heading: 'Payments made for others',
+  explainer: "This customer paid for another customer's account — the money settled the other account's bill, and no dues moved between the two customers.",
+  paidBy: 'Paid by {name}{relationship}',
+  paidByRel: ' ({relationship})',
+};
+
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
 /**
  * The note in plain words — "Paid by Ahmed (son)", or "Paid by
  * Ahmed" when no relationship was given. The returned text is
  * unescaped: callers that put it in HTML must escape it, as the
  * markup helper below does.
  */
-export function crossPaymentNoteLineText(note) {
+export function crossPaymentNoteLineText(note, labels) {
+  const L = resolveLabels(labels);
   const clean = normalizeCrossPaymentNote(note);
   if (!clean) return '';
-  return clean.relationship ? `Paid by ${clean.payerName} (${clean.relationship})` : `Paid by ${clean.payerName}`;
+  return fill(L.paidBy, {
+    name: clean.payerName,
+    relationship: clean.relationship ? fill(L.paidByRel, { relationship: clean.relationship }) : '',
+  });
 }
 
 /**
@@ -87,8 +112,8 @@ export function crossPaymentNoteLineText(note) {
  * so a normal payment shows nothing extra. The note is always
  * escaped.
  */
-export function crossPaymentNoteMarkup(payment) {
-  const text = crossPaymentNoteLineText(crossPaymentNoteOf(payment));
+export function crossPaymentNoteMarkup(payment, labels) {
+  const text = crossPaymentNoteLineText(crossPaymentNoteOf(payment), labels);
   return text ? ` · ${escapeCrossPaymentHtml(text)}` : '';
 }
 
@@ -118,7 +143,8 @@ export function crossPaymentsMadeBy(rows, payerCustomerId) {
  * The amount formatter is the caller's (the app's PKR formatter);
  * without one the amount reads as plain "PKR <amount>".
  */
-export function crossPaymentsMadeSectionHtml(customer, rows, formatAmount) {
+export function crossPaymentsMadeSectionHtml(customer, rows, formatAmount, labels) {
+  const L = resolveLabels(labels);
   if (!customer || typeof customer !== 'object') return '';
   const made = crossPaymentsMadeBy(rows, customer.id);
   if (made.length === 0) return '';
@@ -129,5 +155,5 @@ export function crossPaymentsMadeSectionHtml(customer, rows, formatAmount) {
     const relationship = note && note.relationship ? ` (${escapeCrossPaymentHtml(note.relationship)})` : '';
     return `<li>${escapeCrossPaymentHtml(fmt(row.amount))} for ${who}${relationship} — ${escapeCrossPaymentHtml(row.date ?? '')}</li>`;
   }).join('');
-  return `<section class="profile-cross-payments" aria-label="Payments made for others"><h4>Payments made for others</h4><p>This customer paid for another customer's account — the money settled the other account's bill, and no dues moved between the two customers.</p><ul>${items}</ul></section>`;
+  return `<section class="profile-cross-payments" aria-label="${escapeCrossPaymentHtml(L.heading)}"><h4>${escapeCrossPaymentHtml(L.heading)}</h4><p>${escapeCrossPaymentHtml(L.explainer)}</p><ul>${items}</ul></section>`;
 }

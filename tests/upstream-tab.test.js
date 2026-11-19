@@ -368,8 +368,8 @@ test('G7: app.js wires the tab — syncExpenseTabs, click wiring, render arm, gu
   assert.ok(appJs.includes("if (expenseActiveTab === 'upstream') renderUpstream();"), 'renderExpenses refreshes the tab');
   assert.ok(appJs.includes('previous?.providerBillId'), 'the generic-form guard refuses a providerBillId row (SISP-45/56/107 shape)');
   assert.ok(appJs.includes("typeof row.providerBillId === 'string'"), 'the ledger table locks provider rows (SISP-107 shape)');
-  assert.ok(appJs.includes("This expense is synced from the Upstream tab. Edit or delete the bill there so both ledgers stay in step."),
-    'the refusal toast points at the Upstream tab in plain words (hardcoded — H2 adds no i18n key)');
+  assert.ok(appJs.includes("t('exp_upstream_synced_hint')"),
+    'the refusal toast points at the Upstream tab through the keyed hint (H5 D2(b) — the "hardcoded, H2 adds no i18n key" comment is now false, rewritten not deleted)');
   assert.ok(appJs.includes('<span class="expense-roznamcha-badge">Upstream</span>'),
     'the ledger shows a plain Upstream badge, no jump button');
 });

@@ -441,10 +441,10 @@ test('G4c: the pills stay pale in dark — DISCLOSED shortfall, not a pass', () 
 
 // ================= G5 — Guards + completeness =================
 
-test('G5a: parity is 5,168/5,168 and the re-pin set is complete', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5168, 'EN parity 5,168');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5168, 'UR parity 5,168');
-  // Every file that pinned 5,162 now pins 5,168 (35 files), and no file
+test('G5a: parity is 5,187/5,187 and the re-pin set is complete', () => {
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5187, 'EN parity 5,187');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5187, 'UR parity 5,187');
+  // Every file that pinned 5,168 now pins 5,187 (35 files), and no file
   // still pins the old count. This file itself asserts 5,168 — plus
   // Plan 592's new test file, which pins 5,168 as its own G5 guard
   // (the parity VALUE does not move; only the file count does) — plus
@@ -462,21 +462,23 @@ test('G5a: parity is 5,168/5,168 and the re-pin set is complete', () => {
   // guard the same way, so the count is 35. (Plan 602's new test file
   // pins no parity total, which is why the count held at 32 through
   // 602 — and Plan 611's new test file pins no parity total either,
-  // which is why the count holds at 35 through 611.) The sweep below
+  // which is why the count holds at 35 through 611 — and Plan 612's
+  // new test file pins no parity total either, which is why the count
+  // holds at 35 through 612.) The sweep below
   // counts 35, not 36: the privacy canary
   // (tests/privacy-zero-pii-ratchet.test.js) holds the OLD digits
   // '5162' inside the invented CNIC '35202-4815162-3' — a PII fixture,
   // not a parity pin, so it is never re-pinned and it drops out of the
   // fresh count; the old-sweep excludes it for the same reason.
   const testFiles = fs.readdirSync(path.join(ROOT, 'tests')).filter((f) => f.endsWith('.test.js'));
-  // This file itself mentions '5162' as the literal it checks against,
+  // This file itself mentions '5168' as the literal it checks against,
   // so it is excluded from the sweep — and so is the privacy canary,
   // which holds the old digits inside its invented CNIC. Every OTHER
   // file must be clean.
-  const old = testFiles.filter((f) => f !== 'plan591-header-strip-tokens-i18n.test.js' && f !== 'privacy-zero-pii-ratchet.test.js' && read(`tests/${f}`).includes('5162'));
-  const fresh = testFiles.filter((f) => read(`tests/${f}`).includes('5168'));
-  assert.deepEqual(old, [], 'no test file may still pin 5,162');
-  assert.equal(fresh.length, 35, `expected 35 files containing 5,168 (35 re-pins; the privacy canary holds the old digits), got ${fresh.length}: ${fresh.join(', ')}`);
+  const old = testFiles.filter((f) => f !== 'plan591-header-strip-tokens-i18n.test.js' && f !== 'privacy-zero-pii-ratchet.test.js' && read(`tests/${f}`).includes('5168'));
+  const fresh = testFiles.filter((f) => read(`tests/${f}`).includes('5187'));
+  assert.deepEqual(old, [], 'no test file may still pin 5,168');
+  assert.equal(fresh.length, 35, `expected 35 files containing 5,187 (35 re-pins; the privacy canary holds the old digits), got ${fresh.length}: ${fresh.join(', ')}`);
 });
 
 test('G5b: the wiring is the labels object, and the module stays pure', () => {
@@ -503,10 +505,10 @@ test('G5c: the strings left behind are listed, not silently claimed fixed', () =
   }
   assert.ok(profileHeaderStripText(baseStrip(), undefined, urLabels()).includes(' on '), "the text sentence still carries the English word 'on' (disclosed)");
   // The 12 stale '4,669' parity TITLES + 5 why-comments are NOT this
-  // plan's sweep: the asserts moved to 5,168 (G5a) while the titles
+  // plan's sweep: the asserts moved to 5,187 (G5a) while the titles
   // stay as they were — a title sweep is a different item. This asserts
   // the split: each of the 12 files still carries '4,669' somewhere
-  // (title or comment) AND pins 5,162 in its asserts.
+  // (title or comment) AND pins 5,187 in its asserts.
   const staleTitleFiles = [
     'plan566-receipt-card-nan-guard.test.js',
     'plan567-urdu-script-labels.test.js',
@@ -524,7 +526,7 @@ test('G5c: the strings left behind are listed, not silently claimed fixed', () =
   for (const name of staleTitleFiles) {
     const src = read(`tests/${name}`);
     assert.ok(src.includes('4,669'), `${name} still carries its stale '4,669' title/comment (not this plan's sweep)`);
-    assert.ok(src.includes('5168'), `${name} pins 5,168 in its asserts`);
-    assert.ok(!src.includes('5162'), `${name} no longer pins 5,162`);
+    assert.ok(src.includes('5187'), `${name} pins 5,187 in its asserts`);
+    assert.ok(!src.includes('5168'), `${name} no longer pins 5,168`);
   }
 });

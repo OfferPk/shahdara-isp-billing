@@ -32,6 +32,7 @@ import {
   balanceReplySentText,
   balanceReplyHtml,
 } from '../balance-reply.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const base = {
   customerId: 'C-1',
@@ -195,4 +196,9 @@ test('html escapes names and figures, and shows the draft and send state', () =>
   assert.match(html, /Current balance: Rs\. 1000/);
   assert.match(html, /Balance reply not sent yet\./);
   assert.equal(balanceReplyHtml(null), '<p class="empty-state">Balance reply unavailable — the outstanding figure is missing or unusable.</p>');
+});
+
+test('Plan 600: the balance-reply summary renders in Urdu through labels', () => {
+  const reply = buildBalanceReply(base);
+  assert.equal(balanceReplySummaryText(reply, { current: TRANSLATIONS.ur.dft_bal_current }), 'موجودہ بیلنس Rs. 1000۔');
 });

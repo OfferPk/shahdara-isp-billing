@@ -318,11 +318,42 @@ export function buildStatusReply({
   return reply;
 }
 
-export function statusReplySentText(sends) {
+// Plan 600 — the preview chrome renders through a caller-supplied
+// labels object (the 591 header-strip pattern), so this module stays
+// import-free. Defaults are the English strings, so old callers (and
+// old tests) keep byte-identical output. 'Not sent yet.' is shared
+// with payment-slip; 'Status reply unavailable.' is the shared
+// template key (dft_status_unavailable). The sent line keeps its
+// inline time/times suffix as a {plural} param (EN 's'/''; the UR
+// value carries no plural suffix — 'dafa' does not inflect), while
+// the open-cases line branches singular/plural like the other
+// modules' sent lines. The category/type labels inside the summary
+// list are ticket data, not section chrome — they stay as recorded.
+const DEFAULT_STATUS_REPLY_LABELS = {
+  notSent: 'Not sent yet.',
+  sentDate: 'Sent {count} time{plural}, last on {date}.',
+  sentNoDate: 'Sent {count} time{plural}.',
+  noOpenCase: 'No open ticket or request for this customer.',
+  openOne: '{count} open case: {list}.',
+  openMany: '{count} open cases: {list}.',
+  unavailable: 'Status reply unavailable.',
+};
+function srLabel(labels, key) {
+  return (labels && typeof labels[key] === 'string' && labels[key] !== '') ? labels[key] : DEFAULT_STATUS_REPLY_LABELS[key];
+}
+function srFill(template, params) {
+  let out = String(template);
+  for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+export function statusReplySentText(sends, labels = DEFAULT_STATUS_REPLY_LABELS) {
   const list = Array.isArray(sends) ? sends : [];
-  if (list.length === 0) return 'Not sent yet.';
+  if (list.length === 0) return srLabel(labels, 'notSent');
   const last = list[list.length - 1];
-  return `Sent ${list.length} time${list.length === 1 ? '' : 's'}${last && last.sentAt ? `, last on ${last.sentAt.slice(0, 10)}` : ''}.`;
+  const plural = list.length === 1 ? '' : 's';
+  if (last && last.sentAt) return srFill(srLabel(labels, 'sentDate'), { count: list.length, plural, date: last.sentAt.slice(0, 10) });
+  return srFill(srLabel(labels, 'sentNoDate'), { count: list.length, plural });
 }
 
 export function logStatusReplySent(list, entry) {
@@ -345,10 +376,10 @@ export function findStatusReplySends(list, customerId) {
   return list.filter((entry) => entry && text(entry.customerId) === wanted);
 }
 
-export function statusReplyHtml(reply, { draftText, sends } = {}) {
-  if (!reply) return '<p class="empty-state">Status reply unavailable.</p>';
+export function statusReplyHtml(reply, { draftText, sends, labels = DEFAULT_STATUS_REPLY_LABELS } = {}) {
+  if (!reply) return `<p class="empty-state">${escapeHtml(srLabel(labels, 'unavailable'))}</p>`;
   const summary = reply.kind === 'none'
-    ? 'No open ticket or request for this customer.'
-    : `${reply.items.length} open case${reply.items.length === 1 ? '' : 's'}: ${reply.items.map((item) => (item.kind === 'ticket' ? item.categoryLabel : item.typeLabel)).join(', ')}.`;
-  return `<div><p style="font-size: 12px;">${escapeHtml(summary)}</p><pre style="white-space: pre-wrap; font-size: 12px;">${escapeHtml(draftText ?? reply.text)}</pre><p style="font-size: 12px;">${escapeHtml(statusReplySentText(sends))}</p></div>`;
+    ? srLabel(labels, 'noOpenCase')
+    : srFill(srLabel(labels, reply.items.length === 1 ? 'openOne' : 'openMany'), { count: reply.items.length, list: reply.items.map((item) => (item.kind === 'ticket' ? item.categoryLabel : item.typeLabel)).join(', ') });
+  return `<div><p style="font-size: 12px;">${escapeHtml(summary)}</p><pre style="white-space: pre-wrap; font-size: 12px;">${escapeHtml(draftText ?? reply.text)}</pre><p style="font-size: 12px;">${escapeHtml(statusReplySentText(sends, labels))}</p></div>`;
 }

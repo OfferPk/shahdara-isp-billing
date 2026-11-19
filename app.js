@@ -8340,8 +8340,11 @@ function renderCustomerProfileView(customer) {
   const welcomePackDraft = buildWelcomePackDraft(welcomePack, welcomePackVariant);
   const welcomePackSends = findWelcomePackSends(loadWelcomePackSentLog(), customer.id);
   const welcomePackSendDisabled = Boolean(welcomePackPref && welcomePackPref.doNotMessage) || welcomePack.status !== 'ready';
-  const welcomePackSendLabel = welcomePackPref && welcomePackPref.doNotMessage ? 'Do not message' : welcomePack.status !== 'ready' ? 'Complete the profile first' : (welcomePackSends.length > 0 ? 'Re-send welcome pack' : 'Send welcome pack');
-  const welcomePackSectionHtml = `<section class="profile-custody-section" aria-label="Welcome pack"><h4>Welcome pack</h4><p>Send this once at activation, so a new customer knows the package, monthly amount, due date, payment methods, and support contact from day one — and can re-send it from here any time after. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, Waada, or lifecycle record.</p>${welcomePackHtml(welcomePack, { draftText: welcomePackDraft.text, sends: welcomePackSends })}<button type="button" class="secondary-button" id="welcomePackSendBtn" ${welcomePackSendDisabled ? 'disabled' : ''}>${escapeHtml(welcomePackSendLabel)}</button></section>`;
+  const welcomePackSendLabel = welcomePackPref && welcomePackPref.doNotMessage ? t('dft_do_not_message') : welcomePack.status !== 'ready' ? t('dft_welcome_complete_profile') : (welcomePackSends.length > 0 ? t('dft_welcome_resend') : t('dft_welcome_send'));
+  // Plan 600 — the welcome-pack preview chrome renders through a labels
+  // object (the 591 header-strip pattern); the module stays import-free.
+  const welcomePackLabels = { unavailable: t('dft_wp_unavailable'), ready: t('dft_wp_ready'), incomplete: t('dft_wp_incomplete'), notSent: t('dft_wp_not_sent'), sent1: t('dft_wp_sent_on'), sentN1: t('dft_wp_sent_once_more'), sentN: t('dft_wp_sent_more'), package: t('dft_wp_package'), monthlyAmount: t('dft_wp_monthly_amount'), due: t('dft_wp_due'), paymentMethods: t('dft_wp_payment_methods'), support: t('dft_wp_support'), missing: t('dft_wp_missing_note'), dueEveryMonth: t('dft_wp_due_every_month'), notSet: t('prof_not_set') };
+  const welcomePackSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_welcome_heading'))}"><h4>${escapeHtml(t('dft_welcome_heading'))}</h4><p>${escapeHtml(t('dft_welcome_explainer'))}</p>${welcomePackHtml(welcomePack, { draftText: welcomePackDraft.text, sends: welcomePackSends, labels: welcomePackLabels })}<button type="button" class="secondary-button" id="welcomePackSendBtn" ${welcomePackSendDisabled ? 'disabled' : ''}>${escapeHtml(welcomePackSendLabel)}</button></section>`;
   // Plan 36: the profile shows the current billing cycle and the date it
   // changed. Saving here changes only bills raised afterwards — past
   // bills keep their old due dates, and the pre-due reminder queue reads
@@ -8384,8 +8387,10 @@ function renderCustomerProfileView(customer) {
   let statementDraftCurrent = statementDraftForMonth(statementDraftMonth);
   const statementDraftSendDisabled = Boolean(statementDraftPref && statementDraftPref.doNotMessage) || !statementDraftCurrent;
   const statementDraftSendsForMonth = (month) => findStatementSends(loadStatementDraftSentLog(), customer.id, month);
-  const statementDraftSendLabel = statementDraftPref && statementDraftPref.doNotMessage ? 'Do not message' : (statementDraftSendsForMonth(statementDraftMonth).length > 0 ? 'Re-send statement' : 'Send monthly statement');
-  const statementDraftSectionHtml = `<section class="profile-custody-section" aria-label="Monthly statement"><h4>Monthly statement</h4><p>One clear page each month — opening balance, this month's charges, payments received, and closing balance — so the customer never has to ask "what do I actually owe and for what?" again. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, Waada, or lifecycle record.</p><div><label>Statement month <input id="statementDraftMonth" type="month" value="${escapeHtml(statementDraftMonth)}"></label> <button type="button" class="secondary-button" id="statementDraftShowBtn">Show statement</button></div><div id="statementDraftResult">${statementDraftCurrent ? statementDraftHtml(statementDraftCurrent.statement, { draftText: statementDraftCurrent.draft.text, sends: statementDraftSendsForMonth(statementDraftMonth) }) : '<p class="empty-state">Monthly statement unavailable.</p>'}</div><button type="button" class="secondary-button" id="statementDraftSendBtn" ${statementDraftSendDisabled ? 'disabled' : ''}>${escapeHtml(statementDraftSendLabel)}</button></section>`;
+  const statementDraftSendLabel = statementDraftPref && statementDraftPref.doNotMessage ? t('dft_do_not_message') : (statementDraftSendsForMonth(statementDraftMonth).length > 0 ? t('dft_statement_resend') : t('dft_statement_send'));
+  // Plan 600 — labels object for the statement-draft preview chrome.
+  const statementDraftLabels = { unavailable: t('dft_statement_unavailable'), summary: t('dft_stmt_summary'), notSent: t('dft_stmt_not_sent'), sent1: t('dft_stmt_sent_on'), sentN1: t('dft_stmt_sent_once_more'), sentN: t('dft_stmt_sent_more'), month: t('dft_stmt_month'), opening: t('dft_stmt_opening'), charges: t('dft_stmt_charges'), payments: t('dft_stmt_payments'), closing: t('dft_stmt_closing'), onePayment: t('dft_stmt_one_payment'), manyPayments: t('dft_stmt_many_payments'), noBill: t('dft_stmt_no_bill'), voidedCount: t('dft_stmt_voided_count') };
+  const statementDraftSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_statement_heading'))}"><h4>${escapeHtml(t('dft_statement_heading'))}</h4><p>${escapeHtml(t('dft_statement_explainer'))}</p><div><label>${escapeHtml(t('dft_statement_month'))} <input id="statementDraftMonth" type="month" value="${escapeHtml(statementDraftMonth)}"></label> <button type="button" class="secondary-button" id="statementDraftShowBtn">${escapeHtml(t('dft_statement_show'))}</button></div><div id="statementDraftResult">${statementDraftCurrent ? statementDraftHtml(statementDraftCurrent.statement, { draftText: statementDraftCurrent.draft.text, sends: statementDraftSendsForMonth(statementDraftMonth), labels: statementDraftLabels }) : `<p class="empty-state">${escapeHtml(t('dft_statement_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="statementDraftSendBtn" ${statementDraftSendDisabled ? 'disabled' : ''}>${escapeHtml(statementDraftSendLabel)}</button></section>`;
   // Plan 72 (Plan 1-100) — Balance enquiry reply draft on the
   // profile. When the customer asks "mera balance kitna hai?",
   // the operator opens this section and gets one same-shaped
@@ -8401,8 +8406,10 @@ function renderCustomerProfileView(customer) {
   let balanceReplyCurrent = balanceReplyForCustomer(customer, balanceReplyVariant);
   const balanceReplySendDisabled = Boolean(balanceReplyPref && balanceReplyPref.doNotMessage) || !balanceReplyCurrent;
   const balanceReplySends = () => findBalanceReplySends(loadBalanceReplySentLog(), customer.id);
-  const balanceReplySendLabel = balanceReplyPref && balanceReplyPref.doNotMessage ? 'Do not message' : (balanceReplySends().length > 0 ? 'Re-send balance reply' : 'Send balance reply');
-  const balanceReplySectionHtml = `<section class="profile-custody-section" aria-label="Balance enquiry reply"><h4>Balance enquiry reply</h4><p>When the customer asks "mera balance kitna hai?", send one accurate, same-shaped answer instead of a typed-from-memory figure — current outstanding, next due date, and last payment, with the payment instructions for this customer's preferred channel. Where a dispute case is open, the reply shows the undisputed balance and says a case is open. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, case, or Waada record.</p><div><label>Draft language <select id="balanceReplyVariant"><option value="${BALANCE_REPLY_VARIANTS.ROMAN}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${BALANCE_REPLY_VARIANTS.URDU}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="balanceReplyShowBtn">Show reply</button></div><div id="balanceReplyResult">${balanceReplyCurrent ? balanceReplyHtml(balanceReplyCurrent, { draftText: balanceReplyCurrent.text, sends: balanceReplySends() }) : '<p class="empty-state">Balance reply unavailable.</p>'}</div><button type="button" class="secondary-button" id="balanceReplySendBtn" ${balanceReplySendDisabled ? 'disabled' : ''}>${escapeHtml(balanceReplySendLabel)}</button></section>`;
+  const balanceReplySendLabel = balanceReplyPref && balanceReplyPref.doNotMessage ? t('dft_do_not_message') : (balanceReplySends().length > 0 ? t('dft_balance_resend') : t('dft_balance_send'));
+  // Plan 600 — labels object for the balance-reply preview chrome.
+  const balanceReplyLabels = { unavailable: t('dft_bal_summary_unavailable'), noAmountDue: t('dft_bal_no_amount_due'), noUndisputed: t('dft_bal_no_undisputed'), undisputed: t('dft_bal_undisputed'), current: t('dft_bal_current'), notSent: t('dft_bal_not_sent'), sent1: t('dft_bal_sent_on'), sentN1: t('dft_bal_sent_once_more'), sentN: t('dft_bal_sent_more'), customer: t('dft_bal_customer'), noDueLine: t('dft_bal_no_due_line'), noUndisputedLine: t('dft_bal_no_undisputed_line'), undisputedLine: t('dft_bal_undisputed_line'), currentLine: t('dft_bal_current_line'), dueDate: t('dft_bal_due_date'), dueNotRecorded: t('dft_bal_due_not_recorded'), lastPaymentLine: t('dft_bal_last_payment_line'), lastNone: t('dft_bal_last_none'), disputeEntries: t('dft_bal_dispute_entries') };
+  const balanceReplySectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_balance_heading'))}"><h4>${escapeHtml(t('dft_balance_heading'))}</h4><p>${escapeHtml(t('dft_balance_explainer'))}</p><div><label>${escapeHtml(t('dft_draft_language'))} <select id="balanceReplyVariant"><option value="${BALANCE_REPLY_VARIANTS.ROMAN}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${BALANCE_REPLY_VARIANTS.URDU}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label> <button type="button" class="secondary-button" id="balanceReplyShowBtn">${escapeHtml(t('dft_show_reply'))}</button></div><div id="balanceReplyResult">${balanceReplyCurrent ? balanceReplyHtml(balanceReplyCurrent, { draftText: balanceReplyCurrent.text, sends: balanceReplySends(), labels: balanceReplyLabels }) : `<p class="empty-state">${escapeHtml(t('dft_balance_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="balanceReplySendBtn" ${balanceReplySendDisabled ? 'disabled' : ''}>${escapeHtml(balanceReplySendLabel)}</button></section>`;
   // Plan 73 (Plan 1-100) — Payment history mini-slip on the
   // profile, after the balance reply section. The last few
   // payments with date, amount, and channel, plus the current
@@ -8414,8 +8421,10 @@ function renderCustomerProfileView(customer) {
   let paymentSlipCurrent = paymentSlipForCustomer(customer, paymentSlipVariant, paymentSlipCount);
   const paymentSlipSendDisabled = Boolean(paymentSlipPref && paymentSlipPref.doNotMessage) || !paymentSlipCurrent;
   const paymentSlipSends = () => findPaymentSlipSends(loadPaymentSlipSentLog(), customer.id);
-  const paymentSlipSendLabel = paymentSlipPref && paymentSlipPref.doNotMessage ? 'Do not message' : (paymentSlipSends().length > 0 ? 'Re-send payment slip' : 'Send payment slip');
-  const paymentSlipSectionHtml = `<section class="profile-custody-section" aria-label="Payment history mini-slip"><h4>Payment history mini-slip</h4><p>When the customer asks "maine kab kab pay kiya?", send a short, checkable history instead of a verbal list — the last few payments with date, amount, and channel, plus the current balance line. Voided payments are marked VOID and excluded from the subtotal, never shown as successful payments. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, case, or Waada record.</p><div><label>Payments to list <input id="paymentSlipCount" type="number" min="1" value="${paymentSlipCount}"></label> <label>Draft language <select id="paymentSlipVariant"><option value="${PAYMENT_SLIP_VARIANTS.ROMAN}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${PAYMENT_SLIP_VARIANTS.URDU}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="paymentSlipShowBtn">Show slip</button></div><div id="paymentSlipResult">${paymentSlipCurrent ? paymentSlipHtml(paymentSlipCurrent, { draftText: paymentSlipCurrent.text, sends: paymentSlipSends() }) : '<p class="empty-state">Payment slip unavailable.</p>'}</div><button type="button" class="secondary-button" id="paymentSlipSendBtn" ${paymentSlipSendDisabled ? 'disabled' : ''}>${escapeHtml(paymentSlipSendLabel)}</button></section>`;
+  const paymentSlipSendLabel = paymentSlipPref && paymentSlipPref.doNotMessage ? t('dft_do_not_message') : (paymentSlipSends().length > 0 ? t('dft_slip_resend') : t('dft_slip_send'));
+  // Plan 600 — labels object for the payment-slip preview chrome.
+  const paymentSlipLabels = { unavailable: t('dft_slip_unavailable'), summary: t('dft_slip_summary'), notSent: t('dft_slip_not_sent'), sent: t('dft_slip_sent'), noPayments: t('dft_slip_no_payments'), subtotal: t('dft_slip_subtotal'), currentLine: t('dft_bal_current_line'), voidStamp: t('dft_slip_void_stamp'), voidedExcluded: t('dft_slip_voided_excluded'), skippedRows: t('dft_slip_skipped_rows'), unavailableLong: t('dft_slip_unavailable_long') };
+  const paymentSlipSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_slip_heading'))}"><h4>${escapeHtml(t('dft_slip_heading'))}</h4><p>${escapeHtml(t('dft_slip_explainer'))}</p><div><label>${escapeHtml(t('dft_slip_payments_to_list'))} <input id="paymentSlipCount" type="number" min="1" value="${paymentSlipCount}"></label> <label>${escapeHtml(t('dft_draft_language'))} <select id="paymentSlipVariant"><option value="${PAYMENT_SLIP_VARIANTS.ROMAN}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${PAYMENT_SLIP_VARIANTS.URDU}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label> <button type="button" class="secondary-button" id="paymentSlipShowBtn">${escapeHtml(t('dft_slip_show'))}</button></div><div id="paymentSlipResult">${paymentSlipCurrent ? paymentSlipHtml(paymentSlipCurrent, { draftText: paymentSlipCurrent.text, sends: paymentSlipSends(), labels: paymentSlipLabels }) : `<p class="empty-state">${escapeHtml(t('dft_slip_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="paymentSlipSendBtn" ${paymentSlipSendDisabled ? 'disabled' : ''}>${escapeHtml(paymentSlipSendLabel)}</button></section>`;
   // Plan 74 (Plan 1-100) — Package and service info card on the
   // profile. When the customer asks "mera package kya hai, aur
   // bill kab due hai?", send one consistent card — current
@@ -8432,8 +8441,10 @@ function renderCustomerProfileView(customer) {
   let infoCardCurrent = infoCardForCustomer(customer, infoCardVariant);
   const infoCardSendDisabled = Boolean(infoCardPref && infoCardPref.doNotMessage) || !infoCardCurrent;
   const infoCardSends = () => findInfoCardSends(loadInfoCardSentLog(), customer.id);
-  const infoCardSendLabel = infoCardPref && infoCardPref.doNotMessage ? 'Do not message' : (infoCardSends().length > 0 ? 'Re-send info card' : 'Send info card');
-  const infoCardSectionHtml = `<section class="profile-custody-section" aria-label="Package and service info card"><h4>Package and service info card</h4><p class="pcp-explainer">When the customer asks "mera package kya hai, aur bill kab due hai?", send one consistent card instead of a different answer each time — current package and monthly price, billing cycle and next due date, connection status, expiry, and the support contact. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no package, billing, or lifecycle record.</p><div class="pcp-form"><label><span class="pcp-field-pill">Draft language</span> <select id="infoCardVariant"><option value="${INFO_CARD_VARIANTS.ROMAN}" ${infoCardVariant === INFO_CARD_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${INFO_CARD_VARIANTS.URDU}" ${infoCardVariant === INFO_CARD_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="infoCardShowBtn">Show card</button></div><div id="infoCardResult">${infoCardCurrent ? infoCardHtml(infoCardCurrent, { draftText: infoCardCurrent.text, sends: infoCardSends() }) : '<p class="empty-state">Info card unavailable.</p>'}</div><button type="button" class="secondary-button" id="infoCardSendBtn" ${infoCardSendDisabled ? 'disabled' : ''}>${escapeHtml(infoCardSendLabel)}</button></section>`;
+  const infoCardSendLabel = infoCardPref && infoCardPref.doNotMessage ? t('dft_do_not_message') : (infoCardSends().length > 0 ? t('dft_infocard_resend') : t('dft_infocard_send'));
+  // Plan 600 — labels object for the info-card preview chrome.
+  const infoCardLabels = { unavailable: t('dft_ic_unavailable'), summary: t('dft_ic_summary'), summaryDue: t('dft_ic_summary_due'), summaryPending: t('dft_ic_summary_pending'), notSent: t('dft_ic_not_sent'), sent1: t('dft_ic_sent_on'), sentN1: t('dft_ic_sent_once_more'), sentN: t('dft_ic_sent_more'), customer: t('dft_bal_customer'), package: t('dft_wp_package'), monthlyPrice: t('dft_ic_monthly_price'), cycleDue: t('dft_ic_cycle_due'), cycleDueDefault: t('dft_ic_cycle_due_default'), cycleNotRecorded: t('dft_ic_cycle_not_recorded'), nextDue: t('dft_ic_next_due'), nextDueNotRecorded: t('dft_ic_next_due_not_recorded'), status: t('dft_ic_status'), expiry: t('dft_ic_expiry'), expiryNotRecorded: t('dft_ic_expiry_not_recorded'), support: t('dft_ic_support'), changeNoted: t('dft_ic_change_noted'), notRecorded: t('dft_ic_not_recorded') };
+  const infoCardSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_infocard_heading'))}"><h4>${escapeHtml(t('dft_infocard_heading'))}</h4><p class="pcp-explainer">${escapeHtml(t('dft_infocard_explainer'))}</p><div class="pcp-form"><label><span class="pcp-field-pill">${escapeHtml(t('dft_draft_language'))}</span> <select id="infoCardVariant"><option value="${INFO_CARD_VARIANTS.ROMAN}" ${infoCardVariant === INFO_CARD_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${INFO_CARD_VARIANTS.URDU}" ${infoCardVariant === INFO_CARD_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label> <button type="button" class="secondary-button" id="infoCardShowBtn">${escapeHtml(t('dft_infocard_show'))}</button></div><div id="infoCardResult">${infoCardCurrent ? infoCardHtml(infoCardCurrent, { draftText: infoCardCurrent.text, sends: infoCardSends(), labels: infoCardLabels }) : `<p class="empty-state">${escapeHtml(t('dft_infocard_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="infoCardSendBtn" ${infoCardSendDisabled ? 'disabled' : ''}>${escapeHtml(infoCardSendLabel)}</button></section>`;
   // Plan 75 (Plan 1-100) — Open fault and request status reply on
   // the profile, after the info card section. When the customer
   // chases an open fault or request, send one accurate status
@@ -8450,8 +8461,10 @@ function renderCustomerProfileView(customer) {
   let statusReplyCurrent = statusReplyForCustomer(customer, statusReplyVariant);
   const statusReplySendDisabled = Boolean(statusReplyPref && statusReplyPref.doNotMessage) || !statusReplyCurrent;
   const statusReplySends = () => findStatusReplySends(loadStatusReplySentLog(), customer.id);
-  const statusReplySendLabel = statusReplyPref && statusReplyPref.doNotMessage ? 'Do not message' : (statusReplySends().length > 0 ? 'Re-send status reply' : 'Send status reply');
-  const statusReplySectionHtml = `<section class="profile-custody-section" aria-label="Open fault and request status reply"><h4>Open fault and request status reply</h4><p>When the customer chases an open fault or request, send one accurate status message instead of "ho jayega" — what was reported or requested, its current status, and the next step with a date where one is recorded. A customer with no open case gets a plain "no open case" wording, never an invented status. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no ticket or request record.</p><div><label>Draft language <select id="statusReplyVariant"><option value="${STATUS_REPLY_VARIANTS.ROMAN}" ${statusReplyVariant === STATUS_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${STATUS_REPLY_VARIANTS.URDU}" ${statusReplyVariant === STATUS_REPLY_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="statusReplyShowBtn">Show reply</button></div><div id="statusReplyResult">${statusReplyCurrent ? statusReplyHtml(statusReplyCurrent, { draftText: statusReplyCurrent.text, sends: statusReplySends() }) : '<p class="empty-state">Status reply unavailable.</p>'}</div><button type="button" class="secondary-button" id="statusReplySendBtn" ${statusReplySendDisabled ? 'disabled' : ''}>${escapeHtml(statusReplySendLabel)}</button></section>`;
+  const statusReplySendLabel = statusReplyPref && statusReplyPref.doNotMessage ? t('dft_do_not_message') : (statusReplySends().length > 0 ? t('dft_status_resend') : t('dft_status_send'));
+  // Plan 600 — labels object for the status-reply preview chrome.
+  const statusReplyLabels = { notSent: t('dft_slip_not_sent'), sentDate: t('dft_sr_sent_date'), sentNoDate: t('dft_sr_sent_nodate'), noOpenCase: t('dft_sr_no_open_case'), openOne: t('dft_sr_open_one'), openMany: t('dft_sr_open_many'), unavailable: t('dft_status_unavailable') };
+  const statusReplySectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_status_heading'))}"><h4>${escapeHtml(t('dft_status_heading'))}</h4><p>${escapeHtml(t('dft_status_explainer'))}</p><div><label>${escapeHtml(t('dft_draft_language'))} <select id="statusReplyVariant"><option value="${STATUS_REPLY_VARIANTS.ROMAN}" ${statusReplyVariant === STATUS_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${STATUS_REPLY_VARIANTS.URDU}" ${statusReplyVariant === STATUS_REPLY_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label> <button type="button" class="secondary-button" id="statusReplyShowBtn">${escapeHtml(t('dft_show_reply'))}</button></div><div id="statusReplyResult">${statusReplyCurrent ? statusReplyHtml(statusReplyCurrent, { draftText: statusReplyCurrent.text, sends: statusReplySends(), labels: statusReplyLabels }) : `<p class="empty-state">${escapeHtml(t('dft_status_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="statusReplySendBtn" ${statusReplySendDisabled ? 'disabled' : ''}>${escapeHtml(statusReplySendLabel)}</button></section>`;
   // Plan 95 (Plan 1-100) — Service terms acknowledgement record.
   // Read-only on the profile: the current terms version and whether
   // this customer has acknowledged it. Recording happens in the
@@ -8459,12 +8472,16 @@ function renderCustomerProfileView(customer) {
   // status, and it never assumes an acknowledgement for a new
   // version from an old one.
   const termsAckStatus = customerTermsStatus(loadTermsAck(), customer.id, loadTermsCurrentVersion());
-  const termsAckSectionHtml = `<section class="profile-custody-section" aria-label="Service terms acknowledgement"><h4>Service terms acknowledgement</h4><p>Which terms version this customer agreed to, and on what date — so a "nobody told me" dispute is answered from a dated record, not from memory. The record stores the version and the date only, never a copy of any identity document, and it changes no package, billing, or lifecycle rule. A new terms version shows this customer as not yet acknowledged until they actually acknowledge it.</p>${termsAckStatusHtml(termsAckStatus)}</section>`;
+  // Plan 600 — labels object for the terms-acknowledgement status line.
+  const termsAckLabels = { unavailable: t('dft_terms_unavailable'), noVersion: t('dft_terms_no_version'), version: t('dft_terms_version'), acknowledged: t('dft_terms_acknowledged'), notAcknowledged: t('dft_terms_not_acknowledged'), detail: t('dft_terms_detail'), recordedBy: t('dft_terms_recorded_by'), neverAssumed: t('dft_terms_never_assumed'), methodInPerson: t('dft_terms_method_in_person'), methodMessage: t('dft_terms_method_message'), methodPaper: t('dft_terms_method_paper'), notRecorded: t('prof_not_recorded') };
+  const termsAckSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_terms_heading'))}"><h4>${escapeHtml(t('dft_terms_heading'))}</h4><p>${escapeHtml(t('dft_terms_explainer'))}</p>${termsAckStatusHtml(termsAckStatus, termsAckLabels)}</section>`;
   // Plan 103 — Credit balance on the profile: credit in, applied, and
   // remaining, always visible and summing exactly. Credit moves only
   // by a recorded application naming a bill, never automatically,
   // and it is never turned into cash here.
-  const creditBalanceSectionHtml = `<section class="profile-custody-section" aria-label="Customer credit balance"><h4>Customer credit balance</h4><p>Overpayments stay as this customer's money in plain sight: credit in, credit applied, and credit remaining always sum exactly. Credit is applied to a bill only by a recorded application naming that bill, never automatically, and it is never converted to cash without a refund record.</p><p>${escapeHtml(creditSummaryText(creditBalanceForCustomer(loadCreditEntries(), loadCreditApplications(), customer.id)))}</p></section>`;
+  // Plan 600 — labels object for the credit-balance summary line.
+  const creditBalanceLabels = { noRecord: t('dft_credit_no_record'), summary: t('dft_credit_summary') };
+  const creditBalanceSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_credit_heading'))}"><h4>${escapeHtml(t('dft_credit_heading'))}</h4><p>${escapeHtml(t('dft_credit_explainer'))}</p><p>${escapeHtml(creditSummaryText(creditBalanceForCustomer(loadCreditEntries(), loadCreditApplications(), customer.id), creditBalanceLabels))}</p></section>`;
   // Plan 46 (Plan 1-100) — Package change preview on the profile.
   // The preview is built from this profile's own package and monthly
   // amount, and the proposed package's catalogue price; both prices
@@ -9175,27 +9192,27 @@ function renderCustomerProfileView(customer) {
     const pref = findContactPreference(loadContactPreferences(), customer.id);
     if (pref && pref.doNotMessage) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Do not message';
+      sendBtn.textContent = t('dft_do_not_message');
       return;
     }
     const pack = welcomePackFromCustomer(customer, { dueDay: 5, paymentMethods: PAYMENT_METHODS, supportContact: welcomePackSupport });
     if (pack.status !== 'ready') {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Complete the profile first';
+      sendBtn.textContent = t('dft_welcome_complete_profile');
       return;
     }
     const variant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? WELCOME_PACK_VARIANTS.URDU : WELCOME_PACK_VARIANTS.ROMAN;
     const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), buildWelcomePackDraft(pack, variant).text);
     if (!wa.validPhone || !wa.url) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'No WhatsApp number';
+      sendBtn.textContent = t('dft_no_whatsapp_number');
       return;
     }
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     saveWelcomePackSentLog(logWelcomePackSent(loadWelcomePackSentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant }));
     const sentEl = $('#customerProfileView').querySelector('#welcomePackSent');
-    if (sentEl) sentEl.textContent = welcomePackSentText(findWelcomePackSends(loadWelcomePackSentLog(), customer.id));
-    sendBtn.textContent = 'Re-send welcome pack';
+    if (sentEl) sentEl.textContent = welcomePackSentText(findWelcomePackSends(loadWelcomePackSentLog(), customer.id), welcomePackLabels);
+    sendBtn.textContent = t('dft_welcome_resend');
   });
   $('#customerProfileView').querySelector('#statementDraftShowBtn')?.addEventListener('click', () => {
     const month = document.querySelector('#statementDraftMonth')?.value || '';
@@ -9203,23 +9220,23 @@ function renderCustomerProfileView(customer) {
     const resultEl = document.querySelector('#statementDraftResult');
     const sendBtnEl = document.querySelector('#statementDraftSendBtn');
     if (!built) {
-      if (resultEl) resultEl.innerHTML = '<p class="empty-state">Monthly statement unavailable.</p>';
+      if (resultEl) resultEl.innerHTML = `<p class="empty-state">${escapeHtml(t('dft_statement_unavailable'))}</p>`;
       if (sendBtnEl) sendBtnEl.disabled = true;
       return;
     }
     statementDraftMonth = month;
     statementDraftCurrent = built;
-    if (resultEl) resultEl.innerHTML = statementDraftHtml(built.statement, { draftText: built.draft.text, sends: statementDraftSendsForMonth(month) });
+    if (resultEl) resultEl.innerHTML = statementDraftHtml(built.statement, { draftText: built.draft.text, sends: statementDraftSendsForMonth(month), labels: statementDraftLabels });
     if (sendBtnEl) {
       sendBtnEl.disabled = Boolean(statementDraftPref && statementDraftPref.doNotMessage);
-      sendBtnEl.textContent = statementDraftSendsForMonth(month).length > 0 ? 'Re-send statement' : 'Send monthly statement';
+      sendBtnEl.textContent = statementDraftSendsForMonth(month).length > 0 ? t('dft_statement_resend') : t('dft_statement_send');
     }
   });
   $('#customerProfileView').querySelector('#statementDraftSendBtn')?.addEventListener('click', (event) => {
     const sendBtn = event.currentTarget;
     if (statementDraftPref && statementDraftPref.doNotMessage) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Do not message';
+      sendBtn.textContent = t('dft_do_not_message');
       return;
     }
     const built = statementDraftCurrent;
@@ -9231,14 +9248,14 @@ function renderCustomerProfileView(customer) {
     const wa = formatWhatsAppUrl(statementDraftPref && statementDraftPref.whatsappNumber ? statementDraftPref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(built.draft.text, findPaymentChannel(loadPaymentChannels(), customer.id), channelVariant));
     if (!wa.validPhone || !wa.url) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'No WhatsApp number';
+      sendBtn.textContent = t('dft_no_whatsapp_number');
       return;
     }
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     saveStatementDraftSentLog(logStatementSent(loadStatementDraftSentLog(), { customerId: customer.id, month: statementDraftMonth, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
     const sentEl = document.querySelector('#statementDraftSent');
-    if (sentEl) sentEl.textContent = statementSentText(statementDraftSendsForMonth(statementDraftMonth));
-    sendBtn.textContent = 'Re-send statement';
+    if (sentEl) sentEl.textContent = statementSentText(statementDraftSendsForMonth(statementDraftMonth), statementDraftLabels);
+    sendBtn.textContent = t('dft_statement_resend');
   });
   // Plan 72: show the balance reply in the chosen language, and
   // send it through the existing WhatsApp route with the
@@ -9249,21 +9266,21 @@ function renderCustomerProfileView(customer) {
     const resultEl = document.querySelector('#balanceReplyResult');
     const sendBtnEl = document.querySelector('#balanceReplySendBtn');
     if (!balanceReplyCurrent) {
-      if (resultEl) resultEl.innerHTML = '<p class="empty-state">Balance reply unavailable.</p>';
+      if (resultEl) resultEl.innerHTML = `<p class="empty-state">${escapeHtml(t('dft_balance_unavailable'))}</p>`;
       if (sendBtnEl) sendBtnEl.disabled = true;
       return;
     }
-    if (resultEl) resultEl.innerHTML = balanceReplyHtml(balanceReplyCurrent, { draftText: balanceReplyCurrent.text, sends: balanceReplySends() });
+    if (resultEl) resultEl.innerHTML = balanceReplyHtml(balanceReplyCurrent, { draftText: balanceReplyCurrent.text, sends: balanceReplySends(), labels: balanceReplyLabels });
     if (sendBtnEl) {
       sendBtnEl.disabled = Boolean(balanceReplyPref && balanceReplyPref.doNotMessage);
-      sendBtnEl.textContent = balanceReplySends().length > 0 ? 'Re-send balance reply' : 'Send balance reply';
+      sendBtnEl.textContent = balanceReplySends().length > 0 ? t('dft_balance_resend') : t('dft_balance_send');
     }
   });
   $('#customerProfileView').querySelector('#balanceReplySendBtn')?.addEventListener('click', (event) => {
     const sendBtn = event.currentTarget;
     if (balanceReplyPref && balanceReplyPref.doNotMessage) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Do not message';
+      sendBtn.textContent = t('dft_do_not_message');
       return;
     }
     const built = balanceReplyCurrent;
@@ -9275,14 +9292,14 @@ function renderCustomerProfileView(customer) {
     const wa = formatWhatsAppUrl(balanceReplyPref && balanceReplyPref.whatsappNumber ? balanceReplyPref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(built.text, findPaymentChannel(loadPaymentChannels(), customer.id), channelVariant));
     if (!wa.validPhone || !wa.url) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'No WhatsApp number';
+      sendBtn.textContent = t('dft_no_whatsapp_number');
       return;
     }
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     saveBalanceReplySentLog(logBalanceReplySent(loadBalanceReplySentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
     const resultEl = document.querySelector('#balanceReplyResult');
-    if (resultEl) resultEl.innerHTML = balanceReplyHtml(built, { draftText: built.text, sends: balanceReplySends() });
-    sendBtn.textContent = 'Re-send balance reply';
+    if (resultEl) resultEl.innerHTML = balanceReplyHtml(built, { draftText: built.text, sends: balanceReplySends(), labels: balanceReplyLabels });
+    sendBtn.textContent = t('dft_balance_resend');
   });
   // Plan 73 (Plan 1-100) — Payment history mini-slip on the
   // profile. When the customer asks "maine kab kab pay kiya?",
@@ -9300,21 +9317,21 @@ function renderCustomerProfileView(customer) {
     const resultEl = document.querySelector('#paymentSlipResult');
     const sendBtnEl = document.querySelector('#paymentSlipSendBtn');
     if (!paymentSlipCurrent) {
-      if (resultEl) resultEl.innerHTML = '<p class="empty-state">Payment slip unavailable.</p>';
+      if (resultEl) resultEl.innerHTML = `<p class="empty-state">${escapeHtml(t('dft_slip_unavailable'))}</p>`;
       if (sendBtnEl) sendBtnEl.disabled = true;
       return;
     }
-    if (resultEl) resultEl.innerHTML = paymentSlipHtml(paymentSlipCurrent, { draftText: paymentSlipCurrent.text, sends: paymentSlipSends() });
+    if (resultEl) resultEl.innerHTML = paymentSlipHtml(paymentSlipCurrent, { draftText: paymentSlipCurrent.text, sends: paymentSlipSends(), labels: paymentSlipLabels });
     if (sendBtnEl) {
       sendBtnEl.disabled = Boolean(paymentSlipPref && paymentSlipPref.doNotMessage);
-      sendBtnEl.textContent = paymentSlipSends().length > 0 ? 'Re-send payment slip' : 'Send payment slip';
+      sendBtnEl.textContent = paymentSlipSends().length > 0 ? t('dft_slip_resend') : t('dft_slip_send');
     }
   });
   $('#customerProfileView').querySelector('#paymentSlipSendBtn')?.addEventListener('click', (event) => {
     const sendBtn = event.currentTarget;
     if (paymentSlipPref && paymentSlipPref.doNotMessage) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Do not message';
+      sendBtn.textContent = t('dft_do_not_message');
       return;
     }
     const built = paymentSlipCurrent;
@@ -9326,14 +9343,14 @@ function renderCustomerProfileView(customer) {
     const wa = formatWhatsAppUrl(paymentSlipPref && paymentSlipPref.whatsappNumber ? paymentSlipPref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(built.text, findPaymentChannel(loadPaymentChannels(), customer.id), channelVariant));
     if (!wa.validPhone || !wa.url) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'No WhatsApp number';
+      sendBtn.textContent = t('dft_no_whatsapp_number');
       return;
     }
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     savePaymentSlipSentLog(logPaymentSlipSent(loadPaymentSlipSentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
     const resultEl = document.querySelector('#paymentSlipResult');
-    if (resultEl) resultEl.innerHTML = paymentSlipHtml(built, { draftText: built.text, sends: paymentSlipSends() });
-    sendBtn.textContent = 'Re-send payment slip';
+    if (resultEl) resultEl.innerHTML = paymentSlipHtml(built, { draftText: built.text, sends: paymentSlipSends(), labels: paymentSlipLabels });
+    sendBtn.textContent = t('dft_slip_resend');
   });
   // Plan 74 (Plan 1-100) — Package and service info card on the
   // profile. Show rebuilds the card from this profile's own
@@ -9346,21 +9363,21 @@ function renderCustomerProfileView(customer) {
     const resultEl = $('#customerProfileView').querySelector('#infoCardResult');
     const sendBtnEl = $('#customerProfileView').querySelector('#infoCardSendBtn');
     if (!infoCardCurrent) {
-      if (resultEl) resultEl.innerHTML = '<p class="empty-state">Info card unavailable.</p>';
+      if (resultEl) resultEl.innerHTML = `<p class="empty-state">${escapeHtml(t('dft_infocard_unavailable'))}</p>`;
       if (sendBtnEl) sendBtnEl.disabled = true;
       return;
     }
-    if (resultEl) resultEl.innerHTML = infoCardHtml(infoCardCurrent, { draftText: infoCardCurrent.text, sends: infoCardSends() });
+    if (resultEl) resultEl.innerHTML = infoCardHtml(infoCardCurrent, { draftText: infoCardCurrent.text, sends: infoCardSends(), labels: infoCardLabels });
     if (sendBtnEl) {
       sendBtnEl.disabled = Boolean(infoCardPref && infoCardPref.doNotMessage);
-      sendBtnEl.textContent = infoCardSends().length > 0 ? 'Re-send info card' : 'Send info card';
+      sendBtnEl.textContent = infoCardSends().length > 0 ? t('dft_infocard_resend') : t('dft_infocard_send');
     }
   });
   $('#customerProfileView').querySelector('#infoCardSendBtn')?.addEventListener('click', (event) => {
     const sendBtn = event.currentTarget;
     if (infoCardPref && infoCardPref.doNotMessage) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Do not message';
+      sendBtn.textContent = t('dft_do_not_message');
       return;
     }
     const built = infoCardCurrent;
@@ -9372,14 +9389,14 @@ function renderCustomerProfileView(customer) {
     const wa = formatWhatsAppUrl(infoCardPref && infoCardPref.whatsappNumber ? infoCardPref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(built.text, findPaymentChannel(loadPaymentChannels(), customer.id), channelVariant));
     if (!wa.validPhone || !wa.url) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'No WhatsApp number';
+      sendBtn.textContent = t('dft_no_whatsapp_number');
       return;
     }
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     saveInfoCardSentLog(logInfoCardSent(loadInfoCardSentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
     const resultEl = $('#customerProfileView').querySelector('#infoCardResult');
-    if (resultEl) resultEl.innerHTML = infoCardHtml(built, { draftText: built.text, sends: infoCardSends() });
-    sendBtn.textContent = 'Re-send info card';
+    if (resultEl) resultEl.innerHTML = infoCardHtml(built, { draftText: built.text, sends: infoCardSends(), labels: infoCardLabels });
+    sendBtn.textContent = t('dft_infocard_resend');
   });
   // Plan 75 (Plan 1-100) — Open fault and request status reply on
   // the profile. Show rebuilds the reply from this profile's own
@@ -9392,21 +9409,21 @@ function renderCustomerProfileView(customer) {
     const resultEl = $('#customerProfileView').querySelector('#statusReplyResult');
     const sendBtnEl = $('#customerProfileView').querySelector('#statusReplySendBtn');
     if (!statusReplyCurrent) {
-      if (resultEl) resultEl.innerHTML = '<p class="empty-state">Status reply unavailable.</p>';
+      if (resultEl) resultEl.innerHTML = `<p class="empty-state">${escapeHtml(t('dft_status_unavailable'))}</p>`;
       if (sendBtnEl) sendBtnEl.disabled = true;
       return;
     }
-    if (resultEl) resultEl.innerHTML = statusReplyHtml(statusReplyCurrent, { draftText: statusReplyCurrent.text, sends: statusReplySends() });
+    if (resultEl) resultEl.innerHTML = statusReplyHtml(statusReplyCurrent, { draftText: statusReplyCurrent.text, sends: statusReplySends(), labels: statusReplyLabels });
     if (sendBtnEl) {
       sendBtnEl.disabled = Boolean(statusReplyPref && statusReplyPref.doNotMessage);
-      sendBtnEl.textContent = statusReplySends().length > 0 ? 'Re-send status reply' : 'Send status reply';
+      sendBtnEl.textContent = statusReplySends().length > 0 ? t('dft_status_resend') : t('dft_status_send');
     }
   });
   $('#customerProfileView').querySelector('#statusReplySendBtn')?.addEventListener('click', (event) => {
     const sendBtn = event.currentTarget;
     if (statusReplyPref && statusReplyPref.doNotMessage) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Do not message';
+      sendBtn.textContent = t('dft_do_not_message');
       return;
     }
     const built = statusReplyCurrent;
@@ -9418,14 +9435,14 @@ function renderCustomerProfileView(customer) {
     const wa = formatWhatsAppUrl(statusReplyPref && statusReplyPref.whatsappNumber ? statusReplyPref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(built.text, findPaymentChannel(loadPaymentChannels(), customer.id), channelVariant));
     if (!wa.validPhone || !wa.url) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'No WhatsApp number';
+      sendBtn.textContent = t('dft_no_whatsapp_number');
       return;
     }
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     saveStatusReplySentLog(logStatusReplySent(loadStatusReplySentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
     const resultEl = $('#customerProfileView').querySelector('#statusReplyResult');
-    if (resultEl) resultEl.innerHTML = statusReplyHtml(built, { draftText: built.text, sends: statusReplySends() });
-    sendBtn.textContent = 'Re-send status reply';
+    if (resultEl) resultEl.innerHTML = statusReplyHtml(built, { draftText: built.text, sends: statusReplySends(), labels: statusReplyLabels });
+    sendBtn.textContent = t('dft_status_resend');
   });
   $('#customerProfileView').querySelector('#billingCycleSaveBtn')?.addEventListener('click', () => {
     const dueDayValue = document.querySelector('#billingCycleDueDay')?.value || '';

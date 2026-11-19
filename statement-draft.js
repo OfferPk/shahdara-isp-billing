@@ -285,10 +285,41 @@ export function buildStatementDraftText(statement, variant = STATEMENT_DRAFT_VAR
   return { variant: useVariant, month: statement.month, text: parts.join(' ') };
 }
 
-export function statementDraftSummaryText(statement) {
-  if (!statement || typeof statement !== 'object') return 'Monthly statement unavailable.';
+// Plan 600 — the preview chrome renders through a caller-supplied
+// labels object (the 591 header-strip pattern), so this module stays
+// import-free. Defaults are the English strings, so old callers (and
+// old tests) keep byte-identical output. 'Monthly statement
+// unavailable.' is the shared template key (dft_statement_unavailable).
+const DEFAULT_STATEMENT_DRAFT_LABELS = {
+  unavailable: 'Monthly statement unavailable.',
+  summary: 'Monthly statement for {name} — {month}: opening {opening}, charges {charges}, payments {payments}, closing {closing}.',
+  notSent: 'Monthly statement not sent yet — send it once for this month.',
+  sent1: 'Monthly statement sent on {date}.',
+  sentN1: 'Monthly statement sent on {date} and 1 more time — re-send anytime from here.',
+  sentN: 'Monthly statement sent on {date} and {count} more times — re-send anytime from here.',
+  month: 'Month:',
+  opening: 'Opening balance:',
+  charges: 'This month\'s charges:',
+  payments: 'Payments received:',
+  closing: 'Closing balance:',
+  onePayment: '({count} payment)',
+  manyPayments: '({count} payments)',
+  noBill: 'No bill was raised for this month.',
+  voidedCount: 'Voided payments this month (not counted): {count}',
+};
+function stmtLabel(labels, key) {
+  return (labels && typeof labels[key] === 'string' && labels[key] !== '') ? labels[key] : DEFAULT_STATEMENT_DRAFT_LABELS[key];
+}
+function stmtFill(template, params) {
+  let out = String(template);
+  for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+export function statementDraftSummaryText(statement, labels = DEFAULT_STATEMENT_DRAFT_LABELS) {
+  if (!statement || typeof statement !== 'object') return stmtLabel(labels, 'unavailable');
   const monthLabel = formatStatementMonth(statement.month) || statement.month;
-  return `Monthly statement for ${statement.customerName} — ${monthLabel}: opening ${formatStatementAmount(statement.openingBalance)}, charges ${formatStatementAmount(statement.charges)}, payments ${formatStatementAmount(statement.paymentsReceived)}, closing ${formatStatementAmount(statement.closingBalance)}.`;
+  return stmtFill(stmtLabel(labels, 'summary'), { name: statement.customerName, month: monthLabel, opening: formatStatementAmount(statement.openingBalance), charges: formatStatementAmount(statement.charges), payments: formatStatementAmount(statement.paymentsReceived), closing: formatStatementAmount(statement.closingBalance) });
 }
 
 // Append a send to the log (customer, month, time, channel), returning
@@ -316,29 +347,30 @@ export function findStatementSends(log, customerId, month) {
   return log.filter((entry) => text(entry?.customerId) === id && entry?.month === month);
 }
 
-export function statementSentText(sends) {
+export function statementSentText(sends, labels = DEFAULT_STATEMENT_DRAFT_LABELS) {
   const list = Array.isArray(sends) ? sends : [];
-  if (list.length === 0) return 'Monthly statement not sent yet — send it once for this month.';
+  if (list.length === 0) return stmtLabel(labels, 'notSent');
   const first = list[0];
   const datePart = text(first?.sentAt).slice(0, 10);
   const shown = formatStatementDate(datePart) || datePart;
-  if (list.length === 1) return `Monthly statement sent on ${shown}.`;
-  return `Monthly statement sent on ${shown} and ${list.length - 1} more time${list.length - 1 === 1 ? '' : 's'} — re-send anytime from here.`;
+  if (list.length === 1) return stmtFill(stmtLabel(labels, 'sent1'), { date: shown });
+  if (list.length - 1 === 1) return stmtFill(stmtLabel(labels, 'sentN1'), { date: shown });
+  return stmtFill(stmtLabel(labels, 'sentN'), { date: shown, count: list.length - 1 });
 }
 
-export function statementDraftHtml(statement, { draftText = '', sends = [] } = {}) {
-  if (!statement || typeof statement !== 'object') return '<p class="empty-state">Monthly statement unavailable.</p>';
+export function statementDraftHtml(statement, { draftText = '', sends = [], labels = DEFAULT_STATEMENT_DRAFT_LABELS } = {}) {
+  if (!statement || typeof statement !== 'object') return `<p class="empty-state">${escapeHtml(stmtLabel(labels, 'unavailable'))}</p>`;
   const fields = [
-    `Month: ${escapeHtml(formatStatementMonth(statement.month) || statement.month)}`,
-    `Opening balance: ${escapeHtml(formatStatementAmount(statement.openingBalance))}`,
-    `This month's charges: ${escapeHtml(formatStatementAmount(statement.charges))}`,
-    `Payments received: ${escapeHtml(formatStatementAmount(statement.paymentsReceived))} (${statement.paymentCount} payment${statement.paymentCount === 1 ? '' : 's'})`,
-    `Closing balance: ${escapeHtml(formatStatementAmount(statement.closingBalance))}`,
+    `${stmtLabel(labels, 'month')} ${escapeHtml(formatStatementMonth(statement.month) || statement.month)}`,
+    `${stmtLabel(labels, 'opening')} ${escapeHtml(formatStatementAmount(statement.openingBalance))}`,
+    `${stmtLabel(labels, 'charges')} ${escapeHtml(formatStatementAmount(statement.charges))}`,
+    `${stmtLabel(labels, 'payments')} ${escapeHtml(formatStatementAmount(statement.paymentsReceived))} ${escapeHtml(stmtFill(stmtLabel(labels, statement.paymentCount === 1 ? 'onePayment' : 'manyPayments'), { count: statement.paymentCount }))}`,
+    `${stmtLabel(labels, 'closing')} ${escapeHtml(formatStatementAmount(statement.closingBalance))}`,
   ];
-  if (!statement.hasBill) fields.push('No bill was raised for this month.');
-  if (statement.voidedCount > 0) fields.push(`Voided payments this month (not counted): ${statement.voidedCount}`);
-  return `<p>${escapeHtml(statementDraftSummaryText(statement))}</p>`
+  if (!statement.hasBill) fields.push(stmtLabel(labels, 'noBill'));
+  if (statement.voidedCount > 0) fields.push(stmtFill(stmtLabel(labels, 'voidedCount'), { count: statement.voidedCount }));
+  return `<p>${escapeHtml(statementDraftSummaryText(statement, labels))}</p>`
     + `<ul class="statement-draft-fields">${fields.map((field) => `<li>${field}</li>`).join('')}</ul>`
     + (draftText ? `<p class="statement-draft-text">${escapeHtml(draftText)}</p>` : '')
-    + `<p id="statementDraftSent">${escapeHtml(statementSentText(sends))}</p>`;
+    + `<p id="statementDraftSent">${escapeHtml(statementSentText(sends, labels))}</p>`;
 }

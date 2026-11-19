@@ -32,6 +32,7 @@ import {
   findStatusReplySends,
   statusReplyHtml,
 } from '../status-reply.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const ticket = (overrides = {}) => ({
   id: 't-1',
@@ -216,4 +217,10 @@ test('HTML escaping in the draft panel', () => {
   const html = statusReplyHtml(reply, { draftText: reply.text, sends: [] });
   assert.doesNotMatch(html, /<b>Ahmed<\/b>/);
   assert.match(html, /&lt;b&gt;Ahmed&lt;\/b&gt;/);
+});
+
+test('Plan 600: the status-reply empty state renders in Urdu through labels', () => {
+  const reply = buildStatusReply({ customerId: 'cust-1', customerName: 'Ahmed', tickets: [], requests: [] });
+  const html = statusReplyHtml(reply, { draftText: reply.text, sends: [], labels: { noOpenCase: TRANSLATIONS.ur.dft_sr_no_open_case } });
+  assert.ok(html.includes('اس گاہک کا کوئی کھلا ٹکٹ یا درخواست نہیں۔'));
 });

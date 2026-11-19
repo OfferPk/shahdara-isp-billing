@@ -236,12 +236,47 @@ export function buildBalanceReply({
   return reply;
 }
 
-export function balanceReplySummaryText(reply) {
-  if (!reply) return 'Balance reply unavailable — the outstanding figure is missing or unusable.';
-  if (reply.balanceKind === 'none') return 'No amount due.';
-  if (reply.hasOpenDispute && reply.balanceCents === 0) return `No undisputed amount due (disputed ${formatAmount(reply.disputedAmount)} not included).`;
-  if (reply.hasOpenDispute) return `Undisputed balance ${formatAmount(reply.balance)} (disputed ${formatAmount(reply.disputedAmount)} not included).`;
-  return `Current balance ${formatAmount(reply.balance)}.`;
+// Plan 600 — the preview chrome renders through a caller-supplied
+// labels object (the 591 header-strip pattern), so this module stays
+// import-free. Defaults are the English strings, so old callers (and
+// old tests) keep byte-identical output. 'Customer:' is shared with
+// info-card, 'Current balance:' with payment-slip (one key each).
+const DEFAULT_BALANCE_REPLY_LABELS = {
+  unavailable: 'Balance reply unavailable — the outstanding figure is missing or unusable.',
+  noAmountDue: 'No amount due.',
+  noUndisputed: 'No undisputed amount due (disputed {disputed} not included).',
+  undisputed: 'Undisputed balance {amount} (disputed {disputed} not included).',
+  current: 'Current balance {amount}.',
+  notSent: 'Balance reply not sent yet.',
+  sent1: 'Balance reply sent on {date}.',
+  sentN1: 'Balance reply sent on {date} and 1 more time — re-send anytime from here.',
+  sentN: 'Balance reply sent on {date} and {count} more times — re-send anytime from here.',
+  customer: 'Customer:',
+  noDueLine: 'Balance: no amount due',
+  noUndisputedLine: 'Balance: no undisputed amount due (disputed {disputed} not included)',
+  undisputedLine: 'Undisputed balance: {amount} (disputed {disputed} not included)',
+  currentLine: 'Current balance:',
+  dueDate: 'Due date:',
+  dueNotRecorded: 'Due date: not recorded',
+  lastPaymentLine: 'Last payment: {amount} on {date}',
+  lastNone: 'Last payment: none recorded',
+  disputeEntries: 'Dispute entries with no usable amount: {count} (not counted)',
+};
+function balLabel(labels, key) {
+  return (labels && typeof labels[key] === 'string' && labels[key] !== '') ? labels[key] : DEFAULT_BALANCE_REPLY_LABELS[key];
+}
+function balFill(template, params) {
+  let out = String(template);
+  for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+export function balanceReplySummaryText(reply, labels = DEFAULT_BALANCE_REPLY_LABELS) {
+  if (!reply) return balLabel(labels, 'unavailable');
+  if (reply.balanceKind === 'none') return balLabel(labels, 'noAmountDue');
+  if (reply.hasOpenDispute && reply.balanceCents === 0) return balFill(balLabel(labels, 'noUndisputed'), { disputed: formatAmount(reply.disputedAmount) });
+  if (reply.hasOpenDispute) return balFill(balLabel(labels, 'undisputed'), { amount: formatAmount(reply.balance), disputed: formatAmount(reply.disputedAmount) });
+  return balFill(balLabel(labels, 'current'), { amount: formatAmount(reply.balance) });
 }
 
 // Append a send to the log (customer, time, channel, variant),
@@ -269,36 +304,37 @@ export function findBalanceReplySends(log, customerId) {
   return log.filter((entry) => text(entry?.customerId) === id);
 }
 
-export function balanceReplySentText(sends) {
+export function balanceReplySentText(sends, labels = DEFAULT_BALANCE_REPLY_LABELS) {
   const list = Array.isArray(sends) ? sends : [];
-  if (list.length === 0) return 'Balance reply not sent yet.';
+  if (list.length === 0) return balLabel(labels, 'notSent');
   const first = list[0];
   const datePart = text(first?.sentAt).slice(0, 10);
   const shown = validBalanceReplyDate(datePart) || datePart;
-  if (list.length === 1) return `Balance reply sent on ${shown}.`;
-  return `Balance reply sent on ${shown} and ${list.length - 1} more time${list.length - 1 === 1 ? '' : 's'} — re-send anytime from here.`;
+  if (list.length === 1) return balFill(balLabel(labels, 'sent1'), { date: shown });
+  if (list.length - 1 === 1) return balFill(balLabel(labels, 'sentN1'), { date: shown });
+  return balFill(balLabel(labels, 'sentN'), { date: shown, count: list.length - 1 });
 }
 
-export function balanceReplyHtml(reply, { draftText = '', sends = [] } = {}) {
-  if (!reply) return '<p class="empty-state">Balance reply unavailable — the outstanding figure is missing or unusable.</p>';
+export function balanceReplyHtml(reply, { draftText = '', sends = [], labels = DEFAULT_BALANCE_REPLY_LABELS } = {}) {
+  if (!reply) return `<p class="empty-state">${escapeHtml(balLabel(labels, 'unavailable'))}</p>`;
   const fields = [
-    `Customer: ${escapeHtml(reply.customerName || reply.customerId)}`,
+    `${balLabel(labels, 'customer')} ${escapeHtml(reply.customerName || reply.customerId)}`,
     reply.balanceKind === 'none'
-      ? 'Balance: no amount due'
+      ? balLabel(labels, 'noDueLine')
       : (reply.hasOpenDispute && reply.balanceCents === 0
-        ? `Balance: no undisputed amount due (disputed ${escapeHtml(formatAmount(reply.disputedAmount))} not included)`
+        ? balFill(balLabel(labels, 'noUndisputedLine'), { disputed: escapeHtml(formatAmount(reply.disputedAmount)) })
         : (reply.hasOpenDispute
-          ? `Undisputed balance: ${escapeHtml(formatAmount(reply.balance))} (disputed ${escapeHtml(formatAmount(reply.disputedAmount))} not included)`
-          : `Current balance: ${escapeHtml(formatAmount(reply.balance))}`)),
-    reply.dueDate ? `Due date: ${escapeHtml(reply.dueDate)}` : 'Due date: not recorded',
+          ? balFill(balLabel(labels, 'undisputedLine'), { amount: escapeHtml(formatAmount(reply.balance)), disputed: escapeHtml(formatAmount(reply.disputedAmount)) })
+          : `${balLabel(labels, 'currentLine')} ${escapeHtml(formatAmount(reply.balance))}`)),
+    reply.dueDate ? `${balLabel(labels, 'dueDate')} ${escapeHtml(reply.dueDate)}` : balLabel(labels, 'dueNotRecorded'),
     reply.lastPayment
-      ? `Last payment: ${escapeHtml(formatAmount(reply.lastPayment.amount))} on ${escapeHtml(reply.lastPayment.date)}`
-      : 'Last payment: none recorded',
+      ? balFill(balLabel(labels, 'lastPaymentLine'), { amount: escapeHtml(formatAmount(reply.lastPayment.amount)), date: escapeHtml(reply.lastPayment.date) })
+      : balLabel(labels, 'lastNone'),
   ];
   if (reply.unusableDisputes > 0) {
-    fields.push(`Dispute entries with no usable amount: ${reply.unusableDisputes} (not counted)`);
+    fields.push(balFill(balLabel(labels, 'disputeEntries'), { count: reply.unusableDisputes }));
   }
-  return `<p>${escapeHtml(balanceReplySummaryText(reply))}</p><ul style="font-size: 12px;">${fields.map((field) => `<li>${field}</li>`).join('')}</ul>`
+  return `<p>${escapeHtml(balanceReplySummaryText(reply, labels))}</p><ul style="font-size: 12px;">${fields.map((field) => `<li>${field}</li>`).join('')}</ul>`
     + (draftText ? `<p style="font-size: 12px; white-space: pre-wrap;">${escapeHtml(draftText)}</p>` : '')
-    + `<p style="font-size: 12px;">${escapeHtml(balanceReplySentText(sends))}</p>`;
+    + `<p style="font-size: 12px;">${escapeHtml(balanceReplySentText(sends, labels))}</p>`;
 }

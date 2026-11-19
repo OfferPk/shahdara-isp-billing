@@ -281,9 +281,29 @@ export function creditEntriesForCustomer(entries, customerId) {
   return creditBalanceForCustomer(entries, [], customerId).entries;
 }
 
-export function creditSummaryText(balance) {
-  if (!balance) return 'No credit record.';
-  return `Credit in ${formatRs(balance.totalInCents)} · applied ${formatRs(balance.totalAppliedCents)} · remaining ${formatRs(balance.remainingCents)}.`;
+// Plan 600 — the profile section's visible line renders through a
+// caller-supplied labels object (the 591 header-strip pattern), so
+// this module stays import-free. Defaults are the English strings, so
+// old callers (and old tests) keep byte-identical output. The money
+// figures are params filled by the existing formatRs emitter (D2: no
+// emitter change); creditHtml (the ledger table) is OUT (D5) and keeps
+// calling this with the defaults.
+const DEFAULT_CREDIT_BALANCE_LABELS = {
+  noRecord: 'No credit record.',
+  summary: 'Credit in {in} · applied {applied} · remaining {remaining}.',
+};
+function creditLabel(labels, key) {
+  return (labels && typeof labels[key] === 'string' && labels[key] !== '') ? labels[key] : DEFAULT_CREDIT_BALANCE_LABELS[key];
+}
+function creditFill(template, params) {
+  let out = String(template);
+  for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+export function creditSummaryText(balance, labels = DEFAULT_CREDIT_BALANCE_LABELS) {
+  if (!balance) return creditLabel(labels, 'noRecord');
+  return creditFill(creditLabel(labels, 'summary'), { in: formatRs(balance.totalInCents), applied: formatRs(balance.totalAppliedCents), remaining: formatRs(balance.remainingCents) });
 }
 
 export function creditHtml(balance) {

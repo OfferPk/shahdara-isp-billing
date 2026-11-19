@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { packageChangePreviewHtml } from '../package-change-preview.js';
+import { TRANSLATIONS } from '../nav-language.js';
 import { qualityLogSummaryText, qualityLogHtml } from '../quality-log.js';
 import { duesBreakdownSectionHtml } from '../dues-breakdown-by-month.js';
 
@@ -107,9 +108,15 @@ test('Polish E (19): the new pill rules sit after the SISP-106 no-hex block', ()
 // ------------------------------------------------------------ (20) info card section
 
 test('Polish E (20): the info-card explainer is an info note and Draft language carries the pill chip', () => {
-  assert.ok(app.includes('<p class="pcp-explainer">When the customer asks'), 'the explainer carries its info-note class');
-  assert.ok(app.includes('This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no package, billing, or lifecycle record.</p>'), 'the explainer wording is unchanged');
-  assert.ok(app.includes('<div class="pcp-form"><label><span class="pcp-field-pill">Draft language</span> <select id="infoCardVariant">'), 'Draft language sits in a pill chip inside the wrapping form');
+  // Plan 600 keyed the explainer and the Draft-language label: the
+  // template now carries t() calls and the English wording lives in
+  // nav-language.js. What this test pins is the structure — the
+  // info-note class, the pill chip, the button ids — plus that the
+  // key's English value is the unchanged wording.
+  assert.ok(app.includes('<p class="pcp-explainer">${escapeHtml(t(\'dft_infocard_explainer\'))}</p>'), 'the explainer carries its info-note class');
+  assert.ok(TRANSLATIONS.en.dft_infocard_explainer.startsWith('When the customer asks'), 'the explainer wording is unchanged');
+  assert.ok(TRANSLATIONS.en.dft_infocard_explainer.includes('This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no package, billing, or lifecycle record.'), 'the explainer wording is unchanged');
+  assert.ok(app.includes('<div class="pcp-form"><label><span class="pcp-field-pill">${escapeHtml(t(\'dft_draft_language\'))}</span> <select id="infoCardVariant">'), 'Draft language sits in a pill chip inside the wrapping form');
   assert.ok(app.includes('id="infoCardShowBtn"'), 'the Show card button is unchanged');
   assert.ok(app.includes('id="infoCardSendBtn"'), 'the Send button is unchanged');
 });

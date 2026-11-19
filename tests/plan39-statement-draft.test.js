@@ -19,6 +19,7 @@ import {
   statementSentText,
   statementDraftHtml,
 } from '../statement-draft.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const bill = (month, overrides = {}) => ({
   id: `bill-${month}`, month, dueAmount: 3000, dueDate: `${month}-05`,
@@ -211,4 +212,8 @@ test('summary text and HTML escape customer input', () => {
   assert.match(html, /&lt;b&gt;Ahmed&lt;\/b&gt;/);
   assert.match(html, /not sent yet/);
   assert.equal(statementDraftHtml(null), '<p class="empty-state">Monthly statement unavailable.</p>');
+});
+
+test('Plan 600: the statement sent line renders in Urdu through labels', () => {
+  assert.equal(statementSentText([], { notSent: TRANSLATIONS.ur.dft_stmt_not_sent }), 'ماہانہ اسٹیٹمنٹ ابھی نہیں بھیجی گئی — اس ماہ کے لیے ایک بار بھیجیں۔');
 });

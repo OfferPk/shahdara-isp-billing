@@ -24,6 +24,7 @@ import {
   termsAckCsv,
   termsAckFilename,
 } from '../terms-ack.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const ack = (overrides = {}) => ({
   id: 'TA-1',
@@ -204,4 +205,16 @@ test('module purity fence: no bill, payment, package, or lifecycle field is name
   for (const forbidden of ['billId', 'paymentId', 'packageSpeed', 'lifecycle', 'dueAmount', 'outstanding']) {
     assert.ok(!source.includes(forbidden), `module must not name ${forbidden}`);
   }
+});
+
+test('Plan 600: the terms-ack status line renders in Urdu through labels', () => {
+  const status = customerTermsStatus([ack()], 'C-1', 'v1');
+  const labels = {
+    version: TRANSLATIONS.ur.dft_terms_version,
+    acknowledged: TRANSLATIONS.ur.dft_terms_acknowledged,
+    detail: TRANSLATIONS.ur.dft_terms_detail,
+    recordedBy: TRANSLATIONS.ur.dft_terms_recorded_by,
+    methodInPerson: TRANSLATIONS.ur.dft_terms_method_in_person,
+  };
+  assert.equal(termsAckStatusHtml(status, labels), '<p><strong>شرائط کا موجودہ نسخہ v1:</strong> تصدیق شدہ 2026-11-01 کو (ذاتی طور پر)، درج کیا Saad نے</p>');
 });

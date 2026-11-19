@@ -568,11 +568,10 @@ test('hisaab H4 G3: buried triggers untouched and no Hisaab wiring in the engine
 // G4 — the binding is once-only, and parity is steady (no new i18n keys).
 // The parity digits are searched as a split literal ('47' + '35'): this
 // file must NOT contain the bare digits — 591's G5a sweep counts every
-// test file containing them and asserts 28, so a literal here would make
-// this the 29th file and break the suite. The count below is re-measured
-// on the 593 merge (28 files pin the current total: the H3-merge 27 plus
-// 593's new test file, which pins it too — the H4 prep's 25 was written
-// on the H2 base and is stale).
+// test file containing them and asserts 29, so a literal here would make
+// this the 30th file and break the suite. The count below is re-measured
+// on the H4 merge (28 files pin the current total) plus Plan 594's new
+// test file, which pins it too — so the count is 29.
 test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag, and parity stays steady', () => {
   const appJs = fs.readFileSync(path.resolve(__dirname, '../app.js'), 'utf8');
   const bindings = (appJs.match(/\$\('#hisaabOpenPnlBtn'\)\?\.addEventListener\('click'/g) || []).length;
@@ -588,5 +587,5 @@ test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag,
   const parityDigits = '47' + '35';
   const pinning = fs.readdirSync(path.join(__dirname)).filter((f) =>
     f.endsWith('.test.js') && fs.readFileSync(path.join(__dirname, f), 'utf8').includes(parityDigits));
-  assert.equal(pinning.length, 28, `expected 28 test files pinning the current parity total, got ${pinning.length}: ${pinning.join(', ')}`);
+  assert.equal(pinning.length, 29, `expected 29 test files pinning the current parity total, got ${pinning.length}: ${pinning.join(', ')}`);
 });

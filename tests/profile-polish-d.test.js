@@ -236,7 +236,9 @@ test('Polish D (17): the package-change preview explainer is an info note, wordi
 
 test('Polish D (17): the kept-preview line is a real pill — "No package change preview kept yet" when none is kept', () => {
   assert.equal(packageChangePreviewStoredText(null), 'No package change preview kept yet', 'the empty-state wording is unchanged');
-  assert.ok(app.includes('<p id="packageChangePreviewKept" class="pcp-kept-pill">'), 'the kept-preview line carries its pill class');
+  // Plan 609: the kept line is a polite live region now — the tag
+  // carries role="status" aria-live="polite" after the pill class.
+  assert.ok(app.includes('<p id="packageChangePreviewKept" class="pcp-kept-pill" role="status" aria-live="polite">'), 'the kept-preview line carries its pill class');
   const rule = styles.match(/\.pcp-kept-pill\{[^}]*\}/);
   assert.ok(rule && rule[0].includes('border-radius:999px'), 'a real pill');
   assert.ok(rule && rule[0].includes('background:#e5efff') && rule[0].includes('color:#174b87') && rule[0].includes('border:1px solid #adc9f1'), 'the info-blue palette');

@@ -368,11 +368,24 @@ export function calculateLifetimePnl(state = {}, { referenceDate = new Date() } 
  * plain days, not calendar years/months). Returns '' for a missing,
  * malformed, or impossible date, and for a `today` before `since`.
  *
+ * Hisaab H5 (D9(a)): optional 3rd param `labels` — `{ year, monthOne,
+ * monthMany, day }` templates carrying `{n}`. Defaults are the current
+ * Roman-Urdu strings, so a call with no labels argument renders exactly
+ * as before. `mo === 1` picks `monthOne` ("1 mahina", was "1 mahine" —
+ * the singular fix rides along; year/day have no singular form to fix).
+ * The render passes `t('hisaab_duration_*')` templates; the formatter
+ * itself stays pure and never imports `t()`.
+ *
  * @param {string} since — YYYY-MM-DD
  * @param {string} today — YYYY-MM-DD
+ * @param {Object} [labels] — `{ year, monthOne, monthMany, day }`
  * @returns {string}
  */
-export function formatHisaabDuration(since, today) {
+export function formatHisaabDuration(since, today, labels = {}) {
+  const { year, monthOne, monthMany, day } = {
+    year: '{n} saal', monthOne: '{n} mahina', monthMany: '{n} mahine', day: '{n} din',
+    ...(labels || {}),
+  };
   const parseDay = (value) => {
     if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
     const parsed = new Date(`${value}T00:00:00Z`);
@@ -395,9 +408,9 @@ export function formatHisaabDuration(since, today) {
   }
   if (years < 0) return '';
   const parts = [];
-  if (years > 0) parts.push(`${years} saal`);
-  if (months > 0) parts.push(`${months} mahine`);
-  if (days > 0 || parts.length === 0) parts.push(`${days} din`);
+  if (years > 0) parts.push(year.replace('{n}', String(years)));
+  if (months > 0) parts.push((months === 1 ? monthOne : monthMany).replace('{n}', String(months)));
+  if (days > 0 || parts.length === 0) parts.push(day.replace('{n}', String(days)));
   return parts.join(' ');
 }
 

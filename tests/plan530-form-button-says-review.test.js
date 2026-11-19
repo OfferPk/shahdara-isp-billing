@@ -1,5 +1,5 @@
 // Plan 530 — Form button says Review, not Confirm: the form step's
-// only action button read "✓ Confirm & Issue Receipt", but tapping it
+// action button read "✓ Confirm & Issue Receipt", but tapping it
 // does not save — it opens the Plan 382 confirm step, whose button
 // reads "✓ Confirm & Save Payment". Two near-identical "Confirm"
 // buttons in a row, the first of which only reviews, trains the
@@ -8,6 +8,10 @@
 // and the qc_confirm_btn i18n key, EN + UR); the confirm-step button
 // is unchanged and saving still requires the confirm tap. Wording
 // only — no flow change.
+// QC Step 2 polish (2026-11-19): "only action button" is stale —
+// the 2026-11-17 D2 polish added the direct-save CTA, so the form
+// step now has two buttons: Save (primary, standard collections
+// only) and Review (secondary since this item).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -57,7 +61,11 @@ test('acceptance: form-step button reads "Review payment →", never "Confirm" o
 test('the form-step button is the same element, only reworded', () => {
   const tag = formButtonOpenTag();
   assert.ok(tag.includes('type="submit"'), 'the form-step button stays the form submit');
-  assert.ok(tag.includes('primary-button'), 'the form-step button stays primary');
+  // QC Step 2 polish (2026-11-19): Review is secondary now — Save is
+  // the one green primary; Review keeps its id, type, handler, label
+  // and key, and stays the only CTA for non-standard collections.
+  assert.ok(tag.includes('secondary-button'), 'the form-step button is secondary now');
+  assert.ok(!tag.includes('primary-button'), 'the form-step button is no longer primary');
   assert.ok(tag.includes('qc-confirm-btn'), 'the form-step button keeps its class');
   // No new element id: the button keeps its Plan 382-era id.
   assert.equal((pageSrc.match(/id="quickCollectConfirmBtn"/g) ?? []).length, 1, 'exactly one form-step button id');

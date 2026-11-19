@@ -193,7 +193,10 @@ test('styles: the big buttons are 40px pills now, same size as the small chips',
   const rules = stylesSrc.match(/^\.quick-method-chip\.bwb-big\s*\{[^}]*\}/gm) || [];
   assert.equal(rules.length, 1, `expected one big-button base rule, found ${rules.length}`);
   assert.ok(rules[0].includes('min-height: 40px'), 'big buttons 40px tall');
-  assert.ok(rules[0].includes('font-size: 13px'), 'big buttons 13px text');
+  // QC Step 2 polish (2026-11-19): 13px → 12px + nowrap + 2px side
+  // padding, so the widest label ('Easypaisa') fits its column on
+  // one line at 360px instead of wrapping at the space.
+  assert.ok(rules[0].includes('font-size: 12px'), 'big buttons 12px text');
   assert.ok(rules[0].includes('flex: 1 1 30%'), 'big buttons three across');
 });
 

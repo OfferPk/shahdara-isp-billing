@@ -8185,6 +8185,11 @@ body {
   padding: 10px 0;
   border-top: 1px solid var(--line, #e2ece7);
   z-index: 10;
+  /* QC Step 2 polish (2026-11-19): the two footer buttons stack with a
+     gap — the base rule leaves them touching. */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 [data-theme="dark"] .qc-form-actions {

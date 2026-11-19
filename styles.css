@@ -16056,6 +16056,10 @@ dialog::backdrop {
   gap: 6px;
   touch-action: manipulation;
   transition: all 0.15s ease;
+  /* QC Step 2 polish (2026-11-19): one line, always — the label wrapped at
+     the space between the emoji and the word in the 3-column grid
+     ('JazzCash' / 'Easypaisa' stacked, 'Cash' did not). */
+  white-space: nowrap;
 }
 /* Quick Collect polish (2026-11-17, D1): the 40px method pills sit
    below the app-wide 44px button floor (styles.css:923), so the base
@@ -16086,8 +16090,13 @@ button:not([hidden]).quick-method-chip {
   flex: 1 1 30%;
   min-height: 40px;
   min-width: 96px;
-  padding: 8px 8px;
-  font-size: 13px;
+  /* QC Step 2 polish (2026-11-19): 8px → 2px side padding + 13px → 12px —
+     with nowrap the widest label ('Easypaisa', ~102px modelled at
+     13px from the screenshot) needs the full column content box;
+     at 12px it needs ~94px vs the 96px box (thin — verify on the
+     phone; the fallback is 11.5px, still above the 11px floor). */
+  padding: 8px 2px;
+  font-size: 12px;
 }
 /* Quick Collect polish (2026-11-17, D1): the big buttons are 40px
    pills now (were 56px) — the heavier selector beats the 44px floor,

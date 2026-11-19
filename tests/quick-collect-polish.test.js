@@ -381,9 +381,11 @@ test('G8 method: the base chip is 40px with a heavier defeater', () => {
 test('G8 method: the big three are 40px pills now, same size as the small chips', () => {
   // D1: bwb-big drops 56px → 40px and 15px → 13px. The bwb-big
   // class stays as the isBigMethod marker (plan438 load-bearing).
+  // QC Step 2 polish (2026-11-19): 13px → 12px + nowrap + 2px side
+  // padding, so 'Easypaisa' fits its column on one line at 360px.
   const rule = baseRule(styles, '.quick-method-chip.bwb-big');
   assert.equal(decl(rule, 'min-height'), '40px');
-  assert.equal(decl(rule, 'font-size'), '13px');
+  assert.equal(decl(rule, 'font-size'), '12px');
   assert.equal(decl(rule, 'flex'), '1 1 30%');
   assert.ok(styles.includes('button:not([hidden]).quick-method-chip.bwb-big {'), 'big defeater present');
 });

@@ -79,3 +79,27 @@ export function packageChipLabel(packagePrice) {
     ? 'Package price'
     : `Package (Rs ${price.toLocaleString('en-PK')})`;
 }
+
+/**
+ * Deduplicate quick-amount chips by the rupee value each one fills
+ * (QC Step 2 polish, 2026-11-19): the entry form's row offers the same
+ * figure under several labels — Full dues, Package and the bare
+ * number can all be Rs 1,000 — so each value appears once, under
+ * the first label in row order (Full dues beats Package beats the
+ * bare number; Half dues beats the bare number). Only positive
+ * finite values dedupe: a chip that fills nothing (null) keeps its
+ * place — 'Full dues (Rs 0)' and 'Half dues (Rs 0)' are a display
+ * question of their own, not a duplicate value. Pure: inputs are
+ * never mutated, and the returned array is a new array.
+ */
+export function dedupeQuickAmountChips(entries = []) {
+  const seen = new Set();
+  return (Array.isArray(entries) ? entries : []).filter((entry) => {
+    const value = entry && typeof entry.value === 'number'
+      && Number.isFinite(entry.value) && entry.value > 0 ? entry.value : null;
+    if (value === null) return true;
+    if (seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+}

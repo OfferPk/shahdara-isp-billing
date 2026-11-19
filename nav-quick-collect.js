@@ -63,7 +63,7 @@ import {
 } from './quick-collect-new-customer-quick-add.js';
 import { getDayTarget } from './day-target.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
-import { packagePriceForCustomer } from './quick-amount-buttons.js';
+import { packagePriceForCustomer, dedupeQuickAmountChips } from './quick-amount-buttons.js';
 import {
   quickCollectOneScreenComboboxChoices,
   quickCollectOneScreenComboboxFilter,
@@ -5322,6 +5322,29 @@ export function setupQuickCollectModal({
           } else if (type === 'package') {
             chip.textContent = `Package (Rs ${packageBal !== null && packageBal > 0 ? packageBal.toLocaleString('en-PK') : '0'})`;
           }
+        });
+        // QC Step 2 polish (2026-11-19): deduplicate the row by fill value —
+        // Full dues, Package and the bare number can all be the same
+        // rupees. The first label in row order wins; the losers hide
+        // (never removed — Plan 391 pins all six chips in the page).
+        // Recomputed on every open, so a chip hidden for one customer
+        // shows again for the next. The loose-change host is a div,
+        // not a chip, so it is never in this list.
+        const quickAmountFillValue = (type) => {
+          if (type === 'full') return chipFigures.full;
+          if (type === 'half') return chipFigures.half;
+          if (type === 'package') return packageBal !== null && packageBal > 0 ? packageBal : null;
+          const n = Number(type);
+          return Number.isFinite(n) && n > 0 ? n : null;
+        };
+        const keptQuickAmounts = new Set(dedupeQuickAmountChips(
+          [...quickAmountChips].map((chip) => ({
+            type: chip.getAttribute('data-quick-amount'),
+            value: quickAmountFillValue(chip.getAttribute('data-quick-amount')),
+          })),
+        ).map((entry) => entry.type));
+        quickAmountChips.forEach((chip) => {
+          chip.hidden = !keptQuickAmounts.has(chip.getAttribute('data-quick-amount'));
         });
       }
 

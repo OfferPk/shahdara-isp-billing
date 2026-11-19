@@ -160,7 +160,10 @@ export function gateAccessInstructionSectionHtml(customer, list, labels = {}) {
   const removeLabel = cleanGateAccessInstructionText(labels.remove) || 'Remove';
   const noneText = cleanGateAccessInstructionText(labels.none) || 'No gate access instruction noted for this customer.';
   const addLabel = cleanGateAccessInstructionText(labels.add) || `Add ${heading}`;
-  const explainerHtml = `<p>First visits succeed instead of ending at a locked gate, which saves a wasted trip across the mohallas. This note changes nothing by itself.</p>`;
+  // Plan 601 — the explainer rides labels.explainer (t('prv_note_gate_explainer'));
+  // the English paragraph below is the default when no labels are passed.
+  const explainer = cleanGateAccessInstructionText(labels.explainer) || 'First visits succeed instead of ending at a locked gate, which saves a wasted trip across the mohallas. This note changes nothing by itself.';
+  const explainerHtml = `<p>${escapeGateAccessInstructionHtml(explainer)}</p>`;
   const currentHtml = note
     ? `<p class="gai-current"><strong>${escapeGateAccessInstructionHtml(note.instruction)}</strong>${note.notedBy || note.notedDate ? `<span class="gai-meta"> — ${escapeGateAccessInstructionHtml([note.notedBy, note.notedDate].filter(Boolean).join(', '))}</span>` : ''}</p>`
     : `<p class="gai-none">${escapeGateAccessInstructionHtml(noneText)}</p>`;

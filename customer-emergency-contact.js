@@ -141,7 +141,10 @@ export function customerEmergencyContactSectionHtml(customer, list, labels = {})
   const removeLabel = cleanCustomerEmergencyContactText(labels.remove) || 'Remove';
   const noneText = cleanCustomerEmergencyContactText(labels.none) || 'No emergency contact noted for this customer.';
   const addLabel = cleanCustomerEmergencyContactText(labels.add) || `Add ${heading}`;
-  const explainerHtml = `<p>When the account holder is away, Saad can still reach the household through a named family member instead of leaving the collection for another day. This note changes nothing by itself.</p>`;
+  // Plan 601 — the explainer rides labels.explainer (t('prv_note_emc_explainer'));
+  // the English paragraph below is the default when no labels are passed.
+  const explainer = cleanCustomerEmergencyContactText(labels.explainer) || 'When the account holder is away, Saad can still reach the household through a named family member instead of leaving the collection for another day. This note changes nothing by itself.';
+  const explainerHtml = `<p>${escapeCustomerEmergencyContactHtml(explainer)}</p>`;
   const currentHtml = contact
     ? `<p class="emc-current"><strong>${escapeCustomerEmergencyContactHtml(contact.name)}</strong>${contact.relationship ? ` — ${escapeCustomerEmergencyContactHtml(contact.relationship)}` : ''}<span class="emc-meta"> · ${escapeCustomerEmergencyContactHtml(contact.phone)}</span></p>`
     : `<p class="emc-none">${escapeCustomerEmergencyContactHtml(noneText)}</p>`;

@@ -181,8 +181,8 @@ test('Plan 594: the scoped rule adds no hex and the dead package-history h3 rule
 test('Plan 594: upt_heading exists in both tables and parity does not move', () => {
   assert.equal(TRANSLATIONS.en.upt_heading, 'Online / offline time', 'the English heading text is pinned');
   assert.equal(TRANSLATIONS.ur.upt_heading, 'آن لائن / آف لائن وقت', 'the Urdu heading text is pinned');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5138, 'EN parity 5,138');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5138, 'UR parity 5,138');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5145, 'EN parity 5,145');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5145, 'UR parity 5,145');
   // Trap T6: 591's G5a fails the suite if any test file contains the
   // old-count digits (now the previous total, four-seven-six-six).
   // The digits are built, never spelled, so this guard cannot trip the

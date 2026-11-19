@@ -9518,16 +9518,16 @@ function renderCustomerProfileView(customer) {
         // Sharafat 69: surface the amount refusal by name — the generic
         // message says "a whole-rupee amount when you enter one", and a
         // typed -500 IS a whole-rupee amount, so it would teach nothing.
-        toast(err?.message === 'Promise amount must be more than Rs 0' ? err.message : 'Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.');
+        toast(err?.message === 'Promise amount must be more than Rs 0' ? err.message : t('prv_wr_toast_not_recorded'));
         return;
       }
-      if (written.mirrorStatus === 'refused') { toast('Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.'); return; }
+      if (written.mirrorStatus === 'refused') { toast(t('prv_wr_toast_not_recorded')); return; }
       const idx = state.customers.findIndex((c) => c.id === written.customer.id);
       if (idx >= 0) state.customers[idx] = written.customer;
       if (written.mirrorWritten) saveWadaRecords(written.records);
       save();
       renderDetail();
-      toast(written.mirrorStatus === 'duplicate' ? 'Wada already recorded — live promise set.' : 'Wada recorded.');
+      toast(written.mirrorStatus === 'duplicate' ? t('prv_wr_toast_duplicate') : t('prv_wr_toast_recorded'));
     });
     // Plan 507 — the lower section's chips now live in the banner's
     // quick-add form: a chip fills the promised-date input (the date
@@ -9535,7 +9535,7 @@ function renderCustomerProfileView(customer) {
     // controls, one current-promise line; no duplicate Add/Set buttons.
     wadaBanner.querySelectorAll('[data-wada-quick-chip]').forEach(btn => btn.addEventListener('click', () => {
       const date = computeWaadaChipDate(btn.getAttribute('data-wada-quick-chip'), getWaadaTodayString());
-      if (!date) { toast('Could not compute promise date.'); return; }
+      if (!date) { toast(t('prv_wr_toast_chip_date')); return; }
       const dateInput = wadaBanner.querySelector('#wadaQuickDate');
       if (dateInput) dateInput.value = date;
     }));
@@ -9556,17 +9556,17 @@ function renderCustomerProfileView(customer) {
         }
       }
       renderDetail();
-      toast('Wada marked kept.');
+      toast(t('prv_wr_toast_kept'));
     }));
     wadaBanner.querySelectorAll('[data-wada-broken]').forEach(btn => btn.addEventListener('click', () => {
       saveWadaRecords(markWadaRecordBroken(loadWadaRecords(), btn.getAttribute('data-wada-broken'), getWaadaTodayString()));
       renderDetail();
-      toast('Wada marked broken.');
+      toast(t('prv_wr_toast_broken'));
     }));
     wadaBanner.querySelectorAll('[data-wada-remove]').forEach(btn => btn.addEventListener('click', () => {
       saveWadaRecords(removeWadaRecord(loadWadaRecords(), btn.getAttribute('data-wada-remove')));
       renderDetail();
-      toast('Wada removed.');
+      toast(t('prv_wr_toast_removed'));
     }));
     if (pendingWadaQuickAddCustomerId === customer.id) {
       pendingWadaQuickAddCustomerId = null;
@@ -10875,6 +10875,9 @@ function wadaRecordLabels() {
     poora: t('prv_wr_poora'),
     toota: t('prv_wr_toota'),
     remove: t('prv_wr_remove'),
+    // Plan 604 — the money formatter rides the labels object so the
+    // module stays import-free (purity fence): formatPKR from core.js.
+    formatMoney: formatPKR,
   };
 }
 

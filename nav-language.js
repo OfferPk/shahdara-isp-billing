@@ -5364,6 +5364,13 @@ export const TRANSLATIONS = {
     prv_wr_poora: 'Poora hua',
     prv_wr_toota: 'Wada toota',
     prv_wr_remove: 'Remove',
+    prv_wr_toast_not_recorded: 'Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.',
+    prv_wr_toast_duplicate: 'Wada already recorded — live promise set.',
+    prv_wr_toast_recorded: 'Wada recorded.',
+    prv_wr_toast_kept: 'Wada marked kept.',
+    prv_wr_toast_broken: 'Wada marked broken.',
+    prv_wr_toast_removed: 'Wada removed.',
+    prv_wr_toast_chip_date: 'Could not compute promise date.',
   },
 
   ur: {
@@ -10646,6 +10653,13 @@ export const TRANSLATIONS = {
     prv_wr_poora: 'پورا ہوا',
     prv_wr_toota: 'وعدہ ٹوٹا',
     prv_wr_remove: 'ہٹائیں',
+    prv_wr_toast_not_recorded: 'وعدہ درج نہیں ہوا: درست وعدے کی تاریخ دیں، اور رقم دیں تو پورے روپے کی رقم دیں۔',
+    prv_wr_toast_duplicate: 'وعدہ پہلے سے درج ہے — لائیو وعدہ سیٹ ہے۔',
+    prv_wr_toast_recorded: 'وعدہ درج ہو گیا۔',
+    prv_wr_toast_kept: 'وعدہ پورا ہوا قرار دیا گیا۔',
+    prv_wr_toast_broken: 'وعدہ ٹوٹا ہوا قرار دیا گیا۔',
+    prv_wr_toast_removed: 'وعدہ ہٹا دیا گیا۔',
+    prv_wr_toast_chip_date: 'وعدے کی تاریخ معلوم نہیں ہو سکی۔',
   }
 };
 

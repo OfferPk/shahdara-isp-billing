@@ -194,7 +194,10 @@ test('Polish F: bad debt — arrears rose, written-off mint, reason teal, note i
 });
 
 test('Polish F: first-bill preview form reuses the .pcp-form row (Polish E (19) pattern)', () => {
-  assert.ok(app.includes('<div class="pcp-form"><label>Start date <input id="firstBillPreviewStartDate"'), 'the first-bill form carries the pcp-form class');
+  // Plan 601 — the label is keyed: the template calls t() and the dict
+  // carries the English wording.
+  assert.ok(app.includes('<div class="pcp-form"><label>${t(\'prv_fb_start_date\')} <input id="firstBillPreviewStartDate"'), 'the first-bill form carries the pcp-form class');
+  assert.ok(read('nav-language.js').includes("prv_fb_start_date: 'Start date'"), 'the Start date label wording is unchanged');
   const block = fBlock();
   assert.ok(block.includes('#firstBillPreviewResult .first-bill-preview{'), 'the preview table becomes a teal card');
   assert.ok(block.includes('#firstBillPreviewResult .first-bill-preview tfoot td{font-weight:700;color:#0e5b4d}'), 'the preview total stays bold teal');

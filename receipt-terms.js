@@ -84,9 +84,12 @@ export function receiptTermsNoteHtml({ contactActions = false } = {}) {
   let numberHtml;
   if (contactActions) {
     const digits = supportDigits();
-    numberHtml = `${escapeHtml(supportLocalForm())}<a class="receipt-support-action receipt-support-whatsapp" href="https://wa.me/${digits}" aria-label="WhatsApp">${WHATSAPP_ICON_SVG}</a><a class="receipt-support-action receipt-support-call" href="tel:+${digits}" aria-label="Call">${CALL_ICON_SVG}</a>`;
+    numberHtml = `<a class="receipt-support-contact receipt-support-whatsapp" href="https://wa.me/${digits}" dir="ltr" aria-label="WhatsApp">${WHATSAPP_ICON_SVG}<span>${escapeHtml(supportLocalForm())}</span></a><a class="receipt-support-action receipt-support-call" href="tel:+${digits}" aria-label="Call">${CALL_ICON_SVG}</a>`;
   } else {
     numberHtml = escapeHtml(numberText);
+  }
+  if (contactActions) {
+    return `<div class="receipt-urdu-notice" dir="rtl" lang="ur"><p>${escapeHtml(RECEIPT_TERMS_PHRASE)}</p><p>${escapeHtml(labelText)}</p><p class="receipt-support-contact-row">${numberHtml}</p></div>`;
   }
   return `<div class="receipt-urdu-notice" dir="rtl" lang="ur"><p>${escapeHtml(RECEIPT_TERMS_PHRASE)}</p><p>${escapeHtml(labelText)}<span class="receipt-support-number" dir="ltr">${numberHtml}</span></p></div>`;
 }

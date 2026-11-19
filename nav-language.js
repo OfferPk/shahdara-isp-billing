@@ -2684,6 +2684,10 @@ export const TRANSLATIONS = {
     exp_supplier_badge: 'Supplier Khata',
     exp_supplier_synced_hint: 'Synced from Supplier Khata — record payouts there',
     exp_supplier_edit_blocked_toast: 'This expense is synced from the Supplier Khata. Record or correct the supplier payment there so both ledgers stay in step.',
+    // Hisaab H5 (D2(b)): the ONE Upstream refusal sentence, keyed. The
+    // other ~55 Upstream strings stay hardcoded — a named follow-up
+    // (upstream_* keys), not this PR.
+    exp_upstream_synced_hint: 'This expense is synced from the Upstream tab. Edit or delete the bill there so both ledgers stay in step.',
     supkhata_btn_open: 'Supplier Khata',
     supkhata_title: '🏭 Supplier Khata — ادھار خریداری کھاتہ',
     supkhata_intro: 'Wholesale hardware bought on credit: log the purchase here — the stock enters the Stock Book, what you pay now is expensed at once, and the balance stays as a supplier payable until you pay it off here.',
@@ -4932,6 +4936,43 @@ export const TRANSLATIONS = {
     phs_unavailable: 'Profile header strip unavailable.',
     phs_aria: 'Customer at a glance',
     phs_per_month: '/month',
+    // Hisaab — Kya khoya, kya paya (dashboard section). EN is the
+    // Roman-Urdu operator voice, byte-identical to H3's literals; UR
+    // sentences end with '۔', fragments do not. Param keys ({month},
+    // {date}, {amount}, {margin}, {count}, {n}) are rendered with t()
+    // in renderHisaabSection — never data-i18n (the toggle walk passes
+    // no params). The honesty line is frozen seed history (D7(a)):
+    // figures baked in, never derived from live code.
+    hisaab_section_eyebrow: 'HISAAB · KYA KHOYA, KYA PAYA',
+    hisaab_section_title: 'Hisaab — Kya khoya, kya paya',
+    hisaab_section_subtitle: 'Is mahine aur kul — aamdani, kharch, munafa, ek jhalak mein',
+    hisaab_label_income: 'Aamdani',
+    hisaab_label_expenses: 'Kharch',
+    hisaab_label_profit: 'Munafa',
+    hisaab_label_paid: 'Ada shuda',
+    hisaab_section_lifetime: 'Kul',
+    hisaab_month_empty: 'Is mahine koi record nahi',
+    hisaab_lifetime_empty: 'Abhi koi record nahi',
+    hisaab_open_pnl: 'Poora hisaab dekhein',
+    hisaab_show_expenses: 'Kharch dekhein',
+    hisaab_month_label: 'Is mahine · {month}',
+    hisaab_month_margin: 'Margin {margin}%',
+    hisaab_since: 'Since {date}',
+    hisaab_provider_no_bills: 'Abhi koi bill nahi',
+    hisaab_provider_paid_total: 'Kul ada {amount}',
+    hisaab_provider_paid_unknown: 'Kul ada: raqam maloom nahi',
+    hisaab_amount_unknown: 'raqam maloom nahi',
+    hisaab_provider_since: '{date} se',
+    hisaab_provider_last_bill: 'Haali bill {amount} ({month})',
+    hisaab_provider_pending: '{month} bill {amount} — abhi baqi',
+    hisaab_provider_unknown_one: '{count} bill raqam maloom nahi',
+    hisaab_provider_unknown_many: '{count} bills raqam maloom nahi',
+    hisaab_provider_none: 'Abhi koi upstream provider nahi.',
+    hisaab_honesty: 'Nayatel ko May 2025–Oct 2026 tak PKR 502,820 is register se pehle diye gaye — ye ledger kharch mein nahi, is liye kul munafa is se PKR 502,820 zyada nazar aata hai.',
+    hisaab_duration_year: '{n} saal',
+    hisaab_duration_month_one: '{n} mahina',
+    hisaab_duration_month_many: '{n} mahine',
+    hisaab_duration_day: '{n} din',
   },
 
   ur: {
@@ -7569,6 +7610,8 @@ export const TRANSLATIONS = {
     exp_supplier_badge: 'سپلائر کھاتہ',
     exp_supplier_synced_hint: 'سپلائر کھاتے سے منسلک ہے — ادائیگیاں وہیں درج کریں',
     exp_supplier_edit_blocked_toast: 'یہ خرچ سپلائر کھاتے سے منسلک ہے۔ وہاں سپلائر ادائیگی درج یا درست کریں تاکہ دونوں کھاتے برابر رہیں۔',
+    // حساب H5 (D2(b)): اپ اسٹریم انکار والا واحد جملہ، کنجی شدہ۔
+    exp_upstream_synced_hint: 'یہ خرچ اپ اسٹریم ٹیب سے منسلک ہے۔ بل میں ترمیم یا اسے حذف وہیں کریں تاکہ دونوں کھاتے برابر رہیں۔',
     supkhata_btn_open: 'سپلائر کھاتہ',
     supkhata_title: '🏭 سپلائر کھاتہ — ادھار خریداری کھاتہ',
     supkhata_intro: 'ادھار پر لیا گیا تھوک ہارڈویئر یہاں درج کریں — اسٹاک اسٹاک بک میں شامل ہو جائے گا، جو رقم ابھی دیں گے وہ فوراً خرچ میں لگے گی، اور بقایا سپلائر کے کھاتے میں واجب الادا رہے گا یہاں تک کہ آپ یہیں ادا کر دیں۔',
@@ -9798,6 +9841,40 @@ export const TRANSLATIONS = {
     phs_unavailable: 'پروفائل ہیڈر پٹی دستیاب نہیں۔',
     phs_aria: 'گاہک کا خلاصہ ایک نظر میں',
     phs_per_month: '/ماہ',
+    // حساب — کیا کھویا، کیا پایا (ڈیش بورڈ سیکشن)۔ جملے ۔ پر ختم ہوتے
+    // ہیں، ٹکڑے نہیں۔ پیرامیٹر والی کنجیاں ({month}، {date}، {amount}،
+    // {margin}، {count}، {n}) renderHisaabSection میں t() سے بنتی ہیں —
+    // کبھی data-i18n نہیں۔ ایمانداری والی لائن منجمد تاریخ ہے (D7(a))۔
+    hisaab_section_eyebrow: 'حساب · کیا کھویا، کیا پایا',
+    hisaab_section_title: 'حساب — کیا کھویا، کیا پایا',
+    hisaab_section_subtitle: 'اس مہینے اور کل — آمدنی، خرچ، منافع، ایک جھلک میں',
+    hisaab_label_income: 'آمدنی',
+    hisaab_label_expenses: 'خرچ',
+    hisaab_label_profit: 'منافع',
+    hisaab_label_paid: 'ادا شدہ',
+    hisaab_section_lifetime: 'کل',
+    hisaab_month_empty: 'اس مہینے کوئی ریکارڈ نہیں۔',
+    hisaab_lifetime_empty: 'ابھی کوئی ریکارڈ نہیں۔',
+    hisaab_open_pnl: 'پورا حساب دیکھیں',
+    hisaab_show_expenses: 'خرچ دیکھیں',
+    hisaab_month_label: 'اس مہینے · {month}',
+    hisaab_month_margin: 'مارجن {margin}٪',
+    hisaab_since: '{date} سے',
+    hisaab_provider_no_bills: 'ابھی کوئی بل نہیں',
+    hisaab_provider_paid_total: 'کل ادا {amount}',
+    hisaab_provider_paid_unknown: 'کل ادا: رقم معلوم نہیں',
+    hisaab_amount_unknown: 'رقم معلوم نہیں',
+    hisaab_provider_since: '{date} سے',
+    hisaab_provider_last_bill: 'حالی بل {amount} ({month})',
+    hisaab_provider_pending: '{month} بل {amount} — ابھی باقی',
+    hisaab_provider_unknown_one: '{count} بل رقم معلوم نہیں',
+    hisaab_provider_unknown_many: '{count} بل رقم معلوم نہیں',
+    hisaab_provider_none: 'ابھی کوئی اپ اسٹریم فراہم کنندہ نہیں۔',
+    hisaab_honesty: 'Nayatel کو مئی 2025 تا اکتوبر 2026 تک PKR 502,820 اس رجسٹر سے پہلے دیے گئے — یہ لیجر خرچ میں نہیں، اس لیے کل منافع اس سے PKR 502,820 زیادہ نظر آتا ہے۔',
+    hisaab_duration_year: '{n} سال',
+    hisaab_duration_month_one: '{n} مہینہ',
+    hisaab_duration_month_many: '{n} مہینے',
+    hisaab_duration_day: '{n} دن',
   }
 };
 

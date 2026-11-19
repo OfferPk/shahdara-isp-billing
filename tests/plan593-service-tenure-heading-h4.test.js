@@ -204,12 +204,13 @@ test('Plan 593: module stays pure and carries no i18n key literal', () => {
 });
 
 test('Plan 593: parity does not move — no new key, and no stale-count literal in this file', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4766, 'EN parity 4,766');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4766, 'UR parity 4,766');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4767, 'EN parity 4,767');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4767, 'UR parity 4,767');
   // Trap T7: 591's G5a fails the suite if any test file contains the
-  // old-count digits. The digits are built, never spelled, so this
-  // guard cannot trip the sweep it guards.
-  assert.ok(!selfSrc.includes('47' + '22'), 'this file must stay free of the old-count literal');
+  // old-count digits (now the previous total, four-seven-six-six).
+  // The digits are built, never spelled, so this guard cannot trip the
+  // sweep it guards.
+  assert.ok(!selfSrc.includes('47' + '66'), 'this file must stay free of the old-count literal');
 });
 
 test('Plan 593: app.js call site passes the same labels and no heading tag', () => {

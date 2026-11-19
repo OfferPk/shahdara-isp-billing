@@ -138,7 +138,11 @@ test('Polish F: explainer prose is an info note, not a data pill', () => {
   const block = fBlock();
   assert.ok(block.includes('section[aria-label="First-bill preview"] > p:first-of-type'), 'first-bill explainer is a note');
   assert.ok(block.includes('section[aria-label="Welcome pack"] > p:first-of-type'), 'welcome-pack explainer is a note');
-  assert.ok(block.includes('.profile-handling-note > p:first-of-type'), 'handling-note explainer is a note');
+  assert.ok(block.includes('.profile-handling-note .profile-accordion-body > p:first-of-type'), 'handling-note explainer is a note (Plan 596: the explainer moved inside the accordion body)');
+  assert.ok(block.includes('.profile-standing-instruction .profile-accordion-body > p:first-of-type'), 'standing-instruction explainer is a note (Plan 596)');
+  assert.ok(block.includes('.profile-spoken-language-note .profile-accordion-body > p:first-of-type'), 'spoken-language explainer is a note (Plan 596)');
+  assert.ok(block.includes('.profile-gate-access-instruction .profile-accordion-body > p:first-of-type'), 'gate-access explainer is a note (Plan 596)');
+  assert.ok(block.includes('.profile-customer-emergency-contact .profile-accordion-body > p:first-of-type'), 'emergency-contact explainer is a note (Plan 596)');
   assert.ok(block.includes('.profile-field-change-history > p:first-of-type'), 'field-change explainer is a note');
   const note = block.match(/\.profile-cross-payments > p:first-of-type,[^{]*\{[^}]*\}/);
   assert.ok(note, 'the explainer-note rule must exist');

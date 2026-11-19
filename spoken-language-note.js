@@ -134,9 +134,17 @@ export function spokenLanguageNoteSectionHtml(customer, list, labels = {}) {
   const saveLabel = cleanSpokenLanguageNoteText(labels.save) || 'Save';
   const removeLabel = cleanSpokenLanguageNoteText(labels.remove) || 'Remove';
   const noneText = cleanSpokenLanguageNoteText(labels.none) || 'No spoken language noted for this customer.';
+  const addLabel = cleanSpokenLanguageNoteText(labels.add) || `Add ${heading}`;
+  const explainerHtml = `<p>Saad greets each household in the language they are comfortable with, which is a small thing that builds the trust the whole business runs on. This note changes nothing by itself.</p>`;
   const currentHtml = note
     ? `<p class="sln-current"><strong>${escapeSpokenLanguageNoteHtml(note.language)}</strong>${note.notedBy || note.notedDate ? `<span class="sln-meta"> — ${escapeSpokenLanguageNoteHtml([note.notedBy, note.notedDate].filter(Boolean).join(', '))}</span>` : ''}</p>`
     : `<p class="sln-none">${escapeSpokenLanguageNoteHtml(noneText)}</p>`;
   const formHtml = `<form class="sln-form" id="slnForm"><label for="slnLanguage">${escapeSpokenLanguageNoteHtml(heading)}<input id="slnLanguage" type="text" maxlength="60" placeholder="${escapeSpokenLanguageNoteHtml(placeholder)}" value="${note ? escapeSpokenLanguageNoteHtml(note.language) : ''}" required></label><label for="slnBy">${escapeSpokenLanguageNoteHtml(notedByLabel)}<input id="slnBy" type="text" maxlength="60" value="${note ? escapeSpokenLanguageNoteHtml(note.notedBy) : ''}"></label><label for="slnDate">${escapeSpokenLanguageNoteHtml(dateLabel)}<input id="slnDate" type="date" value="${note ? escapeSpokenLanguageNoteHtml(note.notedDate) : ''}"></label><button type="submit" class="primary-button" id="slnSaveBtn">${escapeSpokenLanguageNoteHtml(saveLabel)}</button>${note ? `<button type="button" class="secondary-button" id="slnRemoveBtn">${escapeSpokenLanguageNoteHtml(removeLabel)}</button>` : ''}</form>`;
-  return `<section class="profile-custody-section profile-spoken-language-note" aria-label="${escapeSpokenLanguageNoteHtml(heading)}"><h4>${escapeSpokenLanguageNoteHtml(heading)}</h4><p>Saad greets each household in the language they are comfortable with, which is a small thing that builds the trust the whole business runs on. This note changes nothing by itself.</p>${currentHtml}${formHtml}</section>`;
+  // Plan 596 — when there is no note, the explainer + form collapse
+  // behind a closed <details class="profile-accordion"> (the in-app
+  // accordion precedent); heading + none line stay visible, and the
+  // summary carries the Add label. With a note the rendering is
+  // byte-identical to the base (explainer + note line + form, no details).
+  if (note) return `<section class="profile-custody-section profile-spoken-language-note" aria-label="${escapeSpokenLanguageNoteHtml(heading)}"><h4>${escapeSpokenLanguageNoteHtml(heading)}</h4>${explainerHtml}${currentHtml}${formHtml}</section>`;
+  return `<section class="profile-custody-section profile-spoken-language-note" aria-label="${escapeSpokenLanguageNoteHtml(heading)}"><h4>${escapeSpokenLanguageNoteHtml(heading)}</h4>${currentHtml}<details class="profile-accordion"><summary>${escapeSpokenLanguageNoteHtml(addLabel)}</summary><div class="profile-accordion-body">${explainerHtml}${formHtml}</div></details></section>`;
 }

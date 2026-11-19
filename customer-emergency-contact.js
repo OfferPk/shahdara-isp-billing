@@ -140,9 +140,17 @@ export function customerEmergencyContactSectionHtml(customer, list, labels = {})
   const saveLabel = cleanCustomerEmergencyContactText(labels.save) || 'Save';
   const removeLabel = cleanCustomerEmergencyContactText(labels.remove) || 'Remove';
   const noneText = cleanCustomerEmergencyContactText(labels.none) || 'No emergency contact noted for this customer.';
+  const addLabel = cleanCustomerEmergencyContactText(labels.add) || `Add ${heading}`;
+  const explainerHtml = `<p>When the account holder is away, Saad can still reach the household through a named family member instead of leaving the collection for another day. This note changes nothing by itself.</p>`;
   const currentHtml = contact
     ? `<p class="emc-current"><strong>${escapeCustomerEmergencyContactHtml(contact.name)}</strong>${contact.relationship ? ` — ${escapeCustomerEmergencyContactHtml(contact.relationship)}` : ''}<span class="emc-meta"> · ${escapeCustomerEmergencyContactHtml(contact.phone)}</span></p>`
     : `<p class="emc-none">${escapeCustomerEmergencyContactHtml(noneText)}</p>`;
   const formHtml = `<form class="emc-form" id="emcForm"><label for="emcName">${escapeCustomerEmergencyContactHtml(nameLabel)}<input id="emcName" type="text" maxlength="60" placeholder="${escapeCustomerEmergencyContactHtml(namePlaceholder)}" value="${contact ? escapeCustomerEmergencyContactHtml(contact.name) : ''}" required></label><label for="emcRelationship">${escapeCustomerEmergencyContactHtml(relationshipLabel)}<input id="emcRelationship" type="text" maxlength="60" placeholder="${escapeCustomerEmergencyContactHtml(relationshipPlaceholder)}" value="${contact ? escapeCustomerEmergencyContactHtml(contact.relationship) : ''}"></label><label for="emcPhone">${escapeCustomerEmergencyContactHtml(phoneLabel)}<input id="emcPhone" type="tel" maxlength="40" placeholder="${escapeCustomerEmergencyContactHtml(phonePlaceholder)}" value="${contact ? escapeCustomerEmergencyContactHtml(contact.phone) : ''}" required></label><button type="submit" class="primary-button" id="emcSaveBtn">${escapeCustomerEmergencyContactHtml(saveLabel)}</button>${contact ? `<button type="button" class="secondary-button" id="emcRemoveBtn">${escapeCustomerEmergencyContactHtml(removeLabel)}</button>` : ''}</form>`;
-  return `<section class="profile-custody-section profile-customer-emergency-contact" aria-label="${escapeCustomerEmergencyContactHtml(heading)}"><h4>${escapeCustomerEmergencyContactHtml(heading)}</h4><p>When the account holder is away, Saad can still reach the household through a named family member instead of leaving the collection for another day. This note changes nothing by itself.</p>${currentHtml}${formHtml}</section>`;
+  // Plan 596 — when there is no contact, the explainer + form collapse
+  // behind a closed <details class="profile-accordion"> (the in-app
+  // accordion precedent); heading + none line stay visible, and the
+  // summary carries the Add label. With a contact the rendering is
+  // byte-identical to the base (explainer + contact line + form, no details).
+  if (contact) return `<section class="profile-custody-section profile-customer-emergency-contact" aria-label="${escapeCustomerEmergencyContactHtml(heading)}"><h4>${escapeCustomerEmergencyContactHtml(heading)}</h4>${explainerHtml}${currentHtml}${formHtml}</section>`;
+  return `<section class="profile-custody-section profile-customer-emergency-contact" aria-label="${escapeCustomerEmergencyContactHtml(heading)}"><h4>${escapeCustomerEmergencyContactHtml(heading)}</h4>${currentHtml}<details class="profile-accordion"><summary>${escapeCustomerEmergencyContactHtml(addLabel)}</summary><div class="profile-accordion-body">${explainerHtml}${formHtml}</div></details></section>`;
 }

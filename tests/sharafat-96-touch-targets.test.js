@@ -271,8 +271,8 @@ test('S1 EN/UR parity holds (4,669 / 4,669 — Round 2 D9 net −1, Quick Collec
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4766, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4766, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4767, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4767, 'UR key count moved');
 });
 
 test('S2 global button floor intact', () => {

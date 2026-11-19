@@ -112,6 +112,6 @@ test('Plan 599: this file stays free of the parity-count digits it must not pin'
   // the previous total's digits, and counts every file containing the
   // current total's digits. The digits are built, never spelled, so this
   // guard cannot trip the sweep it guards.
-  assert.ok(!selfSrc.includes('51' + '62'), 'this file must stay free of the current-count literal');
-  assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');
+  assert.ok(!selfSrc.includes('51' + '68'), 'this file must stay free of the current-count literal');
+  assert.ok(!selfSrc.includes('51' + '62'), 'this file must stay free of the previous-count literal');
 });

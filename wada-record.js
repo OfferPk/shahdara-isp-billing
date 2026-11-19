@@ -238,9 +238,12 @@ function byPromisedThenId(a, b) {
 // Plan 601 — labels object: the app passes t('prv_wr_*') values; every
 // entry defaults to the exact English string this module used to
 // hardcode, so existing callers are unchanged. The module never
-// imports t(). The `Rs {amount}` amount part stays module-internal
-// money (the S6 analogue), and the month/weekday names in
-// formatWadaDate are date formatting, not chrome.
+// imports t(). The month/weekday names in formatWadaDate are date
+// formatting, not chrome.
+// Plan 604 — the amount part is formatted through L.formatMoney
+// (formatPKR in production, via wadaRecordLabels()); the no-labels
+// default keeps the legacy raw `Rs {n}` form, so the module stays
+// import-free and the polish5 fallback pins hold.
 const DEFAULT_LABELS = {
   noWadas: 'No wadas recorded for this customer.',
   health: 'Wada health: {kept} kept on time · {keptLate} kept late · {broken} broken · {pending} still open.',
@@ -254,6 +257,10 @@ const DEFAULT_LABELS = {
   poora: 'Poora hua',
   toota: 'Wada toota',
   remove: 'Remove',
+  // Plan 604 — the money formatter rides the labels object: production
+  // passes formatPKR; the default keeps the legacy raw `Rs {n}` form
+  // (the documented fallback, pinned by polish5).
+  formatMoney: (n) => `Rs ${n}`,
 };
 
 const fill = (template, params = {}) =>
@@ -264,6 +271,15 @@ const fill = (template, params = {}) =>
 
 function resolveLabels(labels) {
   return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+// Plan 604 — one shared amount part: `PKR 3,000 ` in production (via
+// L.formatMoney), the legacy raw `Rs {n} ` form with no labels. Null
+// amounts render no amount part at all.
+function amountPartFor(L, amount) {
+  if (amount === null || amount === undefined) return '';
+  const format = typeof L?.formatMoney === 'function' ? L.formatMoney : DEFAULT_LABELS.formatMoney;
+  return `${format(amount)} `;
 }
 
 export function wadaRecordsSorted(list) {
@@ -325,7 +341,7 @@ export function wadaRecordText(record, today, labels) {
   const L = resolveLabels(labels);
   const normalized = normalizeWadaRecord(record);
   if (!normalized) return '';
-  const amountPart = normalized.amountPromised !== null ? `Rs ${normalized.amountPromised} ` : '';
+  const amountPart = amountPartFor(L, normalized.amountPromised);
   const notePart = normalized.note ? fill(L.note, { note: normalized.note }) : '';
   const state = wadaRecordBannerState(normalized, today);
   if (normalized.status === WADA_STATUSES.KEPT) {
@@ -348,7 +364,7 @@ export function wadaRecordHtml(record, today, labels) {
   const state = wadaRecordBannerState(normalized, today);
   const stateClass = state === 'overdue' ? 'wada-banner-overdue' : state === 'onTrack' ? 'wada-banner-on-track' : '';
   const stateLabel = state === 'overdue' ? L.overdueLabel : '';
-  const amountPart = normalized.amountPromised !== null ? `Rs ${normalized.amountPromised} ` : '';
+  const amountPart = amountPartFor(L, normalized.amountPromised);
   const notePart = normalized.note ? fill(L.note, { note: escapeHtml(normalized.note) }) : '';
   const outcomePart = normalized.status === WADA_STATUSES.KEPT
     ? fill(L.keptOn, { date: escapeHtml(normalized.closedDate) })
@@ -375,7 +391,7 @@ export function wadaBannerHtml(records, today, labels) {
     const state = wadaRecordBannerState(record, today);
     const stateClass = state === 'overdue' ? 'wada-banner-overdue' : 'wada-banner-on-track';
     const stateLabel = state === 'overdue' ? L.overdueLabel : '';
-    const amountPart = record.amountPromised !== null ? `Rs ${record.amountPromised} ` : '';
+    const amountPart = amountPartFor(L, record.amountPromised);
     const notePart = record.note ? fill(L.note, { note: escapeHtml(record.note) }) : '';
     return `<div class="wada-banner-row ${stateClass}"><span>${escapeHtml(amountPart)}${escapeHtml(fill(L.promisedBy, { date: formatWadaDate(record.promisedDate) }))}${escapeHtml(stateLabel)}${notePart}</span><span class="wada-banner-actions"><button type="button" class="wada-banner-kept" data-wada-kept="${escapeHtml(record.id)}">${escapeHtml(L.poora)}</button><button type="button" class="wada-banner-broken" data-wada-broken="${escapeHtml(record.id)}">${escapeHtml(L.toota)}</button></span></div>`;
   }).join('');

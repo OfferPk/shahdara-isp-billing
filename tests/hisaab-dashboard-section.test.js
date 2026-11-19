@@ -27,7 +27,7 @@ import {
   SEED_SINCE,
 } from '../upstream-providers.js';
 import { DASHBOARD_WIDGET_SECTIONS } from '../dashboard-widget-order.js';
-import { TRANSLATIONS } from '../nav-language.js';
+import { TRANSLATIONS, t } from '../nav-language.js';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const appJs = readFileSync(join(dir, '..', 'app.js'), 'utf8');
@@ -219,7 +219,201 @@ test('hisaab G5: "Kharch dekhein" is bound once, with a guard flag, to the ledge
   assert.ok(binding.includes("expenseActiveTab='ledger';switchView('expenses');renderExpenses();"), 'the landing is the expenses ledger tab, exactly like the Show Expenses button');
   assert.ok(appJs.includes('renderHisaabSection(state, referenceDate);'), 'renderDashboard fills the section next to the Owner Khata block');
   assert.ok(!/pnlModalController\.open\(/.test(appJs), 'no caller of the P&L modal exists yet — C4 stays FAIL until H4 wires the button');
-  assert.ok(!/hisaab_/.test(navJs), 'no hisaab_ keys in nav-language.js — H5 owns them');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4735, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4735, 'UR key count moved');
+  // Hisaab H5: the hisaab_* keys exist (30, ×2 dicts) + the one exp_*
+  // refusal hint (D2(b)). The !/pnlModalController\.open\(/ line above
+  // is H4's — it still passes because H4's call is the guarded
+  // `pnlModalController?.open()`, which the unguarded-call regex does
+  // not match; H5 does not touch H4's line.
+  const hisaabKeyDefs = (navJs.match(/^    hisaab_[a-z_]+:/gm) || []).length;
+  assert.equal(hisaabKeyDefs, 60, '30 hisaab_* keys × 2 dicts');
+  assert.ok(navJs.includes("exp_upstream_synced_hint: 'This expense is synced from the Upstream tab."), 'the D2(b) refusal hint key exists');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4766, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4766, 'UR key count moved');
+});
+
+/* ---------------- G6 — H5 i18n + parity + munafa (D1(a)–D10(a)) ---------------- */
+
+const HISAAB_KEYS = [
+  'hisaab_section_eyebrow', 'hisaab_section_title', 'hisaab_section_subtitle',
+  'hisaab_label_income', 'hisaab_label_expenses', 'hisaab_label_profit',
+  'hisaab_label_paid', 'hisaab_section_lifetime', 'hisaab_month_empty',
+  'hisaab_lifetime_empty', 'hisaab_open_pnl', 'hisaab_show_expenses',
+  'hisaab_month_label', 'hisaab_month_margin', 'hisaab_since',
+  'hisaab_provider_no_bills', 'hisaab_provider_paid_total',
+  'hisaab_provider_paid_unknown', 'hisaab_amount_unknown',
+  'hisaab_provider_since', 'hisaab_provider_last_bill',
+  'hisaab_provider_pending', 'hisaab_provider_unknown_one',
+  'hisaab_provider_unknown_many', 'hisaab_provider_none', 'hisaab_honesty',
+  'hisaab_duration_year', 'hisaab_duration_month_one',
+  'hisaab_duration_month_many', 'hisaab_duration_day',
+];
+
+test('hisaab G6a: all 30 hisaab_* keys + exp_upstream_synced_hint exist in both dicts; parity is 4,766/4,766', () => {
+  for (const key of HISAAB_KEYS) {
+    assert.ok(key in TRANSLATIONS.en, `EN has ${key}`);
+    assert.ok(key in TRANSLATIONS.ur, `UR has ${key}`);
+  }
+  assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.en, 'EN has the D2(b) refusal hint');
+  assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.ur, 'UR has the D2(b) refusal hint');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4766, 'EN parity 4,766');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4766, 'UR parity 4,766');
+  // UR sentences end with ۔, fragments do not (591 bar).
+  for (const key of ['hisaab_month_empty', 'hisaab_lifetime_empty', 'hisaab_provider_none', 'hisaab_honesty']) {
+    assert.ok(TRANSLATIONS.ur[key].endsWith('۔'), `UR ${key} ends with ۔`);
+  }
+  assert.ok(TRANSLATIONS.ur.exp_upstream_synced_hint.endsWith('۔'), 'UR refusal hint ends with ۔');
+  for (const key of ['hisaab_section_title', 'hisaab_label_income', 'hisaab_label_expenses', 'hisaab_label_profit', 'hisaab_label_paid', 'hisaab_section_lifetime', 'hisaab_amount_unknown', 'hisaab_provider_since']) {
+    assert.ok(!TRANSLATIONS.ur[key].endsWith('۔'), `UR ${key} is a fragment, no ۔`);
+  }
+  // Param keys render with their params supplied (spot checks).
+  assert.equal(t('hisaab_month_label', 'en', { month: 'November 2026' }), 'Is mahine · November 2026');
+  assert.equal(t('hisaab_month_label', 'ur', { month: 'نومبر 2026' }), 'اس مہینے · نومبر 2026');
+  assert.equal(t('hisaab_month_margin', 'ur', { margin: 62.5 }), 'مارجن 62.5٪');
+});
+
+test('hisaab G6b: the EN provider line composes byte-identical to H3\'s literal line (real seed summary, REF 2026-11-18)', () => {
+  const providers = loadUpstreamProviders();
+  const nayatel = providers.providers.find((p) => p.name === 'Nayatel');
+  const summary = summarizeProvider(nayatel);
+  const duration = formatHisaabDuration(summary.since, '2026-11-18');
+  const bits = [
+    t('hisaab_provider_paid_total', 'en', { amount: 'PKR 502,820' }),
+    `${t('hisaab_provider_since', 'en', { date: formatHisaabDate(summary.since) })} (${duration})`,
+    t('hisaab_provider_last_bill', 'en', { amount: 'PKR 60,575', month: 'October 2026' }),
+    t('hisaab_provider_pending', 'en', { month: 'November 2026', amount: 'PKR 60,575' }),
+    t('hisaab_provider_unknown_one', 'en', { count: 1 }),
+  ];
+  assert.equal(`Nayatel — ${bits.join(' · ')}`,
+    'Nayatel — Kul ada PKR 502,820 · 05 May 2025 se (1 saal 6 mahine 13 din) · Haali bill PKR 60,575 (October 2026) · November 2026 bill PKR 60,575 — abhi baqi · 1 bill raqam maloom nahi');
+  // The static title + honesty line are byte-identical to their keys.
+  const titleMatch = indexHtml.match(/<h3 id="hisaabHeading"[^>]*>([^<]*)</);
+  assert.ok(titleMatch, 'the section h3 exists');
+  assert.equal(t('hisaab_section_title', 'en'), titleMatch[1]);
+  const honestyMatch = indexHtml.match(/<p class="phase3-note" id="hisaabHonestyLine"[^>]*>([^<]*)</);
+  assert.ok(honestyMatch, 'the honesty line exists');
+  assert.equal(t('hisaab_honesty', 'en'), honestyMatch[1]);
+});
+
+test('hisaab G6c: the UR provider line composes with the same structure (real seed summary, UR labels + UR months)', () => {
+  const providers = loadUpstreamProviders();
+  const nayatel = providers.providers.find((p) => p.name === 'Nayatel');
+  const summary = summarizeProvider(nayatel);
+  const urLabels = {
+    year: t('hisaab_duration_year', 'ur'),
+    monthOne: t('hisaab_duration_month_one', 'ur'),
+    monthMany: t('hisaab_duration_month_many', 'ur'),
+    day: t('hisaab_duration_day', 'ur'),
+  };
+  const duration = formatHisaabDuration(summary.since, '2026-11-18', urLabels);
+  const bits = [
+    t('hisaab_provider_paid_total', 'ur', { amount: 'PKR 502,820' }),
+    `${t('hisaab_provider_since', 'ur', { date: formatHisaabDate(summary.since) })} (${duration})`,
+    t('hisaab_provider_last_bill', 'ur', { amount: 'PKR 60,575', month: 'اکتوبر 2026' }),
+    t('hisaab_provider_pending', 'ur', { month: 'نومبر 2026', amount: 'PKR 60,575' }),
+    t('hisaab_provider_unknown_one', 'ur', { count: 1 }),
+  ];
+  assert.equal(`Nayatel — ${bits.join(' · ')}`,
+    'Nayatel — کل ادا PKR 502,820 · 05 May 2025 سے (1 سال 6 مہینے 13 دن) · حالی بل PKR 60,575 (اکتوبر 2026) · نومبر 2026 بل PKR 60,575 — ابھی باقی · 1 بل رقم معلوم نہیں');
+  assert.ok(t('hisaab_honesty', 'ur').endsWith('۔'), 'UR honesty ends with ۔');
+  assert.ok(t('hisaab_honesty', 'ur').includes('Nayatel'), 'UR honesty keeps Nayatel Latin');
+  assert.ok(t('hisaab_honesty', 'ur').includes('PKR 502,820'), 'UR honesty keeps PKR 502,820 Latin (Sharafat 85: no Rs. token in nav-language.js)');
+  // The no-bills provider composes in UR with and without a pending bill.
+  assert.equal(`Nayatel — ${t('hisaab_provider_no_bills', 'ur')} · ${t('hisaab_provider_pending', 'ur', { month: 'نومبر 2026', amount: 'PKR 60,575' })}`,
+    'Nayatel — ابھی کوئی بل نہیں · نومبر 2026 بل PKR 60,575 — ابھی باقی');
+  assert.equal(`Nayatel — ${t('hisaab_provider_no_bills', 'ur')}`, 'Nayatel — ابھی کوئی بل نہیں');
+});
+
+test('hisaab G6d: duration labels + singular — defaults unchanged, UR labels render, 1-month span is "1 mahina" / "1 مہینہ"', () => {
+  assert.equal(formatHisaabDuration('2025-05-05', '2026-11-19'), '1 saal 6 mahine 14 din', 'no labels argument: defaults unchanged (H3 G3 still passes)');
+  assert.equal(formatHisaabDuration('2026-10-05', '2026-11-05'), '1 mahina', 'the singular fix — was "1 mahine"');
+  const urLabels = {
+    year: t('hisaab_duration_year', 'ur'),
+    monthOne: t('hisaab_duration_month_one', 'ur'),
+    monthMany: t('hisaab_duration_month_many', 'ur'),
+    day: t('hisaab_duration_day', 'ur'),
+  };
+  assert.equal(formatHisaabDuration('2025-05-05', '2026-11-19', urLabels), '1 سال 6 مہینے 14 دن');
+  assert.equal(formatHisaabDuration('2026-10-05', '2026-11-05', urLabels), '1 مہینہ');
+  assert.equal(formatHisaabDuration('2026-11-18', '2026-11-18', urLabels), '0 دن');
+  assert.equal(formatHisaabDuration('2026-11-18', '2026-11-18'), '0 din');
+  assert.equal(formatHisaabDuration('', '2026-11-18'), '');
+  assert.equal(formatHisaabDuration('2026-11-18', '2025-05-05'), '');
+  // A partial labels object falls back to the defaults for the rest.
+  assert.equal(formatHisaabDuration('2026-10-05', '2026-11-05', { monthOne: '{n} mahina' }), '1 mahina');
+});
+
+test('hisaab G6e: munafa colour + wiring pins — brand-500/danger pass 4.5:1 in both themes, paid/overdue fail in dark, statics keyed, params unkeyed', () => {
+  // WCAG relative-luminance contrast (the plan590 math, verbatim).
+  const hexLum = (hex) => {
+    const h = hex.replace('#', '');
+    const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h.slice(0, 6);
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a, b) => {
+    const [l1, l2] = [hexLum(a), hexLum(b)].sort((x, y) => y - x);
+    return (l1 + 0.05) / (l2 + 0.05);
+  };
+  const LIGHT_CARD = '#ffffff';
+  const DARK_CARD = '#14241f';
+  assert.equal(contrast('#145b4b', LIGHT_CARD).toFixed(2), '7.99', 'brand-500 light');
+  assert.equal(contrast('#29b88f', DARK_CARD).toFixed(2), '6.41', 'brand-500 dark');
+  assert.equal(contrast('#b42318', LIGHT_CARD).toFixed(2), '6.57', 'danger light');
+  assert.equal(contrast('#ffb4a8', DARK_CARD).toFixed(2), '9.48', 'danger dark');
+  // The tempting pair fails in dark (no dark values) — pinned so a
+  // future "helpful" swap to paid-green/overdue-red fails loudly.
+  assert.equal(contrast('#19704e', DARK_CARD).toFixed(2), '2.66', 'paid in dark');
+  assert.equal(contrast('#b33c33', DARK_CARD).toFixed(2), '2.77', 'overdue in dark');
+  assert.ok(contrast('#19704e', DARK_CARD) < 4.5, 'paid must never colour munafa');
+  assert.ok(contrast('#b33c33', DARK_CARD) < 4.5, 'overdue must never colour munafa');
+  // The two token-only rules in dashboard.css, no hex, no paid/overdue.
+  assert.ok(/\.home-kpi-val\.hisaab-metric--profit\s*\{[^}]*color:\s*var\(--color-brand-500\)/.test(dashboardCss), 'profit rule uses --color-brand-500');
+  assert.ok(/\.home-kpi-val\.hisaab-metric--loss\s*\{[^}]*color:\s*var\(--color-danger\)/.test(dashboardCss), 'loss rule uses --color-danger');
+  assert.ok(!/\.hisaab-metric--(profit|loss)\s*\{[^}]*#[0-9a-fA-F]/.test(dashboardCss), 'no hex in the munafa rules');
+  assert.ok(!/\.hisaab-metric--(profit|loss)\s*\{[^}]*--color-(paid|overdue)/.test(dashboardCss), 'no paid/overdue in the munafa rules');
+  const darkCss = readFileSync(join(dir, '..', 'dark-contrast.css'), 'utf8');
+  assert.ok(!/hisaab-metric--/.test(darkCss), 'dark-contrast.css carries no munafa rule (the tokens already carry dark values)');
+  // The render toggles both classes on both profit values, by sign
+  // (zero counts as profit).
+  assert.ok(appJs.includes("classList.toggle('hisaab-metric--profit'"), 'the profit class is toggled');
+  assert.ok(appJs.includes("classList.toggle('hisaab-metric--loss'"), 'the loss class is toggled');
+  assert.ok(appJs.includes('monthRow.netProfit >= 0'), 'month munafa: ≥ 0 is profit');
+  assert.ok(appJs.includes('life.profit >= 0'), 'lifetime munafa: ≥ 0 is profit');
+  // The section: all 13 static strings keyed (20 attributes) — and the
+  // 6 money-value elements + the 4 param elements carry NO data-i18n
+  // (D10: the toggle walk would write {month} literally on the params).
+  // The values were keyed prof_not_set in the first H5 draft and the
+  // 360px sample caught it: at boot the walk overwrote render's money
+  // with "Not set" (values only recovered after a language toggle
+  // re-rendered). Render-written elements must never carry data-i18n —
+  // the "Not set" text stays as pre-JS paint only, like the param
+  // initials. The profile <option> prof_not_set uses elsewhere are
+  // static options, not render-written, and are untouched.
+  const secMatch = indexHtml.match(/<section[^>]*id="hisaabSection"[\s\S]*?<\/section>/);
+  assert.ok(secMatch, 'the Hisaab section exists');
+  const sec = secMatch[0];
+  // The 13 static keys are data-i18n'd; the 17 param keys are NOT
+  // (they render through t() in renderHisaabSection — D10).
+  const STATIC_KEYS = ['hisaab_section_eyebrow', 'hisaab_section_title', 'hisaab_section_subtitle', 'hisaab_label_income', 'hisaab_label_expenses', 'hisaab_label_profit', 'hisaab_label_paid', 'hisaab_section_lifetime', 'hisaab_month_empty', 'hisaab_lifetime_empty', 'hisaab_open_pnl', 'hisaab_show_expenses', 'hisaab_honesty'];
+  for (const key of STATIC_KEYS) {
+    assert.ok(sec.includes(`data-i18n="${key}"`), `the section keys ${key}`);
+  }
+  const PARAM_KEYS = HISAAB_KEYS.filter((k) => !STATIC_KEYS.includes(k));
+  assert.equal(PARAM_KEYS.length, 17, '30 keys − 13 statics = 17 param keys');
+  for (const key of PARAM_KEYS) {
+    assert.ok(!sec.includes(`data-i18n="${key}"`), `param key ${key} is never a data-i18n attribute`);
+  }
+  assert.equal((sec.match(/data-i18n="hisaab_/g) || []).length, 20, '13 keys → 20 attributes (labels ×2, paid ×5)');
+  assert.equal((sec.match(/data-i18n="prof_not_set"/g) || []).length, 0, 'no prof_not_set in the section — the 6 money values are render-written, never walked');
+  for (const id of ['hisaabMonthIncome', 'hisaabMonthExpenses', 'hisaabMonthProfit', 'hisaabLifeIncome', 'hisaabLifeExpenses', 'hisaabLifeProfit']) {
+    const tag = sec.match(new RegExp(`<[^>]*id="${id}"[^>]*>`))[0];
+    assert.ok(!tag.includes('data-i18n'), `#${id} carries no data-i18n (render-written value)`);
+  }
+  for (const id of ['hisaabMonthLabel', 'hisaabMonthMargin', 'hisaabLifeSince']) {
+    const tag = sec.match(new RegExp(`<[^>]*id="${id}"[^>]*>`))[0];
+    assert.ok(!tag.includes('data-i18n'), `#${id} carries no data-i18n (param key)`);
+  }
+  const providerLinesTag = sec.match(/<[^>]*id="hisaabProviderLines"[^>]*>/)[0];
+  assert.ok(!providerLinesTag.includes('data-i18n'), '#hisaabProviderLines carries no data-i18n (param lines)');
 });

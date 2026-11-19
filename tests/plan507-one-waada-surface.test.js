@@ -58,6 +58,10 @@ function bannerFunction() {
     wadaBannerHtml: () => '',
     wadaHealthText: () => 'Wada health: 0 kept on time · 0 kept late · 0 broken · 0 still open.',
     wadaHistoryHtml: () => '',
+    // Plan 601 — the banner passes the labels object built by
+    // wadaRecordLabels(); the stubbed module functions ignore it, so an
+    // empty object stands in here.
+    wadaRecordLabels: () => ({}),
     waadaScoreBadgeHtml: () => '<p class="profile-waada-score"><span class="wada-badge waada-score-badge">SCORE-BADGE</span></p>',
     helpButtonMarkup: (topic) => `<button class="help-info-btn" type="button" data-help="${topic}">HELP-BTN</button>`,
     escapeHtml: (value) => String(value)
@@ -185,6 +189,10 @@ test('Plan 507: the banner shows the current promise above the quick-add form', 
     wadaBannerHtml: () => '<div class="wada-banner-row wada-banner-on-track"><span>Rs 1000 promised by 10 Nov 2026</span></div>',
     wadaHealthText: () => 'Wada health: 0 kept on time · 0 kept late · 0 broken · 1 still open.',
     wadaHistoryHtml: () => '',
+    // Plan 601 — the banner passes the labels object built by
+    // wadaRecordLabels(); the stubbed module functions ignore it, so an
+    // empty object stands in here.
+    wadaRecordLabels: () => ({}),
     waadaScoreBadgeHtml: () => '',
     helpButtonMarkup: (topic) => `<button class="help-info-btn" type="button" data-help="${topic}">HELP-BTN</button>`,
     escapeHtml: (value) => String(value),

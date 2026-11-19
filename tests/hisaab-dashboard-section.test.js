@@ -210,7 +210,7 @@ test('hisaab G4: the section sits directly after Today\'s Summary and before Rec
 
 /* ---------------- G5 — Navigation + i18n steady (D5(a), D8(a)) ---------------- */
 
-test('hisaab G5: "Kharch dekhein" is bound once, with a guard flag, to the ledger landing — the P&L button is NOT bound yet (H4) and parity stays 4,735/4,735', () => {
+test('hisaab G5: "Kharch dekhein" is bound once, with a guard flag, to the ledger landing — the P&L button is NOT bound yet (H4) and parity stays 4,767/4,767', () => {
   const listeners = (appJs.match(/\$\('#hisaabShowExpensesBtn'\)\?\.addEventListener\('click'/g) || []).length;
   assert.equal(listeners, 1, '"Kharch dekhein" is bound exactly once');
   assert.ok(appJs.includes('let hisaabShowExpensesBound = false;'), 'the once-only guard flag exists');
@@ -227,8 +227,8 @@ test('hisaab G5: "Kharch dekhein" is bound once, with a guard flag, to the ledge
   const hisaabKeyDefs = (navJs.match(/^    hisaab_[a-z_]+:/gm) || []).length;
   assert.equal(hisaabKeyDefs, 60, '30 hisaab_* keys × 2 dicts');
   assert.ok(navJs.includes("exp_upstream_synced_hint: 'This expense is synced from the Upstream tab."), 'the D2(b) refusal hint key exists');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4766, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4766, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4767, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4767, 'UR key count moved');
 });
 
 /* ---------------- G6 — H5 i18n + parity + munafa (D1(a)–D10(a)) ---------------- */
@@ -248,15 +248,15 @@ const HISAAB_KEYS = [
   'hisaab_duration_month_many', 'hisaab_duration_day',
 ];
 
-test('hisaab G6a: all 30 hisaab_* keys + exp_upstream_synced_hint exist in both dicts; parity is 4,766/4,766', () => {
+test('hisaab G6a: all 30 hisaab_* keys + exp_upstream_synced_hint exist in both dicts; parity is 4,767/4,767', () => {
   for (const key of HISAAB_KEYS) {
     assert.ok(key in TRANSLATIONS.en, `EN has ${key}`);
     assert.ok(key in TRANSLATIONS.ur, `UR has ${key}`);
   }
   assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.en, 'EN has the D2(b) refusal hint');
   assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.ur, 'UR has the D2(b) refusal hint');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4766, 'EN parity 4,766');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4766, 'UR parity 4,766');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4767, 'EN parity 4,767');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4767, 'UR parity 4,767');
   // UR sentences end with ۔, fragments do not (591 bar).
   for (const key of ['hisaab_month_empty', 'hisaab_lifetime_empty', 'hisaab_provider_none', 'hisaab_honesty']) {
     assert.ok(TRANSLATIONS.ur[key].endsWith('۔'), `UR ${key} ends with ۔`);

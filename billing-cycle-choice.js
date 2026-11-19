@@ -167,13 +167,42 @@ const ordinalSuffix = (day) => {
   return 'th';
 };
 
+// Plan 601 — labels object: the app passes t('prv_bc_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t(). `day` is the {day}{suffix} shape: the ordinal suffix
+// is English morphology, so the Urdu value takes the bare day.
+const DEFAULT_LABELS = {
+  noChoice: 'No billing cycle choice recorded — bills fall due on the 5th of each month.',
+  dueOn: 'Due on the {day} of each month{changed}.{note}',
+  changedOn: ', changed on {date}',
+  changeNotRecorded: ', change date not recorded',
+  note: ' Note: {note}',
+  day: '{day}{suffix}',
+};
+
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
 /** Plain-words summary for the profile: current cycle and change date. */
-export function billingCycleChoiceSummaryText(choice) {
+export function billingCycleChoiceSummaryText(choice, labels) {
+  const L = resolveLabels(labels);
   const clean = normalizeBillingCycleChoice(choice);
-  if (!clean) return 'No billing cycle choice recorded — bills fall due on the 5th of each month.';
-  const changed = clean.changedAt ? `, changed on ${clean.changedAt}` : ', change date not recorded';
-  const note = clean.note ? ` Note: ${clean.note}` : '';
-  return `Due on the ${clean.dueDay}${ordinalSuffix(clean.dueDay)} of each month${changed}.${note}`;
+  if (!clean) return L.noChoice;
+  const changed = clean.changedAt ? fill(L.changedOn, { date: clean.changedAt }) : L.changeNotRecorded;
+  const note = clean.note ? fill(L.note, { note: clean.note }) : '';
+  return fill(L.dueOn, {
+    day: fill(L.day, { day: clean.dueDay, suffix: ordinalSuffix(clean.dueDay) }),
+    changed,
+    note,
+  });
 }
 
 const escapeHtml = (value) => String(value ?? '')
@@ -181,6 +210,6 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
 /** Escaped profile line for the current cycle; never throws on bad input. */
-export function billingCycleChoiceHtml(choice) {
-  return `<p>${escapeHtml(billingCycleChoiceSummaryText(choice))}</p>`;
+export function billingCycleChoiceHtml(choice, labels) {
+  return `<p>${escapeHtml(billingCycleChoiceSummaryText(choice, labels))}</p>`;
 }

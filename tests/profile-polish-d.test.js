@@ -224,8 +224,11 @@ test('Polish D (16): Add boost is NORMAL size — it no longer stretches the ful
 // ------------------------------------------------------------ preview texts
 
 test('Polish D (17): the package-change preview explainer is an info note, wording unchanged', () => {
-  assert.ok(app.includes('<p class="pcp-explainer">Before agreeing a faster or cheaper package,'), 'the explainer carries its info-note class');
-  assert.ok(app.includes('This preview applies nothing; the change itself is still made through the profile Edit form, and a ready preview shown here is kept as a note on that change.</p>'), 'the explainer wording is unchanged');
+  // Plan 601 — the explainer is keyed: the template calls t() and the
+  // dict carries the English wording the operator sees.
+  assert.ok(app.includes('<p class="pcp-explainer">${t(\'prv_pc_explainer\')}</p>'), 'the explainer carries its info-note class');
+  assert.ok(TRANSLATIONS.en.prv_pc_explainer.startsWith('Before agreeing a faster or cheaper package,'), 'the explainer wording is unchanged');
+  assert.ok(TRANSLATIONS.en.prv_pc_explainer.includes('This preview applies nothing; the change itself is still made through the profile Edit form, and a ready preview shown here is kept as a note on that change.'), 'the explainer wording is unchanged');
   const rule = styles.match(/\.pcp-explainer\{[^}]*\}/);
   assert.ok(rule && rule[0].includes('background:#e5efff'), 'the explainer takes the info blue');
   assert.ok(rule && rule[0].includes('border-radius:12px'), 'the long explainer is an info note, not a one-line pill');
@@ -241,7 +244,9 @@ test('Polish D (17): the kept-preview line is a real pill — "No package change
 });
 
 test('Polish D (17): "Proposed package" is a compact pill chip on the preview form label', () => {
-  assert.ok(app.includes('<span class="pcp-field-pill">Proposed package</span> <select id="packageChangePreviewPackage">'), 'the label words sit in a pill chip, the select follows it');
+  // Plan 601 — the label is keyed (same pattern as Polish E (19)).
+  assert.ok(app.includes('<span class="pcp-field-pill">${t(\'prv_pc_proposed_package\')}</span> <select id="packageChangePreviewPackage">'), 'the label words sit in a pill chip, the select follows it');
+  assert.equal(TRANSLATIONS.en.prv_pc_proposed_package, 'Proposed package', 'the label wording is unchanged');
   const rule = styles.match(/\.pcp-field-pill\{[^}]*\}/);
   assert.ok(rule && rule[0].includes('border-radius:999px'), 'a real pill chip');
   assert.ok(rule && rule[0].includes('background:#e5efff') && rule[0].includes('color:#174b87') && rule[0].includes('border:1px solid #adc9f1'), 'the info-blue palette');

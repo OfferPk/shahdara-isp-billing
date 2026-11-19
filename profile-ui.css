@@ -181,6 +181,17 @@
   height: 22px;
   min-height: 0;
 }
+
+/* Plan 598 — password reveal toggle inside the field row. The button
+   must NOT reuse .toggle-password-btn: that class is absolutely
+   positioned for the backup form's relative wrapper and would escape the
+   flex row. Flex 0 0 auto keeps it beside the input; the 44px floor
+   comes from the global button rule. No colour here, so no new hex. */
+.profile-field-row > .profile-field-reveal {
+  flex: 0 0 auto;
+  padding: 0 10px;
+  white-space: nowrap;
+}
 .profile-field-save {
   flex: 0 0 auto;
   min-height: 44px;

@@ -266,19 +266,29 @@ test('filter: Unassigned lists exactly the entries with no recorded mohalla', ()
 
 // --- Options HTML ---
 
-test('options: All carries the pool total and PKR; rows carry count and PKR', () => {
+test('options: All carries the pool count; rows carry their count', () => {
+  // QC picker overflow (2026-11-19, item 2): the options are
+  // count-only — the "· PKR n" part left the labels because it
+  // clipped in the 2-col row, and the PKR moved to the summary line
+  // under the pills (quickCollectMohallaFilterSummaryText, now
+  // 3-arg with pendingPkr).
   const html = quickCollectMohallaFilterCountOptionsHtml(
     quickCollectMohallaPendingCounts(pickerEntries(), MOHALLAS),
     '',
   );
-  assert.match(html, /<option value="">All \(7 · PKR 9,600\)<\/option>/);
-  assert.match(html, /<option value="BANII">BANII \(2 · PKR 5,000\)<\/option>/);
-  assert.match(html, /<option value="GANGALL">GANGALL \(2 · PKR 2,500\)<\/option>/);
-  assert.match(html, /<option value="Unassigned">Unassigned \(2 · PKR 1,200\)<\/option>/);
-  assert.match(html, /<option value="NOWHERE">NOWHERE \(1 · PKR 900\)<\/option>/);
+  assert.match(html, /<option value="">All \(7\)<\/option>/);
+  assert.match(html, /<option value="BANII">BANII \(2\)<\/option>/);
+  assert.match(html, /<option value="GANGALL">GANGALL \(2\)<\/option>/);
+  assert.match(html, /<option value="Unassigned">Unassigned \(2\)<\/option>/);
+  assert.match(html, /<option value="NOWHERE">NOWHERE \(1\)<\/option>/);
+  assert.doesNotMatch(html, /PKR/);
 });
 
 test('options: the PKR part is omitted when a row — or the whole pool — owes nothing', () => {
+  // QC picker overflow (2026-11-19, item 2): the PKR part left the
+  // options entirely — they are count-only now, so the zero-PKR
+  // shape is the same count-only shape (no "· PKR 0" suffix ever
+  // appears; the PKR lives on the summary line instead).
   const html = quickCollectMohallaFilterCountOptionsHtml(
     quickCollectMohallaPendingCounts(pickerEntries(), MOHALLAS),
     '',
@@ -311,7 +321,9 @@ test('options: values and labels are escaped before they reach the page', () => 
     MOHALLAS,
   );
   const html = quickCollectMohallaFilterCountOptionsHtml(counts, '');
-  assert.match(html, /<option value="A &amp; B">A &amp; B \(1 · PKR 100\)<\/option>/);
+  // QC picker overflow (2026-11-19, item 2): options are count-only
+  // ("A & B (1)"), the PKR moved to the summary line.
+  assert.match(html, /<option value="A &amp; B">A &amp; B \(1\)<\/option>/);
   assert.doesNotMatch(html, /A & B/);
 });
 

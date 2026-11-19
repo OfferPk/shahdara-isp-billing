@@ -24,6 +24,7 @@ import {
   creditCsv,
   creditFilename,
 } from '../credit-balance.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -180,4 +181,11 @@ test('purity fence: no imports, no storage, no DOM, no payment/bill rewriting, n
   assert.doesNotMatch(source, /localStorage|document\.|fetch\(/);
   assert.doesNotMatch(source, /part-payment-rules|repayment-plan|advance-allocation/);
   assert.doesNotMatch(source, /function cashOut|function refundCredit|convertToCash/);
+});
+
+test('Plan 600: the credit summary renders in Urdu through labels', () => {
+  const entries = [entry({ customerName: 'A <b>& Co' })];
+  const apps = applyCredit(entries, [], application());
+  const balance = creditBalanceForCustomer(entries, apps, 'C-76');
+  assert.equal(creditSummaryText(balance, { summary: TRANSLATIONS.ur.dft_credit_summary }), 'آیا ہوا کریڈٹ Rs. 500.00 · لگایا گیا Rs. 200.00 · باقی Rs. 300.00۔');
 });

@@ -123,17 +123,22 @@ test('Plan 500: the sync runs on open, on input, on change, and after the save f
   const change = app.slice(app.indexOf("profileFormEl?.addEventListener('change'"), app.indexOf('syncProfileStickySaveBar();\nupdateProfileCompletionCounter();'));
   assert.ok(change.includes('syncProfileFieldSaveButtons();'), 'a select/checkbox change must re-sync');
   const saveFn = app.slice(app.indexOf('async function saveProfileField'), app.indexOf('function bindProfileFieldSaveButtons'));
-  assert.ok(saveFn.includes("setTimeout(() => { if (!document.body.contains(button)) return; button.textContent = 'Save'; syncProfileFieldSaveButtons(); }, 1500);"), 'the feedback timer must restore the label and then hide the saved button');
+  // Plan 612 — the timer restores the KEYED shared label, not a
+  // hardcoded 'Save': the restore must match what the bind wrote.
+  assert.ok(saveFn.includes("setTimeout(() => { if (!document.body.contains(button)) return; button.textContent = t('save'); syncProfileFieldSaveButtons(); }, 1500);"), 'the feedback timer must restore the label and then hide the saved button');
 });
 
 test('Plan 500: the 1.5s Saved feedback is never cut short by the sync', () => {
   const app = read('app.js');
   const fn = app.slice(app.indexOf('function syncProfileFieldSaveButtons()'), app.indexOf('// Plan 499 — Cancel means Close'));
-  assert.ok(fn.includes("if (button.textContent === 'Saved ✓') return;"), 'a button showing the Saved feedback must stay visible until its timer runs');
+  // Plan 612 — the sync compares against the KEYED feedback, or it
+  // would hide the button mid-feedback in Urdu mode.
+  assert.ok(fn.includes("if (button.textContent === t('prof_field_saved')) return;"), 'a button showing the Saved feedback must stay visible until its timer runs');
   const saveFn = app.slice(app.indexOf('async function saveProfileField'), app.indexOf('function bindProfileFieldSaveButtons'));
   const finallyPart = saveFn.slice(saveFn.indexOf('finally {'));
   assert.ok(!finallyPart.includes('syncProfileFieldSaveButtons'), 'the save finally must not hide the button mid-feedback');
-  assert.ok(saveFn.includes("button.textContent = 'Saved ✓';"), 'the Saved feedback text itself is unchanged');
+  // Plan 612 — the feedback itself is keyed (t('prof_field_saved')).
+  assert.ok(saveFn.includes("button.textContent = t('prof_field_saved');"), 'the Saved feedback text itself is keyed');
 });
 
 test('Plan 500: the hidden state reserves space — no display:none, fade via opacity', () => {

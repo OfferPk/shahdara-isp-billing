@@ -32,12 +32,15 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const customer = { id: 'cust-1', name: 'Test Customer' };
 
 // Labels exactly as app.js builds them (t() calls, EN).
-function labelsFor(headingKey, noneKey) {
+// Plan 612 — the helper takes the section's own save key, so each
+// section renders its scoped Save label. Callers that pass no saveKey
+// keep the shared label (they do not assert on it).
+function labelsFor(headingKey, noneKey, saveKey) {
   return {
     heading: t(headingKey),
     none: t(noneKey),
     add: t('prof_note_add', null, { heading: t(headingKey) }),
-    save: t('save'),
+    save: saveKey ? t(saveKey) : t('save'),
   };
 }
 
@@ -177,13 +180,13 @@ describe('Plan 596: empty profile note sections collapse', () => {
   });
 
   test('G13 parity moves to the new total in both languages', () => {
-    assert.equal(Object.keys(TRANSLATIONS.en).length, 5168, 'EN parity 5,162');
-    assert.equal(Object.keys(TRANSLATIONS.ur).length, 5168, 'UR parity 5,162');
+    assert.equal(Object.keys(TRANSLATIONS.en).length, 5187, 'EN parity 5,162');
+    assert.equal(Object.keys(TRANSLATIONS.ur).length, 5187, 'UR parity 5,162');
   });
 
   test('G14 this file pins the new total and stays free of the previous total digits', () => {
     const selfSrc = read('tests/plan596-note-sections-collapse.test.js');
-    assert.ok(selfSrc.includes('5168'), 'this file pins the new total');
+    assert.ok(selfSrc.includes('5187'), 'this file pins the new total');
     // The previous total's digits are built, never spelled, so this guard
     // cannot trip the sweep it guards.
     assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');
@@ -236,13 +239,25 @@ describe('Plan 596: empty profile note sections collapse', () => {
     }
   });
 
-  test('G19 the five Save buttons are untouched — Plan 612 owns renaming them', () => {
+  test('G19 the five Save buttons read their scoped labels — Plan 612', () => {
+    // The modules still pass labels.save through unchanged — only the
+    // VALUE app.js puts in the labels object moved (Plan 612).
     for (const mod of ['handling-note.js', 'standing-instruction-note.js', 'spoken-language-note.js', 'gate-access-instruction.js', 'customer-emergency-contact.js']) {
       const src = read(mod);
-      assert.ok(src.includes('labels.save'), `${mod} still passes the shared Save label through`);
+      assert.ok(src.includes('labels.save'), `${mod} still passes the Save label through`);
     }
-    const saveLabel = t('save');
-    const html = handlingNoteSectionHtml(customer, [], labelsFor('prof_handling_heading', 'prof_handling_none'));
-    assert.ok(html.includes(`>${saveLabel}<`), 'the Save button still renders the shared label');
+    const sections = [
+      [handlingNoteSectionHtml, 'prof_handling_heading', 'prof_handling_none', 'prof_save_handling', 'Save handling note'],
+      [standingInstructionSectionHtml, 'prof_sin_heading', 'prof_sin_none', 'prof_save_sin', 'Save standing instruction'],
+      [spokenLanguageNoteSectionHtml, 'prof_spoken_lang_heading', 'prof_spoken_lang_none', 'prof_save_spoken', 'Save spoken language'],
+      [gateAccessInstructionSectionHtml, 'prof_gate_access_heading', 'prof_gate_access_none', 'prof_save_gate', 'Save gate note'],
+      [customerEmergencyContactSectionHtml, 'prof_emc_heading', 'prof_emc_none', 'prof_save_emc', 'Save emergency contact'],
+    ];
+    for (const [fn, headingKey, noneKey, saveKey, enLabel] of sections) {
+      const html = fn(customer, [], labelsFor(headingKey, noneKey, saveKey));
+      assert.ok(html.includes(`>${enLabel}<`), `${fn.name} renders its scoped save label (${saveKey})`);
+      assert.ok(!html.includes(`>${t('save')}<`), `${fn.name} must NOT render the shared Save label`);
+      assert.ok(TRANSLATIONS.ur[saveKey], `${saveKey} has an Urdu value`);
+    }
   });
 });

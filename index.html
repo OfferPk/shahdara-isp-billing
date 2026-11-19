@@ -15010,7 +15010,7 @@
         <p class="backup-merge-rule">This is a merge-only restore. Existing nonblank profiles and conflicting bill/payment values are kept; unique saved receipts, bills, complaints and profiles can be added. No record is written until you apply this preview.</p>
         <ul id="jsonBackupConflictList" class="backup-conflict-list" aria-label="Backup conflicts"></ul>
       </div>
-      <div class="modal-actions"><button id="cancelJsonBackupButton" class="secondary-button" type="button">Cancel</button><button id="applyJsonBackupButton" class="primary-button" type="button" disabled>Apply safe merge</button></div>
+      <div class="modal-actions"><button id="cancelJsonBackupButton" class="secondary-button btn-glass-secondary" type="button">Cancel</button><button id="applyJsonBackupButton" class="primary-button btn-neon-glass" type="button" disabled>Apply safe merge</button></div>
     </section>
   </dialog>
 
@@ -15024,7 +15024,7 @@
       <div id="deltaMergeConflictList"></div>
       <p id="deltaMergeVoidTitle" class="backup-merge-rule" hidden></p>
       <ul id="deltaMergeVoidList" class="backup-conflict-list" aria-label="Void notices"></ul>
-      <div class="modal-actions"><button id="cancelDeltaMergeButton" class="secondary-button" type="button">Cancel</button><button id="applyDeltaMergeButton" class="primary-button" type="button" disabled><span data-i18n="dmerge_apply_button">Apply delta merge</span></button></div>
+      <div class="modal-actions"><button id="cancelDeltaMergeButton" class="secondary-button btn-glass-secondary" type="button">Cancel</button><button id="applyDeltaMergeButton" class="primary-button btn-neon-glass" type="button" disabled><span data-i18n="dmerge_apply_button">Apply delta merge</span></button></div>
     </section>
   </dialog>
 
@@ -15071,9 +15071,9 @@
         </div>
         <span id="encryptedBackupError" class="field-error" role="alert" hidden style="color:var(--overdue, #dc2626); font-size:13px; font-weight:500;"></span>
         <div class="modal-actions" style="margin-top:16px; display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
-          <button id="cancelEncryptedBackupBtn" class="secondary-button" type="button" data-close-encrypted-backup-dialog>Cancel</button>
-          <button id="shareEncryptedBackupBtn" class="secondary-button" type="button" title="Share encrypted backup to Google Drive or WhatsApp">📲 Share (Drive/WhatsApp)</button>
-          <button id="downloadEncryptedBackupBtn" class="primary-button" type="button">💾 Download Encrypted (.json)</button>
+          <button id="cancelEncryptedBackupBtn" class="secondary-button btn-glass-secondary" type="button" data-close-encrypted-backup-dialog>Cancel</button>
+          <button id="shareEncryptedBackupBtn" class="secondary-button btn-glass-secondary" type="button" title="Share encrypted backup to Google Drive or WhatsApp">📲 Share (Drive/WhatsApp)</button>
+          <button id="downloadEncryptedBackupBtn" class="primary-button btn-neon-glass" type="button">💾 Download Encrypted (.json)</button>
         </div>
       </form>
     </section>
@@ -15116,8 +15116,8 @@
       </div>
       <ul id="csvImportConflictList" class="backup-conflict-list" aria-label="CSV import conflicts and errors"></ul>
       <div class="modal-actions">
-        <button id="cancelCsvImportButton" class="secondary-button" type="button">Cancel</button>
-        <button id="applyCsvImportButton" class="primary-button" type="button" disabled>Apply Safe Import</button>
+        <button id="cancelCsvImportButton" class="secondary-button btn-glass-secondary" type="button">Cancel</button>
+        <button id="applyCsvImportButton" class="primary-button btn-neon-glass" type="button" disabled>Apply Safe Import</button>
       </div>
     </section>
   </dialog>
@@ -15133,7 +15133,7 @@
       <input id="manualBaqayaDate" type="date" required>
       <label class="field-label" for="manualBaqayaNote"><span data-i18n="baqaya_note_label">Note</span> <span class="optional-label" data-i18n="baqaya_note_optional">Optional · e.g. last month balance</span></label>
       <input id="manualBaqayaNote" type="text" maxlength="200" autocomplete="off">
-      <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog data-i18n="adv_cancel">Cancel</button><button id="manualBaqayaSaveButton" class="primary-button" type="submit" data-i18n="baqaya_save">Save Baqaya</button></div>
+      <div class="modal-actions"><button class="secondary-button btn-glass-secondary" type="button" data-close-dialog data-i18n="adv_cancel">Cancel</button><button id="manualBaqayaSaveButton" class="primary-button btn-neon-glass" type="submit" data-i18n="baqaya_save">Save Baqaya</button></div>
     </form>
   </dialog>
   <dialog id="additionalPendingDialog" class="modal" aria-label="Additional Pending">
@@ -15146,7 +15146,7 @@
       <p class="additional-pending-row"><span data-i18n="addpend_total_live">Total pending</span><strong id="additionalPendingTotal">PKR 0</strong></p>
       <label class="field-label" for="additionalPendingNote"><span data-i18n="baqaya_note_label">Note</span> <span class="optional-label" data-i18n="baqaya_note_optional">Optional · e.g. last month balance</span></label>
       <input id="additionalPendingNote" type="text" maxlength="200" autocomplete="off">
-      <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog data-i18n="adv_cancel">Cancel</button><button id="additionalPendingSaveButton" class="primary-button" type="submit" data-i18n="addpend_save">Save</button></div>
+      <div class="modal-actions"><button class="secondary-button btn-glass-secondary" type="button" data-close-dialog data-i18n="adv_cancel">Cancel</button><button id="additionalPendingSaveButton" class="primary-button btn-neon-glass" type="submit" data-i18n="addpend_save">Save</button></div>
     </form>
   </dialog>
   <dialog id="addCustomerDialog" class="modal" aria-label="Add a customer">
@@ -15198,13 +15198,13 @@
         <label class="field-label" for="newCustomerReferredBy">Referred by (Hamsaya Referral) <span class="optional-label">Optional · the existing customer who brought them — they earn a referral credit when this customer pays their first bill</span></label>
         <select id="newCustomerReferredBy" name="referredByCustomerId"><option value="">No referral</option></select>
         <div id="addCustomerError" class="form-error" role="alert" hidden></div>
-        <div class="modal-actions add-customer-actions"><button class="secondary-button" type="button" data-close-dialog>Cancel</button><button id="addCustomerSubmit" class="primary-button" type="submit">Check and add customer</button></div>
+        <div class="modal-actions add-customer-actions"><button class="secondary-button btn-glass-secondary" type="button" data-close-dialog>Cancel</button><button id="addCustomerSubmit" class="primary-button btn-neon-glass" type="submit">Check and add customer</button></div>
       </fieldset>
       <section id="duplicateCustomerReview" class="duplicate-customer-review" role="alert" aria-labelledby="duplicateCustomerHeading" hidden>
         <div><p class="eyebrow">CHECK EXISTING RECORDS</p><h3 id="duplicateCustomerHeading">Possible matching customer</h3></div>
         <p class="duplicate-customer-guidance">Review the matching customer and the fields that matched. Similar names or a shared address can be legitimate. No records are merged, replaced, or deleted.</p>
         <ul id="duplicateCustomerMatches" class="duplicate-customer-matches" aria-label="Possible matching customer records"></ul>
-        <div class="modal-actions duplicate-customer-actions"><button id="editNewCustomerDetails" class="secondary-button" type="button">Edit details</button><button id="continueNewCustomerAnyway" class="primary-button" type="button">Continue and create a separate customer</button></div>
+        <div class="modal-actions duplicate-customer-actions"><button id="editNewCustomerDetails" class="secondary-button btn-glass-secondary" type="button">Edit details</button><button id="continueNewCustomerAnyway" class="primary-button btn-neon-glass" type="button">Continue and create a separate customer</button></div>
       </section>
     </form>
   </dialog>
@@ -20143,10 +20143,10 @@
 
       <!-- Action Buttons -->
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="wdmSaveAuditBtn" class="primary-button" type="button">💾 Save Spectrum Audit</button>
-        <button id="wdmShareWhatsAppBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
-        <button id="wdmExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="wdmClearHistoryBtn" class="secondary-button danger-button" type="button" style="margin-left:auto;">🗑️ Clear History</button>
+        <button id="wdmSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save Spectrum Audit</button>
+        <button id="wdmShareWhatsAppBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
+        <button id="wdmExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="wdmClearHistoryBtn" class="secondary-button danger-button btn-glass-secondary" type="button" style="margin-left:auto;">🗑️ Clear History</button>
       </div>
 
       <!-- Historical Audit Log -->
@@ -20310,10 +20310,10 @@
 
       <!-- Action Buttons -->
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="midspanSaveAuditBtn" class="primary-button" type="button">💾 Save Mid-Span Audit</button>
-        <button id="midspanShareWhatsAppBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
-        <button id="midspanExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="midspanClearHistoryBtn" class="secondary-button danger-button" type="button" style="margin-left:auto;">🗑️ Clear History</button>
+        <button id="midspanSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save Mid-Span Audit</button>
+        <button id="midspanShareWhatsAppBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
+        <button id="midspanExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="midspanClearHistoryBtn" class="secondary-button danger-button btn-glass-secondary" type="button" style="margin-left:auto;">🗑️ Clear History</button>
       </div>
 
       <!-- Historical Audit Log -->
@@ -20449,10 +20449,10 @@
 
       <!-- Action Buttons -->
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="powerLoggerSaveAuditBtn" class="primary-button" type="button">💾 Save Telemetry Log</button>
-        <button id="powerLoggerShareWhatsAppBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
-        <button id="powerLoggerExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="powerLoggerClearHistoryBtn" class="secondary-button danger-button" type="button" style="margin-left:auto;">🗑️ Clear History</button>
+        <button id="powerLoggerSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save Telemetry Log</button>
+        <button id="powerLoggerShareWhatsAppBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
+        <button id="powerLoggerExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="powerLoggerClearHistoryBtn" class="secondary-button danger-button btn-glass-secondary" type="button" style="margin-left:auto;">🗑️ Clear History</button>
       </div>
 
       <!-- Historical Audit Log -->
@@ -20591,10 +20591,10 @@
 
       <!-- Action Buttons -->
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="dropRetentionSaveAuditBtn" class="primary-button" type="button">💾 Save Retention Audit</button>
-        <button id="dropRetentionShareWhatsAppBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
-        <button id="dropRetentionExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="dropRetentionClearHistoryBtn" class="secondary-button danger-button" type="button" style="margin-left:auto;">🗑️ Clear History</button>
+        <button id="dropRetentionSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save Retention Audit</button>
+        <button id="dropRetentionShareWhatsAppBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
+        <button id="dropRetentionExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="dropRetentionClearHistoryBtn" class="secondary-button danger-button btn-glass-secondary" type="button" style="margin-left:auto;">🗑️ Clear History</button>
       </div>
 
       <!-- Historical Audit Log -->
@@ -20738,10 +20738,10 @@
 
       <!-- Action Buttons -->
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="refJumpersSaveAuditBtn" class="primary-button" type="button">💾 Save Calibration Audit</button>
-        <button id="refJumpersCopyWhatsappBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
-        <button id="refJumpersExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="refJumpersClearHistoryBtn" class="secondary-button danger-button" type="button" style="margin-left:auto;">🗑️ Clear History</button>
+        <button id="refJumpersSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save Calibration Audit</button>
+        <button id="refJumpersCopyWhatsappBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
+        <button id="refJumpersExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="refJumpersClearHistoryBtn" class="secondary-button danger-button btn-glass-secondary" type="button" style="margin-left:auto;">🗑️ Clear History</button>
       </div>
 
       <!-- Historical Audit Log -->
@@ -20888,10 +20888,10 @@
 
       <!-- Action Buttons -->
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="ribbonSeparatorSaveAuditBtn" class="primary-button" type="button">💾 Save Breakout Audit</button>
-        <button id="ribbonSeparatorCopyWhatsappBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
-        <button id="ribbonSeparatorExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="ribbonSeparatorClearHistoryBtn" class="secondary-button danger-button" type="button" style="margin-left:auto;">🗑️ Clear History</button>
+        <button id="ribbonSeparatorSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save Breakout Audit</button>
+        <button id="ribbonSeparatorCopyWhatsappBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
+        <button id="ribbonSeparatorExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="ribbonSeparatorClearHistoryBtn" class="secondary-button danger-button btn-glass-secondary" type="button" style="margin-left:auto;">🗑️ Clear History</button>
       </div>
 
       <!-- Historical Audit Log -->
@@ -21017,10 +21017,10 @@
 
       <!-- Action Buttons -->
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="mechanicalSpliceSaveAuditBtn" class="primary-button" type="button">💾 Save Splice Audit</button>
-        <button id="mechanicalSpliceCopyWhatsappBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
-        <button id="mechanicalSpliceExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="mechanicalSpliceClearHistoryBtn" class="secondary-button danger-button" type="button" style="margin-left:auto;">🗑️ Clear History</button>
+        <button id="mechanicalSpliceSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save Splice Audit</button>
+        <button id="mechanicalSpliceCopyWhatsappBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
+        <button id="mechanicalSpliceExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="mechanicalSpliceClearHistoryBtn" class="secondary-button danger-button btn-glass-secondary" type="button" style="margin-left:auto;">🗑️ Clear History</button>
       </div>
 
       <!-- Historical Audit Log -->
@@ -21129,10 +21129,10 @@
       <div id="microscopeDiagramContainer" class="fdt-diagram-container" style="background:#0f172a;border-radius:8px;padding:8px;margin-bottom:12px;overflow-x:auto;" tabindex="0" role="region" aria-label="Microscope Visual Inspection Diagram"></div>
 
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="microscopeSaveAuditBtn" class="primary-button" type="button">💾 Save VIP Audit</button>
-        <button id="microscopeShareWhatsAppBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
-        <button id="microscopeExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="microscopeClearHistoryBtn" class="secondary-button danger-button" type="button" style="margin-left:auto;">🗑️ Clear History</button>
+        <button id="microscopeSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save VIP Audit</button>
+        <button id="microscopeShareWhatsAppBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
+        <button id="microscopeExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="microscopeClearHistoryBtn" class="secondary-button danger-button btn-glass-secondary" type="button" style="margin-left:auto;">🗑️ Clear History</button>
       </div>
 
       <div style="margin-top:16px;">
@@ -21236,10 +21236,10 @@
       <div id="cleanDiagramContainer" class="fdt-diagram-container" style="background:#0f172a;border-radius:8px;padding:8px;margin-bottom:12px;overflow-x:auto;" tabindex="0" role="region" aria-label="Connector Cleaning Schematic Diagram"></div>
 
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="cleanSaveAuditBtn" class="primary-button" type="button">💾 Save Cleaning Audit</button>
-        <button id="cleanShareWhatsAppBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
-        <button id="cleanExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="cleanClearHistoryBtn" class="secondary-button danger-button" type="button" style="margin-left:auto;">🗑️ Clear History</button>
+        <button id="cleanSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save Cleaning Audit</button>
+        <button id="cleanShareWhatsAppBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp</button>
+        <button id="cleanExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="cleanClearHistoryBtn" class="secondary-button danger-button btn-glass-secondary" type="button" style="margin-left:auto;">🗑️ Clear History</button>
       </div>
 
       <div style="margin-top:16px;">
@@ -21354,9 +21354,9 @@
       <div id="mobileOtdrDeadzoneModalSvgContainer" class="fdt-diagram-container" style="background:#0f172a;border-radius:8px;padding:8px;margin-bottom:12px;overflow-x:auto;" tabindex="0" role="region" aria-label="OTDR Dead Zone Trace Diagram"></div>
 
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
-        <button id="otdrDzSaveAuditBtn" class="primary-button" type="button">💾 Save Calibration Audit</button>
-        <button id="otdrDzWhatsappBtn" class="secondary-button" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp Report</button>
-        <button id="otdrDzExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
+        <button id="otdrDzSaveAuditBtn" class="primary-button btn-neon-glass" type="button">💾 Save Calibration Audit</button>
+        <button id="otdrDzWhatsappBtn" class="secondary-button btn-glass-secondary" type="button" style="background:#059669;color:#fff;">📱 Share WhatsApp Report</button>
+        <button id="otdrDzExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
       </div>
     </section>
   </dialog>
@@ -21481,9 +21481,9 @@
 
       <!-- Action Buttons -->
       <div class="modal-actions" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
-        <button id="shaveSaveRecordBtn" class="primary-button" type="button">💾 Save Calibration Log</button>
-        <button id="shaveExportCsvBtn" class="secondary-button" type="button">📥 Export CSV Log</button>
-        <button id="shaveClearHistoryBtn" class="secondary-button" type="button" style="color:#ef4444;">🗑️ Clear Logs</button>
+        <button id="shaveSaveRecordBtn" class="primary-button btn-neon-glass" type="button">💾 Save Calibration Log</button>
+        <button id="shaveExportCsvBtn" class="secondary-button btn-glass-secondary" type="button">📥 Export CSV Log</button>
+        <button id="shaveClearHistoryBtn" class="secondary-button btn-glass-secondary" type="button" style="color:#ef4444;">🗑️ Clear Logs</button>
       </div>
 
       <!-- History & Summary Section -->
@@ -27742,7 +27742,7 @@
                  handler, skipping only the Plan 382 confirm step.
                  Hidden while the collection is not standard (Review
                  stays the only CTA then). -->
-            <button id="quickCollectDirectSaveBtn" class="primary-button qc-confirm-btn" type="button" hidden>
+            <button id="quickCollectDirectSaveBtn" class="primary-button qc-confirm-btn btn-neon-glass" type="button" hidden>
               ✓ Save Payment
             </button>
             <button id="quickCollectConfirmBtn" class="primary-button qc-confirm-btn" type="submit">
@@ -27765,7 +27765,7 @@
         <div id="quickCollectConfirmSummary" class="scs-summary-box" aria-live="polite"></div>
         <div id="rpvReceiptPreview" class="rpv-preview-box" aria-live="polite"></div>
         <div class="qc-form-actions">
-          <button id="quickCollectConfirmSaveBtn" class="primary-button qc-confirm-btn" type="button">
+          <button id="quickCollectConfirmSaveBtn" class="primary-button qc-confirm-btn btn-neon-glass" type="button">
             ✓ Confirm &amp; Save Payment
           </button>
           <button id="quickCollectConfirmBackBtn" class="secondary-button" type="button">
@@ -27853,32 +27853,32 @@
             ↩ Undo by reversal — original stays visible (60s)
           </button>
           <p class="field-help qc-undo-note" hidden>Only the 5-second undo is available — this payment settled charges, waived a late fee, or recorded a waada.</p>
-          <button id="quickCollectWhatsAppBtn" class="primary-button qc-wa-btn" type="button">
+          <button id="quickCollectWhatsAppBtn" class="primary-button qc-wa-btn btn-neon-glass" type="button">
             Send WhatsApp Receipt
           </button>
           <div class="qc-output-grid">
-            <button id="quickCollectShareImageBtn" class="secondary-button qc-output-btn" type="button">
+            <button id="quickCollectShareImageBtn" class="secondary-button qc-output-btn btn-glass-secondary" type="button">
               <span data-ds-icon="Image"></span><span class="qc-action-label">Share Image</span>
             </button>
-            <button id="quickCollectPrintReceiptBtn" class="secondary-button qc-output-btn" type="button">
+            <button id="quickCollectPrintReceiptBtn" class="secondary-button qc-output-btn btn-glass-secondary" type="button">
               <span data-ds-icon="Printer"></span><span class="qc-action-label">Print Slip</span>
             </button>
-            <button id="quickCollectBluetoothPrintBtn" class="secondary-button qc-output-btn" type="button" hidden>
+            <button id="quickCollectBluetoothPrintBtn" class="secondary-button qc-output-btn btn-glass-secondary" type="button" hidden>
               <span data-ds-icon="Bluetooth"></span><span class="qc-action-label">Thermal Print</span>
             </button>
           </div>
           <div class="qc-next-row">
-            <button class="secondary-button qc-next-btn" type="button" data-qc-same-customer>
+            <button class="secondary-button qc-next-btn btn-glass-secondary" type="button" data-qc-same-customer>
               + Same Customer
             </button>
-            <button class="secondary-button qc-next-btn" type="button" data-qc-next-customer>
+            <button class="secondary-button qc-next-btn btn-glass-secondary" type="button" data-qc-next-customer>
               Next Customer →
             </button>
           </div>
           <button class="secondary-button qc-empty-amount-btn" type="button" data-qc-empty-amount>
             Empty amount
           </button>
-          <button id="quickCollectDoneCloseBtn" class="secondary-button qc-done-btn" type="button">
+          <button id="quickCollectDoneCloseBtn" class="secondary-button qc-done-btn btn-glass-secondary" type="button">
             Done
           </button>
         </div>
@@ -31975,9 +31975,9 @@
       <div class="form-grid">
         <p id="bluetoothPrinterStatus" role="status" aria-live="polite">Checking availability…</p>
         <div class="modal-actions">
-          <button id="connectBluetoothPrinterBtn" class="primary-button" type="button">Connect printer</button>
-          <button id="testBluetoothPrinterBtn" class="secondary-button" type="button">Print test slip</button>
-          <button id="disconnectBluetoothPrinterBtn" class="secondary-button" type="button">Disconnect &amp; forget</button>
+          <button id="connectBluetoothPrinterBtn" class="primary-button btn-neon-glass" type="button">Connect printer</button>
+          <button id="testBluetoothPrinterBtn" class="secondary-button btn-glass-secondary" type="button">Print test slip</button>
+          <button id="disconnectBluetoothPrinterBtn" class="secondary-button btn-glass-secondary" type="button">Disconnect &amp; forget</button>
         </div>
       </div>
     </div>
@@ -32047,8 +32047,8 @@
         </div>
 
         <div class="modal-actions" style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
-          <button id="saveDigitalPaymentsSettingsBtn" type="submit" class="primary-button">✓ Save Settings</button>
-          <button id="cancelDigitalPaymentsSettingsBtn" type="button" class="secondary-button">Cancel</button>
+          <button id="saveDigitalPaymentsSettingsBtn" type="submit" class="primary-button btn-neon-glass">✓ Save Settings</button>
+          <button id="cancelDigitalPaymentsSettingsBtn" type="button" class="secondary-button btn-glass-secondary">Cancel</button>
         </div>
       </form>
     </div>
@@ -32099,8 +32099,8 @@
         </div>
 
         <div class="modal-actions" style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
-          <button id="saveReceiptFooterStudioBtn" type="submit" class="primary-button" data-i18n="rcptfoot_save">✓ Save Footer</button>
-          <button id="cancelReceiptFooterStudioBtn" type="button" class="secondary-button" data-i18n="rcptfoot_cancel">Cancel</button>
+          <button id="saveReceiptFooterStudioBtn" type="submit" class="primary-button btn-neon-glass" data-i18n="rcptfoot_save">✓ Save Footer</button>
+          <button id="cancelReceiptFooterStudioBtn" type="button" class="secondary-button btn-glass-secondary" data-i18n="rcptfoot_cancel">Cancel</button>
         </div>
       </form>
     </div>
@@ -32144,8 +32144,8 @@
         <div id="wadaListContainer" class="wada-list-container" role="region" aria-label="Promises list" tabindex="0">
         </div>
         <div class="modal-actions" style="margin-top: 16px; display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-wrap: wrap;">
-          <button id="openRemindersFromWadaBtn" class="primary-button" type="button">📅 Open Reminders Today Queue</button>
-          <button id="closeWadaModalFooterBtn" class="secondary-button" type="button">Close</button>
+          <button id="openRemindersFromWadaBtn" class="primary-button btn-neon-glass" type="button">📅 Open Reminders Today Queue</button>
+          <button id="closeWadaModalFooterBtn" class="secondary-button btn-glass-secondary" type="button">Close</button>
         </div>
       </div>
     </div>
@@ -32180,9 +32180,9 @@
           </table>
         </div>
         <div class="modal-actions" style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
-          <button id="resetReminderStagesBtn" class="secondary-button" type="button">🔄 Reset to Defaults</button>
-          <button id="saveReminderStagesBtn" class="primary-button" type="button">💾 Save Stage Rules</button>
-          <button id="cancelReminderStagesBtn" class="secondary-button" type="button">Cancel</button>
+          <button id="resetReminderStagesBtn" class="secondary-button btn-glass-secondary" type="button">🔄 Reset to Defaults</button>
+          <button id="saveReminderStagesBtn" class="primary-button btn-neon-glass" type="button">💾 Save Stage Rules</button>
+          <button id="cancelReminderStagesBtn" class="secondary-button btn-glass-secondary" type="button">Cancel</button>
         </div>
       </div>
     </div>
@@ -32215,9 +32215,9 @@
         <p class="qr-khata-link"><a id="qrKhataCardLink" href="#" target="_blank" rel="noopener noreferrer"></a></p>
       </div>
       <div class="modal-actions qr-khata-actions">
-        <button id="qrKhataCardPrintBtn" class="primary-button" type="button" data-i18n="qrkh_print">Print card</button>
-        <button id="qrKhataCardPngBtn" class="secondary-button" type="button" data-i18n="qrkh_png">Download PNG</button>
-        <button id="qrKhataCardCopyBtn" class="secondary-button" type="button" data-i18n="qrkh_copy">Copy link</button>
+        <button id="qrKhataCardPrintBtn" class="primary-button btn-neon-glass" type="button" data-i18n="qrkh_print">Print card</button>
+        <button id="qrKhataCardPngBtn" class="secondary-button btn-glass-secondary" type="button" data-i18n="qrkh_png">Download PNG</button>
+        <button id="qrKhataCardCopyBtn" class="secondary-button btn-glass-secondary" type="button" data-i18n="qrkh_copy">Copy link</button>
       </div>
     </section>
   </dialog>
@@ -32259,8 +32259,8 @@
       <p id="welcomeSlipQrFallback" class="qr-khata-note" hidden data-i18n="welcome_qr_fallback">QR code unavailable for this link — the payment link is shown below.</p>
       <p class="qr-khata-link"><a id="welcomeSlipLink" href="#" target="_blank" rel="noopener noreferrer"></a></p>
       <div class="modal-actions qr-khata-actions">
-        <button id="welcomeSlipPrintBtn" class="primary-button" type="button" data-i18n="welcome_print_btn">Print slip</button>
-        <button id="welcomeSlipWhatsAppBtn" class="secondary-button" type="button" data-i18n="welcome_whatsapp_btn">Send on WhatsApp</button>
+        <button id="welcomeSlipPrintBtn" class="primary-button btn-neon-glass" type="button" data-i18n="welcome_print_btn">Print slip</button>
+        <button id="welcomeSlipWhatsAppBtn" class="secondary-button btn-glass-secondary" type="button" data-i18n="welcome_whatsapp_btn">Send on WhatsApp</button>
       </div>
     </section>
   </dialog>

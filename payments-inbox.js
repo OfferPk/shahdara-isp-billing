@@ -1031,8 +1031,8 @@ export class PaymentsInboxController {
             <small class="form-hint">Used to automatically classify transfers as Received vs Sent.</small>
           </div>
           <div class="modal-actions">
-            <button type="submit" class="primary-button">Save Settings</button>
-            <button type="button" class="secondary-button" data-close-settings>Cancel</button>
+            <button type="submit" class="primary-button btn-neon-glass">Save Settings</button>
+            <button type="button" class="secondary-button btn-glass-secondary" data-close-settings>Cancel</button>
           </div>
         </form>
       </dialog>
@@ -1062,7 +1062,7 @@ export class PaymentsInboxController {
           </div>
         </div>
         <div class="modal-actions">
-          <button type="button" class="secondary-button" data-close-import>Close</button>
+          <button type="button" class="secondary-button btn-glass-secondary" data-close-import>Close</button>
         </div>
       </dialog>
     `;

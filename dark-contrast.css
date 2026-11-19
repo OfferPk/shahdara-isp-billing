@@ -71,6 +71,23 @@
 
 /* 4. White text on the bright green buttons was 2.5:1; dark text reads at 8:1 (same pattern as .quick-method-chip.is-active). */
 [data-theme="dark"] :is(.primary-button, #srPrimaryAction, .skip-link) { color: #04231a !important; }
+/* Neon Glassy buttons (dark). The :is(.primary-button) rule above forces
+   dark text (#04231a) on green buttons — on the darker glassy gradient
+   that reads 2.09:1, so the glassy primary re-asserts light text here
+   (dk-ink reads 7.0:1 / 9.9:1 on the two stops). Same specificity as the
+   rules above, later in this file, so it wins. The glassy secondary keeps
+   the tinted glass (the white slab would read 1.89:1 with dk-ink in dark).
+   No new hex: rgba + tokens only, dark-contrast.css stays at 19. */
+[data-theme="dark"] .btn-neon-glass { color: var(--dk-ink) !important; }
+[data-theme="dark"] .btn-glass-secondary {
+  background: var(--btn-glass-secondary-bg) !important;
+  border-color: var(--btn-glass-secondary-border) !important;
+  color: var(--dk-ink) !important;
+}
+[data-theme="dark"] .btn-glass-secondary:hover {
+  border-color: rgba(16, 185, 129, 0.7) !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+}
 /* WhatsApp green with white text was 1.98:1 -> WhatsApp's dark teal. */
 [data-theme="dark"] :is(.whatsapp-button, .wa-button, [class*="whatsapp"][class*="btn"], [class*="remind"][class*="btn"], #remindPendingBtn, .remind-pending-btn) {
   background: #075e54 !important;

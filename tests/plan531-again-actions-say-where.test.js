@@ -72,7 +72,7 @@ test('labels: the repeat button names the empty amount', () => {
 
 test('labels: the third action keeps its picker wording', () => {
   assert.ok(pageSrc.includes('data-qc-next-customer'), 'picker action missing from the page');
-  assert.ok(pageSrc.includes('Next Customer / Empty'), 'picker action wording changed');
+  assert.ok(pageSrc.includes('Next Customer →'), 'picker action wording changed');
 });
 
 test('screen: all three again actions sit on the success step', () => {

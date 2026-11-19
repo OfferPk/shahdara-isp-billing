@@ -591,8 +591,8 @@ test('G5: parity holds at 4,722/4,722 with equal key sets', () => {
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
   // (Test title re-pinned with the asserts by Plan 586 — titles and
   // asserts move together from here on.)
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4735, 'EN keys');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4735, 'UR keys');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4766, 'EN keys');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4766, 'UR keys');
   assert.deepEqual(Object.keys(TRANSLATIONS.en).sort(), Object.keys(TRANSLATIONS.ur).sort(), 'no key is missing from either dict');
 });
 

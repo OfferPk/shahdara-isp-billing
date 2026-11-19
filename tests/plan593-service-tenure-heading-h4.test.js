@@ -204,8 +204,8 @@ test('Plan 593: module stays pure and carries no i18n key literal', () => {
 });
 
 test('Plan 593: parity does not move — no new key, and no stale-count literal in this file', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4735, 'EN parity 4,735');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4735, 'UR parity 4,735');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4766, 'EN parity 4,766');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4766, 'UR parity 4,766');
   // Trap T7: 591's G5a fails the suite if any test file contains the
   // old-count digits. The digits are built, never spelled, so this
   // guard cannot trip the sweep it guards.

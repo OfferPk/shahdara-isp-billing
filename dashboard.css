@@ -4667,6 +4667,18 @@
   margin-top: 12px;
 }
 
+/* Hisaab H5 (D3(a)): munafa text colour only — profit (≥ 0, zero counts
+   as profit) in --color-brand-500, loss in --color-danger. Both tokens
+   already carry both theme values (7.99/6.41, 6.57/9.48 — both ≥ 4.5:1
+   in both themes), so no dark-contrast.css change is needed. Never
+   --color-paid / --color-overdue (2.66/2.77 in dark, no dark values). */
+.home-kpi-val.hisaab-metric--profit {
+  color: var(--color-brand-500);
+}
+.home-kpi-val.hisaab-metric--loss {
+  color: var(--color-danger);
+}
+
 [data-theme="dark"] .summary-card {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }

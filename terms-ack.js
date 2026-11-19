@@ -61,8 +61,41 @@ export const TERMS_ACK_METHOD_LABELS = {
   paper: 'On paper kept at the shop',
 };
 
-export function termsAckMethodLabel(method) {
-  return TERMS_ACK_METHOD_LABELS[method] || 'Not recorded';
+// Plan 600 — the profile section's status line renders through a
+// caller-supplied labels object (the 591 header-strip pattern), so
+// this module stays import-free. Defaults are the English strings,
+// so old callers (and old tests) keep byte-identical output. The
+// Analytics panel's table (termsAckHtml), summary (termsAckSummaryText)
+// and CSV (termsAckCsv) are a second surface and stay on the EN
+// defaults (D5 logic); only termsAckStatusHtml — the profile section's
+// visible line — takes labels from the caller. 'Not recorded' reuses
+// prof_not_recorded.
+const DEFAULT_TERMS_ACK_LABELS = {
+  unavailable: 'Terms acknowledgement unavailable.',
+  noVersion: 'No current terms version set yet — set one in the Analytics terms panel first.',
+  version: 'Current terms version {version}:',
+  acknowledged: 'acknowledged',
+  notAcknowledged: 'not yet acknowledged',
+  detail: ' on {date} ({method})',
+  recordedBy: ', recorded by {name}',
+  neverAssumed: ' — never assumed.',
+  methodInPerson: 'In person',
+  methodMessage: 'By message',
+  methodPaper: 'On paper kept at the shop',
+  notRecorded: 'Not recorded',
+};
+function termsLabel(labels, key) {
+  return (labels && typeof labels[key] === 'string' && labels[key] !== '') ? labels[key] : DEFAULT_TERMS_ACK_LABELS[key];
+}
+function termsFill(template, params) {
+  let out = String(template);
+  for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+export function termsAckMethodLabel(method, labels = DEFAULT_TERMS_ACK_LABELS) {
+  const key = { 'in-person': 'methodInPerson', message: 'methodMessage', paper: 'methodPaper' }[method];
+  return key ? termsLabel(labels, key) : termsLabel(labels, 'notRecorded');
 }
 
 function cleanText(value) {
@@ -221,13 +254,13 @@ export function termsAckHtml(list) {
   return `<table class="data-table"><thead><tr><th>Customer</th><th>Terms version</th><th>Date</th><th>How acknowledged</th><th>Recorded by</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
-export function termsAckStatusHtml(status) {
-  if (!status) return '<p class="chart-caption">Terms acknowledgement unavailable.</p>';
-  if (status.status === 'no-version-set') return '<p class="chart-caption">No current terms version set yet — set one in the Analytics terms panel first.</p>';
+export function termsAckStatusHtml(status, labels = DEFAULT_TERMS_ACK_LABELS) {
+  if (!status) return `<p class="chart-caption">${escapeHtmlText(termsLabel(labels, 'unavailable'))}</p>`;
+  if (status.status === 'no-version-set') return `<p class="chart-caption">${escapeHtmlText(termsLabel(labels, 'noVersion'))}</p>`;
   const detail = status.record
-    ? ` on ${escapeHtmlText(status.record.date)} (${escapeHtmlText(termsAckMethodLabel(status.record.method))})${status.record.recordedBy ? `, recorded by ${escapeHtmlText(status.record.recordedBy)}` : ''}`
+    ? `${termsFill(termsLabel(labels, 'detail'), { date: escapeHtmlText(status.record.date), method: escapeHtmlText(termsAckMethodLabel(status.record.method, labels)) })}${status.record.recordedBy ? termsFill(termsLabel(labels, 'recordedBy'), { name: escapeHtmlText(status.record.recordedBy) }) : ''}`
     : '';
-  return `<p><strong>Current terms version ${escapeHtmlText(status.currentVersion)}:</strong> ${status.acknowledged ? 'acknowledged' : 'not yet acknowledged'}${escapeHtmlText(detail)}${status.acknowledged ? '' : ' — never assumed.'}</p>`;
+  return `<p><strong>${escapeHtmlText(termsFill(termsLabel(labels, 'version'), { version: status.currentVersion }))}</strong> ${status.acknowledged ? termsLabel(labels, 'acknowledged') : termsLabel(labels, 'notAcknowledged')}${escapeHtmlText(detail)}${status.acknowledged ? '' : termsLabel(labels, 'neverAssumed')}</p>`;
 }
 
 function csvCell(value) {

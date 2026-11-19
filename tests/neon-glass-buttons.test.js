@@ -285,7 +285,9 @@ test('neon glassy: this file asserts no parity total and carries neither parity 
   // G5a discipline: a new test file must never contain the bare digits of
   // the current or the previous parity total, anywhere — including
   // comments. Split literals keep the guard itself clean.
-  assert.ok(!selfSrc.includes('51' + '62'), 'file contains the current parity total as a bare literal');
-  assert.ok(!selfSrc.includes('51' + '61'), 'file contains the previous parity total as a bare literal');
+  // Plan 612 — this guard was one step stale (611 never moved it:
+  // it checked the 5,162/5,161 totals). Now current 5,187, previous 5,168.
+  assert.ok(!selfSrc.includes('51' + '87'), 'file contains the current parity total as a bare literal');
+  assert.ok(!selfSrc.includes('51' + '68'), 'file contains the previous parity total as a bare literal');
   assert.ok(!selfSrc.includes('nav-' + 'language.js'), 'this file must not assert a parity total');
 });

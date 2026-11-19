@@ -760,7 +760,7 @@ export function setupPendingActionsModal(options = {}) {
             <button type="button" class="btn-secondary pending-mark-shared-btn" data-receipt-id="${escapeHtml(r.paymentId)}" title="Mark as sent without opening WhatsApp">
               <span>✓ Mark Shared</span>
             </button>
-            <button type="button" class="btn-primary pending-wa-btn" data-receipt-id="${escapeHtml(r.paymentId)}">
+            <button type="button" class="btn-primary pending-wa-btn btn-neon-glass" data-receipt-id="${escapeHtml(r.paymentId)}">
               <span>${dsIcon('MessageCircle', 14)} Send WhatsApp</span>
             </button>
           </div>
@@ -831,7 +831,7 @@ export function setupPendingActionsModal(options = {}) {
             ${p.note ? `<div class="pending-promise-note">📝 "${escapeHtml(p.note)}"</div>` : ''}
           </div>
           <div class="pending-card-actions">
-            <button type="button" class="btn-primary pending-collect-btn" data-customer-id="${escapeHtml(p.customerId)}">
+            <button type="button" class="btn-primary pending-collect-btn btn-neon-glass" data-customer-id="${escapeHtml(p.customerId)}">
               <span>💵 Collect Cash</span>
             </button>
             <button type="button" class="btn-success pending-fulfill-btn" data-promise-id="${escapeHtml(p.id)}">

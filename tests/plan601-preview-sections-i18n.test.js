@@ -128,12 +128,12 @@ const sinNote = { id: 's1', customerId: 'c1', amountCents: 300000, dayOfMonth: 5
 // ================= G1 — parity guard (this file's own pin) =================
 
 test('G1: parity is the new total in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5138, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5138, 'UR parity');
+  assert.equal(Object.keys(en).length, 5145, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5145, 'UR parity');
   const prvEn = Object.keys(en).filter((k) => k.startsWith('prv_'));
   const prvUr = Object.keys(ur).filter((k) => k.startsWith('prv_'));
-  assert.equal(prvEn.length, 232, 'exactly the new prv_ keys in EN');
-  assert.equal(prvUr.length, 232, 'exactly the new prv_ keys in UR');
+  assert.equal(prvEn.length, 239, 'exactly the new prv_ keys in EN');
+  assert.equal(prvUr.length, 239, 'exactly the new prv_ keys in UR');
 });
 
 // ================= G2 — the prv_ family is complete and clean =================
@@ -183,15 +183,15 @@ test('G2d: no new key carries a money figure, and nav-language.js carries no Rs.
 });
 
 test('G2e: this file stays free of the previous-total and older-total literals', () => {
-  assert.ok(!selfSrc.includes('49' + '06'), 'no bare previous-total literal in this file');
-  assert.ok(!selfSrc.includes('47' + '67'), 'no bare older-total literal in this file');
+  assert.ok(!selfSrc.includes('51' + '38'), 'no bare previous-total literal in this file');
+  assert.ok(!selfSrc.includes('49' + '06'), 'no bare older-total literal in this file');
 });
 
 // ================= G3 — every key is wired through t() in app.js =================
 
-test('G3: all 232 keys reach the templates and helpers through t()', () => {
+test('G3: all 239 keys reach the templates and helpers through t()', () => {
   const keys = Object.keys(en).filter((k) => k.startsWith('prv_'));
-  assert.equal(keys.length, 232, 'the family to wire');
+  assert.equal(keys.length, 239, 'the family to wire');
   for (const key of keys) {
     assert.ok(appJs.includes(`t('${key}'`), `app.js must pass t('${key}')`);
   }

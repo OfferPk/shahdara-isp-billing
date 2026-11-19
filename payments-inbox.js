@@ -100,8 +100,8 @@ import{a as Z}from"./chunk-I4S6WV2D.js";import{Al as Se,Dl as $e,Je as be,Nk as 
             <small class="form-hint">Used to automatically classify transfers as Received vs Sent.</small>
           </div>
           <div class="modal-actions">
-            <button type="submit" class="primary-button">Save Settings</button>
-            <button type="button" class="secondary-button" data-close-settings>Cancel</button>
+            <button type="submit" class="primary-button btn-neon-glass">Save Settings</button>
+            <button type="button" class="secondary-button btn-glass-secondary" data-close-settings>Cancel</button>
           </div>
         </form>
       </dialog>
@@ -131,7 +131,7 @@ import{a as Z}from"./chunk-I4S6WV2D.js";import{Al as Se,Dl as $e,Je as be,Nk as 
           </div>
         </div>
         <div class="modal-actions">
-          <button type="button" class="secondary-button" data-close-import>Close</button>
+          <button type="button" class="secondary-button btn-glass-secondary" data-close-import>Close</button>
         </div>
       </dialog>
     `}renderWalletReview(e){if(!e||!Array.isArray(e.customers))return"";let s=F(new Date).slice(0,7),n=Je({customers:e.customers,month:s,suspenseEntries:we()}),{pending:r,duplicateGroups:a,unclaimed:o}=n;if(r.length===0&&a.length===0&&o.length===0)return"";let c=[];return r.length>0&&c.push(`${r.length} pending verification`),a.length>0&&c.push(`${a.length} duplicate TID${a.length===1?"":"s"}`),o.length>0&&c.push(`${o.length} unclaimed suspense`),`

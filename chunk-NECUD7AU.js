@@ -4302,7 +4302,7 @@ Regarding your internet subscription account #${te?.customerNumber||""}.`,Y=Xo(e
             <button type="button" class="btn-secondary pending-mark-shared-btn" data-receipt-id="${re(g.paymentId)}" title="Mark as sent without opening WhatsApp">
               <span>\u2713 Mark Shared</span>
             </button>
-            <button type="button" class="btn-primary pending-wa-btn" data-receipt-id="${re(g.paymentId)}">
+            <button type="button" class="btn-primary pending-wa-btn btn-neon-glass" data-receipt-id="${re(g.paymentId)}">
               <span>${Rt("MessageCircle",14)} Send WhatsApp</span>
             </button>
           </div>
@@ -4321,7 +4321,7 @@ Regarding your internet subscription account #${te?.customerNumber||""}.`,Y=Xo(e
             ${g.note?`<div class="pending-promise-note">\u{1F4DD} "${re(g.note)}"</div>`:""}
           </div>
           <div class="pending-card-actions">
-            <button type="button" class="btn-primary pending-collect-btn" data-customer-id="${re(g.customerId)}">
+            <button type="button" class="btn-primary pending-collect-btn btn-neon-glass" data-customer-id="${re(g.customerId)}">
               <span>\u{1F4B5} Collect Cash</span>
             </button>
             <button type="button" class="btn-success pending-fulfill-btn" data-promise-id="${re(g.id)}">

@@ -201,7 +201,11 @@ test('Polish #24: Edit in the header opens the full edit form, and editCustomerP
   assert.ok(wireBody.includes('profileEditMode = true'), 'Edit enters edit mode');
   assert.ok(wireBody.includes("$('#customerProfileView').hidden = true"), 'Edit hides the view');
   assert.ok(wireBody.includes("$('#customerProfileForm').hidden = false"), 'Edit shows the form');
-  assert.ok(wireBody.includes("$('#mohallaInput').focus()"), 'Edit still focuses the Area field first');
+  // Plan 599: Edit now focuses the Customer name field (the form's
+  // first field) instead of Area. The old assertion pinned the defect
+  // itself — the test's real intent is that Edit opens the form and
+  // focuses its first field, and the target is what changed.
+  assert.ok(wireBody.includes("$('#profileNameInput').focus()"), 'Edit focuses the Customer name field first');
   assert.ok(app.includes("const editBtn = $('#editProfileButton')"), 'editCustomerProfile still finds the moved button globally');
   assert.ok(index.includes('id="editProfileButton"'), 'the Edit button is static HTML now');
   assert.ok(index.includes('id="editProfileButton" class="primary-button profile-action-btn profile-edit-button"'), 'the moved Edit keeps its primary token class and its Edit-specific treatment class');

@@ -287,8 +287,8 @@ test('G EN/UR parity holds at 4,722/4,722 (Round 2 D9 net −1; Quick Collect po
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(enKeys.length, 5145);
-  assert.equal(urKeys.length, 5145);
+  assert.equal(enKeys.length, 5161);
+  assert.equal(urKeys.length, 5161);
   const keyDiff = enKeys.filter((k) => !TRANSLATIONS.ur[k]).concat(urKeys.filter((k) => !TRANSLATIONS.en[k]));
   assert.deepEqual(keyDiff, []);
 });

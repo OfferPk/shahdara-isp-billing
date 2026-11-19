@@ -132,23 +132,54 @@ function escapeHtml(text) {
 
 /** Standalone printable HTML document for the wallet card. Paper-white by
  *  design (thermal 58mm/80mm friendly: the card is 58mm wide and centered). */
-export function buildKhataCardPrintHtml(model, qrDataUrl) {
+// Plan 606 — the print lines ride a labels object (601/604 pattern) with
+// EN defaults byte-identical to the old literals; the module never imports
+// t(). The money formatter rides along as formatMoney: production passes
+// formatPKR (via qrKhataPrintLabels()); the default keeps the legacy
+// hand-rolled `PKR ${toLocaleString}` form so no-labels callers render
+// byte-identical (the documented fallback, pinned by qr-card.test.js).
+const QRKH_DEFAULT_LABELS = {
+  connection: 'Connection ID: {label}',
+  rate: 'Package rate: {amount}/month',
+  rateNotSet: 'Package rate: Not set',
+  payAt: 'Pay at: {shops}',
+  cardSub: 'Customer Khata Card',
+  scanNote: 'Scan at the shop counter to open this customer\'s payment screen.',
+  noQr: 'QR code unavailable for this link.',
+  printTitle: 'QR Khata Card — {name}',
+  formatMoney: (n) => `PKR ${Number(n).toLocaleString('en-PK')}`,
+};
+
+const qrkhFill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveQrKhataLabels(labels) {
+  return { ...QRKH_DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+export function buildKhataCardPrintHtml(model, qrDataUrl, labels) {
   const m = model || {};
+  const L = resolveQrKhataLabels(labels);
+  const format = typeof L.formatMoney === 'function' ? L.formatMoney : QRKH_DEFAULT_LABELS.formatMoney;
   const rateLine = m.monthlyPackageRate === null || m.monthlyPackageRate === undefined
-    ? 'Package rate: Not set'
-    : `Package rate: PKR ${Number(m.monthlyPackageRate).toLocaleString('en-PK')}/month`;
+    ? L.rateNotSet
+    : qrkhFill(L.rate, { amount: format(m.monthlyPackageRate) });
   const speedLine = m.packageSpeed ? ` · ${escapeHtml(m.packageSpeed)}` : '';
   const shopsLine = (m.shops || []).map(escapeHtml).join(' · ') || '—';
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>QR Khata Card — ${escapeHtml(m.customerName || '')}</title>
+  const connectionLine = qrkhFill(L.connection, { label: `<strong>${escapeHtml(m.connectionLabel || '')}</strong>` });
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(qrkhFill(L.printTitle, { name: m.customerName || '' }))}</title>
 <style>body{font-family:system-ui,sans-serif;color:#111;margin:0;padding:8px}.card{width:58mm;margin:0 auto;border:2px solid #111;border-radius:10px;padding:12px;text-align:center}.card h1{font-size:17px;margin:0 0 2px}.card .sub{font-size:11px;color:#444;margin:0 0 10px}.card h2{font-size:15px;margin:8px 0 2px}.card p{font-size:12px;margin:3px 0}.card img.qr{width:52mm;height:52mm;margin:8px auto;display:block}.card .link{font-size:9px;word-break:break-all;color:#444}.card .foot{font-size:10px;color:#444;margin-top:10px;border-top:1px dashed #999;padding-top:6px}</style></head><body>
-<div class="card"><h1>${escapeHtml(m.ispName || KHATA_ISP_NAME)}</h1><p class="sub">Customer Khata Card</p>
+<div class="card"><h1>${escapeHtml(m.ispName || KHATA_ISP_NAME)}</h1><p class="sub">${L.cardSub}</p>
 <h2>${escapeHtml(m.customerName || '')}</h2>
-<p>Connection ID: <strong>${escapeHtml(m.connectionLabel || '')}</strong></p>
+<p>${connectionLine}</p>
 <p>${rateLine}${speedLine}</p>
 ${m.areaZone ? `<p>${escapeHtml(m.areaZone)}</p>` : ''}
-${qrDataUrl ? `<img class="qr" src="${escapeHtml(qrDataUrl)}" alt="QR code for shop counter lookup">` : '<p>QR code unavailable for this link.</p>'}
-<p>Pay at: ${shopsLine}</p>
-<p class="foot">Scan at the shop counter to open this customer's payment screen.</p>
+${qrDataUrl ? `<img class="qr" src="${escapeHtml(qrDataUrl)}" alt="QR code for shop counter lookup">` : `<p>${L.noQr}</p>`}
+<p>${qrkhFill(L.payAt, { shops: shopsLine })}</p>
+<p class="foot">${L.scanNote}</p>
 ${m.deepLink ? `<p class="link">${escapeHtml(m.deepLink)}</p>` : ''}</div>
 </body></html>`;
 }

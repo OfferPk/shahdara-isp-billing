@@ -128,8 +128,8 @@ const sinNote = { id: 's1', customerId: 'c1', amountCents: 300000, dayOfMonth: 5
 // ================= G1 — parity guard (this file's own pin) =================
 
 test('G1: parity is the new total in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5145, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5145, 'UR parity');
+  assert.equal(Object.keys(en).length, 5161, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5161, 'UR parity');
   const prvEn = Object.keys(en).filter((k) => k.startsWith('prv_'));
   const prvUr = Object.keys(ur).filter((k) => k.startsWith('prv_'));
   assert.equal(prvEn.length, 239, 'exactly the new prv_ keys in EN');
@@ -183,8 +183,8 @@ test('G2d: no new key carries a money figure, and nav-language.js carries no Rs.
 });
 
 test('G2e: this file stays free of the previous-total and older-total literals', () => {
-  assert.ok(!selfSrc.includes('51' + '38'), 'no bare previous-total literal in this file');
-  assert.ok(!selfSrc.includes('49' + '06'), 'no bare older-total literal in this file');
+  assert.ok(!selfSrc.includes('51' + '45'), 'no bare previous-total literal in this file');
+  assert.ok(!selfSrc.includes('51' + '38'), 'no bare older-total literal in this file');
 });
 
 // ================= G3 — every key is wired through t() in app.js =================

@@ -4244,8 +4244,8 @@ export const TRANSLATIONS = {
     // QC-2: priority badge + oldest-first sort + high-balance tiers
     // on the collection cards.
     qc2_sort_label: 'Sort by',
-    qc2_sort_amount: 'Highest dues first',
-    qc2_sort_oldest: 'Oldest due first',
+    qc2_sort_amount: 'Highest dues',
+    qc2_sort_oldest: 'Oldest due',
     qc2_priority_high: 'High priority',
     qc2_priority_medium: 'Medium priority',
     qc2_priority_low: 'Low priority',
@@ -4302,7 +4302,7 @@ export const TRANSLATIONS = {
     qc5_progress_aria: 'Field recovery progress',
     qc_subtitle: 'Fast 2-tap field collection and receipt generation',
     qc_pick_customer: 'Select Subscriber with Outstanding Dues',
-    qc_search_placeholder: '🔍 Search #ID, name, or phone',
+    qc_search_placeholder: 'Search #ID, name, or phone',
     qc_collected_amount: 'Collected Amount (PKR)',
     qc_payment_method: 'Payment Method',
     qc_collection_date: 'Collection Date (PKT)',
@@ -9578,8 +9578,8 @@ export const TRANSLATIONS = {
     // QC-2: priority badge + oldest-first sort + high-balance tiers
     // on the collection cards (see the EN block above).
     qc2_sort_label: 'ترتیب',
-    qc2_sort_amount: 'سب سے زیادہ بقایا پہلے',
-    qc2_sort_oldest: 'سب سے پرانا بقایا پہلے',
+    qc2_sort_amount: 'زیادہ بقایا پہلے',
+    qc2_sort_oldest: 'پرانا بقایا پہلے',
     qc2_priority_high: 'زیادہ ترجیح',
     qc2_priority_medium: 'درمیانی ترجیح',
     qc2_priority_low: 'کم ترجیح',
@@ -9632,7 +9632,7 @@ export const TRANSLATIONS = {
     qc5_progress_aria: 'فیلڈ وصولی کی پیش رفت',
     qc_subtitle: 'فیلڈ میں موقع پر وصولی اور رسید بنانے کا تیز ترین طریقہ',
     qc_pick_customer: 'بقایا دار صارف منتخب کریں',
-    qc_search_placeholder: '🔍 #ID، نام یا فون تلاش کریں',
+    qc_search_placeholder: '#ID، نام یا فون تلاش کریں',
     qc_collected_amount: 'وصول شدہ رقم (روپے)',
     qc_payment_method: 'ادائیگی کا ذریعہ',
     qc_collection_date: 'وصولی کی تاریخ (PKT)',

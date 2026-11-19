@@ -242,8 +242,11 @@ test('wiring: the pick step renders the lookup list on every list render', () =>
   assert.notEqual(start, -1);
   // QC-4 lengthened renderList with the mohalla-counts refresh, so
   // the window is 1200 — the intent is unchanged: the lookup list
-  // still renders on every list render.
-  const block = wiring.slice(start, start + 1200);
+  // still renders on every list render. QC picker overflow
+  // (2026-11-19, item 2) lengthened it again — the summary line now
+  // carries the pool/row PKR in a 3-arg call — so the window is
+  // 2200; the call itself sits ~1820 chars in.
+  const block = wiring.slice(start, start + 2200);
   assert.match(block, /renderNamePrefixList\(\)/);
 });
 

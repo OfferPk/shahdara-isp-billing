@@ -8501,6 +8501,39 @@ html, body {
   color: var(--text-main, #0f172a);
 }
 
+/* QC picker overflow item 4 (2026-11-19): the magnifier is a real
+   icon element now, not the placeholder's first character. The caret
+   used to sit on top of the 🔍 glyph because both start at the text
+   origin (padding-inline-start: 12px); widening the padding alone
+   moves the caret AND the placeholder together, so it can never
+   clear the emoji. The icon sits at 12px, 18px wide, and the input
+   clears it with 38px — the same 38px the RTL rule (nav.css)
+   already uses on this input. The 🔍 leaves the placeholder text
+   (EN + UR keys) so it is not shown twice. */
+.qc-search-icon {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--text-muted, #475569);
+}
+.qc-search-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* QC picker overflow item 4 (scoped): only the Quick Collect search
+   clears the new icon — .qc-search-input is shared with the
+   collect-setup search (collect-setup.js), which has no icon and
+   keeps 12px. */
+#quickCollectModal .qc-search-input {
+  padding-inline-start: 38px;
+}
+
 .qc-search-clear {
   position: absolute;
   inset-inline-end: 10px;
@@ -8536,7 +8569,17 @@ html, body {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  padding: 5px 10px;
+  /* QC picker overflow item 3 (2026-11-19): flex-shrink: 0 — the four
+     pills total ~346-380px against a 316px row, and the row's flex
+     layout squeezed the chips ~8-15px each instead of scrolling, so
+     the count badges ended up ~0-2px from the pill borders (the "3"
+     in "High ≥ 2k 3" read as outside). The row already scrolls
+     (overflow-x: auto, QC-7 design) — the shrink defeated it.
+     Padding 5px 12px (was 5px 10px) gives the badge its breathing
+     room back. Consequence, disclosed: "Paid 84" now sits ~30-64px
+     past the right edge until the row is scrolled. */
+  flex-shrink: 0;
+  padding: 5px 12px;
   font-size: 0.78rem;
   font-weight: 600;
   border-radius: 999px;
@@ -10047,6 +10090,15 @@ button:not([hidden]).qc-date-chip {
   gap: 8px;
   margin: 0 0 8px;
 }
+/* QC picker overflow item 2 (2026-11-19): the two filter selects run
+   at 13px, scoped to this row only — .qc-input is shared by the form
+   step's selects and inputs (31 plain uses), so a global 13px would
+   shrink those too. At 13px "Highest dues" is ~85px and "All (8)"
+   ~39px against the ~110px text space in a 154px column; the
+   unshortened labels still clip (141px / 126px). */
+.qc-filter-row-2col .qc-input {
+  font-size: 13px;
+}
 .qc-filter-row-2col .qsf-status-filter-row {
   flex-direction: column;
   align-items: stretch;
@@ -10056,11 +10108,14 @@ button:not([hidden]).qc-date-chip {
 
 /* QC Cash Modal Overhaul — Bulk Collect + Tag New Customers share
    one 2-column compact button row. QC True 1-Row Tightening (item
-   A, parent decision D-A12): 44px tall, not 40px — the full titles
-   ("Bulk Collect Cash" needs ~176px) do not fit the 153px columns
-   on one line at 0.85rem, and phone fonts run wider than the
-   harness, so 44px lets the titles wrap to two lines comfortably
-   while matching the global 44px floor; still 59px shorter than
+   A, parent decision D-A12): min-height 44px, NOT a fixed 44px
+   height — the fixed height clipped the 3rd line ("Tag new
+   customers" wraps to two text lines under its icon on phone
+   fonts, and "customers" spilled below the border). The full
+   titles ("Bulk Collect Cash" needs ~176px) do not fit the 153px
+   columns on one line at 0.85rem, so the icon sits inline-left
+   (flex-wrap: nowrap) and the titles wrap to two lines INSIDE the
+   border while matching the global 44px floor; still 59px shorter than
    the 103px cards they replace. The subtitles are deleted from
    the two modules, so only icon + title render. */
 .qc-top-actions {
@@ -10072,13 +10127,26 @@ button:not([hidden]).qc-date-chip {
 #quickCollectModal .qc-top-actions .bc-open-btn,
 #quickCollectModal .qc-top-actions .nct-open-btn {
   min-height: 44px !important;
-  height: 44px;
+  /* QC picker overflow item 1 (2026-11-19): the fixed 44px height is
+     GONE — with flex-wrap: wrap the icon took its own line and "Tag
+     new customers" (151.6px at 0.85rem, DejaVu-bold phone proxy)
+     wrapped to two text lines, so the 3rd line spilled below the
+     border. flex-wrap: nowrap puts the icon inline-left and the text
+     wraps to at most two lines INSIDE the border; the button grows
+     past 44px instead of clipping (grid stretch keeps both equal).
+     Single-line is NOT achievable: "Bulk Collect Cash" alone needs
+     ~136px beside the 26px icon in a 134px content box. */
+  flex-wrap: nowrap;
   /* 4px vertical padding, not the user's 8px: the titles wrap to
      two lines in the 153px columns, and two 0.85rem lines need
      34px of content height — 8px padding would push the text
      outside the 44px box. The titles still read clearly. */
   padding: 4px 10px;
   font-size: 0.85rem;
+}
+#quickCollectModal .qc-top-actions .bc-open-btn > span,
+#quickCollectModal .qc-top-actions .nct-open-btn > span {
+  flex: none;
 }
 
 /* QC Modal Overhaul 2: the dead grid rule for the banner is gone —
@@ -10646,6 +10714,16 @@ button:not([hidden]).eds-panel-dismiss {
 .qc-round-banner {
   display: flex;
   flex-wrap: wrap;
+  /* QC picker overflow item 5 (2026-11-19): justify-content:
+     space-between puts the Day Summary button on the right of the
+     "Today • Round" line instead of wrapping to a second line at the
+     left. Wrap is KEPT: the long case (a full round, "Round: 12 ·
+     PKR 9,000") totals ~398-462px against a 292px row, so nowrap
+     would overflow ~109px. On wrap the button right-aligns via its
+     own margin-inline-start: auto. The '•' separator is deleted (its
+     ::before rule below is gone) — ~17px of headroom the small case
+     needs on phone fonts, where even the minimal figures wrapped. */
+  justify-content: space-between;
   align-items: center;
   gap: 4px 0;
   margin: 8px 0 0;
@@ -10666,11 +10744,10 @@ button:not([hidden]).eds-panel-dismiss {
   font-size: 0.8rem;
   font-weight: 600;
 }
-.qc-round-banner .rtt-round-totals::before {
-  content: '•';
-  margin: 0 6px;
-  color: var(--text-muted, #64748b);
-}
+/* QC picker overflow item 5 (2026-11-19): the '•' separator ::before
+   is deleted — it cost ~17px the small case needs on phone fonts.
+   The two live lines now read as one text run, "Today: PKR 800"
+   then "Round: 0", separated by the banner's own gap. */
 .qc-round-banner .dtp-daily-target-progress {
   display: contents;
 }
@@ -10714,7 +10791,13 @@ button:not([hidden]).eds-panel-dismiss {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 10px;
+  /* QC picker overflow item 5 (2026-11-19): the button right-aligns —
+     on the one-line small case it sits at the row's right end (with
+     the banner's justify-content: space-between), and when the long
+     case wraps it lands right-aligned on its own row instead of at
+     the left under the text. */
+  margin-inline-start: auto;
+  padding: 0 8px;
   white-space: nowrap;
   /* QC True 1-Row Tightening (item A, spec §0.4): 0.8rem — with the
      two text hosts at 0.8rem the three cells fit one 292px row, so

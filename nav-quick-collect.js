@@ -4125,9 +4125,25 @@ export function setupQuickCollectModal({
       mohallaFilterSelect.innerHTML = quickCollectMohallaFilterCountOptionsHtml(picked.mohallaCounts, activeMohallaFilter);
     }
     if (mohallaFilterSummary) {
-      mohallaFilterSummary.textContent = activeMohallaFilter
-        ? quickCollectMohallaFilterSummaryText(picked.customers, activeMohallaFilter)
-        : '';
+      // QC picker overflow item 2 (2026-11-19): the pool pending PKR
+      // lives on this line now that the option labels are count-only.
+      // When no mohalla is active the line reads the pool total
+      // ("8 customers · PKR 13,500."); when one is active it reads
+      // that mohalla's total. Previously the line was empty with no
+      // filter, and the PKR lived only in the clipped option label.
+      const counts = picked.mohallaCounts || {};
+      if (activeMohallaFilter) {
+        const row = (Array.isArray(counts.rows) ? counts.rows : []).find(
+          (r) => r && quickCollectMohallaFilterKey(r.mohalla) === quickCollectMohallaFilterKey(activeMohallaFilter),
+        );
+        mohallaFilterSummary.textContent = quickCollectMohallaFilterSummaryText(
+          picked.customers, activeMohallaFilter, row ? row.pendingPkr : 0,
+        );
+      } else {
+        mohallaFilterSummary.textContent = quickCollectMohallaFilterSummaryText(
+          picked.customers, '', counts.totalPendingPkr,
+        );
+      }
     }
     renderNamePrefixList();
     renderLastFourList();

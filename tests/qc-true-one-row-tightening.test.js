@@ -30,16 +30,28 @@ function ruleBlock(src, selector) {
   return src.slice(start, src.indexOf('}', start));
 }
 
-// 1. Tiles 44px, no subtitles — parent decision D-A12 (44px, not
-// the user's 40px: the full titles do not fit the 153px columns on
-// one line at 0.85rem, and phone fonts run wider than the harness,
-// so 44px lets the titles wrap to two lines comfortably while
-// matching the global 44px floor; still 59px shorter than the 103px
-// cards they replace — measured tilesBtnH 44 at 360 + 320).
-test('1-row: tiles are 44px buttons, icon + title only, handlers untouched', () => {
+// 1. Tiles min-height 44px, no fixed height, icon inline-left —
+// QC picker overflow (2026-11-19, item 1) REVERSES parent decision
+// D-A12's fixed height: the 44px height clipped "Tag new
+// customers" to a 3rd line spilling below the border. The tiles keep
+// min-height: 44px (the global floor) but carry NO `height:`
+// declaration — the button grows to ~46-52px so both lines fit
+// INSIDE the border, and flex-wrap: nowrap + the icon's flex: none
+// put the icon inline-left of the text. Single-line is NOT
+// achievable at a readable size (Sharafat-97 11px floor).
+// FALSE-GREEN TRAP (this test itself, fixed here): the old
+// assertion `tiles.includes('height: 44px')` matched
+// `min-height: 44px` too, so it passed on a rule with no fixed
+// height at all. The check is now declaration-aware: comments are
+// stripped and only a standalone `height:` declaration counts.
+test('1-row: tiles are min-height 44px, no fixed height, icon + title only, handlers untouched', () => {
   const tiles = ruleBlock(stylesSrc, '#quickCollectModal .qc-top-actions .bc-open-btn,');
-  assert.ok(tiles.includes('min-height: 44px !important'), 'the tiles must be 44px');
-  assert.ok(tiles.includes('height: 44px'), 'the tiles must be exactly 44px tall');
+  assert.ok(tiles.includes('min-height: 44px !important'), 'the tiles must keep the 44px floor');
+  const stripped = tiles.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!/(^|[;\n])\s*height\s*:/.test(stripped), 'the tiles must carry NO fixed height declaration — min-height is the floor, the button grows');
+  assert.ok(tiles.includes('flex-wrap: nowrap'), 'the icon must sit inline-left of the text');
+  const icon = ruleBlock(stylesSrc, '#quickCollectModal .qc-top-actions .bc-open-btn > span,');
+  assert.ok(icon.includes('flex: none'), 'the icon span must not shrink');
   // The subtitles are deleted from the two modules' button renders.
   assert.ok(!bulkSrc.includes('<small>many payments in one batch</small>'), 'the Bulk subtitle must be gone from the button render');
   assert.ok(!tagSrc.includes('<small>first month free</small>'), 'the Tag subtitle must be gone from the button render');

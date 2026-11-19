@@ -158,9 +158,13 @@ test('G2 pills: the ≤620px rule makes the pill row one scrolling row, never a 
   assert.match(rule, /overflow-x:\s*auto/);
 });
 
-test('G2 pills: the user cuts land — padding 5px 10px, font 0.78rem', () => {
+test('G2 pills: the user cuts land — padding 5px 12px, font 0.78rem', () => {
+  // QC picker overflow (2026-11-19, item 3): padding 5px 10px →
+  // 5px 12px, and the chips gain flex-shrink: 0 — the count badges
+  // keep their breathing room and the row scrolls instead of
+  // squeezing them. Same pin as plan550:139 + overhaul:181.
   const rule = baseRule(styles, '.quick-collect-filter-chip');
-  assert.equal(decl(rule, 'padding'), '5px 10px');
+  assert.equal(decl(rule, 'padding'), '5px 12px');
   assert.equal(decl(rule, 'font-size'), '0.78rem');
 });
 

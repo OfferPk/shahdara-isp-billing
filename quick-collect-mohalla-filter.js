@@ -139,13 +139,21 @@ export function filterQuickCollectByMohalla(entries, mohalla) {
 /** Plain-words summary of a filtered list, for the picker to show
  *  under the filter: how many customers, and in which mohalla. The
  *  mohalla is shown exactly as the operator chose it. */
-export function quickCollectMohallaFilterSummaryText(matches, mohalla) {
+export function quickCollectMohallaFilterSummaryText(matches, mohalla, pendingPkr) {
   const count = Array.isArray(matches) ? matches.length : 0;
   const place = String(mohalla ?? '').normalize('NFKC').replace(/\s+/gu, ' ').trim();
   const where = place ? ` in ${place}` : '';
-  if (count === 0) return `No customers${where}.`;
-  if (count === 1) return `1 customer${where}.`;
-  return `${count} customers${where}.`;
+  // QC picker overflow item 2 (2026-11-19): the pending PKR rides here
+  // now that the option labels are count-only ("All (8)" fits the
+  // 154px select; "All (8 · PKR 13,500)" clipped at every readable
+  // size). The PKR is the pool total when no mohalla is active, the
+  // row's own total when one is. Omitted when absent or zero, so the
+  // old callers' strings are unchanged.
+  const pkr = Number(pendingPkr);
+  const money = Number.isFinite(pkr) && pkr > 0 ? ` · PKR ${pkr.toLocaleString('en-PK')}` : '';
+  if (count === 0) return `No customers${where}${money}.`;
+  if (count === 1) return `1 customer${where}${money}.`;
+  return `${count} customers${where}${money}.`;
 }
 
 /** Escapes HTML characters for safe template string interpolation. */
@@ -305,13 +313,13 @@ export function quickCollectMohallaFilterCountOptionsHtml(counts, selected) {
   const totalCount = Number(safe.totalCount) || 0;
   const totalPendingPkr = Number(safe.totalPendingPkr) || 0;
   const selectedKey = quickCollectMohallaFilterKey(selected);
-  const options = [`<option value="">All (${quickCollectMohallaCountLabel(totalCount, totalPendingPkr)})</option>`];
+  const options = [`<option value="">All (${totalCount})</option>`];
   for (const row of rows) {
     if (!row || typeof row !== 'object') continue;
     const value = String(row.mohalla ?? '').trim();
     if (!value) continue;
     const isSelected = selectedKey !== '' && quickCollectMohallaFilterKey(value) === selectedKey;
-    options.push(`<option value="${escapeHtml(value)}"${isSelected ? ' selected' : ''}>${escapeHtml(value)} (${quickCollectMohallaCountLabel(Number(row.count) || 0, row.pendingPkr)})</option>`);
+    options.push(`<option value="${escapeHtml(value)}"${isSelected ? ' selected' : ''}>${escapeHtml(value)} (${Number(row.count) || 0})</option>`);
   }
   return options.join('');
 }

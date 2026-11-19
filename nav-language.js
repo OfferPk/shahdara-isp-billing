@@ -4322,12 +4322,12 @@ export const TRANSLATIONS = {
     // three output-grid buttons. The old qc_collect_another key stays in
     // the dictionary (the third path is still a distinct action) but no
     // button reads it any more; the applier below targets the new ids.
-    qc_same_customer: 'Same Customer (+ Payment)',
-    qc_next_customer: 'Next Customer / Empty',
+    qc_same_customer: '+ Same Customer',
+    qc_next_customer: 'Next Customer →',
     qc_empty_amount: 'Empty amount',
     qc_share_image: 'Share Image',
     qc_print_slip: 'Print Slip',
-    qc_bt_print: 'BT Thermal Print',
+    qc_bt_print: 'Thermal Print',
     qc_invalid_amount: 'Please enter a valid positive payment amount.',
     // Plan 549: Quick Collect toast strings, so confirmations and
     // errors speak the operator's language. English values are
@@ -9647,12 +9647,12 @@ export const TRANSLATIONS = {
     qc_success_msg: 'رسید آف لائن محفوظ ہو گئی، کلاؤڈ یا انٹرنیٹ کی ضرورت نہیں۔',
     qc_send_whatsapp: 'واٹس ایپ پر رسید بھیجیں',
     qc_collect_another: 'اگلی وصولی درج کریں',
-    qc_same_customer: 'اسی گاہک کی مزید ادائیگی',
-    qc_next_customer: 'اگلا گاہک / خالی',
+    qc_same_customer: 'اسی گاہک +',
+    qc_next_customer: 'اگلا گاہک →',
     qc_empty_amount: 'خالی رقم',
     qc_share_image: 'تصویر شیئر کریں',
     qc_print_slip: 'رسید پرنٹ کریں',
-    qc_bt_print: 'بلوتوتھ پرنٹ',
+    qc_bt_print: 'بلوتوتھ',
     qc_invalid_amount: 'براہ کرم درست نقد رقم درج کریں۔',
     // Plan 549: Quick Collect toast strings, so confirmations and
     // errors speak the operator's language.

@@ -441,26 +441,27 @@ test('G4c: the pills stay pale in dark — DISCLOSED shortfall, not a pass', () 
 
 // ================= G5 — Guards + completeness =================
 
-test('G5a: parity is 4,767/4,767 and the re-pin set is complete', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4767, 'EN parity 4,767');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4767, 'UR parity 4,767');
-  // Every file that pinned 4,766 now pins 4,767 (29 files), and no file
-  // still pins the old count. This file itself asserts 4,767 — plus
-  // Plan 592's new test file, which pins 4,767 as its own G5 guard
+test('G5a: parity is 4,906/4,906 and the re-pin set is complete', () => {
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4906, 'EN parity 4,906');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4906, 'UR parity 4,906');
+  // Every file that pinned 4,767 now pins 4,906 (30 files), and no file
+  // still pins the old count. This file itself asserts 4,906 — plus
+  // Plan 592's new test file, which pins 4,906 as its own G5 guard
   // (the parity VALUE does not move; only the file count does) — plus
-  // Hisaab H3's new test file, which pins 4,767 as its own G5 guard
-  // the same way — plus Plan 593's new test file, which pins 4,767 as
+  // Hisaab H3's new test file, which pins 4,906 as its own G5 guard
+  // the same way — plus Plan 593's new test file, which pins 4,906 as
   // its own G5 guard the same way — plus Plan 594's new test file,
-  // which pins 4,767 as its own G5 guard the same way — plus Plan
-  // 596's new test file, which pins 4,767 as its own G5 guard the
-  // same way, so the count is 30.
+  // which pins 4,906 as its own G5 guard the same way — plus Plan
+  // 596's new test file, which pins 4,906 as its own G5 guard the
+  // same way — plus Plan 600's new test file, which pins 4,906 as its
+  // own guard the same way, so the count is 31.
   const testFiles = fs.readdirSync(path.join(ROOT, 'tests')).filter((f) => f.endsWith('.test.js'));
-  // This file itself mentions '4766' as the literal it checks against,
+  // This file itself mentions '4767' as the literal it checks against,
   // so it is excluded from the sweep — every OTHER file must be clean.
-  const old = testFiles.filter((f) => f !== 'plan591-header-strip-tokens-i18n.test.js' && read(`tests/${f}`).includes('4766'));
-  const fresh = testFiles.filter((f) => read(`tests/${f}`).includes('4767'));
-  assert.deepEqual(old, [], 'no test file may still pin 4,766');
-  assert.equal(fresh.length, 30, `expected 30 files pinning 4,767 (24 re-pins + this file + plan592 + H3 + plan593 + plan594 + plan596), got ${fresh.length}: ${fresh.join(', ')}`);
+  const old = testFiles.filter((f) => f !== 'plan591-header-strip-tokens-i18n.test.js' && read(`tests/${f}`).includes('4767'));
+  const fresh = testFiles.filter((f) => read(`tests/${f}`).includes('4906'));
+  assert.deepEqual(old, [], 'no test file may still pin 4,767');
+  assert.equal(fresh.length, 31, `expected 31 files pinning 4,906 (24 re-pins + this file + plan592 + H3 + plan593 + plan594 + plan596 + plan600), got ${fresh.length}: ${fresh.join(', ')}`);
 });
 
 test('G5b: the wiring is the labels object, and the module stays pure', () => {
@@ -487,10 +488,10 @@ test('G5c: the strings left behind are listed, not silently claimed fixed', () =
   }
   assert.ok(profileHeaderStripText(baseStrip(), undefined, urLabels()).includes(' on '), "the text sentence still carries the English word 'on' (disclosed)");
   // The 12 stale '4,669' parity TITLES + 5 why-comments are NOT this
-  // plan's sweep: the asserts moved to 4,767 (G5a) while the titles
+  // plan's sweep: the asserts moved to 4,906 (G5a) while the titles
   // stay as they were — a title sweep is a different item. This asserts
   // the split: each of the 12 files still carries '4,669' somewhere
-  // (title or comment) AND pins 4,767 in its asserts.
+  // (title or comment) AND pins 4,906 in its asserts.
   const staleTitleFiles = [
     'plan566-receipt-card-nan-guard.test.js',
     'plan567-urdu-script-labels.test.js',
@@ -508,7 +509,7 @@ test('G5c: the strings left behind are listed, not silently claimed fixed', () =
   for (const name of staleTitleFiles) {
     const src = read(`tests/${name}`);
     assert.ok(src.includes('4,669'), `${name} still carries its stale '4,669' title/comment (not this plan's sweep)`);
-    assert.ok(src.includes('4767'), `${name} pins 4,767 in its asserts`);
-    assert.ok(!src.includes('4766'), `${name} no longer pins 4,766`);
+    assert.ok(src.includes('4906'), `${name} pins 4,906 in its asserts`);
+    assert.ok(!src.includes('4767'), `${name} no longer pins 4,767`);
   }
 });

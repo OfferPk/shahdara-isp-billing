@@ -9801,8 +9801,13 @@ button:not([hidden]).qc-date-chip {
    drops to its own right-aligned line only if it cannot fit. The id
    rule is scoped to the split card's direct-child title — the
    ordinary id is nested inside .qc-receipt-ref now (the wrapper
-   carries the auto margin), and the unscoped rule would reach it. */
-#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: nowrap; }
+   carries the auto margin), and the unscoped rule would reach it.
+   QC receipt-bottom polish (2026-11-19): the badge now shows the FULL
+   stored number (17 chars, ~122px by the TOP width model), so badge +
+   ref (371px) can no longer fit one row at 360px (292px budget) — the
+   header wraps again and the ref sits on its own right-aligned line.
+   The number is never re-shortened to fit. */
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }
 #quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-shared { white-space: nowrap; }
 /* QC success-receipt polish (TOP): the unshared badge is shaved (padding
@@ -9816,7 +9821,10 @@ button:not([hidden]).qc-date-chip {
    fit on one row at 360px (DejaVu budget 292px vs 300px inner). All scoped
    to the success-open card — the base badge rule is shared with the
    profile card (the badge shave itself lives in the split unshared rule
-   above, so a first-match rule lookup sees it). */
+   above, so a first-match rule lookup sees it). QC receipt-bottom polish
+   (2026-11-19): with the FULL 17-char number the one-row fit no longer
+   holds (371px vs 292px) — the ref wraps to its own line instead; the
+   shaves stay, they keep each row inside the inner width. */
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-ref { gap: 4px; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header .qc-txnid-code { padding: 2px 4px; }
 
@@ -10329,17 +10337,20 @@ button:not([hidden]).eds-panel-dismiss {
 }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-area-pill .qc-area-chevron svg { display: block; }
 
-/* §4.3.5 — support number + icons on their own bottom row inside the
-   terms box: the number span becomes a full-width flex row (number left,
-   the two icon links right via margin-inline-start: auto on the WhatsApp
-   link). The label text stays on the line above. The number keeps
-   white-space: nowrap (polish #21 Req 4). */
-#quickCollectModal.qc-success-open .qc-receipt-card .receipt-support-number {
-  display: flex;
-  align-items: center;
+/* §4.3.5 — support contact on its own bottom row inside the terms box:
+   ONE wa.me link carries the WhatsApp icon + the local number (inline-flex,
+   gap, direction ltr) with the call icon beside it; the old full-width flex
+   row that pushed the icon to the far end via margin-inline-start: auto
+   is retired. The number keeps white-space: nowrap (polish #21 Req 4). */
+#quickCollectModal.qc-success-open .qc-receipt-card .receipt-support-contact-row {
+  margin: 2px 0 0;
 }
-#quickCollectModal.qc-success-open .qc-receipt-card .receipt-support-whatsapp {
-  margin-inline-start: auto;
+#quickCollectModal.qc-success-open .qc-receipt-card .receipt-support-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  direction: ltr;
+  white-space: nowrap;
 }
 
 /* §4.5.1 — primary Send WhatsApp Receipt: solid brand green, 48px, the
@@ -10394,7 +10405,7 @@ button:not([hidden]).eds-panel-dismiss {
 }
 #quickCollectModal.qc-success-open .qc-output-btn [data-ds-icon] { display: inline-flex; }
 #quickCollectModal.qc-success-open .qc-output-btn [data-ds-icon] svg { display: block; }
-#quickCollectModal.qc-success-open .qc-output-btn .qc-action-label { overflow-wrap: anywhere; }
+#quickCollectModal.qc-success-open .qc-output-btn .qc-action-label { white-space: nowrap; }
 
 /* §4.5.3 — 2-column next-action row, 44px. The labels are long for a
    half-width cell, so the font stays 12px with tight side padding; if a
@@ -10412,20 +10423,12 @@ button:not([hidden]).eds-panel-dismiss {
   line-height: 1.3;
 }
 
-/* §4.5.3 + decision (d) — the empty-amount path as a small text button
-   directly under the Same Customer button (~24px). The !important on
-   min-height beats the global 44px button floor. */
+/* QC receipt-bottom polish (2026-11-19): the empty-amount path is a real
+   secondary button now (44px via the Sharafat 96 floor), not a 24px
+   underlined text link — the handler is unchanged, only the treatment. */
 #quickCollectModal.qc-success-open .qc-empty-amount-btn {
-  align-self: flex-start;
-  background: none;
-  border: none;
-  padding: 2px 4px;
-  min-height: 24px !important;
-  height: 24px;
-  font: 600 12px 'DM Sans', sans-serif;
-  color: var(--muted, #667a72);
-  text-decoration: underline;
-  cursor: pointer;
+  align-self: stretch;
+  margin-top: 4px;
 }
 
 /* §4.5.4 — single full-width ghost/neutral Done, 44px. The

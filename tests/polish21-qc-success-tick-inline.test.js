@@ -188,24 +188,32 @@ test('terms nowrap: the support number sits in a nowrap LTR span, wording byte-i
 
 test('terms contact actions: QC rendering shows the local form with tappable WhatsApp + call icons', () => {
   const html = receiptTermsNoteHtml({ contactActions: true });
-  const spanStart = html.indexOf('<span class="receipt-support-number" dir="ltr">');
-  assert.ok(spanStart >= 0, 'contact-actions rendering must keep the nowrap LTR span');
-  const spanEnd = html.indexOf('</span>', spanStart);
-  const span = html.slice(spanStart, spanEnd);
-  const displayed = span.slice(span.indexOf('>') + 1, span.indexOf('<a'));
+  // QC receipt-bottom polish (2026-11-19): the wa.me link itself is the
+  // inline-flex container (icon + local number inside it) on its own
+  // <p class="receipt-support-contact-row"> below the Urdu label — the
+  // number is no longer a bare text node beside the link.
+  const rowStart = html.indexOf('<p class="receipt-support-contact-row">');
+  assert.ok(rowStart >= 0, 'contact-actions rendering must put the contact row on its own <p>');
+  const rowEnd = html.indexOf('</p>', rowStart);
+  const row = html.slice(rowStart, rowEnd);
+  const waStart = row.indexOf('receipt-support-whatsapp');
+  assert.ok(waStart >= 0, 'contact row must carry the wa.me contact link');
+  const waLink = row.slice(row.lastIndexOf('<a', waStart), row.indexOf('</a>', waStart));
+  assert.ok(waLink.includes(`href="https://wa.me/${digits}"`), 'WhatsApp link must be the wa.me international form derived from the same digits');
+  assert.ok(waLink.includes('dir="ltr"'), 'WhatsApp link must be dir=ltr');
+  assert.ok(waLink.includes('<svg') && waLink.includes('M19.05 4.91'), 'WhatsApp icon must be the speech-bubble-with-phone mark, not a generic chat bubble');
+  const displayed = waLink.slice(waLink.indexOf('<span>') + '<span>'.length, waLink.indexOf('</span>'));
   assert.equal(displayed, localForm, 'displayed number must be the local form derived from the same digits');
   assert.ok(!displayed.includes('+') && !displayed.includes(' '), 'displayed number must have no + and no spaces');
   assert.match(displayed, /^0\d+$/, 'displayed number must be the trunk-0 local form');
-  assert.ok(span.includes(`href="https://wa.me/${digits}"`), 'WhatsApp link must be the wa.me international form derived from the same digits');
-  assert.ok(span.includes(`href="tel:+${digits}"`), 'call link must be the tel: international form');
-  assert.ok(span.includes('class="receipt-support-action receipt-support-whatsapp"'), 'WhatsApp icon link must carry its class');
-  assert.ok(span.includes('class="receipt-support-action receipt-support-call"'), 'call icon link must carry its class');
-  const waStart = span.indexOf('receipt-support-whatsapp');
-  const waSvg = span.slice(waStart, span.indexOf('</a>', waStart));
-  assert.ok(waSvg.includes('<svg') && waSvg.includes('M19.05 4.91'), 'WhatsApp icon must be the speech-bubble-with-phone mark, not a generic chat bubble');
-  const callStart = span.indexOf('receipt-support-call');
-  const callSvg = span.slice(callStart, span.indexOf('</a>', callStart));
-  assert.ok(callSvg.includes('<svg') && callSvg.includes('M22 16.92'), 'call icon must be the phone handset mark');
+  const callStart = row.indexOf('receipt-support-call');
+  assert.ok(callStart >= 0, 'contact row must carry the call link');
+  const callLink = row.slice(row.lastIndexOf('<a', callStart), row.indexOf('</a>', callStart));
+  assert.ok(callLink.includes(`href="tel:+${digits}"`), 'call link must be the tel: international form');
+  assert.ok(callLink.includes('class="receipt-support-action receipt-support-call"'), 'call icon link must carry its class');
+  assert.ok(callLink.includes('<svg') && callLink.includes('M22 16.92'), 'call icon must be the phone handset mark');
+  const labelAt = html.indexOf('ٹیکنیکل سپورٹ');
+  assert.ok(labelAt >= 0 && labelAt < rowStart && html.slice(labelAt, rowStart).includes('</p>'), 'the contact row must sit on its own line below the Urdu label');
   assert.ok(html.includes(RECEIPT_TERMS_PHRASE), 'terms phrase unchanged in the contact-actions rendering');
 });
 

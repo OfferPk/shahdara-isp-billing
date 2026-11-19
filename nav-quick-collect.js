@@ -160,7 +160,7 @@ import {
 import { setLiveWaada } from './waada-write.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
 import { ensureUrduFont, t } from './nav-language.js';
-import { buildReceiptPaymentHistory, generateReceiptNumber, historyRowLabel, shortReceiptNumber } from './receipt.js';
+import { buildReceiptPaymentHistory, generateReceiptNumber, historyRowLabel } from './receipt.js';
 import {
   getDigitalPaymentsSettings,
   hasConfiguredDigitalPayments,
@@ -2505,17 +2505,19 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
              card header — and the QC receipt-modal overhaul removed it
              entirely (the merged Still-owed row + the still-owes pill
              state the settled/partial state now) — so the header keeps
-             only the shared badge + the receipt reference, on one line. The reference
+             only the shared badge + the receipt reference. The reference
              is a labelled chip ("Receipt No." + the id in the
              Transaction ID row's .qc-txnid-code): the card was the only
              receipt surface showing the number with no label at all.
-             QC Success Card Polish: the chip shows the SHORT form
-             (RCPT-12-202611-03 -> RCPT-3) — the full stored number
-             stays in the title + data-full-receipt-number attributes
-             and everywhere else (search, draft, reprint), so the
-             operator can still copy the exact number. -->
+             QC receipt-bottom polish: the chip shows the FULL stored
+             number (RCPT-83-202611-01), the same number the WhatsApp
+             preview shows — the short form from the earlier card polish
+             is retired here; split legs keep the short form. The full
+             number is 17 chars, so badge + ref no longer fit one row at
+             360px — the header wraps and the ref sits on its own
+             right-aligned line. -->
         ${sharedBadge}
-        <span class="qc-receipt-ref"><span class="qc-receipt-label">Receipt No.</span> <span class="qc-receipt-id qc-txnid-code" title="${escapeHtml(receipt.receiptNumber)}" data-full-receipt-number="${escapeHtml(receipt.receiptNumber)}">${escapeHtml(shortReceiptNumber(receipt.receiptNumber))}</span></span>
+        <span class="qc-receipt-ref"><span class="qc-receipt-label">Receipt No.</span> <span class="qc-receipt-id qc-txnid-code" title="${escapeHtml(receipt.receiptNumber)}" data-full-receipt-number="${escapeHtml(receipt.receiptNumber)}">${escapeHtml(receipt.receiptNumber)}</span></span>
       </div>
 
       <div class="qc-receipt-amount-row qc-amount-pill">

@@ -246,8 +246,8 @@ test('Sharafat 93 EN/UR parity holds (4,669 == 4,669)', () => {
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(enKeys.length, 5162);
-  assert.equal(urKeys.length, 5162);
+  assert.equal(enKeys.length, 5168);
+  assert.equal(urKeys.length, 5168);
   const diff = enKeys.filter((k) => !TRANSLATIONS.ur[k]).concat(urKeys.filter((k) => !TRANSLATIONS.en[k]));
   assert.deepEqual(diff, []);
 });

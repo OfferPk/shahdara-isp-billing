@@ -10697,6 +10697,9 @@ function renderDetail() {
   if (routerCredRevealedFor !== customer.id) {
     routerCredRevealed = { wifi: false, admin: false };
     routerCredRevealedFor = customer.id;
+    // Plan 598: switching profiles re-masks the edit-form password
+    // fields too — a reveal must not survive onto another customer.
+    remaskPasswordRevealToggles();
   }
   $('#customerReceiptSummary').innerHTML = profileReceiptSummaryMarkup(customer);
   $('#customerReceiptSummary').querySelector('[data-edit-customer]')?.addEventListener('click', (event) => {
@@ -15215,6 +15218,60 @@ function bindProfileFieldSaveButtons() {
   });
 }
 bindProfileFieldSaveButtons();
+
+// Plan 598 — reveal toggles for the three password fields in the edit
+// form. Bound in JS, not static HTML: bindProfileFieldSaveButtons moves
+// each control into a .profile-field-row at boot, so a static button
+// beside the input would be left behind in the label. Each toggle flips
+// only its input's type and marks aria-pressed; it never assigns .value,
+// so the Plan 500 dirty-only rule cannot see a reveal as an edit. The
+// label reuses rcred_show / rcred_hide (the vault's words, SISP-94), so
+// no new i18n key is needed and parity does not move.
+const PASSWORD_REVEAL_FIELDS = [
+  { inputId: 'pppoePasswordInput', buttonId: 'pwshowPppoePasswordBtn' },
+  { inputId: 'wifiPasswordInput', buttonId: 'pwshowWifiPasswordBtn' },
+  { inputId: 'routerAdminPasswordInput', buttonId: 'pwshowRouterAdminPasswordBtn' },
+];
+function passwordRevealToggleLabel(revealed) {
+  return revealed ? t('rcred_hide') : t('rcred_show');
+}
+function bindPasswordRevealToggles() {
+  for (const { inputId, buttonId } of PASSWORD_REVEAL_FIELDS) {
+    const input = document.getElementById(inputId);
+    if (!input) continue;
+    const row = input.closest('.profile-field-row');
+    if (!row || row.querySelector(`#${buttonId}`)) continue;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = buttonId;
+    button.className = 'secondary-button profile-field-reveal';
+    button.setAttribute('aria-pressed', 'false');
+    button.textContent = passwordRevealToggleLabel(false);
+    button.addEventListener('click', () => {
+      const isPass = input.type === 'password';
+      input.type = isPass ? 'text' : 'password';
+      button.setAttribute('aria-pressed', String(isPass));
+      button.textContent = passwordRevealToggleLabel(isPass);
+    });
+    row.appendChild(button);
+  }
+}
+bindPasswordRevealToggles();
+
+// Plan 598 — re-mask the edit-form password fields (and reset their
+// toggles) whenever the profile switches. Called from renderDetail next
+// to the vault re-mask; a reveal must not survive onto another customer.
+function remaskPasswordRevealToggles() {
+  for (const { inputId, buttonId } of PASSWORD_REVEAL_FIELDS) {
+    const input = document.getElementById(inputId);
+    if (input) input.type = 'password';
+    const button = document.getElementById(buttonId);
+    if (!button) continue;
+    button.setAttribute('aria-pressed', 'false');
+    button.textContent = passwordRevealToggleLabel(false);
+  }
+}
+
 // Plan 500 — Per-field Save appears only on the dirty field.
 //
 // The 70 per-field Save buttons are visually noisy when all visible,

@@ -1590,7 +1590,7 @@ is only ~300px wide. */
 .profile-quick-actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
 .pqa-btn{flex:1 1 auto}
 .profile-contact-actions{display:flex;gap:6px;flex-wrap:wrap}
-.profile-contact-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;text-decoration:none}
+.profile-contact-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;text-decoration:none}
 .profile-contact-actions a:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
 .profile-view-profit{margin:12px 0 0;color:#365c4e;font-size:11px;line-height:1.5}
 .profile-form-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}

@@ -154,11 +154,16 @@ test('Plan 593: post-fix census inside the profile view is 8 h3s — view headin
   assert.equal((viewLine.match(/<h3/g) || []).length, 1, 'the view line carries exactly one h3 (its heading)');
 });
 
-test('Plan 593: the remaining h3s are named — uptime on Info, manual log on Complaints, two sibling panels', () => {
-  // Census: 8 h3s inside the view, 9 on the Info tab (the 8 +
-  // uptime). Each remaining h3 below is named by its mount, so a
-  // later reader cannot mistake this census for a failure.
-  assert.ok(indexSrc.includes('<h3 id="uptimeHeading"'), 'uptime heads the Info panel (Plan 594 owns it)');
+test('Plan 593: the remaining headings are named — uptime h4 on Info (594), manual log h3 on Complaints, two sibling-panel h3s', () => {
+  // Census after Plan 594: 8 h3s inside the view (source); the Info
+  // panel as built holds 8 (uptime is h4 now, so it adds none); at
+  // runtime the Info tab holds 7 (Financial reads under Billing).
+  // Uptime is h4 — Plan 594 demoted it; the manual log + the two
+  // sibling panels keep their h3s. Each remaining heading below is
+  // named by its mount, so a later reader cannot mistake this census
+  // for a failure.
+  assert.ok(indexSrc.includes('<h4 id="uptimeHeading"'), 'uptime is h4 on the Info panel (Plan 594 demoted it)');
+  assert.ok(!indexSrc.includes('<h3 id="uptimeHeading"'), 'no h3 uptime heading remains');
   assert.ok(indexSrc.includes('<h3 id="incidentHeading"'), 'the manual log heads its own Complaints tab panel');
   assert.ok(appSrc.includes("<h3>${t('prof_receipts_heading')}</h3>"), 'the receipts summary keeps its h3 (sibling panel)');
   assert.ok(appSrc.includes('<h3 class="current-bill-heading-pill">'), 'the current bill keeps its h3 (sibling panel)');

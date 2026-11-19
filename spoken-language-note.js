@@ -135,7 +135,10 @@ export function spokenLanguageNoteSectionHtml(customer, list, labels = {}) {
   const removeLabel = cleanSpokenLanguageNoteText(labels.remove) || 'Remove';
   const noneText = cleanSpokenLanguageNoteText(labels.none) || 'No spoken language noted for this customer.';
   const addLabel = cleanSpokenLanguageNoteText(labels.add) || `Add ${heading}`;
-  const explainerHtml = `<p>Saad greets each household in the language they are comfortable with, which is a small thing that builds the trust the whole business runs on. This note changes nothing by itself.</p>`;
+  // Plan 601 — the explainer rides labels.explainer (t('prv_note_spoken_explainer'));
+  // the English paragraph below is the default when no labels are passed.
+  const explainer = cleanSpokenLanguageNoteText(labels.explainer) || 'Saad greets each household in the language they are comfortable with, which is a small thing that builds the trust the whole business runs on. This note changes nothing by itself.';
+  const explainerHtml = `<p>${escapeSpokenLanguageNoteHtml(explainer)}</p>`;
   const currentHtml = note
     ? `<p class="sln-current"><strong>${escapeSpokenLanguageNoteHtml(note.language)}</strong>${note.notedBy || note.notedDate ? `<span class="sln-meta"> — ${escapeSpokenLanguageNoteHtml([note.notedBy, note.notedDate].filter(Boolean).join(', '))}</span>` : ''}</p>`
     : `<p class="sln-none">${escapeSpokenLanguageNoteHtml(noneText)}</p>`;

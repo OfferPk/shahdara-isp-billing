@@ -77,10 +77,11 @@ test('tick in box: the heading row carries a permanent green border in both them
   const baseAt = stylesSrc.indexOf('\n.qc-success-heading-row {');
   assert.ok(baseAt >= 0, 'base heading-row rule missing');
   const row = ruleBlock(stylesSrc.slice(baseAt), '.qc-success-heading-row {');
-  assert.ok(row.includes('display: flex'), 'heading row must be flex');
-  assert.ok(row.includes('align-items: center'), 'row must centre the tick against the heading');
-  assert.ok(row.includes('justify-content: center'), 'row must be centred like the banner');
-  assert.ok(row.includes('gap: 8px'), 'row gap must be 8px');
+  // QC success-receipt polish (TOP, 2026-11-19): the row is inline flow
+  // now, not flex (see polish21 tick-inline) — the border, radius and
+  // padding below are unchanged.
+  assert.ok(row.includes('display: block'), 'heading row must be block (inline flow)');
+  assert.ok(row.includes('text-align: center'), 'row must centre the heading + tick');
   // The permanent border is the "box" — it replaces the focus outline
   // that used to be the only box, and it wraps heading + tick together.
   assert.ok(row.includes('border: 2px solid var(--green, #0e5b4d)'), 'row must carry the permanent 2px green border');

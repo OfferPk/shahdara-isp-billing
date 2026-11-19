@@ -98,14 +98,18 @@ test('tick inline: the tick sits inside a heading row beside the heading, 18px S
 test('tick inline: 32px circle on success, centred row, tick never shrinks', () => {
   // The success-scoped border-removal rule precedes the base rule in
   // indexOf, so the base rule is anchored at column 0.
+  // QC success-receipt polish (TOP, 2026-11-19): the row is inline flow
+  // now, not flex — a wrapping h3's flex box fills the row and strands
+  // the check at the far right edge; only inline flow puts the check
+  // immediately after the heading text. The border, radius and padding
+  // are unchanged; the tick still never shrinks.
   const row = ruleBlock(stylesSrc, '\n.qc-success-heading-row {');
-  assert.ok(row.includes('display: flex'), 'heading row must be flex');
-  assert.ok(row.includes('align-items: center'), 'row must centre the tick against the heading');
-  assert.ok(row.includes('justify-content: center'), 'row must be centred like the banner');
-  assert.ok(row.includes('gap: 8px'), 'row gap must be 8px');
+  assert.ok(row.includes('display: block'), 'heading row must be block (inline flow)');
+  assert.ok(row.includes('text-align: center'), 'row must centre the heading + tick');
   const tickInRow = ruleBlock(stylesSrc, '.qc-success-heading-row .qc-success-check {');
   assert.ok(tickInRow.includes('margin-bottom: 0'), 'the base 8px bottom margin must not apply inside the row');
   assert.ok(tickInRow.includes('flex-shrink: 0'), 'the tick must never squeeze');
+  assert.ok(tickInRow.includes('vertical-align: middle'), 'the tick must sit on the text baseline');
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
   // Tick-in-box fix: 28 → 32px — the tick looked lost beside the
   // two-line 18px heading. It costs 0px vertically (row height is
@@ -152,17 +156,19 @@ test('tick re-trigger: showStep removes the trigger class, forces a reflow, re-a
 
 // --- Req 2: separation ---------------------------------------------------
 
-test('separation: the Urdu message gets 8px of air below the heading on success', () => {
+test('separation: the Urdu message gets 6px of air below the heading on success', () => {
   // QC receipt-modal overhaul (§4.3.5): the message moved out of the
-  // banner into its own callout box below it — the 8px of air is now
-  // structural (the success step gap), not a margin-top on the message.
+  // banner into its own callout box below it — the air is structural
+  // (the success step gap), not a margin-top on the message.
   // The message inside the callout keeps margin 0.
+  // QC success-receipt polish (TOP, 2026-11-19): callout padding
+  // 10px 14px → 8px 12px, step gap 8px → 6px — the air is 6px now.
   const callout = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-callout {');
-  assert.ok(callout.includes('padding: 10px 14px'), 'callout must carry its own padding');
+  assert.ok(callout.includes('padding: 8px 12px'), 'callout must carry its own padding');
   const message = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-callout #quickCollectSuccessMessage {');
   assert.ok(message.includes('margin: 0'), 'message margins stay 0 inside the callout');
   const step = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open #quickCollectStepSuccess {');
-  assert.ok(step.includes('gap: 8px'), 'success step gap must be 8px — the callout sits 8px below the banner');
+  assert.ok(step.includes('gap: 6px'), 'success step gap must be 6px — the callout sits 6px below the banner');
   const base = ruleBlock(stylesSrc, '#quickCollectSuccessMessage {');
   assert.ok(base.includes('margin: 0'), 'base message margins stay 0');
 });

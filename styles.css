@@ -9629,8 +9629,8 @@ button:not([hidden]).qc-date-chip {
 .qc-success-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .qc-wa-btn {
@@ -9746,11 +9746,11 @@ button:not([hidden]).qc-date-chip {
   background: var(--ds-brand-soft);
   border: 1px solid var(--ds-success-border);
   border-radius: 12px;
-  padding: 12px 16px;
+  padding: 10px 12px;
 }
 
 /* B3: heading explicit 18px, no margins (it inherits browser h3 sizing today). */
-#quickCollectSuccessHeading { font-size: 16px; margin: 0; }
+#quickCollectSuccessHeading { display: inline; font-size: 16px; margin: 0; }
 
 /* M2: message <p> margins → 0 (the banner padding already gives the air). */
 #quickCollectSuccessMessage { margin: 0; }
@@ -9795,18 +9795,35 @@ button:not([hidden]).qc-date-chip {
 }
 
 /* C1 + C2: receipt card padding 14 → 10px, gap 10 → 8px. */
-#quickCollectModal.qc-success-open .qc-receipt-card { padding: 10px; gap: 8px; }
+#quickCollectModal.qc-success-open .qc-receipt-card { padding: 8px; gap: 6px; }
 
 /* C3: card header badges stop wrapping; the receipt reference group
    drops to its own right-aligned line only if it cannot fit. The id
    rule is scoped to the split card's direct-child title — the
    ordinary id is nested inside .qc-receipt-ref now (the wrapper
    carries the auto margin), and the unscoped rule would reach it. */
-#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: nowrap; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }
-#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-shared,
-#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { white-space: nowrap; }
+#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-shared { white-space: nowrap; }
+/* QC success-receipt polish (TOP): the unshared badge is shaved (padding
+   2px 6px, gap 2px) so badge + Receipt No. fit one row at 360px. Split
+   out of the shared selector list so the shave stays scoped to the
+   unshared form — the base badge rule is shared with the profile card. */
+#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { white-space: nowrap; padding: 2px 6px; gap: 2px; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header > .qc-receipt-id { white-space: nowrap; margin-inline-start: auto; }
+
+/* QC success-receipt polish (TOP): shave the header so badge + Receipt No.
+   fit on one row at 360px (DejaVu budget 292px vs 300px inner). All scoped
+   to the success-open card — the base badge rule is shared with the
+   profile card (the badge shave itself lives in the split unshared rule
+   above, so a first-match rule lookup sees it). */
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-ref { gap: 4px; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header .qc-txnid-code { padding: 2px 4px; }
+
+/* QC success-receipt polish (TOP): Change sits left under the phone as an
+   emerald underlined inline action link. Hook + handler untouched; the
+   Sharafat 96 44px floor still governs the tap target. */
+#quickCollectModal.qc-success-open .qc-receipt-item [data-qc-edit-phone] { align-self: flex-start; text-align: left; color: var(--qc-emerald-text); text-decoration: underline; text-underline-offset: 2px; padding: 2px 0; }
 
 /* C4: amount 1.5rem → 1.3rem (still the largest figure on the card),
    amount row padding 4 → 2px. QC Success Card Polish (2026-11-13):
@@ -9822,7 +9839,7 @@ button:not([hidden]).qc-date-chip {
    at 44px — so the pill sets min-height: 0 (scoped) and restyles the
    <select> itself (appearance: none, pill border, chevron via the
    wrapper). The delegated change handler still fires and still saves. */
-#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid { gap: 6px; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid { gap: 5px; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-area-select {
   min-height: 0;
   height: 30px;
@@ -9844,7 +9861,7 @@ button:not([hidden]).qc-date-chip {
 #quickCollectModal.qc-success-open .qc-receipt-card .receipt-urdu-notice.qc-urdu-nastaliq p { margin: 0; }
 
 /* G1: success step gap 12 → 8px. */
-#quickCollectModal.qc-success-open #quickCollectStepSuccess { gap: 8px; }
+#quickCollectModal.qc-success-open #quickCollectStepSuccess { gap: 6px; }
 
 /* Reduced motion: the gradient goes static (still multi-coloured) and
    the tick shows drawn and unscaled. */
@@ -9875,8 +9892,8 @@ button:not([hidden]).qc-date-chip {
 /* QC receipt-modal overhaul (§4.2.1): the bordered heading-row box is gone
    — the banner IS the box now — so the row is a plain flex row inside it. */
 #quickCollectModal.qc-success-open .qc-success-heading-row { border: none; padding: 0; }
-.qc-success-heading-row { display: flex; align-items: center; justify-content: center; gap: 8px; border: 2px solid var(--green, #0e5b4d); border-radius: 12px; padding: 4px 12px; }
-.qc-success-heading-row .qc-success-check { margin-bottom: 0; flex-shrink: 0; }
+.qc-success-heading-row { display: block; text-align: center; border: 2px solid var(--green, #0e5b4d); border-radius: 12px; padding: 4px 12px; }
+.qc-success-heading-row .qc-success-check { margin-bottom: 0; flex-shrink: 0; vertical-align: middle; }
 [data-theme="dark"] .qc-success-heading-row { border-color: #2dd4bf; }
 
 /* Req 4 (amended) — Tappable contact icons beside the support number
@@ -10285,7 +10302,7 @@ button:not([hidden]).eds-panel-dismiss {
   background: var(--ds-nested);
   border-inline-end: 3px solid var(--ds-brand);
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   font-size: 14px;
   line-height: 1.7;
   direction: rtl;

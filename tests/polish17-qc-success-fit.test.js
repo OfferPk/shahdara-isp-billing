@@ -180,11 +180,12 @@ test('fit budget: the compact header, banner, callout, card and action values th
   const closeBtn = ruleBlock(stylesSrc, '#quickCollectModal #closeQuickCollectModalBtn {');
   assert.ok(closeBtn.includes('width: 32px') && closeBtn.includes('height: 32px'), 'close button must be 32x32 on success');
 
-  // Banner — unified emerald: brand-soft bg, success border, 12px 16px.
+  // Banner — unified emerald: brand-soft bg, success border, 10px 12px.
+  // (QC success-receipt polish, TOP, 2026-11-19: 12px 16px → 10px 12px.)
   const banner = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-banner {');
   assert.ok(banner.includes('background: var(--ds-brand-soft)'), 'banner must use the brand-soft background');
   assert.ok(banner.includes('border: 1px solid var(--ds-success-border)'), 'banner must use the success border');
-  assert.ok(banner.includes('padding: 12px 16px'), 'banner padding must be 12px 16px on success');
+  assert.ok(banner.includes('padding: 10px 12px'), 'banner padding must be 10px 12px on success');
 
   // Heading — 16px (was 18px), margin 0. The heading wraps to two
   // lines at 360px in the harness (48px row) — measured, not hidden.
@@ -198,12 +199,13 @@ test('fit budget: the compact header, banner, callout, card and action values th
   assert.equal((pageSrc.match(/class="qc-success-check"/g) || []).length, 1, 'no hero tick row may remain');
 
   // Callout — the Urdu package note in its own box below the banner.
+  // (QC success-receipt polish, TOP, 2026-11-19: 10px 14px → 8px 12px.)
   const callout = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-callout {');
   assert.ok(callout.includes('background: var(--ds-nested)'), 'callout must use the nested background');
   // Sharafat 95: the callout accent is a logical border now
   // (border-inline-end) so it stays on the card's end edge in Urdu mode.
   assert.ok(callout.includes('border-inline-end: 3px solid var(--ds-brand)'), 'callout must carry the brand end border');
-  assert.ok(callout.includes('padding: 10px 14px'), 'callout padding must be 10px 14px');
+  assert.ok(callout.includes('padding: 8px 12px'), 'callout padding must be 8px 12px');
   assert.ok(callout.includes('direction: rtl'), 'callout must be RTL');
 
   // Message — Nastaliq 14px / line-height 2.0, margins 0 (in the callout).
@@ -214,16 +216,21 @@ test('fit budget: the compact header, banner, callout, card and action values th
   const message = ruleBlock(stylesSrc, '#quickCollectSuccessMessage {');
   assert.ok(message.includes('margin: 0'), 'message margins must be 0');
 
-  // C1 — card padding 14 → 10 (top + bottom).
+  // C1 — card padding 10 → 8 (top + bottom).
+  // (QC success-receipt polish, TOP, 2026-11-19.)
   const card = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card {');
-  assert.ok(card.includes('padding: 10px'), 'C1: card padding must be 10px on success');
+  assert.ok(card.includes('padding: 8px'), 'C1: card padding must be 8px on success');
 
-  // C2 — card gap 10 → 8.
-  assert.ok(card.includes('gap: 8px'), 'C2: card gap must be 8px on success');
+  // C2 — card gap 8 → 6.
+  // (QC success-receipt polish, TOP, 2026-11-19.)
+  assert.ok(card.includes('gap: 6px'), 'C2: card gap must be 6px on success');
 
   // C3 — card header badges stop wrapping; the receipt reference group
-  // drops to its own right-aligned line only if it cannot fit.
-  assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }'), 'C3: header must allow the id to drop to its own line');
+  // sits on the same row now (nowrap) — it drops to its own
+  // right-aligned line only at 320px, where it cannot fit.
+  // (QC success-receipt polish, TOP, 2026-11-19: wrap → nowrap + the
+  // badge/ref/chip shaves, so badge + Receipt No. fit one row at 360px.)
+  assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: nowrap; }'), 'C3: header must keep badge + ref on one row (nowrap)');
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }'), 'C3: receipt badges must not wrap');
 
   // C4 — amount 1.5rem → 1.3rem, row padding 4 → 2.
@@ -235,10 +242,11 @@ test('fit budget: the compact header, banner, callout, card and action values th
   const amountRow = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount-row.qc-amount-pill {');
   assert.ok(amountRow.includes('padding: 2px 14px'), 'C4: amount pill padding must be 2px 14px on success');
 
-  // C5 — grid gap 8 → 6; the Area select is a 30px pill (was a 44px
+  // C5 — grid gap 6 → 5; the Area select is a 30px pill (was a 44px
   // select, then a dead 34px rule — the pill is the live value).
+  // (QC success-receipt polish, TOP, 2026-11-19: grid gap 6 → 5px.)
   const grid = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid {');
-  assert.ok(grid.includes('gap: 6px'), 'C5: grid gap must be 6px on success');
+  assert.ok(grid.includes('gap: 5px'), 'C5: grid gap must be 5px on success');
   const areaSelect = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-select {');
   assert.ok(areaSelect.includes('height: 30px'), 'C5: Area pill must be 30px tall on success');
   assert.ok(areaSelect.includes('min-height: 0'), 'C5: Area pill must beat the 44px select floor');
@@ -250,9 +258,10 @@ test('fit budget: the compact header, banner, callout, card and action values th
   const termsP = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .receipt-urdu-notice.qc-urdu-nastaliq p {');
   assert.ok(termsP.includes('margin: 0'), 'T1: terms <p> margins must be 0 on success');
 
-  // G1 — step gap 12 → 8.
+  // G1 — step gap 8 → 6.
+  // (QC success-receipt polish, TOP, 2026-11-19.)
   const step = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open #quickCollectStepSuccess {');
-  assert.ok(step.includes('gap: 8px'), 'G1: success step gap must be 8px');
+  assert.ok(step.includes('gap: 6px'), 'G1: success step gap must be 6px');
 
   // D1 — dialog padding-top 16 → 8 on success.
   const dialog = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open {');

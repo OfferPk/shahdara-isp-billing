@@ -180,8 +180,13 @@ test('message: applyPackageSuccessMessage puts Nastaliq on the Urdu message only
   assert.ok(!body.includes('qc-urdu-gradient'), 'message function must not mention the gradient');
   assert.ok(body.includes("setAttribute('dir', 'rtl')"), 'Urdu message must be dir=rtl');
   assert.ok(body.includes("setAttribute('lang', 'ur')"), 'Urdu message must be lang=ur');
-  assert.ok(body.includes("removeAttribute('dir')"), 'English default must drop dir');
-  assert.ok(body.includes("removeAttribute('lang')"), 'English default must drop lang');
+  // QC success-receipt polish (TOP, 2026-11-19): the English default
+  // no longer drops dir/lang (the callout is direction: rtl by design,
+  // so the English sentence inherited RTL and its trailing period
+  // jumped to the start of line 2). It sets dir=ltr + lang=en
+  // explicitly, symmetric with the Urdu branch.
+  assert.ok(body.includes("setAttribute('dir', 'ltr')"), 'English default must set dir=ltr');
+  assert.ok(body.includes("setAttribute('lang', 'en')"), 'English default must set lang=en');
   // The toggle takes the package-match boolean, so the English default
   // (no package match) never carries the class.
   assert.match(body, /classList\.toggle\('qc-urdu-nastaliq', isUrdu\)/);

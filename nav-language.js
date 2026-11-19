@@ -2376,7 +2376,7 @@ export const TRANSLATIONS = {
     // untouched for Field Mode, which pins its exact wording.
     qc_loose_keep_chip: 'Keep {change}',
     khula_credit_row: 'Change Kept as Advance Credit',
-    pkg_auto_set_note: 'Package set from this payment: PKR {amount} / month',
+    pkg_auto_set_note: 'Package set from this payment: PKR {amount}/mo',
     lfw_toggle: 'Waive late fee (−{amount})',
     lfw_note_full: 'Full principal is being paid — the late fee will be waived and logged on the receipt.',
     lfw_note_partial: 'Pay the full principal ({amount}) to waive the late fee.',
@@ -7722,7 +7722,7 @@ export const TRANSLATIONS = {
     // loose-change chip — short form only; khula_chip stays as is.
     qc_loose_keep_chip: '{change} رکھیں',
     khula_credit_row: 'بقایا ایڈوانس کریڈٹ رکھا گیا',
-    pkg_auto_set_note: 'اس ادائیگی سے پیکیج مقرر ہو گیا: PKR {amount} / مہینہ',
+    pkg_auto_set_note: 'اس ادائیگی سے پیکیج مقرر ہو گیا: PKR {amount}/mo',
     lfw_toggle: 'تاخیری فیس معاف کریں (−{amount})',
     lfw_note_full: 'مکمل اصل رقم ادا ہو رہی ہے — تاخیری فیس معاف کر کے رسید پر درج کر دی جائے گی۔',
     lfw_note_partial: 'تاخیری فیس معاف کرنے کے لیے مکمل اصل رقم ({amount}) ادا کریں۔',

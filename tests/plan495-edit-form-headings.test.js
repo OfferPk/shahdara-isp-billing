@@ -7,9 +7,13 @@ import { dirname, join } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(here, '..', name), 'utf8');
 
-// Plan 495 — the edit form groups its fields under the view's section
-// headings, using the view's own i18n keys and heading level. Save paths
-// unchanged.
+// Plan 495 — the edit form groups its fields under section headings
+// at the view's heading level. Save paths unchanged.
+// Plan 611 (2026-11-19) gave the form its OWN heading keys (pfh_*):
+// the form no longer reuses the view's prof_sec_* keys, so the form
+// stops reading as a copy of the view pasted inside itself. The section
+// keys, field order and field counts below are unchanged; only the
+// headingKey column moved, with a why-comment on each changed line.
 // Plan 496 reordered the fields into the view's group order — the exact
 // order pinned below is the Plan 496 order, not the Plan 495 order.
 //
@@ -69,8 +73,8 @@ test('plan 495: form shows the six view headings, first in view order', () => {
   );
   assert.deepEqual(
     sections.map((s) => s.headingKey),
-    ['prof_sec_customer', 'prof_sec_service', 'prof_sec_financial', 'prof_sec_connection', 'prof_sec_network', 'prof_sec_hardware'],
-    'each section must reuse its view section heading key',
+    ['pfh_customer', 'pfh_service', 'pfh_financial', 'pfh_connection', 'pfh_network', 'pfh_hardware'],
+    'each section must carry its own form heading key (Plan 611 — no longer the view key)',
   );
 });
 
@@ -178,19 +182,31 @@ test('plan 496: field order matches the view order', () => {
   ]);
 });
 
-test('plan 495: headings reuse the view heading level, keys and styling', () => {
+test('plan 611: headings keep the view heading level and styling, with the form\'s own keys', () => {
   const form = formHtml();
-  const headingTags = [...form.matchAll(/<h4[^>]*data-i18n="(prof_sec_[a-z]+)"[^>]*>([^<]+)<\/h4>/g)];
+  const headingTags = [...form.matchAll(/<h4[^>]*data-i18n="(pfh_[a-z]+)"[^>]*>([^<]+)<\/h4>/g)];
   assert.equal(headingTags.length, 6, 'six h4 headings, one per section');
   for (const [tag, key] of headingTags) {
     assert.ok(
-      ['prof_sec_customer', 'prof_sec_service', 'prof_sec_financial', 'prof_sec_connection', 'prof_sec_network', 'prof_sec_hardware'].includes(key),
-      `heading must reuse a view section key, got ${key}`,
+      ['pfh_customer', 'pfh_service', 'pfh_financial', 'pfh_connection', 'pfh_network', 'pfh_hardware'].includes(key),
+      `heading must carry a form heading key, got ${key}`,
     );
     assert.ok(!tag.includes('id='), 'headings carry no new element id');
   }
-  // The keys already exist with English + Urdu values (no new i18n keys).
+  // The form's own keys exist with English + Urdu values; the view's
+  // prof_sec_* keys still exist unchanged (the view keeps them).
   const lang = read('nav-language.js');
+  for (const [key, en, ur] of [
+    ['pfh_customer', 'Contact details', 'رابطے کی تفصیلات'],
+    ['pfh_service', 'Their service', 'ان کی سروس'],
+    ['pfh_financial', 'Money details', 'رقم کی تفصیلات'],
+    ['pfh_connection', 'Their connection', 'ان کا کنکشن'],
+    ['pfh_network', 'Network settings', 'نیٹ ورک سیٹنگز'],
+    ['pfh_hardware', 'Equipment details', 'آلات کی تفصیلات'],
+  ]) {
+    assert.ok(lang.includes(`${key}: '${en}'`), `${key} must keep its English value`);
+    assert.ok(lang.includes(`${key}: '${ur}'`), `${key} must keep its Urdu value`);
+  }
   for (const [key, en, ur] of [
     ['prof_sec_customer', 'Customer Information', 'کسٹمر کی معلومات'],
     ['prof_sec_service', 'Service & Package', 'سروس اور پیکج'],
@@ -199,8 +215,8 @@ test('plan 495: headings reuse the view heading level, keys and styling', () => 
     ['prof_sec_network', 'Network Configuration', 'نیٹ ورک کنفیگریشن'],
     ['prof_sec_hardware', 'Hardware & Equipment', 'ہارڈویئر اور آلات'],
   ]) {
-    assert.ok(lang.includes(`${key}: '${en}'`), `${key} must keep its English value`);
-    assert.ok(lang.includes(`${key}: '${ur}'`), `${key} must keep its Urdu value`);
+    assert.ok(lang.includes(`${key}: '${en}'`), `the view key ${key} must keep its English value`);
+    assert.ok(lang.includes(`${key}: '${ur}'`), `the view key ${key} must keep its Urdu value`);
   }
   // The view renders its group headings as h4 inside .profile-info-group
   // (app.js profileInfoGroupMarkup); the form sections reuse that class,

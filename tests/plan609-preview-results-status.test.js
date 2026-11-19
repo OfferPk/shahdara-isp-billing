@@ -98,7 +98,7 @@ test('G7: this file pins no parity total and stays free of the parity bare digit
   // digits of the current total, pnl G4 counts the files containing
   // them). This file asserts no parity total — 0 new keys.
   const selfSrc = read('tests/plan609-preview-results-status.test.js');
-  assert.ok(!selfSrc.includes('51' + '62'), 'this file carries the current parity bare digits');
-  assert.ok(!selfSrc.includes('51' + '61'), 'this file carries the previous parity bare digits');
+  assert.ok(!selfSrc.includes('51' + '68'), 'this file carries the current parity bare digits');
+  assert.ok(!selfSrc.includes('51' + '62'), 'this file carries the previous parity bare digits');
   assert.ok(!selfSrc.includes('51' + '45'), 'this file carries the older parity bare digits');
 });

@@ -153,7 +153,7 @@ function parseFormSections(form) {
 
 const EXPECTED_FORM_SECTIONS = {
   customer: {
-    headingKey: 'prof_sec_customer',
+    headingKey: 'pfh_customer',  // Plan 611 — the form's own key, not the view's
     fields: [
       'profileNameInput', 'mohallaInput', 'zoneInput', 'nameUrduInput',
       // Profile Number Field at Top (item C) — the phone field MOVED out
@@ -168,7 +168,7 @@ const EXPECTED_FORM_SECTIONS = {
     ],
   },
   service: {
-    headingKey: 'prof_sec_service',
+    headingKey: 'pfh_service',  // Plan 611 — the form's own key, not the view's
     fields: [
       'ispProviderInput', 'serviceStatusInput', 'preferredVisitWindowInput', 'connectionTypeInput',
       'pauseBillingCheckbox', 'pauseStartDateInput', 'autoResumeDateInput',
@@ -179,21 +179,21 @@ const EXPECTED_FORM_SECTIONS = {
     ],
   },
   financial: {
-    headingKey: 'prof_sec_financial',
+    headingKey: 'pfh_financial',  // Plan 611 — the form's own key, not the view's
     fields: [
       'monthlyPurchaseCostInput', 'monthlySellingAmountInput',
       'securityDepositInput', 'feederHostCreditInput',
     ],
   },
   connection: {
-    headingKey: 'prof_sec_connection',
+    headingKey: 'pfh_connection',  // Plan 611 — the form's own key, not the view's
     fields: [
       'connectionDateInput', 'connectionFeeInput', 'fiberMetersInput',
       'linemanInstallFeeInput', 'otherInstallCostInput', 'installedByLinemanInput', 'fiberPerMeterRateInput',
     ],
   },
   network: {
-    headingKey: 'prof_sec_network',
+    headingKey: 'pfh_network',  // Plan 611 — the form's own key, not the view's
     fields: [
       'splitterBoxIdInput', 'splitterPortInput', 'oltPonPortInput', 'lastRxDbmInput',
       'onuConnectorTypeInput', 'converterSideInput', 'poleNumberInput', 'boxLocationNoteInput',
@@ -203,7 +203,7 @@ const EXPECTED_FORM_SECTIONS = {
     ],
   },
   hardware: {
-    headingKey: 'prof_sec_hardware',
+    headingKey: 'pfh_hardware',  // Plan 611 — the form's own key, not the view's
     fields: [
       'routerModelInput', 'routerPriceInput', 'mediaConverterCostInput',
       'routerOwnershipInput', 'mediaConverterOwnershipInput', 'serialNumberInput',
@@ -219,7 +219,7 @@ test('phase C: the form is regrouped into the six view sections, in view order',
     'six form groups, one per editable view section, in view order — History has no form group',
   );
   for (const s of sections) {
-    assert.equal(s.headingKey, EXPECTED_FORM_SECTIONS[s.key].headingKey, `${s.key} must reuse its view section heading key`);
+    assert.equal(s.headingKey, EXPECTED_FORM_SECTIONS[s.key].headingKey, `${s.key} must carry its own form heading key (Plan 611)`);
     assert.deepEqual(s.fields, EXPECTED_FORM_SECTIONS[s.key].fields, `${s.key} must hold its Table A fields in current relative order`);
   }
 });
@@ -235,7 +235,7 @@ test('phase C: every one of the 69 fields sits under a group heading — no ungr
 
 test('phase C: the form headings carry no new element id', () => {
   const form = formHtml();
-  const headings = [...form.matchAll(/<h4[^>]*data-i18n="(prof_sec_[a-z]+)"[^>]*>/g)];
+  const headings = [...form.matchAll(/<h4[^>]*data-i18n="(pfh_[a-z]+)"[^>]*>/g)];  // Plan 611 — the form headings carry pfh_* keys now
   assert.equal(headings.length, 6, 'six h4 headings, one per group');
   for (const [tag] of headings) {
     assert.ok(!tag.includes('id='), 'headings carry no new element id');

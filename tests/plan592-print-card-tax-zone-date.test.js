@@ -261,9 +261,9 @@ test('Plan 592: module stays pure and reuses only the two print-card colours', (
 });
 
 test('Plan 592: parity does not move — 592 adds no i18n key', () => {
-  // The count is read off THIS base (the H5 merge): 4,767/4,767.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 4767);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4767);
+  // The count is read off THIS base (the H5 merge): 4,906/4,906.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 4906);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 4906);
 });
 
 test('Plan 592: the plan502 wording on the card is unchanged', () => {

@@ -257,12 +257,42 @@ export function buildWelcomePackDraft(pack, variant = WELCOME_PACK_VARIANTS.ROMA
   return { variant: WELCOME_PACK_VARIANTS.ROMAN, text: lines.join(' ') };
 }
 
-export function welcomePackSummaryText(pack) {
-  if (!pack || typeof pack !== 'object') return 'Welcome pack unavailable.';
+// Plan 600 — the preview chrome renders through a caller-supplied
+// labels object (the 591 header-strip pattern), so this module stays
+// import-free. Defaults are the English strings, so old callers (and
+// old tests) keep byte-identical output.
+const DEFAULT_WELCOME_PACK_LABELS = {
+  unavailable: 'Welcome pack unavailable.',
+  ready: 'Welcome pack ready for {name} — {package}, {amount}.',
+  incomplete: 'Welcome pack incomplete — missing: {list}.',
+  notSent: 'Welcome pack not sent yet — send it once at activation.',
+  sent1: 'Welcome pack sent on {date}.',
+  sentN1: 'Welcome pack sent on {date} and 1 more time — re-send anytime from here.',
+  sentN: 'Welcome pack sent on {date} and {count} more times — re-send anytime from here.',
+  package: 'Package:',
+  monthlyAmount: 'Monthly amount:',
+  due: 'Due:',
+  paymentMethods: 'Payment methods:',
+  support: 'Support:',
+  missing: 'Missing on the profile: {list} — set it on the profile before sending, so the customer never receives a guessed figure.',
+  dueEveryMonth: '{day} of every month',
+  notSet: 'Not set',
+};
+function wpLabel(labels, key) {
+  return (labels && typeof labels[key] === 'string' && labels[key] !== '') ? labels[key] : DEFAULT_WELCOME_PACK_LABELS[key];
+}
+function wpFill(template, params) {
+  let out = String(template);
+  for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
+  return out;
+}
+
+export function welcomePackSummaryText(pack, labels = DEFAULT_WELCOME_PACK_LABELS) {
+  if (!pack || typeof pack !== 'object') return wpLabel(labels, 'unavailable');
   if (pack.status === 'ready') {
-    return `Welcome pack ready for ${pack.customerName || 'this customer'} — ${pack.package}, ${formatWelcomePackAmount(pack.monthlyAmount)}.`;
+    return wpFill(wpLabel(labels, 'ready'), { name: pack.customerName || 'this customer', package: pack.package, amount: formatWelcomePackAmount(pack.monthlyAmount) });
   }
-  return `Welcome pack incomplete — missing: ${pack.missing.join(', ')}.`;
+  return wpFill(wpLabel(labels, 'incomplete'), { list: pack.missing.join(', ') });
 }
 
 // Append a send to the log (time, channel), returning a new list.
@@ -289,31 +319,33 @@ export function findWelcomePackSends(log, customerId) {
   return log.filter((entry) => text(entry?.customerId) === id);
 }
 
-export function welcomePackSentText(sends) {
+export function welcomePackSentText(sends, labels = DEFAULT_WELCOME_PACK_LABELS) {
   const list = Array.isArray(sends) ? sends : [];
-  if (list.length === 0) return 'Welcome pack not sent yet — send it once at activation.';
+  if (list.length === 0) return wpLabel(labels, 'notSent');
   const first = list[0];
   const datePart = text(first?.sentAt).slice(0, 10);
   const shown = formatWelcomePackDate(datePart) || datePart;
-  if (list.length === 1) return `Welcome pack sent on ${shown}.`;
-  return `Welcome pack sent on ${shown} and ${list.length - 1} more time${list.length - 1 === 1 ? '' : 's'} — re-send anytime from here.`;
+  if (list.length === 1) return wpFill(wpLabel(labels, 'sent1'), { date: shown });
+  if (list.length - 1 === 1) return wpFill(wpLabel(labels, 'sentN1'), { date: shown });
+  return wpFill(wpLabel(labels, 'sentN'), { date: shown, count: list.length - 1 });
 }
 
-export function welcomePackHtml(pack, { draftText = '', sends = [] } = {}) {
-  if (!pack || typeof pack !== 'object') return '<p class="empty-state">Welcome pack unavailable.</p>';
+export function welcomePackHtml(pack, { draftText = '', sends = [], labels = DEFAULT_WELCOME_PACK_LABELS } = {}) {
+  if (!pack || typeof pack !== 'object') return `<p class="empty-state">${escapeHtml(wpLabel(labels, 'unavailable'))}</p>`;
+  const notSet = wpLabel(labels, 'notSet');
   const fields = [
-    `Package: ${pack.package ? escapeHtml(pack.package) : WELCOME_PACK_NOT_SET}`,
-    `Monthly amount: ${pack.monthlyAmount === null ? WELCOME_PACK_NOT_SET : escapeHtml(formatWelcomePackAmount(pack.monthlyAmount))}`,
-    `Due: ${pack.dueDate ? escapeHtml(formatWelcomePackDate(pack.dueDate)) : pack.dueDay !== null ? `${ordinalDay(pack.dueDay)} of every month` : WELCOME_PACK_NOT_SET}`,
-    `Payment methods: ${pack.paymentMethods.length > 0 ? escapeHtml(pack.paymentMethods.join(', ')) : WELCOME_PACK_NOT_SET}`,
+    `${wpLabel(labels, 'package')} ${pack.package ? escapeHtml(pack.package) : notSet}`,
+    `${wpLabel(labels, 'monthlyAmount')} ${pack.monthlyAmount === null ? notSet : escapeHtml(formatWelcomePackAmount(pack.monthlyAmount))}`,
+    `${wpLabel(labels, 'due')} ${pack.dueDate ? escapeHtml(formatWelcomePackDate(pack.dueDate)) : pack.dueDay !== null ? escapeHtml(wpFill(wpLabel(labels, 'dueEveryMonth'), { day: ordinalDay(pack.dueDay) })) : notSet}`,
+    `${wpLabel(labels, 'paymentMethods')} ${pack.paymentMethods.length > 0 ? escapeHtml(pack.paymentMethods.join(', ')) : notSet}`,
   ];
-  if (pack.supportContact) fields.push(`Support: ${escapeHtml(pack.supportContact)}`);
+  if (pack.supportContact) fields.push(`${wpLabel(labels, 'support')} ${escapeHtml(pack.supportContact)}`);
   const missingNote = pack.missing.length > 0
-    ? `<p class="welcome-pack-missing">Missing on the profile: ${escapeHtml(pack.missing.join(', '))} — set it on the profile before sending, so the customer never receives a guessed figure.</p>`
+    ? `<p class="welcome-pack-missing">${escapeHtml(wpFill(wpLabel(labels, 'missing'), { list: pack.missing.join(', ') }))}</p>`
     : '';
-  return `<p>${escapeHtml(welcomePackSummaryText(pack))}</p>`
+  return `<p>${escapeHtml(welcomePackSummaryText(pack, labels))}</p>`
     + `<ul class="welcome-pack-fields">${fields.map((field) => `<li>${field}</li>`).join('')}</ul>`
     + missingNote
     + (draftText ? `<p class="welcome-pack-draft">${escapeHtml(draftText)}</p>` : '')
-    + `<p id="welcomePackSent">${escapeHtml(welcomePackSentText(sends))}</p>`;
+    + `<p id="welcomePackSent">${escapeHtml(welcomePackSentText(sends, labels))}</p>`;
 }

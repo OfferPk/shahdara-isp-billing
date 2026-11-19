@@ -7,7 +7,11 @@
 //  2. "WhatsApp Pending" + "Receipt No." wrapped at 360px. The header is
 //     nowrap now and the badge/ref/chip are shaved ~12px (all scoped to
 //     the success-open card), so they fit one row with ~8px slack by the
-//     DejaVu upper-bound budget.
+//     DejaVu upper-bound budget — for the SHORT number. The QC
+//     receipt-bottom polish (2026-11-19) retires the short form: the badge
+//     shows the FULL 17-char number, badge + ref is 371px vs the 292px
+//     budget, so the header wraps again and the ref sits on its own
+//     right-aligned line (C2 below pins the wrap, not the one-row fit).
 //  3. The Change button sat centred and unstyled under the phone. It is
 //     now a left-aligned emerald underlined inline link (token
 //     --qc-emerald-text, zero new hex); hook + handler untouched.
@@ -24,6 +28,9 @@
 //     remaining ~142px overage at 360x800 is disclosed, not hidden —
 //     literal "fits without scrolling" is NOT achievable by padding
 //     alone, and full no-scroll fit is a separate bigger restructure.
+//     (QC receipt-bottom polish, 2026-11-19: the full-number header wrap
+//     gives the ~24px one-row saving back, so the measured saving is
+//     now ~64px — C6 below pins >= 56px.)
 //
 // This file pins NO parity total and asserts NO parity (602 pattern):
 // it must contain neither the current-total bare digits nor the
@@ -94,11 +101,16 @@ test('C1 English fallback notice is explicitly LTR (JS dir=ltr), callout stays R
   assert.ok(has(callout, /direction:\s*rtl/), 'the callout must keep direction: rtl (Urdu package message needs it)');
 });
 
-// --- C2: badge + Receipt No. on one row at 360px ---
-test('C2 badge + Receipt No. fit one row at 360px (nowrap + width budget)', () => {
+// --- C2: badge + Receipt No. at 360px — the ref wraps to its own line ---
+// (QC receipt-bottom polish, 2026-11-19: the badge shows the FULL stored
+// number, so badge + ref can no longer fit one row — the header wraps and
+// the ref sits on its own right-aligned line. The TOP one-row fit is
+// retired, not re-shortened: the number is 17 chars, never the short form.)
+test('C2 badge + full Receipt No. wrap cleanly at 360px (badge row 1, ref on its own right-aligned line)', () => {
   const headerRule = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header');
-  assert.ok(has(headerRule, /flex-wrap:\s*nowrap/), 'success-open header must be flex-wrap: nowrap');
-  // DejaVu upper-bound text widths: badge text 129 + svg 12, ref label 80 + id 43.
+  assert.ok(has(headerRule, /flex-wrap:\s*wrap/), 'success-open header must be flex-wrap: wrap');
+  // DejaVu upper-bound text widths: badge text 129 + svg 12, ref label 80
+  // + id 122 (17 monospace chars at the TOP model's 43px-per-6-chars rate).
   const badgeScoped = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared');
   const badgeGap = num(badgeScoped, 'gap') ?? 4;
   const badgePadMatch = badgeScoped?.match(/padding:\s*[0-9.]+px\s+([0-9.]+)px/);
@@ -109,11 +121,19 @@ test('C2 badge + Receipt No. fit one row at 360px (nowrap + width budget)', () =
   const chipRule = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header .qc-txnid-code');
   const chipPadMatch = chipRule?.match(/padding:\s*[0-9.]+px\s+([0-9.]+)px/);
   const chipPadX = chipPadMatch ? Number(chipPadMatch[1]) : 6;
-  const refW = 80 + refGap + 43 + chipPadX * 2;
+  const refW = 80 + refGap + 122 + chipPadX * 2;
   const cardPad = num(ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card'), 'padding') ?? 10;
   const cardInner360 = 316 - cardPad * 2;
-  assert.ok(badgeW + refW <= cardInner360 - 8,
-    `badge (${badgeW}) + ref (${refW}) = ${badgeW + refW} must fit inner ${cardInner360} with 8px slack`);
+  assert.ok(badgeW + refW > cardInner360 - 8,
+    `badge (${badgeW}) + ref (${refW}) = ${badgeW + refW} must EXCEED inner ${cardInner360} — that is why the header wraps`);
+  assert.ok(badgeW <= cardInner360 - 8,
+    `badge (${badgeW}) must fit row 1 alone inside inner ${cardInner360}`);
+  assert.ok(refW <= cardInner360 - 8,
+    `ref (${refW}) must fit its own line inside inner ${cardInner360}`);
+  // The right-alignment lives in the BASE .qc-receipt-ref rule (the
+  // success-open override only narrows the gap) — read it, not the override.
+  const baseRefRule = ruleBody('.qc-receipt-ref');
+  assert.ok(has(baseRefRule, /margin-inline-start:\s*auto/), 'the ref must sit right-aligned on its own line');
 });
 
 // --- C3: Change is a left-aligned emerald link under the phone ---
@@ -152,8 +172,8 @@ test("C5 package line is 'PKR 800/mo' (grouped 'PKR 1,500/mo'), no '/ month' orp
   assert.ok(appJs.includes("t('pkg_auto_set_note'"), 'the app.js toast shares the key (both surfaces move together)');
 });
 
-// --- C6: vertical padding reduced, measured saving >= 80px ---
-test('C6 vertical padding reduced (banner/callout/card/step/actions), measured saving >= 80px', () => {
+// --- C6: vertical padding reduced, measured saving >= 56px ---
+test('C6 vertical padding reduced (banner/callout/card/step/actions), measured saving >= 56px', () => {
   const bannerRule = ruleBody('#quickCollectModal.qc-success-open .qc-success-banner');
   const calloutRule = ruleBody('#quickCollectModal.qc-success-open .qc-success-callout');
   const cardRule = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card');
@@ -173,9 +193,11 @@ test('C6 vertical padding reduced (banner/callout/card/step/actions), measured s
   // Saved px vs the base values (banner 12, callout 10, card 10, gaps 8/8/8).
   const saved = (12 - bannerV) * 2 + (10 - calloutV) * 2 + (10 - cardP) * 2
     + (8 - cardGap) * 4 + (8 - stepGap) * 6 + (8 - actionsGap) * 5 + (8 - actionsMt);
-  // Header one row saves ~24px; package one line saves ~20px.
-  const savedTotal = saved + 24 + 20;
-  assert.ok(savedTotal >= 80, `measured saving ~${savedTotal}px must be >= 80px`);
+  // Package one line saves ~20px. The header one-row saving (~24px) is
+  // GONE: the QC receipt-bottom polish shows the FULL 17-char number, so
+  // the header wraps again and the row comes back (see C2 above).
+  const savedTotal = saved + 20;
+  assert.ok(savedTotal >= 56, `measured saving ~${savedTotal}px must be >= 56px`);
 });
 
 // --- Steady state: ↩ kept (glyph matches the back-to-picker action) ---

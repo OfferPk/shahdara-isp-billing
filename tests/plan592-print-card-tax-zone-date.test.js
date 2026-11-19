@@ -261,9 +261,9 @@ test('Plan 592: module stays pure and reuses only the two print-card colours', (
 });
 
 test('Plan 592: parity does not move — 592 adds no i18n key', () => {
-  // The count is read off THIS plan (606): 5,161/5,161.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5161);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5161);
+  // The count was 5,161/5,161 at Plan 606; Plan 608 adds one key, so it reads 5,162/5,162.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5162);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5162);
 });
 
 test('Plan 592: the plan502 wording on the card is unchanged', () => {

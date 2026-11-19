@@ -15,7 +15,7 @@
 // documented fallback, pinned by polish5) — production always passes
 // `formatMoney: formatPKR` via wadaRecordLabels().
 //
-// This file asserts the new parity total (5,161) and is the 33rd pinning
+// This file asserts the new parity total (5,162) and is the 33rd pinning
 // file. It must contain NEITHER the previous total's bare digits nor
 // the older total's (plan591 G5a sweep) — the self-guard below builds
 // them from split literals, plan596/plan601 pattern (guard previous +
@@ -90,13 +90,14 @@ const TOAST_EN = {
 
 // ================= G1 — parity guard (this file's own pin) =================
 
-test('G1: parity is 5,161/5,161 in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5161, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5161, 'UR parity');
+test('G1: parity is 5,162/5,162 in both dicts', () => {
+  assert.equal(Object.keys(en).length, 5162, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5162, 'UR parity');
   const prvEn = Object.keys(en).filter((k) => k.startsWith('prv_'));
   const prvUr = Object.keys(ur).filter((k) => k.startsWith('prv_'));
-  assert.equal(prvEn.length, 239, 'exactly the prv_ keys in EN (232 from 601 + 7 toast keys)');
-  assert.equal(prvUr.length, 239, 'exactly the prv_ keys in UR');
+  // Plan 608 adds the 240th prv_ key (prv_wr_toast_past_date).
+  assert.equal(prvEn.length, 240, 'exactly the prv_ keys in EN (232 from 601 + 7 toast keys + 1 past-date key from 608)');
+  assert.equal(prvUr.length, 240, 'exactly the prv_ keys in UR');
 });
 
 // ================= G2 — the amount renders PKR, grouped =================
@@ -216,11 +217,11 @@ test('G10: the no-labels default still renders raw Rs 100 (documented fallback, 
 // ================= G11 — self-guard =================
 
 test('G11: this file pins the new total and stays free of the previous and older total literals', () => {
-  assert.ok(selfSrc.includes('5161'), 'this file pins the new total 5,161');
+  assert.ok(selfSrc.includes('5162'), 'this file pins the new total 5,162');
   // The previous total's digits and the older total's digits are built,
   // never spelled, so this guard cannot trip the sweep it guards.
-  assert.ok(!selfSrc.includes('51' + '45'), 'this file must stay free of the previous-count literal');
-  assert.ok(!selfSrc.includes('51' + '38'), 'this file must stay free of the older-count literal');
+  assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');
+  assert.ok(!selfSrc.includes('51' + '45'), 'this file must stay free of the older-count literal');
   // The t() helper is the real one from nav-language.js (not a local stub).
   assert.equal(t('prv_wr_toast_kept'), 'Wada marked kept.');
   assert.equal(t('prv_wr_toast_kept', 'ur'), 'وعدہ پورا ہوا قرار دیا گیا۔');

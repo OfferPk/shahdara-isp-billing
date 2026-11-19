@@ -5388,6 +5388,7 @@ export const TRANSLATIONS = {
     prv_wr_toast_broken: 'Wada marked broken.',
     prv_wr_toast_removed: 'Wada removed.',
     prv_wr_toast_chip_date: 'Could not compute promise date.',
+    prv_wr_toast_past_date: 'Waada date cannot be in the past — pick today or a future date.',
   },
 
   ur: {
@@ -10694,6 +10695,7 @@ export const TRANSLATIONS = {
     prv_wr_toast_broken: 'وعدہ ٹوٹا ہوا قرار دیا گیا۔',
     prv_wr_toast_removed: 'وعدہ ہٹا دیا گیا۔',
     prv_wr_toast_chip_date: 'وعدے کی تاریخ معلوم نہیں ہو سکی۔',
+    prv_wr_toast_past_date: 'وعدے کی تاریخ گزشتہ نہیں ہو سکتی — آج یا آئندہ کی تاریخ چنیں۔',
   }
 };
 

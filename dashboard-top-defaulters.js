@@ -914,6 +914,7 @@ export function setupTopDefaultersModal(state, {
     if (!waadaDialog) {
       waadaDialog = setupWaadaChipDialog({
         getCustomer: (id) => (getState().customers || []).find(c => c.id === id) || null,
+        pastDateMessage: t('prv_wr_toast_past_date'),
         onApply: (updated) => {
           // Sharafat 64: the chip-set waada goes through the single
           // writer, so it is mirrored into the wada-record store (the

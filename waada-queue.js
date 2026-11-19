@@ -66,6 +66,15 @@ export function isValidWaadaDate(dateStr) {
   return day <= daysInMonth;
 }
 
+/** Plan 608: true only when dateStr is a valid date strictly before
+ * todayStr. Invalid or empty input is NOT "in the past" — the caller
+ * keeps its own validity message for those. (Plain string compare:
+ * both sides are validated YYYY-MM-DD.) */
+export function isWaadaDateInPast(dateStr, todayStr) {
+  if (!isValidWaadaDate(dateStr) || !isValidWaadaDate(todayStr)) return false;
+  return dateStr.trim() < todayStr.trim();
+}
+
 function parseWaadaParts(dateStr) {
   if (!isValidWaadaDate(dateStr)) return null;
   const [year, month, day] = dateStr.trim().split('-').map(Number);
@@ -634,7 +643,7 @@ export function computeWaadaScore(customer, outstanding, todayStr = getWaadaToda
  * Returns { open(customerId), close() } or null when no document exists.
  * The dialog never touches storage itself — the host owns persistence.
  */
-export function setupWaadaChipDialog({ getCustomer, getToday, onApply, onToast } = {}) {
+export function setupWaadaChipDialog({ getCustomer, getToday, onApply, onToast, pastDateMessage } = {}) {
   if (typeof document === 'undefined') return null;
   const dialog = document.getElementById('waadaChipDialog');
   if (!dialog) return null;
@@ -671,7 +680,12 @@ export function setupWaadaChipDialog({ getCustomer, getToday, onApply, onToast }
         currentLine.textContent = 'Current: no promise set.';
       }
     }
-    if (customInput) customInput.value = '';
+    if (customInput) {
+      customInput.value = '';
+      // Plan 608: the picker offers no past date (min = PKT today, fresh
+      // on every open); a typed past date is still refused at save.
+      customInput.min = todayStr();
+    }
   };
 
   const apply = (updated, message) => {
@@ -691,6 +705,14 @@ export function setupWaadaChipDialog({ getCustomer, getToday, onApply, onToast }
     const date = computeWaadaChipDate(chip, todayStr(), customInput ? customInput.value : null);
     if (!date) {
       if (typeof onToast === 'function') onToast('Pick a valid date first.');
+      return;
+    }
+    if (isWaadaDateInPast(date, todayStr())) {
+      // Plan 608: a typed past date is refused with the keyed message —
+      // a Waada must never start its life already overdue. Chips can
+      // never be past (computeWaadaChipDate rolls forward), so this
+      // fires only for a typed custom date.
+      if (typeof onToast === 'function') onToast(pastDateMessage || 'Promise date cannot be in the past — pick today or a future date.');
       return;
     }
     try {

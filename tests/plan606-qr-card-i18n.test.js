@@ -13,7 +13,7 @@
 // (the documented fallback, pinned by qr-card.test.js) — production
 // always passes formatMoney: formatPKR via qrKhataPrintLabels().
 //
-// This file asserts the new parity total (5,161) and is the 34th pinning
+// This file asserts the new parity total (5,162) and is the 34th pinning
 // file. It must contain NEITHER the previous total's bare digits nor
 // the older total's (plan591 G5a sweep) — the self-guard below builds
 // them from split literals, plan596/plan601 pattern (guard previous +
@@ -120,9 +120,9 @@ function modalLines(lang = 'en') {
 
 // ================= G1 — parity guard (this file's own pin) =================
 
-test('G1: parity is 5,161/5,161 in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5161, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5161, 'UR parity');
+test('G1: parity is 5,162/5,162 in both dicts', () => {
+  assert.equal(Object.keys(en).length, 5162, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5162, 'UR parity');
   const qrkhEn = Object.keys(en).filter((k) => k.startsWith('qrkh_'));
   const qrkhUr = Object.keys(ur).filter((k) => k.startsWith('qrkh_'));
   assert.equal(qrkhEn.length, 16, 'exactly the 16 qrkh_ keys in EN');
@@ -304,11 +304,11 @@ test('G12: the 16 keys are clean — EN byte-identical, EN differs from UR, no R
 // ================= G13 — self-guard =================
 
 test('G13: this file pins the new total and stays free of the previous and older total literals', () => {
-  assert.ok(selfSrc.includes('5161'), 'this file pins the new total 5,161');
+  assert.ok(selfSrc.includes('5162'), 'this file pins the new total 5,162');
   // The previous total's digits and the older total's digits are built,
   // never spelled, so this guard cannot trip the sweep it guards.
-  assert.ok(!selfSrc.includes('51' + '45'), 'this file must stay free of the previous-count literal');
-  assert.ok(!selfSrc.includes('51' + '38'), 'this file must stay free of the older-count literal');
+  assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');
+  assert.ok(!selfSrc.includes('51' + '45'), 'this file must stay free of the older-count literal');
   // The t() helper is the real one from nav-language.js (not a local stub).
   assert.equal(t('qrkh_title'), 'QR Khata Card');
   assert.equal(t('qrkh_title', 'ur'), 'QR کھاتہ کارڈ');

@@ -178,6 +178,7 @@ import {
   computeRemainderWaada,
   remainderWaadaChipDates,
   getWaadaTodayString,
+  isWaadaDateInPast,
   setCustomerWaada,
   clearCustomerWaada,
   waadaBadgeLabel
@@ -1381,7 +1382,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           <button type="button" class="field-mode-waada-chip" data-field-waada="29th" ${busy ? 'disabled' : ''}>29th</button>
           <button type="button" class="field-mode-waada-chip" data-field-waada="30th" ${busy ? 'disabled' : ''}>30th</button>
           <button type="button" class="field-mode-waada-chip" data-field-waada="31st" ${busy ? 'disabled' : ''}>31st</button>
-          <input id="fieldModeWaadaCustomDate" class="field-mode-waada-date" type="date" aria-label="Custom promise date">
+          <input id="fieldModeWaadaCustomDate" class="field-mode-waada-date" type="date" min="${todayStr()}" aria-label="Custom promise date">
           <button type="button" class="field-mode-waada-chip" data-field-waada="custom" ${busy ? 'disabled' : ''}>Set date</button>
           <button type="button" class="field-mode-waada-chip" data-field-waada="clear" ${busy ? 'disabled' : ''}>Clear</button>
         </div>
@@ -1907,6 +1908,13 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     if (!state || !customer) return;
     try {
       const customInput = panelEl?.querySelector('#fieldModeWaadaCustomDate');
+      // Plan 608: a typed past date is refused with the keyed message
+      // before it reaches the writer (chips can never be past, so this
+      // fires only for a typed custom date).
+      if (chip === 'custom' && isWaadaDateInPast(customInput ? customInput.value : null, todayStr())) {
+        toast(t('prv_wr_toast_past_date'));
+        return;
+      }
       const updated = chip === 'clear'
         ? clearFieldModeWaada(customer)
         : applyFieldModeWaadaChip(customer, chip, todayStr(), customInput ? customInput.value : null);

@@ -565,13 +565,17 @@ test('hisaab H4 G3: buried triggers untouched and no Hisaab wiring in the engine
     'the new caller is not in dashboard-pnl.js');
 });
 
-// G4 — the binding is once-only, and parity moves with the 606 keys.
-// The parity digits are searched as a split literal ('51' + '61'): this
+// G4 — the binding is once-only, and parity moves with the 608 key.
+// The parity digits are searched as a split literal ('51' + '62'): this
 // file must NOT contain the bare digits — 591's G5a sweep counts every
-// test file containing them and asserts 34, so a literal here would make
-// this the 35th file and break the suite. The count below is re-measured
-// on the 604 merge (33 files pin the current total) plus Plan 606's new
-// test file, which pins it too — so the count is 34.
+// test file containing them and asserts 36, so a literal here would make
+// this the 37th file and break the suite. The count below is re-measured
+// on the 606 merge (34 files pin the current total) plus Plan 608's new
+// test file, which pins it too — so the count is 35 — plus the privacy
+// canary (tests/privacy-zero-pii-ratchet.test.js), which holds the digits
+// inside an invented CNIC without pinning the total, so the sweep
+// counts 36. (The CNIC itself is spelled out in the G5a comment —
+// never spell the digits here, or this file becomes the 37th.)
 test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag, and parity stays steady', () => {
   const appJs = fs.readFileSync(path.resolve(__dirname, '../app.js'), 'utf8');
   const bindings = (appJs.match(/\$\('#hisaabOpenPnlBtn'\)\?\.addEventListener\('click'/g) || []).length;
@@ -588,8 +592,8 @@ test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag,
     'the H5 keys exist in nav-language.js (30 hisaab_* + the one exp_* refusal hint)');
   assert.equal(Object.keys(TRANSLATIONS.en).length, Object.keys(TRANSLATIONS.ur).length,
     'the EN and UR dicts still agree');
-  const parityDigits = '51' + '61';
+  const parityDigits = '51' + '62';
   const pinning = fs.readdirSync(path.join(__dirname)).filter((f) =>
     f.endsWith('.test.js') && fs.readFileSync(path.join(__dirname, f), 'utf8').includes(parityDigits));
-  assert.equal(pinning.length, 34, `expected 34 test files pinning the current parity total, got ${pinning.length}: ${pinning.join(', ')}`);
+  assert.equal(pinning.length, 36, `expected 36 test files containing the current parity digits (35 pinning files + the privacy canary), got ${pinning.length}: ${pinning.join(', ')}`);
 });

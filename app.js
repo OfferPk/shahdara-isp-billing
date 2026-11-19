@@ -245,7 +245,7 @@ import { archivedRosterPage, buildRetentionView, retentionViewHtml, retentionYea
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal, resolveShopCollector } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
-import { computeWaadaChipDate, setupWaadaChipDialog, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada, getWaadaTodayString, isValidWaadaDate, REMAINDER_WAADA_NOTE } from './waada-queue.js';
+import { computeWaadaChipDate, setupWaadaChipDialog, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada, getWaadaTodayString, isValidWaadaDate, isWaadaDateInPast, REMAINDER_WAADA_NOTE } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, describeVoidUndo, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
@@ -9508,9 +9508,14 @@ function renderCustomerProfileView(customer) {
       event.preventDefault();
       const before = loadWadaRecords();
       let written;
+      // Plan 608: a typed past date is refused with the keyed message
+      // before it reaches the writer (the writer must keep accepting
+      // past dates for legacy/broken promises — see waada-queue.js).
+      const pickedDate = wadaBanner.querySelector('#wadaQuickDate')?.value ?? '';
+      if (isWaadaDateInPast(pickedDate, getWaadaTodayString())) { toast(t('prv_wr_toast_past_date')); return; }
       try {
         written = setLiveWaada(customer, before, {
-          promiseDate: wadaBanner.querySelector('#wadaQuickDate')?.value ?? '',
+          promiseDate: pickedDate,
           promiseAmount: wadaBanner.querySelector('#wadaQuickAmount')?.value ?? '',
           promiseNote: wadaBanner.querySelector('#wadaQuickNote')?.value ?? ''
         });
@@ -10904,7 +10909,7 @@ function wadaProfileBannerHtml(customer) {
   // when there are none, so the duplicate 'No open wada' line is gone
   // (the .wada-banner-none CSS rule stays, unreferenced — Plan 506
   // precedent — and the health line itself is untouched).
-  return `<section class="profile-wada-banner" aria-label="${t('prv_wd_aria')}"><h4>${t('prv_wd_heading')} ${helpButtonMarkup('waada')}</h4>${banner}<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="fifth">${t('prof_waada_chip_5th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="29th">${t('prv_wd_chip_29')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="30th">${t('prv_wd_chip_30')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="31st">${t('prv_wd_chip_31')}</button></div><label for="wadaQuickDate"><span class="pcp-field-pill">${t('prv_wd_promised_date')}</span><input id="wadaQuickDate" type="date" required></label><label for="wadaQuickAmount"><span class="pcp-field-pill">${t('prv_wd_amount')}</span><input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="${t('prv_wd_amount_ph')}"></label><label for="wadaQuickNote"><span class="pcp-field-pill">${t('prv_wd_note')}</span><input id="wadaQuickNote" type="text" maxlength="140" placeholder="${t('prv_wd_note_ph')}"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">${t('prv_wd_add')}</button></form><p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
+  return `<section class="profile-wada-banner" aria-label="${t('prv_wd_aria')}"><h4>${t('prv_wd_heading')} ${helpButtonMarkup('waada')}</h4>${banner}<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="fifth">${t('prof_waada_chip_5th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="29th">${t('prv_wd_chip_29')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="30th">${t('prv_wd_chip_30')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="31st">${t('prv_wd_chip_31')}</button></div><label for="wadaQuickDate"><span class="pcp-field-pill">${t('prv_wd_promised_date')}</span><input id="wadaQuickDate" type="date" required min="${today}"></label><label for="wadaQuickAmount"><span class="pcp-field-pill">${t('prv_wd_amount')}</span><input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="${t('prv_wd_amount_ph')}"></label><label for="wadaQuickNote"><span class="pcp-field-pill">${t('prv_wd_note')}</span><input id="wadaQuickNote" type="text" maxlength="140" placeholder="${t('prv_wd_note_ph')}"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">${t('prv_wd_add')}</button></form><p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
 }
 
 // Plan 518 — Zone datalist: offer the zone spellings already used under
@@ -44619,6 +44624,7 @@ function openGroupWaadaDialog(customerId) {
   if (!groupWaadaDialog) {
     groupWaadaDialog = setupWaadaChipDialog({
       getCustomer: (id) => (state.customers || []).find((c) => c.id === id) || null,
+      pastDateMessage: t('prv_wr_toast_past_date'),
       onApply: (updated) => {
         // Sharafat 64: the chip-set waada goes through the single
         // writer, so it is mirrored into the wada-record store (the

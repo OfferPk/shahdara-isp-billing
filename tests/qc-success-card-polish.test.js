@@ -184,14 +184,14 @@ test('still owed: charges pending keeps the charged label when the figure is > 0
   assert.ok(html.includes('PKR 300'), 'charged figure must show');
 });
 
-// --- (2) Receipt number on the card: short form visible, full number kept ---
+// --- (2) Receipt number on the card: FULL stored number visible (the short form is retired on the single card; split legs keep it) ---
 
-test('receipt number: the card header shows the SHORT form; the full number stays in title + data attr', () => {
+test('receipt number: the card header shows the FULL stored number, the same number the WhatsApp preview shows', () => {
   const html = renderQuickCollectReceiptCardHtml(baseReceipt());
-  assert.ok(html.includes('>RCPT-1<'), 'header must show the short form RCPT-1');
+  assert.ok(html.includes('>RCPT-12-202611-01<'), 'header must show the full stored number RCPT-12-202611-01');
   assert.ok(html.includes('title="RCPT-12-202611-01"'), 'full number must stay in the title');
   assert.ok(html.includes('data-full-receipt-number="RCPT-12-202611-01"'), 'full number must stay in the data attribute');
-  assert.ok(!html.includes('>RCPT-12-202611-01<'), 'the full number must not be the visible text');
+  assert.ok(!html.includes('>RCPT-1<'), 'the short form must not be the visible text');
 });
 
 test('receipt number: split legs show the short form', () => {
@@ -261,9 +261,9 @@ test('sender: digits pill CSS — mint palette, small, no new hex', () => {
 
 // --- Wiring + fit arithmetic basis ---
 
-test('wiring: both card builders use the short-number helper and the new classes', () => {
-  assert.ok(quickCollectSrc.includes('shortReceiptNumber'), 'single-card file must import the helper');
-  assert.ok(quickCollectSrc.includes("shortReceiptNumber(receipt.receiptNumber)"), 'single card must shorten the header number');
+test('wiring: the single card renders the FULL stored number; split legs keep the short-number helper', () => {
+  assert.ok(!quickCollectSrc.includes('shortReceiptNumber(receipt.receiptNumber)'), 'single card must not shorten the header number');
+  assert.ok(quickCollectSrc.includes('>${escapeHtml(receipt.receiptNumber)}</span>'), 'single card must render the full stored number in the chip');
   assert.ok(quickCollectSrc.includes('paymentSenderTitle'), 'single-card file must split the sender title');
   assert.ok(quickCollectSrc.includes('paymentSenderDigits'), 'single-card file must split the sender digits');
   assert.ok(quickCollectSrc.includes('qc-amount-pill'), 'single card must carry the pill class');

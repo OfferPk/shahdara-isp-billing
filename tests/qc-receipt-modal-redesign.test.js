@@ -219,7 +219,14 @@ test('§8.8 actions: primary, output grid, next row, Done, byte-identical sent t
   assert.ok(actions.includes('display: flex') && actions.includes('flex-direction: column'), 'actions must be a flex column (children stretch full-width)');
   const done = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-done-btn {');
   assert.ok(done.includes('min-height: 44px'), 'Done must be 44px');
-  assert.ok(pageSrc.includes('id="quickCollectDoneCloseBtn" class="secondary-button qc-done-btn"'), 'Done must be a neutral secondary button');
+  // Done must be a neutral secondary button — checked token-wise, not as
+  // an exact class string: the Neon Glassy rollout (2026-11-19) rides the
+  // additive `btn-glass-secondary` class ALONGSIDE `secondary-button`, so
+  // the class list is longer now while the neutral look is unchanged.
+  const doneTag = /<button[^>]*id="quickCollectDoneCloseBtn"[^>]*>/.exec(pageSrc)[0];
+  const doneCls = (/class="([^"]*)"/.exec(doneTag) || [])[1].split(/\s+/);
+  assert.ok(doneCls.includes('secondary-button') && doneCls.includes('qc-done-btn'), 'Done must be a neutral secondary button');
+  assert.ok(!doneCls.includes('primary-button'), 'Done must not be a primary button');
   // Sent text byte-identical to the pre-redesign text for the fixture.
   const golden = '*SHAHDARA FIBER NETWORK & ISP BILLING*\n'
     + '━━━━━━━━━━━━━━━━━━━━━━━━\n'

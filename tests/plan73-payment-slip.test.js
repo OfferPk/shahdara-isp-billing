@@ -33,6 +33,7 @@ import {
   paymentSlipSentText,
   paymentSlipHtml,
 } from '../payment-slip.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const base = {
   customerId: 'C-1',
@@ -208,4 +209,16 @@ test('HTML escaping', () => {
   assert.ok(!html.includes('<script>'));
   assert.ok(html.includes('&lt;script&gt;cash'));
   assert.ok(html.includes('&lt;b&gt;Ahmed&lt;/b&gt;'));
+});
+
+test('Plan 600: the payment-slip summary renders in Urdu through labels', () => {
+  const slip = buildPaymentSlip({
+    ...base,
+    payments: [
+      { date: '2026-10-05', amount: 333.33, channel: 'cash' },
+      { date: '2026-08-05', amount: 166.67, channel: 'cash' },
+      { date: '2026-09-05', amount: 500, channel: 'Easypaisa' },
+    ],
+  });
+  assert.equal(paymentSlipSummaryText(slip, { summary: TRANSLATIONS.ur.dft_slip_summary }), 'ادائیگی کی تاریخ: 3 زندہ ادائیگیاں، 0 منسوخ، ذیلی مجموعہ Rs. 1000، موجودہ بیلنس Rs. 500۔');
 });

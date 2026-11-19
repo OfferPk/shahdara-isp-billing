@@ -136,11 +136,19 @@ export function handlingNoteSectionHtml(customer, list, labels = {}) {
   const saveLabel = cleanHandlingNoteText(labels.save) || 'Save';
   const removeLabel = cleanHandlingNoteText(labels.remove) || 'Remove';
   const noneText = cleanHandlingNoteText(labels.none) || 'No handling note for this customer.';
+  const addLabel = cleanHandlingNoteText(labels.add) || `Add ${heading}`;
+  const explainerHtml = `<p>The one instruction that matters for this household is read before the money moves, not discovered after a mistake at the counter. This note blocks nothing and grants nothing; editing it changes only this note.</p>`;
   const currentHtml = note
     ? `<p class="chn-current"><strong>${escapeHandlingNoteHtml(note.text)}</strong>${note.updatedBy || note.updatedDate ? `<span class="chn-meta"> — ${escapeHandlingNoteHtml([note.updatedBy, note.updatedDate].filter(Boolean).join(', '))}</span>` : ''}</p>`
     : `<p class="chn-none">${escapeHandlingNoteHtml(noneText)}</p>`;
   const formHtml = `<form class="chn-form" id="chnForm"><label for="chnText">${escapeHandlingNoteHtml(heading)}<textarea id="chnText" maxlength="300" placeholder="${escapeHandlingNoteHtml(placeholder)}" required>${note ? escapeHandlingNoteHtml(note.text) : ''}</textarea></label><label for="chnBy">${escapeHandlingNoteHtml(notedByLabel)}<input id="chnBy" type="text" maxlength="60" value="${note ? escapeHandlingNoteHtml(note.updatedBy) : ''}"></label><label for="chnDate">${escapeHandlingNoteHtml(dateLabel)}<input id="chnDate" type="date" value="${note ? escapeHandlingNoteHtml(note.updatedDate) : ''}"></label><button type="submit" class="primary-button" id="chnSaveBtn">${escapeHandlingNoteHtml(saveLabel)}</button>${note ? `<button type="button" class="secondary-button" id="chnRemoveBtn">${escapeHandlingNoteHtml(removeLabel)}</button>` : ''}</form>`;
-  return `<section class="profile-custody-section profile-handling-note" aria-label="${escapeHandlingNoteHtml(heading)}"><h4>${escapeHandlingNoteHtml(heading)}</h4><p>The one instruction that matters for this household is read before the money moves, not discovered after a mistake at the counter. This note blocks nothing and grants nothing; editing it changes only this note.</p>${currentHtml}${formHtml}</section>`;
+  // Plan 596 — when there is no note, the explainer + form collapse
+  // behind a closed <details class="profile-accordion"> (the in-app
+  // accordion precedent); heading + none line stay visible, and the
+  // summary carries the Add label. With a note the rendering is
+  // byte-identical to the base (explainer + note line + form, no details).
+  if (note) return `<section class="profile-custody-section profile-handling-note" aria-label="${escapeHandlingNoteHtml(heading)}"><h4>${escapeHandlingNoteHtml(heading)}</h4>${explainerHtml}${currentHtml}${formHtml}</section>`;
+  return `<section class="profile-custody-section profile-handling-note" aria-label="${escapeHandlingNoteHtml(heading)}"><h4>${escapeHandlingNoteHtml(heading)}</h4>${currentHtml}<details class="profile-accordion"><summary>${escapeHandlingNoteHtml(addLabel)}</summary><div class="profile-accordion-body">${explainerHtml}${formHtml}</div></details></section>`;
 }
 
 /**

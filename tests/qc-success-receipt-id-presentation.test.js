@@ -91,25 +91,25 @@ function ruleBlock(css, selectorWithBrace) {
   return css.slice(open + 1, close);
 }
 
-test('REPRO: the header carries a "Receipt No." label immediately before the SHORT id', () => {
+test('REPRO: the header carries a "Receipt No." label immediately before the FULL id', () => {
   const header = headerOf(renderQuickCollectReceiptCardHtml(baseReceipt()));
   assert.ok(header.includes('Receipt No.'), 'header must label the number');
-  // QC Success Card Polish (2026-11-13): the chip shows the SHORT
-  // form (RCPT-12-202611-01 -> RCPT-1) — the user asked for simple
-  // sequential numbers on the card. The short form is never respaced
-  // or regrouped; the full stored number stays in the title +
+  // QC receipt-bottom polish (2026-11-19): the chip shows the FULL stored
+  // number (RCPT-12-202611-01), the same number the WhatsApp preview
+  // shows — the 2026-11-13 short form is retired here; split legs keep
+  // the short form. The full stored number stays in the title +
   // data-full-receipt-number attributes (one hover away) and in the
   // draft/PNG/reprint, so the operator can still copy the exact
   // number. The stored number is unchanged — this is display-only.
-  assert.ok(header.includes('>RCPT-1<'), 'chip must show the short form');
+  assert.ok(header.includes('>RCPT-12-202611-01<'), 'chip must show the full stored number');
   assert.ok(!header.includes('RCPT-12 · 202611 · 01'), 'id must never be respaced or regrouped');
   assert.ok(header.includes(`title="${RECEIPT_ID}"`), 'full number must stay in the title');
   assert.ok(header.includes(`data-full-receipt-number="${RECEIPT_ID}"`), 'full number must stay in the data attribute');
   const labelAt = header.indexOf('Receipt No.');
-  const idAt = header.indexOf('>RCPT-1<');
+  const idAt = header.indexOf('>RCPT-12-202611-01<');
   assert.ok(labelAt >= 0 && idAt > labelAt, 'label must sit immediately before the id');
   assert.ok(
-    header.includes(`>Receipt No.</span> <span class="qc-receipt-id qc-txnid-code" title="${RECEIPT_ID}" data-full-receipt-number="${RECEIPT_ID}">RCPT-1</span>`),
+    header.includes(`>Receipt No.</span> <span class="qc-receipt-id qc-txnid-code" title="${RECEIPT_ID}" data-full-receipt-number="${RECEIPT_ID}">RCPT-12-202611-01</span>`),
     'label and id must be adjacent spans, label first, id in the chip class',
   );
 });
@@ -122,7 +122,7 @@ test('the label and id live inside one .qc-receipt-ref wrapper', () => {
   // Match the label SPAN, not the bare words — the header comment above
   // the badge also mentions "Receipt No.".
   const labelAt = header.indexOf('>Receipt No.</span>');
-  const idAt = header.indexOf('>RCPT-1<');
+  const idAt = header.indexOf('>RCPT-12-202611-01<');
   assert.ok(wrapAt < labelAt && wrapAt < idAt, 'wrapper must open before the label and the id');
 });
 

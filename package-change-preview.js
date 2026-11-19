@@ -181,7 +181,66 @@ function packageBaseline(input, fallback) {
   return fallback;
 }
 
-export function buildPackageChangePreview(input = {}) {
+// Plan 601 — labels object: the app passes t('prv_pc_*') values; every
+// entry defaults to the exact English string this module used to
+// hardcode, so existing callers are unchanged. The module never
+// imports t(). `fullMonth` and `missingFigures` / `tableItem` /
+// `tableAmount` / `tableNote` reuse the first-bill keys — the same
+// English words, so one key serves both preview tables.
+const DEFAULT_LABELS = {
+  noPreview: 'No package change preview',
+  summaryIncomplete: 'Package change preview incomplete: {reasons}',
+  directionUpgrade: 'upgrade',
+  directionDowngrade: 'downgrade',
+  directionLateral: 'lateral change',
+  estimateAfter: 'Change takes effect after this bill month, so the next bill is still the current package in full.',
+  estimateFullRequested: 'Full month at the proposed package price, as requested.',
+  estimateFullStart: 'Change already effective at the start of the bill month, so the whole month is at the proposed package price.',
+  estimateProrata: 'Pro-rata by calendar days: {oldDays} {oldUnit} at the current price, {newDays} {newUnit} at the proposed price.',
+  dayOne: 'day',
+  dayMany: 'days',
+  lineFullEffect: 'Full month — change takes effect {date}, after this bill month',
+  lineBefore: '{days} of {total} days (before {date})',
+  lineFrom: '{days} of {total} days (from {date})',
+  reasonPackage: 'package-missing',
+  reasonEffective: 'effective-date-invalid',
+  reasonMonth: 'bill-month-invalid',
+  reasonCurrentPrice: 'current-price-missing',
+  reasonProposedPrice: 'proposed-price-missing',
+  summaryReady: '{name}Package change preview ({direction}) — {current} (PKR {currentPrice}) → {proposed} (PKR {proposedPrice}), monthly difference PKR {difference}, effective {effective}, next bill {month} estimated PKR {estimated}',
+  incomplete: 'Preview incomplete — {reasons}. No estimate is shown until both packages have a price and a valid effective date and bill month are set.',
+  estimatedBill: 'Estimated next bill ({month})',
+  previewOnly: 'Preview only — no package, bill, or lifecycle record has changed.',
+  storedNone: 'No package change preview kept yet',
+  storedKept: 'Package change preview kept: {proposed} from {effective}, next bill {month} estimated PKR {estimated}',
+  missingFigures: 'missing figures',
+  tableItem: 'Item',
+  tableAmount: 'Amount',
+  tableNote: 'Note',
+  fullMonth: 'Full month',
+};
+
+const fill = (template, params = {}) =>
+  String(template ?? '').replaceAll(
+    /\{(\w+)\}/g,
+    (match, name) => (params[name] ?? match),
+  );
+
+function resolveLabels(labels) {
+  return { ...DEFAULT_LABELS, ...(labels ?? {}) };
+}
+
+function reasonLabel(reason, labels) {
+  if (reason === 'package-missing') return labels.reasonPackage;
+  if (reason === 'effective-date-invalid') return labels.reasonEffective;
+  if (reason === 'bill-month-invalid') return labels.reasonMonth;
+  if (reason === 'current-price-missing') return labels.reasonCurrentPrice;
+  if (reason === 'proposed-price-missing') return labels.reasonProposedPrice;
+  return reason;
+}
+
+export function buildPackageChangePreview(input = {}, labels) {
+  const L = resolveLabels(labels);
   const source = input ?? {};
   const customerId = text(source.customerId);
   const customerName = text(source.customerName ?? source.name);
@@ -252,10 +311,10 @@ export function buildPackageChangePreview(input = {}) {
         id: 'current-package',
         label: currentLabel,
         amount: currentPrice,
-        note: `Full month — change takes effect ${effectiveDate}, after this bill month`,
+        note: fill(L.lineFullEffect, { date: effectiveDate }),
       }];
       estimatedNextBill = currentPrice;
-      estimateNote = 'Change takes effect after this bill month, so the next bill is still the current package in full.';
+      estimateNote = L.estimateAfter;
     } else if (requestedMode === 'full' || effectiveDate <= monthStart) {
       resolvedMode = 'full';
       oldDays = 0;
@@ -264,12 +323,12 @@ export function buildPackageChangePreview(input = {}) {
         id: 'proposed-package',
         label: proposedLabel,
         amount: proposedPrice,
-        note: 'Full month',
+        note: L.fullMonth,
       }];
       estimatedNextBill = proposedPrice;
       estimateNote = requestedMode === 'full'
-        ? 'Full month at the proposed package price, as requested.'
-        : 'Change already effective at the start of the bill month, so the whole month is at the proposed package price.';
+        ? L.estimateFullRequested
+        : L.estimateFullStart;
     } else {
       // Pro-rata by calendar days, Plan 18 style: the effective
       // date itself belongs to the new package.
@@ -283,17 +342,22 @@ export function buildPackageChangePreview(input = {}) {
           id: 'current-package-share',
           label: currentLabel,
           amount: oldShareCents / 100,
-          note: `${oldDays} of ${daysInMonth} days (before ${effectiveDate})`,
+          note: fill(L.lineBefore, { days: oldDays, total: daysInMonth, date: effectiveDate }),
         },
         {
           id: 'proposed-package-share',
           label: proposedLabel,
           amount: newShareCents / 100,
-          note: `${newDays} of ${daysInMonth} days (from ${effectiveDate})`,
+          note: fill(L.lineFrom, { days: newDays, total: daysInMonth, date: effectiveDate }),
         },
       ];
       estimatedNextBill = (oldShareCents + newShareCents) / 100;
-      estimateNote = `Pro-rata by calendar days: ${oldDays} day${oldDays === 1 ? '' : 's'} at the current price, ${newDays} day${newDays === 1 ? '' : 's'} at the proposed price.`;
+      estimateNote = fill(L.estimateProrata, {
+        oldDays,
+        oldUnit: oldDays === 1 ? L.dayOne : L.dayMany,
+        newDays,
+        newUnit: newDays === 1 ? L.dayOne : L.dayMany,
+      });
     }
   }
 
@@ -327,25 +391,37 @@ export function buildPackageChangePreview(input = {}) {
   };
 }
 
-export function packageChangePreviewSummaryText(preview) {
-  if (!preview) return 'No package change preview';
+export function packageChangePreviewSummaryText(preview, labels) {
+  const L = resolveLabels(labels);
+  if (!preview) return L.noPreview;
   if (preview.status !== 'ready') {
-    return `Package change preview incomplete: ${preview.reasons.join(', ') || 'missing figures'}`;
+    return fill(L.summaryIncomplete, {
+      reasons: preview.reasons.map((reason) => reasonLabel(reason, L)).join(', ') || L.missingFigures,
+    });
   }
   const name = preview.customerName ? `${preview.customerName}: ` : '';
-  const directionWord = preview.direction === 'upgrade' ? 'upgrade'
-    : preview.direction === 'downgrade' ? 'downgrade' : 'lateral change';
-  return `${name}Package change preview (${directionWord}) — ${preview.currentPackage} (PKR ${preview.currentPrice}) → `
-    + `${preview.proposedPackage} (PKR ${preview.proposedPrice}), monthly difference PKR ${preview.monthlyDifference}, `
-    + `effective ${preview.effectiveDate}, next bill ${preview.billMonth} estimated PKR ${preview.estimatedNextBill}`;
+  const directionWord = preview.direction === 'upgrade' ? L.directionUpgrade
+    : preview.direction === 'downgrade' ? L.directionDowngrade : L.directionLateral;
+  return fill(L.summaryReady, {
+    name,
+    direction: directionWord,
+    current: preview.currentPackage,
+    currentPrice: preview.currentPrice,
+    proposed: preview.proposedPackage,
+    proposedPrice: preview.proposedPrice,
+    difference: preview.monthlyDifference,
+    effective: preview.effectiveDate,
+    month: preview.billMonth,
+    estimated: preview.estimatedNextBill,
+  });
 }
 
 // The note kept on the applied change: the same one-line summary,
 // or null when the preview was never ready — an incomplete preview
 // must never be kept as if it had been shown.
-export function packageChangePreviewNote(preview) {
+export function packageChangePreviewNote(preview, labels) {
   if (!preview || preview.status !== 'ready') return null;
-  return packageChangePreviewSummaryText(preview);
+  return packageChangePreviewSummaryText(preview, labels);
 }
 
 // Does this preview describe the change in `change`? A match is by
@@ -362,32 +438,33 @@ export function previewMatchesChange(preview, change) {
 // Returns a fresh object; the input change is never mutated, and a
 // non-matching or incomplete preview leaves the change untouched
 // (a fresh copy, so callers cannot observe an aliasing surprise).
-export function attachPreviewNoteToChange(change, preview) {
+export function attachPreviewNoteToChange(change, preview, labels) {
   const base = change && typeof change === 'object' && !Array.isArray(change) ? { ...change } : {};
-  const note = packageChangePreviewNote(preview);
+  const note = packageChangePreviewNote(preview, labels);
   if (note !== null && previewMatchesChange(preview, change)) {
     base.packageChangePreviewNote = note;
   }
   return base;
 }
 
-export function packageChangePreviewHtml(preview, formatAmount) {
-  if (!preview) return '<p class="empty-state">No package change preview</p>';
+export function packageChangePreviewHtml(preview, formatAmount, labels) {
+  const L = resolveLabels(labels);
+  if (!preview) return `<p class="empty-state">${escapeHtml(L.noPreview)}</p>`;
   const fmt = typeof formatAmount === 'function'
     ? formatAmount
     : (amount) => (amount === null || amount === undefined ? '—' : `PKR ${amount}`);
   const money = (amount) => (amount === null || amount === undefined ? '—' : escapeHtml(fmt(amount)));
   if (preview.status !== 'ready') {
-    return `<div class="package-change-preview"><p class="package-change-preview-incomplete" role="alert">Preview incomplete — ${escapeHtml(preview.reasons.join(', '))}. No estimate is shown until both packages have a price and a valid effective date and bill month are set.</p></div>`;
+    return `<div class="package-change-preview"><p class="package-change-preview-incomplete" role="alert">${escapeHtml(fill(L.incomplete, { reasons: preview.reasons.map((reason) => reasonLabel(reason, L)).join(', ') }))}</p></div>`;
   }
   const rows = preview.lines.map((line) => `<tr><td>${escapeHtml(line.label)}</td>`
     + `<td>${money(line.amount)}</td>`
     + `<td>${line.note ? escapeHtml(line.note) : ''}</td></tr>`).join('');
-  return `<div class="package-change-preview"><p>${escapeHtml(packageChangePreviewSummaryText(preview))}</p>`
-    + `<table><thead><tr><th>Item</th><th>Amount</th><th>Note</th></tr></thead>`
+  return `<div class="package-change-preview"><p>${escapeHtml(packageChangePreviewSummaryText(preview, labels))}</p>`
+    + `<table><thead><tr><th>${escapeHtml(L.tableItem)}</th><th>${escapeHtml(L.tableAmount)}</th><th>${escapeHtml(L.tableNote)}</th></tr></thead>`
     + `<tbody>${rows}</tbody>`
-    + `<tfoot><tr><td>Estimated next bill (${escapeHtml(preview.billMonth)})</td><td><strong>${money(preview.estimatedNextBill)}</strong></td><td>${escapeHtml(preview.estimateNote)}</td></tr></tfoot></table>`
-    + `<p>Preview only — no package, bill, or lifecycle record has changed.</p></div>`;
+    + `<tfoot><tr><td>${escapeHtml(fill(L.estimatedBill, { month: preview.billMonth }))}</td><td><strong>${money(preview.estimatedNextBill)}</strong></td><td>${escapeHtml(preview.estimateNote)}</td></tr></tfoot></table>`
+    + `<p>${escapeHtml(L.previewOnly)}</p></div>`;
 }
 
 function csvCell(value) {
@@ -451,7 +528,13 @@ export function removePackageChangePreview(list, customerId) {
   return base.filter((entry) => !(entry && text(entry.customerId) === id));
 }
 
-export function packageChangePreviewStoredText(entry) {
-  if (!entry) return 'No package change preview kept yet';
-  return `Package change preview kept: ${entry.proposedPackage} from ${entry.effectiveDate}, next bill ${entry.billMonth} estimated PKR ${entry.estimatedNextBill}`;
+export function packageChangePreviewStoredText(entry, labels) {
+  const L = resolveLabels(labels);
+  if (!entry) return L.storedNone;
+  return fill(L.storedKept, {
+    proposed: entry.proposedPackage,
+    effective: entry.effectiveDate,
+    month: entry.billMonth,
+    estimated: entry.estimatedNextBill,
+  });
 }

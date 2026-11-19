@@ -31,6 +31,7 @@ import {
   infoCardSentText,
   infoCardHtml,
 } from '../info-card.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const base = (overrides = {}) => ({
   customerId: 'cust-1',
@@ -177,4 +178,9 @@ test('HTML escaping and summary text', () => {
   assert.ok(html.includes('&lt;script&gt;'));
   assert.ok(html.includes('0300 &amp; sons'));
   assert.ok(html.includes('Info card not sent yet.'));
+});
+
+test('Plan 600: the info-card summary renders in Urdu through labels', () => {
+  const card = buildInfoCard(base());
+  assert.equal(infoCardSummaryText(card, { summary: TRANSLATIONS.ur.dft_ic_summary, summaryDue: TRANSLATIONS.ur.dft_ic_summary_due }), '20 Mbps — Rs. 1500 / ماہ۔ اگلی مقررہ تاریخ 2026-11-15۔');
 });

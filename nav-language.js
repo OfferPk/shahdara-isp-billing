@@ -2526,6 +2526,15 @@ export const TRANSLATIONS = {
     prof_sec_network: 'Network Configuration',
     prof_sec_hardware: 'Hardware & Equipment',
     prof_sec_history: 'History & Activity',
+    // Plan 611 — the edit form's own section headings (the view keeps
+    // prof_sec_* above): distinct words so the form stops reading as a
+    // copy of the view pasted inside itself.
+    pfh_customer: 'Contact details',
+    pfh_service: 'Their service',
+    pfh_financial: 'Money details',
+    pfh_connection: 'Their connection',
+    pfh_network: 'Network settings',
+    pfh_hardware: 'Equipment details',
     prof_field_phone: 'Phone / WhatsApp number',
     fas_field_father: 'Father / reference',
     fas_field_aliases: 'Also known as',
@@ -7873,6 +7882,13 @@ export const TRANSLATIONS = {
     prof_sec_network: 'نیٹ ورک کنفیگریشن',
     prof_sec_hardware: 'ہارڈویئر اور آلات',
     prof_sec_history: 'تاریخ اور سرگرمی',
+    // Plan 611 — the edit form's own section headings (see the EN block).
+    pfh_customer: 'رابطے کی تفصیلات',
+    pfh_service: 'ان کی سروس',
+    pfh_financial: 'رقم کی تفصیلات',
+    pfh_connection: 'ان کا کنکشن',
+    pfh_network: 'نیٹ ورک سیٹنگز',
+    pfh_hardware: 'آلات کی تفصیلات',
     prof_field_phone: 'فون / واٹس ایپ نمبر',
     fas_field_father: 'والد / حوالہ',
     fas_field_aliases: 'دیگر نام',

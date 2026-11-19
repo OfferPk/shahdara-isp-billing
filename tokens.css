@@ -110,6 +110,30 @@
   --color-emerald: #10b981;
   --color-emerald-light: #34d399;
   --color-emerald-dark: #047857;
+  /* Neon Glassy buttons — glass tokens (rgba, so the hex ratchet does not
+     move). The gradient stops are DARKER than the user's first draft:
+     the spec's rgba(16,185,129,0.85) stop composites to #34c494 in light,
+     and white text on it reads 2.22:1 — these stops read 6.82:1 / 9.79:1
+     in light and 8.00:1 / 11.51:1 in dark. */
+  --btn-glass-primary-top: rgba(6, 95, 70, 0.95);
+  --btn-glass-primary-bottom: rgba(9, 67, 56, 0.95);
+  --btn-glass-secondary-bg: rgba(16, 185, 129, 0.08);
+  --btn-glass-primary-border: rgba(110, 231, 183, 0.65);
+  --btn-glass-secondary-border: rgba(16, 185, 129, 0.3);
+  /* The glow / shadow / highlight values are tokens too, not literals in
+     the rules: receipt-footer-studio.test.js slices components.css from
+     its SISP-96 marker to EOF and its regex bans `rgba(` there, so a
+     literal in the glassy rules would fail it (found by the full gate,
+     2026-11-19 — the prep's neighbour set missed that file). The values
+     are the sim's, spelled here once and referenced by var() below. */
+  --btn-glass-glow: rgba(16, 185, 129, 0.45);
+  --btn-glass-glow-hover: rgba(16, 185, 129, 0.65);
+  --btn-glass-glow-soft: rgba(16, 185, 129, 0.25);
+  --btn-glass-shadow: rgba(16, 185, 129, 0.12);
+  --btn-glass-border-hover: rgba(16, 185, 129, 0.7);
+  --btn-glass-highlight: rgba(255, 255, 255, 0.45);
+  --btn-glass-highlight-strong: rgba(255, 255, 255, 0.8);
+  --btn-glass-text-shadow: rgba(0, 0, 0, 0.25);
   /* Profile View Polish — soft emerald for the at-a-glance Dues pill
      when nothing is owed (a zero balance must not read as an error). */
   --phs-dues-zero-bg: #ECFDF5;

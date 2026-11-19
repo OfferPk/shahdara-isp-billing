@@ -6785,8 +6785,8 @@ export function setupQuickCollectModal({
       messageEl.setAttribute('dir', 'rtl');
       messageEl.setAttribute('lang', 'ur');
     } else {
-      messageEl.removeAttribute('dir');
-      messageEl.removeAttribute('lang');
+      messageEl.setAttribute('dir', 'ltr');
+      messageEl.setAttribute('lang', 'en');
     }
   }
 

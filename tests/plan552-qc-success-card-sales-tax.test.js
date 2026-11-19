@@ -176,7 +176,7 @@ function remSize(block) {
   return parseFloat(m[1]);
 }
 
-test('Plan 552 fit budget: the tax row costs ~43px; a fully-paid taxed receipt computes to 683px, a partial one to 726px', () => {  const labelBlock = ruleBlock(stylesSrc, '.qc-meta-label {');
+test('Plan 552 fit budget: the tax row costs ~42px; a fully-paid taxed receipt computes to 680px, a partial one to 722px', () => {  const labelBlock = ruleBlock(stylesSrc, '.qc-meta-label {');
   const gridBlock = ruleBlock(stylesSrc, '.qc-receipt-grid {');
   const successGrid = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid {');
   const bodyBlock = ruleBlock(stylesSrc, 'body {');
@@ -185,24 +185,28 @@ test('Plan 552 fit budget: the tax row costs ~43px; a fully-paid taxed receipt c
   const labelPx = remSize(labelBlock) * 16 * lineHeight;
   const valuePx = remSize(gridBlock) * 16 * lineHeight;
   const gapPx = parseFloat(successGrid.match(/gap:\s*([\d.]+)px/)[1]);
-  assert.equal(gapPx, 6, 'success grid gap must be 6px');
+  // QC success-receipt polish (TOP, 2026-11-19): the success grid gap
+  // is 6 → 5px, so a grid row costs 1px less (label + value + 5px gap).
+  assert.equal(gapPx, 5, 'success grid gap must be 5px');
   const rowCostPx = Math.round(labelPx + valuePx + gapPx);
-  assert.equal(rowCostPx, 43, `tax row cost must be 43px (label ${labelPx}px + value ${valuePx}px + gap ${gapPx}px)`);
-  const POLISH_21_COMPUTED_TOTAL_PX = 681;
-  // QC Success Card Polish (2026-11-13): the fully-paid card hides
-  // the Still-owed row (−43px, exactly cancelling the tax row's
-  // +43px) and the amount pill's 1px border adds 2px: 681 + 2 =
-  // 683px — 17px UNDER the 700px gate. A partial card keeps the row:
-  // 681 + 43 + 2 = 726px, 26px over. The 681 baseline predates the
-  // phone row; the polish17 fit test owns the live total, and
-  // re-baselining this test's arithmetic is a separate small item,
-  // not folded in here.
+  assert.equal(rowCostPx, 42, `tax row cost must be 42px (label ${labelPx}px + value ${valuePx}px + gap ${gapPx}px)`);
+  // QC success-receipt polish (TOP, 2026-11-19): the 681 baseline's
+  // grid has 4 rows (7 half-width items — the Still-owed row is still
+  // visible in the untaxed baseline), so 3 row-gaps × 1px = −3px:
+  // 681 → 678. The fully-paid card hides the Still-owed row (−42px,
+  // exactly cancelling the tax row's +42px) and the amount pill's 1px
+  // border adds 2px: 678 + 2 = 680px — 20px UNDER the 700px gate. A
+  // partial card keeps the row: 678 + 42 + 2 = 722px, 22px over. The
+  // 678 baseline predates the phone row; the polish17 fit test owns
+  // the live total, and re-baselining this test's arithmetic is a
+  // separate small item, not folded in here.
+  const POLISH_21_COMPUTED_TOTAL_PX = 678;
   const fullyPaidTaxedTotalPx = POLISH_21_COMPUTED_TOTAL_PX + 2;
-  assert.equal(fullyPaidTaxedTotalPx, 683, 'fully-paid taxed receipt computed total must be 683px');
-  assert.ok(fullyPaidTaxedTotalPx <= 700, 'the fully-paid taxed total is 17px UNDER the 700px gate — recorded here, to be confirmed by the phone screenshot');
+  assert.equal(fullyPaidTaxedTotalPx, 680, 'fully-paid taxed receipt computed total must be 680px');
+  assert.ok(fullyPaidTaxedTotalPx <= 700, 'the fully-paid taxed total is 20px UNDER the 700px gate — recorded here, to be confirmed by the phone screenshot');
   const partialTaxedTotalPx = POLISH_21_COMPUTED_TOTAL_PX + rowCostPx + 2;
-  assert.equal(partialTaxedTotalPx, 726, 'partial taxed receipt computed total must be 726px');
-  assert.ok(partialTaxedTotalPx > 700, 'the partial taxed total is 26px OVER the 700px gate — recorded here, to be confirmed by the phone screenshot');
+  assert.equal(partialTaxedTotalPx, 722, 'partial taxed receipt computed total must be 722px');
+  assert.ok(partialTaxedTotalPx > 700, 'the partial taxed total is 22px OVER the 700px gate — recorded here, to be confirmed by the phone screenshot');
 });
 
 test('Plan 552: the Month row renders on the taxed card; the grid stays at 3 rows (the Still-owed row is hidden when fully paid)', () => {

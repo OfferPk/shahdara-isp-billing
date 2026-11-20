@@ -392,13 +392,13 @@ export function renderFusionSplicerSvg(data, options = {}) {
     const gaugeStrokeDash = Math.round((arcPercent / 100) * 283);
 
     return `
+      <div class="chart-top-bar">
+        <span class="chart-top-bar-title">${selectedUnit.name.split('(')[0].trim()}</span>
+        <span class="chart-top-bar-pill" style="color:${statusColor};background:${statusBg};">${d.status}</span>
+      </div>
       <svg class="chart-svg splicer-svg compact-svg" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fusion Splicer Electrode Wear Gauge">
         <rect width="${width}" height="${height}" rx="8" fill="var(--surface, #ffffff)" />
 
-        <!-- Header -->
-        <text x="16" y="26" font-size="13" font-weight="700" fill="var(--ink, #182e2a)">${selectedUnit.name.split('(')[0].trim()}</text>
-        <rect x="${width - 110}" y="12" width="94" height="20" rx="4" fill="${statusBg}" />
-        <text x="${width - 63}" y="26" font-size="10" font-weight="700" fill="${statusColor}" text-anchor="middle">${d.status}</text>
 
         <!-- Semicircular Arc Gauge -->
         <g transform="translate(180, 115)">

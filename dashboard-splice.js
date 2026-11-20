@@ -514,12 +514,12 @@ export function renderSpliceClosureSvg(metrics) {
         <circle cx="230" cy="52" r="3" fill="${loopStroke}" />
         <circle cx="170" cy="102" r="3" fill="${loopStroke}" />
         <text x="10" y="102" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${loopStroke}">
-          ${radius < optLoss.criticalRadiusMm ? `? ${optLoss.criticalRadiusMm - radius}mm below critical limit` : '? Radius Compliant'}
+          ${radius < optLoss.criticalRadiusMm ? `✗ ${optLoss.criticalRadiusMm - radius}mm below critical limit` : '✓ Radius Compliant'}
         </text>
 
         <!-- Wavelength Comparative Loss (1310nm vs 1550nm) -->
         <text x="0" y="136" font-family="'Manrope', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #0f172a)">
-          Wavelength Loss Signature (? Loss)
+          Wavelength Loss Signature (dB Loss)
         </text>
 
         <!-- 1310nm bar (O-band upstream) -->

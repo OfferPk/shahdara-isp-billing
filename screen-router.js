@@ -38,6 +38,13 @@ export const SCREENS = {
   assistant: { view: 'ownerCommandCenter', title: 'Owner Assistant', subtitle: 'Ask about saved bills, collections, and customer balances', action: { label: 'Ask Question', focus: '#ownerCommandInput' } },
   backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
   analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', title: 'Area Analytics', subtitle: 'Areas, zones and packages', action: { label: 'Export Area CSV', click: '#exportAreaIntelCsvBtn' } },
+  // Telemetry Lab: the 46 enterprise telecom diagnostics live in a
+  // collapsed <details> at the top of #analyticsView, not on their own
+  // view — so this route has NO tab (adding one would make TAB_TO_SCREEN
+  // send the Analytics view-tab here) and the header action focuses the
+  // Lab summary; the generic loop in apply() opens the enclosing closed
+  // <details> before scrolling.
+  'diagnostics-lab': { view: 'analyticsView', title: 'Network Diagnostics Lab', subtitle: 'Carrier diagnostics: OTDR, DWDM, BGP, splicer and more', anchor: '#diagnosticsLabCollapsible', action: { label: 'Open Lab', focus: '#diagnosticsLabSummary' } },
   inventory: { view: 'inventoryView', tab: 'showInventoryButton', title: 'Inventory', subtitle: 'Stock items and movements', action: { label: '+ Add Item', click: '#inventoryItemCreateSummary' } },
   expenses: { view: 'expensesView', tab: 'showExpensesButton', title: 'Expenses', subtitle: 'Business expenses and payroll', action: { label: '+ Add Expense', focus: '#expenseForm' } },
   homeBudget: { view: 'homeBudgetView', tab: 'showHomeBudgetButton', title: 'Home Budget', subtitle: 'Personal household expenses, kept apart from business money', action: { label: '+ Add Home Expense', focus: '#homeBudgetDate' } },
@@ -394,6 +401,9 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     // the More menu or #/assistant.
     assistant: 'customersView',
     analytics: 'analyticsView',
+    // Telemetry Lab: no view of its own — the Lab panel lives inside
+    // #analyticsView, so syncViewState shows that view for this route.
+    'diagnostics-lab': 'analyticsView',
     inventory: 'inventoryView',
     expenses: 'expensesView',
     loans: 'loanView',
@@ -454,7 +464,10 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     const spec = SCREENS[screen];
     if (!spec) return;
     const section = doc.getElementById(spec.view);
-    const tabId = spec.tab || (spec.view === 'billingReportsView' ? 'showReportsButton' : null);
+    // Telemetry Lab: a tab-less route whose view is analyticsView (the Lab
+    // panel) falls back to the Analytics view-tab, mirroring the
+    // billingReportsView fallback above.
+    const tabId = spec.tab || (spec.view === 'billingReportsView' ? 'showReportsButton' : spec.view === 'analyticsView' ? 'showAnalyticsButton' : null);
     if (section && section.hidden && tabId) {
       // Ask the app to switch (renders the view); our click listener ignores it while applying.
       applying = true;

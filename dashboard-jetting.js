@@ -563,7 +563,7 @@ export function renderDuctJettingSvg(metrics) {
 
           <!-- Status indicator badge -->
           <text x="10" y="114" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${statusColor}">
-            ${reachRatio >= 1.0 ? `? Complete Penetration (+${dynamics.maxJettingDistanceM - selectedRoute.routeLengthMeters}m margin)` : `? Undershoot (${selectedRoute.routeLengthMeters - dynamics.maxJettingDistanceM}m short)`}
+            ${reachRatio >= 1.0 ? `✓ Complete Penetration (+${dynamics.maxJettingDistanceM - selectedRoute.routeLengthMeters}m margin)` : `✗ Undershoot (${selectedRoute.routeLengthMeters - dynamics.maxJettingDistanceM}m short)`}
           </text>
         </g>
       </g>

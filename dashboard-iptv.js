@@ -322,6 +322,12 @@ export function renderIptvMulticastSvg(metrics, options = {}) {
     const zapBarWidth = Math.max(10, Math.min(220, Math.round((zap.totalZapMs / 2000) * 220)));
 
     return `
+      <div class="chart-metric-strip">
+        <div class="chart-metric-cell"><div class="chart-metric-label">Avg Zapping Time</div><div class="chart-metric-value" style="color:${statusColor};">${zap.totalZapMs} ms</div><div class="chart-metric-sub">${zap.fccAssist ? 'FCC Boosted' : 'Standard IGMP'}</div></div>
+        <div class="chart-metric-cell"><div class="chart-metric-label">Concurrent Viewers</div><div class="chart-metric-value">${ch.baseViewers} STBs</div><div class="chart-metric-sub">Network: ${metrics.totalActiveViewers} live</div></div>
+        <div class="chart-metric-cell"><div class="chart-metric-label">Stream Bitrate</div><div class="chart-metric-value">${ch.bitrateMbps} Mbps</div><div class="chart-metric-sub">${ch.codec}</div></div>
+        <div class="chart-metric-cell"><div class="chart-metric-label">Multicast Agg</div><div class="chart-metric-value" style="color:#3b82f6;">${metrics.totalMulticastBandwidthMbps} Mbps</div><div class="chart-metric-sub">${metrics.totalChannels} IGMP Groups</div></div>
+      </div>
       <svg viewBox="0 0 ${width} ${height}" class="splicer-svg iptv-svg" role="img" aria-label="IPTV Multicast and Zapping Overview" xmlns="http://www.w3.org/2000/svg">
         <style>
           .iptv-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -338,24 +344,6 @@ export function renderIptvMulticastSvg(metrics, options = {}) {
         <text x="32" y="26" class="iptv-text iptv-title">${ch.name}</text>
         <text x="${width - 16}" y="26" text-anchor="end" class="iptv-text" font-size="11px" font-weight="700" fill="${statusColor}">${ch.qualityTier.toUpperCase()}</text>
 
-        <!-- KPI Columns -->
-        <g transform="translate(16, 42)">
-          <text x="0" y="10" class="iptv-text iptv-sub">AVG ZAPPING TIME</text>
-          <text x="0" y="28" class="iptv-text iptv-val" fill="${statusColor}">${zap.totalZapMs} ms</text>
-          <text x="0" y="42" class="iptv-text iptv-sub">${zap.fccAssist ? 'FCC Boosted' : 'Standard IGMP'}</text>
-
-          <text x="120" y="10" class="iptv-text iptv-sub">CONCURRENT VIEWERS</text>
-          <text x="120" y="28" class="iptv-text iptv-val">${ch.baseViewers} STBs</text>
-          <text x="120" y="42" class="iptv-text iptv-sub">Network: ${metrics.totalActiveViewers} live</text>
-
-          <text x="240" y="10" class="iptv-text iptv-sub">STREAM BITRATE</text>
-          <text x="240" y="28" class="iptv-text iptv-val">${ch.bitrateMbps} Mbps</text>
-          <text x="240" y="42" class="iptv-text iptv-sub">${ch.codec}</text>
-
-          <text x="350" y="10" class="iptv-text iptv-sub">MULTICAST AGG</text>
-          <text x="350" y="28" class="iptv-text iptv-val" fill="#3b82f6">${metrics.totalMulticastBandwidthMbps} Mbps</text>
-          <text x="350" y="42" class="iptv-text iptv-sub">${metrics.totalChannels} IGMP Groups</text>
-        </g>
 
         <!-- Zapping Time Progress Bar -->
         <g transform="translate(16, 110)">

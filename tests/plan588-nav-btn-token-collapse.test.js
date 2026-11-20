@@ -419,8 +419,8 @@ test('G5: ratchet baselines hold — nav.css 163 (down from 164 via #094338), st
 });
 
 test('G5: parity is unchanged at 4,722/4,722 (no i18n key touched)', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5212, 'EN keys');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5212, 'UR keys');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5213, 'EN keys');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5213, 'UR keys');
   assert.deepEqual(
     Object.keys(TRANSLATIONS.en).sort(),
     Object.keys(TRANSLATIONS.ur).sort(),

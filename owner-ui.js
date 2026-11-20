@@ -321,6 +321,8 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
         // (50%) beside the template selector (50%); no saved number
         // gets the inline Add Phone editor instead of a dead link; a
         // saved but unusable number keeps the old honest message.
+        // (At ≤620px the row stacks full-width so the template label
+        // never clips — the 50/50 split is the desktop shape only.)
         let contact;
         if(draft)contact=`<a class="secondary-button whatsapp-button recovery-whatsapp" href="${escapeHtml(draft.url)}" target="_blank" rel="noopener noreferrer" data-recovery-draft="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_send_whatsapp'))}</a>`;
         else if(!savedPhone.trim())contact=editing

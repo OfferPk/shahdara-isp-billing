@@ -181,9 +181,14 @@ test('overhaul phone format: saved 03xx and 923xx numbers normalise to +92, anyt
 // --- i18n -------------------------------------------------------------------
 
 test('overhaul keys exist in EN and UR, with Urdu script in the Urdu values', () => {
-  assert.equal(en.recovery_collect, '💰 Collect');
-  assert.equal(en.recovery_waada, '🤝 Waada');
-  assert.equal(en.recovery_history, '📜 History');
+  // Dues Recovery sticky-filter fix: the three grid-button labels lost
+  // their leading emoji — "💰 Collect" at 12px/600 is ~56–60px, wider
+  // than the ~57px text area of a 3-column button at 360px, so every
+  // card truncated to 'Coll…'. The plain labels fit with headroom;
+  // the Send WhatsApp / Add Phone buttons keep theirs (not in the grid).
+  assert.equal(en.recovery_collect, 'Collect');
+  assert.equal(en.recovery_waada, 'Waada');
+  assert.equal(en.recovery_history, 'History');
   assert.equal(en.recovery_send_whatsapp, '💬 Send WhatsApp');
   assert.equal(en.recovery_add_phone, '📞 + Add Phone');
   for (const key of ['recovery_collect', 'recovery_waada', 'recovery_history', 'recovery_send_whatsapp', 'recovery_add_phone']) {
@@ -269,7 +274,11 @@ test('overhaul FAB clearance: the recovery panel clears the floating button at m
   // (margin-inline-end:48px) so it stays clear of the floating button
   // in Urdu mode too (the button mirrors to the left).
   assert.ok(styles.includes('.recovery-amount{margin-inline-end:48px}'), 'the right-hand amount keeps a safe margin from the floating button');
-  assert.ok(styles.includes('.recovery-filter-row{position:sticky'), 'the filter row sticks while scrolling');
+  // Dues Recovery sticky-filter fix: the filter row no longer sticks —
+  // its sticky top (66px fallback + 140px) cleared a screen header that
+  // is position:static on phones, so the ~204px card sat mid-viewport
+  // covering ~34% of the screen while scrolling. It is static now.
+  assert.ok(styles.includes('.recovery-filter-row{position:static'), 'the filter row scrolls away with the page');
   assert.ok(styles.includes('.recovery-whatsapp-row select'), 'the WhatsApp row carries the template selector');
   assert.ok(styles.includes('.recovery-whatsapp{flex:1 1 50%'), 'the Send WhatsApp button takes half the WhatsApp row');
   assert.ok(styles.includes('.recovery-summary-bar{display:grid'), 'the summary bar renders as a stat grid');

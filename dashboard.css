@@ -436,6 +436,60 @@
   }
 }
 
+.dashboard-charts-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  margin-top: 10px;
+  position: sticky;
+  top: 78px;
+  z-index: 2;
+}
+
+.dashboard-charts-tab-button {
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: 700 12px Manrope, system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dashboard-charts-tab-button.is-active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--white);
+}
+
+.chart-summary-row {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+  font: 600 11px 'DM Sans', system-ui, sans-serif;
+  color: var(--muted);
+}
+
+.chart-summary-row strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* LOAD-BEARING: `.dashboard-chart-card` sets author `display: flex`, which
+   beats the UA `[hidden]` rule, so tab-hiding needs this scoped rule. */
+.dashboard-chart-card[hidden] {
+  display: none !important;
+}
+
+/* Same trap for the summary row: `.chart-summary-row` sets `display: flex`. */
+.chart-summary-row[hidden] {
+  display: none !important;
+}
+
 /* Chart card header flex layout */
 .chart-card-header-flex {
   display: flex;

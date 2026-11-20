@@ -121,8 +121,8 @@ function modalLines(lang = 'en') {
 // ================= G1 — parity guard (this file's own pin) =================
 
 test('G1: parity is 5,162/5,162 in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5187, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5187, 'UR parity');
+  assert.equal(Object.keys(en).length, 5195, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5195, 'UR parity');
   const qrkhEn = Object.keys(en).filter((k) => k.startsWith('qrkh_'));
   const qrkhUr = Object.keys(ur).filter((k) => k.startsWith('qrkh_'));
   assert.equal(qrkhEn.length, 16, 'exactly the 16 qrkh_ keys in EN');
@@ -304,7 +304,7 @@ test('G12: the 16 keys are clean — EN byte-identical, EN differs from UR, no R
 // ================= G13 — self-guard =================
 
 test('G13: this file pins the new total and stays free of the previous and older total literals', () => {
-  assert.ok(selfSrc.includes('5187'), 'this file pins the new total 5,162');
+  assert.ok(selfSrc.includes('5195'), 'this file pins the new total 5,162');
   // The previous total's digits and the older total's digits are built,
   // never spelled, so this guard cannot trip the sweep it guards.
   assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');

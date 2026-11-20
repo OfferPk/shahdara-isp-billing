@@ -633,6 +633,12 @@
           <p class="eyebrow" data-i18n="dash_charts_eyebrow">VISUAL LEDGER INSIGHTS</p>
           <h3 id="dashboardChartsHeading" data-i18n="dash_charts_heading">Performance &amp; Collection Analytics</h3>
           <p class="dashboard-charts-sub" data-i18n="dash_charts_caption">Pure client-side offline SVG charts. Real-time ledger calculations.</p>
+          <div id="dashboardChartsTabBar" class="dashboard-charts-tabs" role="tablist" aria-label="Chart groups">
+            <button type="button" class="dashboard-charts-tab-button is-active" data-charts-tab="revenue" role="tab" aria-selected="true" data-i18n="dash_charts_tab_revenue">Revenue</button>
+            <button type="button" class="dashboard-charts-tab-button" data-charts-tab="customers" role="tab" aria-selected="false" data-i18n="dash_charts_tab_customers">Customers</button>
+            <button type="button" class="dashboard-charts-tab-button" data-charts-tab="network" role="tab" aria-selected="false" data-i18n="dash_charts_tab_network">Network</button>
+            <button type="button" class="dashboard-charts-tab-button" data-charts-tab="forecast" role="tab" aria-selected="false" data-i18n="dash_charts_tab_forecast">Forecast</button>
+          </div>
         </div>
         <div class="dashboard-charts-grid">
           <article class="dashboard-chart-card chart-card-trend">
@@ -801,7 +807,11 @@
               </div>
               <button id="dashboardOpenUpstreamModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Upstream Routes</button>
             </div>
-            <div id="dashboardUpstreamChart" class="chart-svg-container" role="img" aria-label="Upstream ISP Transit and Multi-Homed Failover Chart"></div>
+            <div id="dashChart16Summary" class="chart-summary-row">
+              <span><span data-i18n="dash_upstream_primary_gateway">Primary Gateway:</span> <strong id="dashUpstreamPrimaryGateway"></strong></span>
+              <span><span data-i18n="dash_upstream_redundancy">Redundancy:</span> <strong id="dashUpstreamRedundancy"></strong></span>
+            </div>
+            <div id="dashboardUpstreamChart" class="chart-svg-container" role="img" aria-label="Upstream gateway and failover chart"></div>
           </article>
           <article class="dashboard-chart-card chart-card-acquisition">
             <div class="chart-card-header chart-card-header-flex">
@@ -811,7 +821,11 @@
               </div>
               <button id="dashboardOpenAcquisitionModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Channel ROI</button>
             </div>
-            <div id="dashboardAcquisitionChart" class="chart-svg-container" role="img" aria-label="Subscriber Acquisition ROI and Payback Velocity Chart"></div>
+            <div id="dashChart17Summary" class="chart-summary-row">
+              <span><span data-i18n="dash_acq_fastest_channel">Fastest Channel:</span> <strong id="dashAcqFastestChannel"></strong></span>
+              <span><span data-i18n="dash_acq_portfolio_roi">Portfolio Net ROI:</span> <strong id="dashAcqPortfolioRoi"></strong></span>
+            </div>
+            <div id="dashboardAcquisitionChart" class="chart-svg-container" role="img" aria-label="Acquisition channel ROI chart"></div>
           </article>
           <article class="dashboard-chart-card chart-card-shaping">
             <div class="chart-card-header chart-card-header-flex">

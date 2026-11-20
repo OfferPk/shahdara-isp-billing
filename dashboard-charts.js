@@ -434,6 +434,24 @@ export function calculateAreaCollectionHeatmap(state, referenceDate = new Date()
 /**
  * Calculates customer count and expected monthly recurring revenue per package tier.
  */
+export function canonicalPackageTierName(raw) {
+  const trimmed = raw == null ? '' : String(raw).trim();
+  if (!trimmed) return 'Unassigned';
+  const speedMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*(?:Mbps|M\b|G\b)/i);
+  if (!speedMatch) return trimmed;
+  const speedNum = parseFloat(speedMatch[1]);
+  const speedStr = Number.isInteger(speedNum) ? String(speedNum) : String(speedNum);
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('unlimited')) return `${speedStr} Mbps Unlimited`;
+  const capMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*(GB|TB)\b/i);
+  if (capMatch) {
+    const capNum = parseFloat(capMatch[1]);
+    const capStr = Number.isInteger(capNum) ? String(capNum) : String(capNum);
+    return `${speedStr} Mbps / ${capStr} ${capMatch[2].toUpperCase()}`;
+  }
+  return `${speedStr} Mbps`;
+}
+
 export function calculatePackageDistribution(state) {
   const map = new Map();
   let totalTracked = 0;
@@ -442,9 +460,7 @@ export function calculatePackageDistribution(state) {
   for (const customer of (state.customers ?? [])) {
     if (customer.archived) continue;
     totalTracked++;
-    const pkg = (customer.packageSpeed && String(customer.packageSpeed).trim())
-      ? String(customer.packageSpeed).trim()
-      : 'Unassigned';
+    const pkg = canonicalPackageTierName(customer.packageSpeed);
 
     if (!map.has(pkg)) {
       map.set(pkg, {
@@ -534,7 +550,7 @@ export function renderMonthlyTrendSvg(trends, { targetRevenue = null } = {}) {
     const targetY = plotY + plotH - (targetVal / yCeil) * plotH;
     targetSvg = `
       <line class="chart-target-line" x1="${plotX}" y1="${targetY}" x2="${plotX + plotW}" y2="${targetY}" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5 3" />
-      <text class="chart-target-label" x="${plotX + plotW}" y="${targetY - 5}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#6366f1">Target: ${formatPKR(targetVal)}</text>
+      <text class="chart-target-label" x="${plotX + plotW}" y="${targetY - 5}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="#6366f1">Target: ${formatPKR(targetVal)}</text>
     `;
   }
 
@@ -561,7 +577,7 @@ export function renderMonthlyTrendSvg(trends, { targetRevenue = null } = {}) {
         <rect class="bar-collected" x="${collectedX}" y="${collectedY}" width="${barW}" height="${collectedH}" rx="3" fill="#10b981">
           <title>${t.monthLabel} Collected: ${formatPKR(t.collected)}</title>
         </rect>
-        <text x="${slotCenter}" y="${plotY + plotH + 18}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="${trends.length > 8 ? 9.5 : 11}" font-weight="600" fill="var(--ink, #182e2a)">${t.monthLabel}</text>
+        <text x="${slotCenter}" y="${plotY + plotH + 18}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="${trends.length > 8 ? 10 : 11}" font-weight="600" fill="var(--ink, #182e2a)">${t.monthLabel}</text>
       </g>
     `;
   });
@@ -752,7 +768,7 @@ export function renderPackageDistributionSvg(packageData) {
       <g class="chart-pkg-item" transform="translate(172, ${yPos})" tabindex="0" role="graphics-symbol" aria-label="${escapeXml(pkg.packageName)}: ${pkg.count} customers, ${pkg.percent}%">
         <circle cx="5" cy="5" r="4" fill="${color}" />
         <text x="14" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="600" fill="var(--ink, #182e2a)">${escapeXml(label)}</text>
-        <text x="14" y="20" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${pkg.count} cust (${pkg.percent}%) · ${formatPKR(pkg.monthlyRevenue)}</text>
+        <text x="14" y="20" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${pkg.count} cust (${pkg.percent}%) · ${formatPKR(pkg.monthlyRevenue)}</text>
       </g>
     `;
   });
@@ -764,7 +780,7 @@ export function renderPackageDistributionSvg(packageData) {
     </g>
     <g class="donut-center" text-anchor="middle">
       <text x="${cx}" y="${cy + 2}" font-family="Manrope, system-ui, sans-serif" font-weight="800" font-size="19" fill="var(--ink, #182e2a)">${dominantPercent}%</text>
-      <text x="${cx}" y="${cy + 16}" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">TOP TIER</text>
+      <text x="${cx}" y="${cy + 16}" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">TOP TIER</text>
     </g>
     <g class="pkg-legend">
       ${legendSvg}
@@ -845,7 +861,7 @@ export function renderCustomerHealthSvg(healthData) {
         <circle cx="16" cy="18" r="6" fill="${cat.color}" />
         <text x="30" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--ink, #182e2a)">${cat.label}</text>
         <text x="${colW - 12}" y="22" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="13" font-weight="800" fill="${cat.color}">${cat.count} <tspan font-size="10" font-weight="600" fill="var(--muted, #71817c)">(${cat.percent}%)</tspan></text>
-        <text x="30" y="38" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${subText}</text>
+        <text x="30" y="38" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${subText}</text>
       </g>
     `;
   }).join('');
@@ -864,6 +880,18 @@ export function renderCustomerHealthSvg(healthData) {
  * Generates an accessible, theme-aware pure SVG donut chart and legend
  * illustrating payment channel distribution (Cash vs Digital methods).
  */
+export function truncateMethodLegendLabel(label) {
+  const text = String(label ?? '');
+  return text.length > 20 ? text.slice(0, 20) + '\u2026' : text;
+}
+
+export function methodPeriodDisplayLabel(period) {
+  if (period === 'currentMonth') return 'This Month';
+  if (period === '30days') return 'Last 30 Days';
+  if (period === 'all') return 'All Time';
+  return String(period ?? '');
+}
+
 export function renderPaymentMethodSvg(data, { width = 480, height = 240 } = {}) {
   if (!data || !Array.isArray(data.methods) || data.totalCount === 0 || data.totalAmount === 0) {
     return `<svg class="chart-svg chart-methods-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Payment Methods: No recorded payments for this period">
@@ -929,8 +957,8 @@ export function renderPaymentMethodSvg(data, { width = 480, height = 240 } = {})
     return `
       <g class="method-legend-row" transform="translate(${legendX}, ${y})" tabindex="0" role="graphics-symbol" aria-label="${escapeXml(m.method)}: ${formatPKR(m.amount)} (${m.percent}%)">
         <circle cx="6" cy="6" r="5" fill="${color}" />
-        <text x="18" y="9" font-family="'DM Sans', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="var(--ink, #182e2a)">${escapeXml(m.method)}</text>
-        <text x="18" y="22" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${m.count} tx${m.count === 1 ? '' : 's'} · avg ${formatPKR(m.avgAmount)}</text>
+        <text x="18" y="9" font-family="'DM Sans', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="var(--ink, #182e2a)">${escapeXml(truncateMethodLegendLabel(m.method))}</text>
+        <text x="18" y="22" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${m.count} tx${m.count === 1 ? '' : 's'} · avg ${formatPKR(m.avgAmount)}</text>
         <text x="${width - legendX - 12}" y="10" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--ink, #182e2a)">${formatPKR(m.amount)}</text>
         <text x="${width - legendX - 12}" y="22" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="10" font-weight="600" fill="${color}">${m.percent}%</text>
       </g>
@@ -942,7 +970,7 @@ export function renderPaymentMethodSvg(data, { width = 480, height = 240 } = {})
       ${slicesSvg}
       <circle cx="${cx}" cy="${cy}" r="${r - 1}" fill="var(--surface, #ffffff)" />
       <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-family="Manrope, system-ui, sans-serif" font-size="12.5" font-weight="800" fill="var(--ink, #182e2a)">${formatPKR(data.totalAmount)}</text>
-      <text x="${cx}" y="${cy + 12}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="600" fill="var(--muted, #71817c)">${data.totalCount} receipt${data.totalCount === 1 ? '' : 's'}</text>
+      <text x="${cx}" y="${cy + 12}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">${data.totalCount} receipt${data.totalCount === 1 ? '' : 's'}</text>
     </g>
     <g class="methods-legend-group">
       ${legendSvg}
@@ -950,10 +978,10 @@ export function renderPaymentMethodSvg(data, { width = 480, height = 240 } = {})
     <g class="methods-macro-split" transform="translate(18, ${height - 28})">
       <rect width="184" height="20" rx="4" fill="var(--surface-sunken, #f0f5f2)" stroke="var(--line, #e2ece7)" stroke-width="1" />
       <rect width="${Math.round(184 * (data.cashPercent / 100))}" height="20" rx="4" fill="#0e5b4d" opacity="0.85" />
-      <text x="8" y="14" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="700" fill="${data.cashPercent > 30 ? '#ffffff' : 'var(--ink, #182e2a)'}">Cash ${data.cashPercent}%</text>
-      <text x="176" y="14" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="700" fill="${data.digitalPercent > 30 ? 'var(--ink, #182e2a)' : 'var(--muted, #71817c)'}">Digital ${data.digitalPercent}%</text>
+      <text x="8" y="14" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${data.cashPercent > 30 ? '#ffffff' : 'var(--ink, #182e2a)'}">Cash ${data.cashPercent}%</text>
+      <text x="176" y="14" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${data.digitalPercent > 30 ? 'var(--ink, #182e2a)' : 'var(--muted, #71817c)'}">Digital ${data.digitalPercent}%</text>
     </g>
-    <text x="${width - 12}" y="${height - 14}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">Filter: ${escapeXml(data.period)}</text>
+    <text x="${width - 12}" y="${height - 14}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${escapeXml(methodPeriodDisplayLabel(data.period))}</text>
   </svg>`;
 }
 
@@ -1036,9 +1064,9 @@ export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } 
 
     <!-- Center readout -->
     <g class="gauge-center-text" text-anchor="middle">
-      <text x="${cx}" y="${cy - 10}" font-family="Manrope, system-ui, sans-serif" font-size="22" font-weight="800" fill="${riskColor}">${score}%</text>
-      <text x="${cx}" y="${cy + 8}" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${riskColor}">${escapeXml(riskData.riskTierLabel)}</text>
-      <text x="${cx}" y="${cy + 24}" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" fill="var(--muted, #71817c)">Weighted Risk Score</text>
+      <text x="${cx}" y="${cy + 29}" font-family="Manrope, system-ui, sans-serif" font-size="22" font-weight="800" fill="${riskColor}">${score}%</text>
+      <text x="${cx}" y="${cy + 61}" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${riskColor}">${escapeXml(riskData.riskTierLabel)}</text>
+      <text x="${cx}" y="${cy + 77}" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">Weighted Risk Score</text>
     </g>
 
     <!-- Right cohort summary cards -->
@@ -1048,8 +1076,8 @@ export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } 
         <rect width="${cardW}" height="42" rx="6" fill="rgba(239, 68, 68, 0.08)" stroke="rgba(239, 68, 68, 0.25)" stroke-width="1" />
         <circle cx="14" cy="21" r="5" fill="#ef4444" />
         <text x="26" y="18" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="#b91c1c">High Risk</text>
-        <text x="26" y="32" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">Dues: ${formatPKR(riskData.highRisk.totalDue)}</text>
-        <text x="${cardW - 10}" y="24" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12" font-weight="800" fill="#b91c1c">${riskData.highRisk.count} <tspan font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">(${riskData.highRisk.percent}%)</tspan></text>
+        <text x="26" y="32" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">Dues: ${formatPKR(riskData.highRisk.totalDue)}</text>
+        <text x="${cardW - 10}" y="24" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12" font-weight="800" fill="#b91c1c">${riskData.highRisk.count} <tspan font-size="10" font-weight="600" fill="var(--muted, #71817c)">(${riskData.highRisk.percent}%)</tspan></text>
       </g>
 
       <!-- Moderate Risk -->
@@ -1057,8 +1085,8 @@ export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } 
         <rect width="${cardW}" height="42" rx="6" fill="rgba(245, 158, 11, 0.08)" stroke="rgba(245, 158, 11, 0.25)" stroke-width="1" />
         <circle cx="14" cy="21" r="5" fill="#f59e0b" />
         <text x="26" y="18" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="#b45309">Moderate Risk</text>
-        <text x="26" y="32" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">Dues: ${formatPKR(riskData.moderateRisk.totalDue)}</text>
-        <text x="${cardW - 10}" y="24" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12" font-weight="800" fill="#b45309">${riskData.moderateRisk.count} <tspan font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">(${riskData.moderateRisk.percent}%)</tspan></text>
+        <text x="26" y="32" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">Dues: ${formatPKR(riskData.moderateRisk.totalDue)}</text>
+        <text x="${cardW - 10}" y="24" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12" font-weight="800" fill="#b45309">${riskData.moderateRisk.count} <tspan font-size="10" font-weight="600" fill="var(--muted, #71817c)">(${riskData.moderateRisk.percent}%)</tspan></text>
       </g>
 
       <!-- Healthy -->
@@ -1066,8 +1094,8 @@ export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } 
         <rect width="${cardW}" height="42" rx="6" fill="rgba(16, 185, 129, 0.08)" stroke="rgba(16, 185, 129, 0.25)" stroke-width="1" />
         <circle cx="14" cy="21" r="5" fill="#10b981" />
         <text x="26" y="18" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="#047857">Healthy Retained</text>
-        <text x="26" y="32" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">Zero overdue balance</text>
-        <text x="${cardW - 10}" y="24" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12" font-weight="800" fill="#047857">${riskData.lowRisk.count} <tspan font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">(${riskData.lowRisk.percent}%)</tspan></text>
+        <text x="26" y="32" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">Zero overdue balance</text>
+        <text x="${cardW - 10}" y="24" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12" font-weight="800" fill="#047857">${riskData.lowRisk.count} <tspan font-size="10" font-weight="600" fill="var(--muted, #71817c)">(${riskData.lowRisk.percent}%)</tspan></text>
       </g>
 
       <!-- At-Risk Revenue Callout -->
@@ -1078,7 +1106,7 @@ export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } 
     </g>
 
     <!-- Bottom subtitle -->
-    <text x="115" y="${height - 12}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">Based on offline service &amp; consecutive dues</text>
+    <text x="115" y="${height - 12}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">Based on offline service &amp; consecutive dues</text>
   </svg>`;
 }
 
@@ -1146,20 +1174,20 @@ export function renderAreaCollectionHeatmapSvg(heatmapData, { filter = 'all', wi
       <g class="heatmap-area-row" transform="translate(10, ${y})" tabindex="0" role="graphics-symbol" aria-label="${escapeXml(item.area)}: Recovery ${item.recoveryRate}%, Collected ${formatPKR(item.collected)} of ${formatPKR(item.billed)}, Total Due ${formatPKR(item.totalDue)}">
         <!-- Area Title and Sub Count -->
         <text x="0" y="14" font-family="'DM Sans', system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--ink, #182e2a)">${escapeXml(item.area)}</text>
-        <text x="0" y="27" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${item.customerCount} subs (${item.activeCount} active)</text>
+        <text x="0" y="27" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${item.customerCount} subs (${item.activeCount} active)</text>
 
         <!-- Progress Track and Heat Fill -->
         <g transform="translate(${barX}, 6)">
           <rect width="${barWidth}" height="10" rx="5" fill="var(--surface-sunken, #e2ece7)" opacity="0.8"/>
           ${fillW > 0 ? `<rect width="${fillW}" height="10" rx="5" fill="${item.heatColor}"/>` : ''}
-          <text x="0" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">Coll: ${formatPKR(item.collected)} / ${formatPKR(item.billed)}</text>
-          ${item.totalDue > 0 ? `<text x="${barWidth}" y="21" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="600" fill="#b91c1c">Due: ${formatPKR(item.totalDue)}</text>` : ''}
+          <text x="0" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">Coll: ${formatPKR(item.collected)} / ${formatPKR(item.billed)}</text>
+          ${item.totalDue > 0 ? `<text x="${barWidth}" y="21" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="#b91c1c">Due: ${formatPKR(item.totalDue)}</text>` : ''}
         </g>
 
         <!-- Recovery Rate & Tier Badge -->
         <g transform="translate(${width - 20}, 14)">
           <text x="0" y="0" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12.5" font-weight="800" fill="${item.heatColor}">${item.recoveryRate}%</text>
-          <text x="0" y="13" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="600" fill="${item.heatColor}">${escapeXml(item.tierLabel.split(' ')[0])}</text>
+          <text x="0" y="13" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="${item.heatColor}">${escapeXml(item.tierLabel.split(' ')[0])}</text>
         </g>
       </g>
     `;
@@ -1171,7 +1199,7 @@ export function renderAreaCollectionHeatmapSvg(heatmapData, { filter = 'all', wi
   return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Geographic Collection Heatmap: Overall recovery ${summary.overallRecoveryRate}%, ${summary.highRecoveryCount} optimal, ${summary.moderateRecoveryCount} moderate, ${summary.laggingCount} lagging zones">
     ${headerMarkup}
     ${rowsMarkup}
-    <text x="${width / 2}" y="${footerY}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${escapeXml(footerText)}</text>
+    <text x="${width / 2}" y="${footerY}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${escapeXml(footerText)}</text>
   </svg>`;
 }
 
@@ -1333,7 +1361,7 @@ export function calculateSeasonalCashflowComparison(state, referenceDate = new D
 export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
   const width = 600;
   const height = 240;
-  const padding = { top: 40, right: 30, bottom: 42, left: 65 };
+  const padding = { top: 40, right: 30, bottom: 42, left: 72 };
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
 
@@ -1365,7 +1393,7 @@ export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
 
   const gridLines = gridTicks.map(t => `
     <line x1="${padding.left}" y1="${t.y}" x2="${width - padding.right}" y2="${t.y}" stroke="var(--border, rgba(0,0,0,0.08))" stroke-dasharray="3,3" />
-    <text x="${padding.left - 8}" y="${t.y + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${t.label}</text>
+    <text x="${padding.left - 8}" y="${t.y + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${t.label}</text>
   `).join('');
 
   const xLabels = seasonalData.months.map((m, idx) => `
@@ -1401,10 +1429,13 @@ export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
     const peakX = getX(seasonalData.peakMonth.monthIndex);
     const peakY = getY(seasonalData.peakMonth.currentYearAmount);
     const calloutY = Math.max(peakY - 14, padding.top - 10);
+    const peakLabel = `Peak: ${seasonalData.peakMonth.monthName} (${formatPKR(seasonalData.peakMonth.currentYearAmount)})`;
+    const peakLabelW = Math.ceil(peakLabel.length * 6.0) + 18;
+    const peakCalloutX = Math.min(Math.max(peakX, peakLabelW / 2 + 4), width - padding.right - peakLabelW / 2 - 4);
     peakCallout = `
-      <g transform="translate(${peakX}, ${calloutY})" text-anchor="middle">
-        <rect x="-42" y="-12" width="84" height="15" rx="3.5" fill="#0e5b4d" />
-        <text y="-2" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#ffffff">Peak: ${seasonalData.peakMonth.monthName} (${formatPKR(seasonalData.peakMonth.currentYearAmount)})</text>
+      <g transform="translate(${peakCalloutX}, ${calloutY})" text-anchor="middle">
+        <rect x="${-peakLabelW / 2}" y="-12" width="${peakLabelW}" height="15" rx="3.5" fill="#0e5b4d" />
+        <text y="-2" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff">${peakLabel}</text>
       </g>
     `;
   }
@@ -1422,6 +1453,10 @@ export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
     </defs>
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
+    <text x="${width - padding.right}" y="8" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${seasonalData.velocityStatus === 'Accelerating' ? '#047857' : (seasonalData.velocityStatus === 'Contraction' ? '#b91c1c' : '#b45309')}">
+      YoY: ${ytdStr} (${seasonalData.velocityStatus})
+    </text>
+
     <g transform="translate(${padding.left}, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="10">
       <circle cx="5" cy="-3" r="4" fill="#0e5b4d" />
       <text x="14" y="0" font-weight="700" fill="var(--ink, #182e2a)">${seasonalData.currentYear} YTD: ${formatPKR(seasonalData.currentYearYtdTotal)}</text>
@@ -1432,9 +1467,6 @@ export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
         <text x="196" y="0" fill="var(--muted, #71817c)">${seasonalData.priorYear} YTD: ${formatPKR(seasonalData.priorYearYtdTotal)}</text>
       ` : ''}
 
-      <text x="${plotWidth}" y="0" text-anchor="end" font-weight="700" fill="${seasonalData.velocityStatus === 'Accelerating' ? '#047857' : (seasonalData.velocityStatus === 'Contraction' ? '#b91c1c' : '#b45309')}">
-        YoY: ${ytdStr} (${seasonalData.velocityStatus})
-      </text>
     </g>
 
     ${gridLines}
@@ -1467,9 +1499,7 @@ export function calculatePackageMarginBreakdown(state, options = {}) {
     if (c.archived) continue;
     totalSubscribers++;
 
-    const pkgName = (c.packageSpeed && String(c.packageSpeed).trim())
-      ? String(c.packageSpeed).trim()
-      : 'Unassigned';
+    const pkgName = canonicalPackageTierName(c.packageSpeed);
 
     let speedMbps = 5;
     const speedMatch = pkgName.match(/(\d+(?:\.\d+)?)\s*(?:Mbps|M\b|G\b)/i);
@@ -1649,12 +1679,12 @@ export function renderPackageMarginSvg(marginData, options = {}) {
   return `<svg class="chart-svg margin-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Package Margin and Bandwidth Cost Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
-    <g transform="translate(175, 18)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+    <g transform="translate(175, 18)" font-family="'DM Sans', system-ui, sans-serif" font-size="10">
       <rect x="0" y="-8" width="10" height="10" rx="2" fill="#f87171" />
       <text x="14" y="0" fill="var(--muted, #71817c)">Upstream Cost (${formatPKR(marginData.totalUpstreamCost)})</text>
 
-      <rect x="155" y="-8" width="10" height="10" rx="2" fill="#10b981" />
-      <text x="169" y="0" font-weight="600" fill="var(--ink, #182e2a)">Gross Profit (${formatPKR(marginData.totalGrossProfit)})</text>
+      <rect x="170" y="-8" width="10" height="10" rx="2" fill="#10b981" />
+      <text x="184" y="0" font-weight="600" fill="var(--ink, #182e2a)">Gross Profit (${formatPKR(marginData.totalGrossProfit)})</text>
     </g>
 
     ${rows}
@@ -1739,7 +1769,7 @@ export function renderCustomerLtvCohortsSvg(ltvData, { metric = currentLtvMetric
     </defs>
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
-    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="10">
       <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
         Mode: <tspan fill="var(--ink, #182e2a)">${isAvg ? 'Average Customer LTV' : 'Total Cohort Revenue'}</tspan>
       </text>
@@ -1829,7 +1859,7 @@ export function renderIncidentImpactSvg(matrixData) {
   return `<svg class="chart-svg incident-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Network Incident and Outage Matrix Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
-    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="10">
       <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
         MTTR: <tspan font-weight="700" fill="var(--ink, #182e2a)">${matrixData.meanTimeToRestoreHours} hrs</tspan>
       </text>
@@ -1922,7 +1952,7 @@ export function renderCashflowProjectionSvg(projectionData) {
         </text>
 
         <!-- Active subs -->
-        <text x="${x}" y="${baselineY + 28}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">
+        <text x="${x}" y="${baselineY + 28}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">
           ${m.activeSubscribers} subs
         </text>
       </g>
@@ -1981,7 +2011,7 @@ export function renderCashflowProjectionSvg(projectionData) {
  */
 export function renderUpstreamGatewaySvg(gatewayData) {
   const width = 560;
-  const height = 240;
+  const height = 222;
 
   if (!gatewayData || gatewayData.gateways.length === 0 || gatewayData.totalBandwidthCapacityMbps === 0) {
     return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Upstream ISP Transit: No gateways assigned">
@@ -1998,7 +2028,7 @@ export function renderUpstreamGatewaySvg(gatewayData) {
   const gateways = gatewayData.gateways.slice(0, 4);
   const maxCapacity = Math.max(...gateways.map(g => g.allocatedBandwidthMbps), 1);
 
-  const topPad = 38;
+  const topPad = 20;
   const rowHeight = 36;
   const labelX = 140;
   const barX = 150;
@@ -2013,7 +2043,7 @@ export function renderUpstreamGatewaySvg(gatewayData) {
       <g class="upstream-gateway-row" transform="translate(0, ${y})">
         <text x="${labelX}" y="15" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #182e2a)">
           ${escapeXml(g.provider)}
-          <tspan font-weight="400" font-size="9.5" fill="var(--muted, #71817c)"> (${g.activeSubscribers} subs)</tspan>
+          <tspan font-weight="400" font-size="10" fill="var(--muted, #71817c)"> (${g.activeSubscribers} subs)</tspan>
         </text>
 
         <!-- Background bar -->
@@ -2030,7 +2060,7 @@ export function renderUpstreamGatewaySvg(gatewayData) {
 
         <!-- Failover role pill -->
         <rect x="${width - 105}" y="3" width="75" height="18" rx="9" fill="${g.failoverRole === 'Primary Active' ? 'rgba(16, 185, 129, 0.15)' : (g.failoverRole === 'Secondary Standby' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(100, 116, 139, 0.12)')}" />
-        <text x="${width - 67}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="${g.failoverRole === 'Primary Active' ? '#047857' : (g.failoverRole === 'Secondary Standby' ? '#2563eb' : '#64748b')}">
+        <text x="${width - 67}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${g.failoverRole === 'Primary Active' ? '#047857' : (g.failoverRole === 'Secondary Standby' ? '#2563eb' : '#64748b')}">
           ${g.failoverRole === 'Primary Active' ? 'PRIMARY' : (g.failoverRole === 'Secondary Standby' ? 'STANDBY' : 'READY')}
         </text>
       </g>
@@ -2041,15 +2071,6 @@ export function renderUpstreamGatewaySvg(gatewayData) {
 
   return `<svg class="chart-svg upstream-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Upstream ISP Transit &amp; Multi-Homed Failover Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
-
-    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
-      <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
-        Primary Gateway: <tspan font-weight="700" fill="var(--ink, #182e2a)">${escapeXml(gatewayData.primaryGateway)}</tspan>
-      </text>
-      <text x="${width - 240}" y="0" text-anchor="end" font-weight="600" fill="var(--muted, #71817c)">
-        Redundancy: <tspan font-weight="700" fill="${gatewayData.failoverRedundancyStatus === 'Multi-Homed Redundant' ? '#047857' : '#d97706'}">${escapeXml(gatewayData.failoverRedundancyStatus)}</tspan>
-      </text>
-    </g>
 
     ${rows}
 
@@ -2067,7 +2088,7 @@ export function renderUpstreamGatewaySvg(gatewayData) {
  */
 export function renderAcquisitionRoiSvg(roiData) {
   const width = 560;
-  const height = 240;
+  const height = 222;
 
   if (!roiData || roiData.totalPortfolioAcquisitions === 0) {
     return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Acquisition ROI: No subscribers tracked">
@@ -2081,7 +2102,7 @@ export function renderAcquisitionRoiSvg(roiData) {
     </svg>`;
   }
 
-  const topPad = 38;
+  const topPad = 20;
   const rowHeight = 36;
   const labelX = 140;
   const barX = 150;
@@ -2106,7 +2127,7 @@ export function renderAcquisitionRoiSvg(roiData) {
       <g class="acquisition-roi-row" transform="translate(0, ${y})">
         <text x="${labelX}" y="15" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #182e2a)">
           ${escapeXml(ch.name)}
-          <tspan font-weight="400" font-size="9.5" fill="var(--muted, #71817c)"> (${ch.totalAcquisitions} subs)</tspan>
+          <tspan font-weight="400" font-size="10" fill="var(--muted, #71817c)"> (${ch.totalAcquisitions} subs)</tspan>
         </text>
 
         <!-- Background bar -->
@@ -2123,7 +2144,7 @@ export function renderAcquisitionRoiSvg(roiData) {
 
         <!-- Status pill -->
         <rect x="${width - 105}" y="3" width="75" height="18" rx="9" fill="${pillColor.bg}" />
-        <text x="${width - 67}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="${pillColor.text}">
+        <text x="${width - 67}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${pillColor.text}">
           ${pillColor.label}
         </text>
       </g>
@@ -2134,15 +2155,6 @@ export function renderAcquisitionRoiSvg(roiData) {
 
   return `<svg class="chart-svg acquisition-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Acquisition Channel ROI and Payback Velocity Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
-
-    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
-      <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
-        Fastest Channel: <tspan font-weight="700" fill="var(--ink, #182e2a)">${escapeXml(roiData.fastestPaybackChannel)}</tspan>
-      </text>
-      <text x="${width - 240}" y="0" text-anchor="end" font-weight="600" fill="var(--muted, #71817c)">
-        Portfolio Net ROI: <tspan font-weight="700" fill="${roiData.portfolioNetRoiPercent >= 0 ? '#047857' : '#dc2626'}">${roiData.portfolioNetRoiPercent > 0 ? '+' : ''}${roiData.portfolioNetRoiPercent}%</tspan>
-      </text>
-    </g>
 
     ${rows}
 
@@ -2205,7 +2217,7 @@ export function renderBandwidthShapingSvg(metrics) {
   const labelHours = [0, 4, 8, 12, 16, 20, 23];
   const axisLabels = labelHours.map(h => {
     const x = leftPad + h * (plotWidth / 24) + barWidth / 2;
-    return `<text x="${x}" y="${topPad + plotHeight + 14}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="${h === 20 ? '700' : '500'}" fill="${h === 20 ? '#d97706' : 'var(--muted, #71817c)'}">${String(h).padStart(2, '0')}:00</text>`;
+    return `<text x="${x}" y="${topPad + plotHeight + 14}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="${h === 20 ? '700' : '500'}" fill="${h === 20 ? '#d97706' : 'var(--muted, #71817c)'}">${String(h).padStart(2, '0')}:00</text>`;
   }).join('');
 
   const statusColor = metrics.congestionStatus === 'Healthy Bandwidth Headroom' ? '#047857' : (metrics.congestionStatus === 'Moderate Congestion' ? '#d97706' : '#dc2626');
@@ -2213,7 +2225,7 @@ export function renderBandwidthShapingSvg(metrics) {
   return `<svg class="chart-svg shaping-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Peak Bandwidth Utilization and Diurnal Traffic Curve">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
-    <g transform="translate(${leftPad}, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+    <g transform="translate(${leftPad}, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="10">
       <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
         Peak Demand: <tspan font-weight="700" fill="var(--ink, #182e2a)">${metrics.peakDemandMbps} Mbps</tspan>
       </text>
@@ -2226,7 +2238,7 @@ export function renderBandwidthShapingSvg(metrics) {
     </g>
 
     <line x1="${leftPad}" y1="${capacityY}" x2="${leftPad + plotWidth}" y2="${capacityY}" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3" />
-    <text x="${leftPad + plotWidth}" y="${capacityY - 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#dc2626">UPSTREAM CEILING (${metrics.upstreamCapacityMbps}M)</text>
+    <text x="${leftPad + plotWidth}" y="${capacityY - 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="#dc2626">UPSTREAM CEILING (${metrics.upstreamCapacityMbps}M)</text>
 
     <line x1="${leftPad}" y1="${topPad + plotHeight}" x2="${leftPad + plotWidth}" y2="${topPad + plotHeight}" stroke="rgba(0,0,0,0.1)" stroke-width="1" />
 
@@ -2234,7 +2246,7 @@ export function renderBandwidthShapingSvg(metrics) {
     ${axisLabels}
 
     <g transform="translate(${width / 2}, ${height - 6})" text-anchor="middle">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
         Peak Surge: <tspan font-weight="700" fill="#d97706">19:00 - 23:00 PKT</tspan> · Headroom: <tspan font-weight="700" fill="var(--ink, #182e2a)">${metrics.headroomMbps} Mbps</tspan> · Ratio: <tspan font-weight="700" fill="var(--ink, #182e2a)">1:${metrics.oversubscriptionRatio}</tspan> · Status: <tspan font-weight="700" fill="${statusColor}">${metrics.congestionStatus}</tspan>
       </text>
     </g>
@@ -2328,13 +2340,13 @@ export function renderFiberDistributionSvg(metrics) {
 
     <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
       <rect x="-180" y="-8" width="10" height="10" rx="2" fill="#0e5b4d" />
-      <text x="-164" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Active Drops</text>
+      <text x="-164" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Active Drops</text>
 
       <rect x="-70" y="-8" width="10" height="10" rx="2" fill="#f59e0b" />
-      <text x="-54" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Offline Drops</text>
+      <text x="-54" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Offline Drops</text>
 
       <rect x="40" y="-8" width="10" height="10" rx="2" fill="rgba(148, 163, 184, 0.5)" />
-      <text x="56" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Dark Headroom (Spare)</text>
+      <text x="56" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Dark Headroom (Spare)</text>
     </g>
   </svg>`;
 }
@@ -2708,7 +2720,7 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
     ${rowsSvg}
 
     <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
         Pacing Target: <tspan font-weight="700" fill="var(--ink, #182e2a)">${formatPKR(pipelineData.dailyPacingTarget)}/day</tspan> · Status: <tspan font-weight="700" fill="${statusColor}">${escapeXml(pipelineData.pipelineHealthStatus)}</tspan> · Highest Dues Sector: <tspan font-weight="700" fill="var(--ink, #182e2a)">${topAreaText}</tspan>
       </text>
     </g>
@@ -2787,7 +2799,7 @@ export function renderCpeAssetLifecycleSvg(cpeData, options = {}) {
       <circle cx="16" cy="18" r="5" fill="#0e5b4d" />
       <text x="28" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">Active Deployed</text>
       <text x="16" y="44" font-family="'DM Sans', system-ui, sans-serif" font-size="14" font-weight="800" fill="#0e5b4d">${cpeData.activeDeployedCount} Units</text>
-      <text x="16" y="58" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">Value: ${formatPKR(cpeData.activeFleetValuePkr)}</text>
+      <text x="16" y="58" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">Value: ${formatPKR(cpeData.activeFleetValuePkr)}</text>
     </g>
 
     <!-- Dormant Card -->
@@ -2796,7 +2808,7 @@ export function renderCpeAssetLifecycleSvg(cpeData, options = {}) {
       <circle cx="16" cy="18" r="5" fill="#f59e0b" />
       <text x="28" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">Dormant in Field</text>
       <text x="16" y="44" font-family="'DM Sans', system-ui, sans-serif" font-size="14" font-weight="800" fill="#b45309">${cpeData.dormantFieldCount} Units</text>
-      <text x="16" y="58" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">At Risk: ${formatPKR(cpeData.dormantCapitalAtRiskPkr)}</text>
+      <text x="16" y="58" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">At Risk: ${formatPKR(cpeData.dormantCapitalAtRiskPkr)}</text>
     </g>
 
     <!-- Spares Card -->
@@ -2805,12 +2817,12 @@ export function renderCpeAssetLifecycleSvg(cpeData, options = {}) {
       <circle cx="16" cy="18" r="5" fill="#0284c7" />
       <text x="28" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">Warehouse Spares</text>
       <text x="16" y="44" font-family="'DM Sans', system-ui, sans-serif" font-size="14" font-weight="800" fill="#0369a1">${cpeData.warehouseStock} Tested</text>
-      <text x="16" y="58" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">Runway: ${cpeData.sparesRunwayWeeks} weeks</text>
+      <text x="16" y="58" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">Runway: ${cpeData.sparesRunwayWeeks} weeks</text>
     </g>
 
     <!-- Bottom Footer -->
     <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
         Fleet Health: <tspan font-weight="700" fill="${statusColor}">${escapeXml(cpeData.fleetHealthStatus)}</tspan> · Retrieval Candidates: <tspan font-weight="700" fill="var(--ink, #182e2a)">${cpeData.retrievalCandidates.length}</tspan> · Spares Inventory: <tspan font-weight="700" fill="#0284c7">${formatPKR(cpeData.warehouseValuePkr)}</tspan>
       </text>
     </g>
@@ -2872,19 +2884,19 @@ export function renderPowerBackupSvg(powerData, options = {}) {
         <text x="10" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
           ${shortName}
         </text>
-        <text x="10" y="29" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">
+        <text x="10" y="29" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">
           ${h.activeSubscribers} Active Subs · ${h.inverterLoadWatts}W Load
         </text>
 
         <!-- Power Source Tag -->
         <rect x="175" y="10" width="70" height="18" rx="4" fill="${pwrBg}" />
-        <text x="210" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="${pwrClass}">
+        <text x="210" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${pwrClass}">
           ${escapeXml(h.powerSource.replace(' (IESCO)', ''))}
         </text>
 
         <!-- Battery Bar -->
         <g transform="translate(255, 8)">
-          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="8" font-weight="600" fill="var(--muted, #71817c)">
+          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
             BATT: ${h.batteryVoltage}V (${h.batteryLevelPercent}%) ~${h.batteryRunwayHours}h
           </text>
           <rect y="11" width="${battBarWidth}" height="10" rx="3" fill="var(--line, #e2ece7)" />
@@ -2893,7 +2905,7 @@ export function renderPowerBackupSvg(powerData, options = {}) {
 
         <!-- Fuel Bar -->
         <g transform="translate(410, 8)">
-          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="8" font-weight="600" fill="var(--muted, #71817c)">
+          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
             GEN: ${h.generatorFuelLiters}L (${h.fuelReservePercent}%) ~${h.generatorRunwayHours}h
           </text>
           <rect y="11" width="${fuelBarWidth}" height="10" rx="3" fill="var(--line, #e2ece7)" />
@@ -2902,7 +2914,7 @@ export function renderPowerBackupSvg(powerData, options = {}) {
 
         <!-- Total Runway Pill -->
         <rect x="530" y="9" width="62" height="20" rx="4" fill="var(--surface-sunken, #edf3f0)" />
-        <text x="561" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="700" fill="var(--ink, #182e2a)">
+        <text x="561" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
           ${h.totalOutageRunwayHours}h Total
         </text>
       </g>
@@ -2916,7 +2928,7 @@ export function renderPowerBackupSvg(powerData, options = {}) {
       <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
         Distribution POP Power &amp; Telecom Battery Telemetry
       </text>
-      <text x="${plotWidth}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+      <text x="${plotWidth}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
         Fleet Battery: <tspan font-weight="700" fill="#047857">${powerData.totalBatteryCapacityKwh} kWh</tspan> · Fuel: <tspan font-weight="700" fill="#0284c7">${powerData.totalFuelReservesLiters}L</tspan> · Runway: <tspan font-weight="700" fill="${statusColor}">${powerData.combinedFleetRunwayHours}h</tspan>
       </text>
     </g>
@@ -2925,7 +2937,7 @@ export function renderPowerBackupSvg(powerData, options = {}) {
 
     <!-- Bottom Legend & Health Status -->
     <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
         Grid Status: <tspan font-weight="700" fill="${statusColor}">${escapeXml(powerData.gridResilienceStatus)}</tspan> · Outages: <tspan font-weight="700" fill="var(--ink, #182e2a)">${powerData.activeOutagesCount}/${powerData.totalHubsMonitored}</tspan> · Emergency Burn: <tspan font-weight="700" fill="#b45309">${formatPKR(powerData.totalHourlyFuelCostPkr)}/hr</tspan>
       </text>
     </g>
@@ -2986,19 +2998,19 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
         <text x="10" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
           ${escapeXml(a.areaName)}
         </text>
-        <text x="10" y="29" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">
+        <text x="10" y="29" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">
           ${a.overdueCount} Stops · ~${formatPKR(a.avgTicketPerStop)}/stop
         </text>
 
         <!-- Density Tag -->
         <rect x="175" y="10" width="75" height="18" rx="4" fill="${tierBg}" />
-        <text x="212" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="${tierColor}">
+        <text x="212" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${tierColor}">
           ${escapeXml(a.densityRating)}
         </text>
 
         <!-- Uncollected Dues Bar -->
         <g transform="translate(260, 8)">
-          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="8" font-weight="600" fill="var(--muted, #71817c)">
+          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
             TARGET: ${formatPKR(a.totalOverdueAmount)}
           </text>
           <rect y="11" width="${duesBarWidth}" height="10" rx="3" fill="var(--line, #e2ece7)" />
@@ -3006,8 +3018,8 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
         </g>
 
         <!-- Stop Density Bar -->
-        <g transform="translate(415, 8)">
-          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="8" font-weight="600" fill="var(--muted, #71817c)">
+        <g transform="translate(400, 8)">
+          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
             DENSITY: ${a.overdueCount} accounts
           </text>
           <rect y="11" width="${stopsBarWidth}" height="10" rx="3" fill="var(--line, #e2ece7)" />
@@ -3016,7 +3028,7 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
 
         <!-- Dispatch Crew Pill -->
         <rect x="525" y="9" width="67" height="20" rx="4" fill="var(--surface-sunken, #edf3f0)" />
-        <text x="558" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="700" fill="var(--ink, #182e2a)">
+        <text x="558" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
           ${a.recommendedCollectors} Crew (${a.estimatedRouteDays}d)
         </text>
       </g>
@@ -3030,7 +3042,7 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
       <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
         Field Route Density &amp; Collector Pacing Matrix
       </text>
-      <text x="${plotWidth}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+      <text x="${plotWidth}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
         Stops: <tspan font-weight="700" fill="var(--ink, #182e2a)">${densityData.totalDelinquentAccounts}</tspan> · Target: <tspan font-weight="700" fill="#b91c1c">${formatPKR(densityData.totalUncollectedDues)}</tspan> · Fleet: <tspan font-weight="700" fill="#047857">${densityData.totalRecommendedCollectors} Crew</tspan>
       </text>
     </g>
@@ -3039,7 +3051,7 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
 
     <!-- Bottom Legend & Health Status -->
     <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
         Dispatch Status: <tspan font-weight="700" fill="${statusColor}">${escapeXml(densityData.fleetRoutingStatus)}</tspan> · Sectors: <tspan font-weight="700" fill="var(--ink, #182e2a)">${densityData.totalAreasTargeted}</tspan> · Daily Pacing: <tspan font-weight="700" fill="#047857">${formatPKR(densityData.dailyFleetRecoveryTargetPkr)}/day</tspan>
       </text>
     </g>
@@ -3049,6 +3061,56 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
 /**
  * Orchestrates dashboard charts rendering into their DOM containers.
  */
+
+// Performance & Collection Analytics sub-tabs: Revenue | Customers | Network | Forecast.
+// Mechanism copied from the area module (syncAreaModuleChrome /
+// setupAreaAnalyticsModule, app.js): a state var, panels toggled `hidden`,
+// `aria-selected` synced on every render. Inactive tabs HIDE, never skip
+// rendering, so badges and inputs keep live data (area-analytics D3).
+// The scoped `.dashboard-chart-card[hidden]` rule in dashboard.css is
+// LOAD-BEARING: `.dashboard-chart-card` sets author `display: flex`, which
+// beats the UA `[hidden]` rule, so `hidden` alone would not hide a card.
+const DASHBOARD_CHARTS_TABS = {
+  revenue: ['chart-card-trend', 'chart-card-donut', 'chart-card-area', 'chart-card-package', 'chart-card-methods', 'chart-card-seasonal', 'chart-card-margin'],
+  customers: ['chart-card-health', 'chart-card-churn', 'chart-card-heatmap', 'chart-card-ltv', 'chart-card-delinquency'],
+  network: ['chart-card-incident', 'chart-card-upstream', 'chart-card-shaping', 'chart-card-fiber', 'chart-card-cpe', 'chart-card-power', 'chart-card-route-density'],
+  forecast: ['chart-card-projection', 'chart-card-acquisition']
+};
+let dashboardChartsTab = 'revenue';
+
+export function syncDashboardChartsTabs() {
+  // Document guard, following this file's own convention: the dashboard
+  // tests stub `document` with `getElementById` only, so an unguarded
+  // `document.querySelector` here crashed renderDashboardCharts in 5
+  // tests. Production behaviour is unchanged (a real document has both).
+  if (typeof document === 'undefined' || typeof document.querySelector !== 'function' || typeof document.querySelectorAll !== 'function') return;
+  const grid = document.querySelector('.dashboard-charts-grid');
+  if (!grid) return;
+  const activeCards = DASHBOARD_CHARTS_TABS[dashboardChartsTab] || DASHBOARD_CHARTS_TABS.revenue;
+  grid.querySelectorAll('.dashboard-chart-card').forEach((card) => {
+    const tabbed = Object.values(DASHBOARD_CHARTS_TABS).some((classes) => classes.some((cls) => card.classList.contains(cls)));
+    if (!tabbed) return; // telecom diagnostics cards (24-69) stay outside the tab system
+    card.hidden = !activeCards.some((cls) => card.classList.contains(cls));
+  });
+  document.querySelectorAll('#dashboardChartsTabBar .dashboard-charts-tab-button').forEach((btn) => {
+    const isActive = btn.dataset.chartsTab === dashboardChartsTab;
+    if (btn.setAttribute) btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    btn.classList.toggle('is-active', isActive);
+  });
+}
+
+export function setupDashboardChartsTabs() {
+  const bar = document.getElementById('dashboardChartsTabBar');
+  if (!bar || bar.dataset.chartsTabsWired) return;
+  bar.dataset.chartsTabsWired = 'true';
+  bar.querySelectorAll('.dashboard-charts-tab-button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      dashboardChartsTab = btn.dataset.chartsTab || 'revenue';
+      syncDashboardChartsTabs();
+    });
+  });
+}
+
 export function renderDashboardCharts(state, referenceDate = new Date(), options = {}) {
   if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
   // Sharafat 22 — lazy charts: the charts <details> is collapsed by
@@ -3221,6 +3283,15 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   if (upstreamEl) {
     const upstreamData = calculateUpstreamGatewayMetrics(state, referenceDate);
     upstreamEl.innerHTML = renderUpstreamGatewaySvg(upstreamData);
+    const upstreamSummary = document.getElementById('dashChart16Summary');
+    if (upstreamSummary) {
+      const hasGateways = (upstreamData.gateways ?? []).length > 0;
+      upstreamSummary.hidden = !hasGateways;
+      const primaryEl = document.getElementById('dashUpstreamPrimaryGateway');
+      if (primaryEl) primaryEl.textContent = upstreamData.primaryGateway ?? '';
+      const redundancyEl = document.getElementById('dashUpstreamRedundancy');
+      if (redundancyEl) redundancyEl.textContent = upstreamData.failoverRedundancyStatus ?? '';
+    }
   }
 
   setupUpstreamGatewayModal(state, { referenceDate, onToast: options.onToast });
@@ -3229,6 +3300,15 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   if (acqEl) {
     const acqData = calculateAcquisitionRoiMetrics(state, referenceDate);
     acqEl.innerHTML = renderAcquisitionRoiSvg(acqData);
+    const acqSummary = document.getElementById('dashChart17Summary');
+    if (acqSummary) {
+      const hasAcq = (acqData.totalPortfolioAcquisitions ?? 0) > 0;
+      acqSummary.hidden = !hasAcq;
+      const channelEl = document.getElementById('dashAcqFastestChannel');
+      if (channelEl) channelEl.textContent = acqData.fastestPaybackChannel ?? '';
+      const roiEl = document.getElementById('dashAcqPortfolioRoi');
+      if (roiEl) roiEl.textContent = `${acqData.portfolioNetRoiPercent > 0 ? '+' : ''}${acqData.portfolioNetRoiPercent}%`;
+    }
   }
 
   setupAcquisitionRoiModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
@@ -3287,6 +3367,9 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupRouteDensityModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
+  setupDashboardChartsTabs();
+  syncDashboardChartsTabs();
 
   // SISP-9: heavy telecom charts + diagnostics modals load lazily (separate
   // chunk, only when the charts region becomes visible) — core charts above

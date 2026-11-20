@@ -128,8 +128,8 @@ const sinNote = { id: 's1', customerId: 'c1', amountCents: 300000, dayOfMonth: 5
 // ================= G1 — parity guard (this file's own pin) =================
 
 test('G1: parity is the new total in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5187, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5187, 'UR parity');
+  assert.equal(Object.keys(en).length, 5195, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5195, 'UR parity');
   const prvEn = Object.keys(en).filter((k) => k.startsWith('prv_'));
   const prvUr = Object.keys(ur).filter((k) => k.startsWith('prv_'));
   // Plan 608 adds the 240th prv_ key (prv_wr_toast_past_date, the

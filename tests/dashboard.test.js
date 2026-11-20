@@ -916,7 +916,10 @@ test('calculatePackageDistribution groups customers by packageSpeed, revenue, an
 
   // Top package is 5 Mbps (2 customers)
   const topPkg = result.packages[0];
-  assert.equal(topPkg.packageName, '5 Mbps / 150GB');
+  // Performance & Collection Analytics: the aggregator now returns the
+  // canonical tier name ('5 Mbps / 150 GB', spaced) — see
+  // canonicalPackageTierName in dashboard-charts.js.
+  assert.equal(topPkg.packageName, '5 Mbps / 150 GB');
   assert.equal(topPkg.count, 2);
   assert.equal(topPkg.activeCount, 1);
   assert.equal(topPkg.monthlyRevenue, 3000);
@@ -2213,7 +2216,9 @@ test('calculatePackageMarginBreakdown analyzes package profitability correctly',
   assert.equal(breakdown.blendedMarginPercent, 77);
 
   assert.equal(breakdown.packages.length, 2);
-  const p15 = breakdown.packages.find(p => p.packageName === '15Mbps Unlimited');
+  // Performance & Collection Analytics: the margin aggregator now keys
+  // tiers by their canonical name ('15 Mbps Unlimited').
+  const p15 = breakdown.packages.find(p => p.packageName === '15 Mbps Unlimited');
   assert.equal(p15.subscriberCount, 2);
   assert.equal(p15.totalRevenue, 6000);
   assert.equal(p15.grossProfit, 4500);
@@ -2273,7 +2278,9 @@ test('generateMarginSimulationReportText produces structured text report', () =>
   assert.ok(text.includes('SHAHDARA ISP - PACKAGE MARGIN SIMULATION'));
   assert.ok(text.includes('Upstream Transit Rate: PKR 50/Mbps'));
   assert.ok(text.includes('Net Gross Profit:'));
-  assert.ok(text.includes('15Mbps'));
+  // Performance & Collection Analytics: the simulation report now prints
+  // the canonical tier name ('15 Mbps').
+  assert.ok(text.includes('15 Mbps'));
 });
 
 test('setupMarginSimulatorModal wires interactive dialog controls and clipboard', async () => {
@@ -2357,7 +2364,9 @@ test('setupMarginSimulatorModal wires interactive dialog controls and clipboard'
     openHandler();
     assert.equal(modalOpened, true);
     assert.ok(mockRev.textContent.includes('3,000'));
-    assert.ok(mockTableBody.innerHTML.includes('15Mbps'));
+    // Performance & Collection Analytics: the simulator table now shows
+    // the canonical tier name ('15 Mbps').
+    assert.ok(mockTableBody.innerHTML.includes('15 Mbps'));
 
     mockInput.value = '40';
     inputHandler();
@@ -3430,7 +3439,7 @@ test('calculateAcquisitionRoiMetrics handles empty state safely', () => {
   assert.equal(res.fastestPaybackChannel, 'None');
 });
 
-test('renderAcquisitionRoiSvg renders accessible SVG with channel bars and empty state fallback', () => {
+test('renderAcquisitionRoiSvg renders accessible SVG with channel bars and empty state fallback', async () => {
   const emptyState = { customers: [], receipts: [] };
   const emptyData = calculateAcquisitionRoiMetrics(emptyState);
   const emptySvg = renderAcquisitionRoiSvg(emptyData);
@@ -3445,7 +3454,16 @@ test('renderAcquisitionRoiSvg renders accessible SVG with channel bars and empty
   assert.ok(svg.includes('<svg'));
   assert.ok(svg.includes('acquisition-roi-row'));
   assert.ok(svg.includes('Total CAC:'));
-  assert.ok(svg.includes('Portfolio Net ROI:'));
+  // Performance & Collection Analytics (D3(a)): the 'Portfolio Net ROI:'
+  // header moved out of the SVG into the HTML summary row above it, so it
+  // is asserted there instead of in the SVG.
+  assert.ok(!svg.includes('Portfolio Net ROI:'));
+  const fs = await import('fs');
+  const path = await import('path');
+  const indexHtml = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(indexHtml.includes('id="dashChart17Summary"'));
+  assert.ok(indexHtml.includes('Portfolio Net ROI:'));
+  assert.ok(indexHtml.includes('id="dashAcqPortfolioRoi"'));
 });
 
 test('generateAcquisitionBriefingReport generates structured plain text summary', () => {

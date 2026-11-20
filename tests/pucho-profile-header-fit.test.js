@@ -59,8 +59,8 @@ test('pucho fit: one-row form at phone widths — input + mic + Ask share one ro
 });
 
 test('pucho fit: chips are a 2-row horizontal strip; voice controls hidden until armed', () => {
-  // 12 catalogue chips + 2 morning-queue buttons = the user's 14, in one
-  // 2-row strip (column flow, nowrap chips, horizontal scroll).
+  // 2 pinned chips + 12 catalogue chips + 2 morning-queue buttons = the
+  // user's 16, in one 2-row strip (column flow, nowrap chips, horizontal scroll).
   assert.ok(styles.includes('grid-auto-flow:column;grid-template-rows:repeat(2,auto)'), 'chip strip flows in 2 rows');
   assert.ok(styles.includes('.owner-suggestion-chip{white-space:nowrap'), 'chips never wrap to a third row');
   assert.ok(ownerUi.includes('chipsGrid.append(button)'), 'queue buttons move into the chip grid');

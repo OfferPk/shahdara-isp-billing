@@ -507,6 +507,30 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     for (const button of [...queueRow.querySelectorAll('#puchoQueueBtn, #puchoQueueExportBtn')]) chipsGrid.append(button);
     queueRow.remove();
   }
+  // Owner Assistant restore: two pinned chips lead the strip — the spec's
+  // other two one-tap questions already exist as catalogue chips
+  // (total_dues, collections), so they are not duplicated here. The pinned
+  // chips carry data-pucho-question like the catalogue chips, so the same
+  // delegated click handler runs them through renderCommand: neither
+  // question is a catalogue title, so the owner engine answers both
+  // ('This month profit' → monthly-profit, 'Who has the highest
+  // outstanding?' → top-defaulters). Plain strings, like the catalogue
+  // titles — no i18n keys and no PUCHO_QUESTIONS entries.
+  const pinnedChips = [
+    { label: 'This month profit', question: 'This month profit' },
+    { label: 'Top defaulters', question: 'Who has the highest outstanding?' }
+  ];
+  if (chipsGrid) {
+    const pinnedButtons = pinnedChips.map(chip => {
+      const button = document.createElement('button');
+      button.className = 'secondary-button owner-suggestion-chip pucho-chip';
+      button.type = 'button';
+      button.setAttribute('data-pucho-question', chip.question);
+      button.textContent = chip.label;
+      return button;
+    });
+    chipsGrid.prepend(...pinnedButtons);
+  }
   catalogueEl?.addEventListener('click',event=>{
     const chip=event.target.closest('[data-pucho-question]'); if(!chip)return;
     const question=chip.getAttribute('data-pucho-question');

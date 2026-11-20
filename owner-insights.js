@@ -1193,7 +1193,7 @@ export function buildSmartAlerts(state,referenceDate=new Date(),allocations=calc
   if(matchingWeekdays.length<2)addInsufficient('collection-baseline',`No low-collection comparison yet: only ${matchingWeekdays.length} of the prior 4 same-weekday dates have saved receipts; at least 2 receipt-bearing comparison days are required.`);
   else {
     const baselineCents=Math.round(matchingWeekdays.reduce((sum,date)=>sum+dailyReceipts.get(date),0)/matchingWeekdays.length);
-    if(baselineCents>0&&currentCollection<baselineCents*0.8)alerts.push({id:'collection-below-weekday-baseline',severity:'notice',title:'Today’s collection is below comparable prior weeks',detail:`Today: ${pkr(currentCollection)} vs ${pkr(baselineCents)} average across ${matchingWeekdays.length} receipt-bearing same-weekday date(s) in the prior 4 weeks. Alert threshold: below 80% of baseline. Dates without saved receipts are not treated as samples; no daily snapshots are saved.`});
+    if(baselineCents>0&&currentCollection<baselineCents*0.8)alerts.push({id:'collection-below-weekday-baseline',severity:'notice',title:'Today’s collection is below comparable prior weeks',detailLead:`Today: ${pkr(currentCollection)} vs ${pkr(baselineCents)} average across ${matchingWeekdays.length} receipt-bearing same-weekday date(s) in the prior 4 weeks.`,detail:`Alert threshold: below 80% of baseline.`});
     check('collection-baseline',baselineCents>0&&currentCollection<baselineCents*0.8?'alert':'clear',baselineCents>0&&currentCollection<baselineCents*0.8?'':`Today’s ${pkr(currentCollection)} is not below 80% of the ${matchingWeekdays.length}-sample comparable weekday baseline (${pkr(baselineCents)}).`);
   }
 

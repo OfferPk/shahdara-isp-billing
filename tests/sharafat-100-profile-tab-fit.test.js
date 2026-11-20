@@ -266,8 +266,8 @@ test('G1: EN/UR parity stays 4,669/4,669 — the count keys changed values, not 
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5187, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5187, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5195, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5195, 'UR key count moved');
   const enKeys = new Set(Object.keys(TRANSLATIONS.en));
   const urKeys = new Set(Object.keys(TRANSLATIONS.ur));
   assert.deepEqual([...enKeys].filter((k) => !urKeys.has(k)), [], 'no EN-only keys');

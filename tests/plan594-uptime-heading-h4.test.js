@@ -69,7 +69,7 @@ const selfSrc = readFileSync(join(dir, 'plan594-uptime-heading-h4.test.js'), 'ut
 
 const indexLines = indexSrc.split('\n');
 
-// The :7072 line, pinned in full. The only difference from the base line
+// The :7089 line, pinned in full. The only difference from the base line
 // is the tag name (h3 -> h4). The help-button glyph is U+2139 + U+FE0F,
 // written as escapes in a separate segment so the pin cannot drift on
 // encoding (no literal glyph anywhere in this file).
@@ -89,7 +89,10 @@ test('Plan 594: uptime section renders an h4 and no h3 anywhere in its heading',
   // tabs bar + 2 HTML summary rows above this section, so the pinned
   // lines move +14 (7072→7086, 7071→7085, 7076→7090); the lines
   // themselves are unchanged.
-  assert.equal(lineNo, 7086, 'the uptime heading sits on index.html:7086');
+  // Business counter — the Hisaab section gains a counter line + two
+  // averages lines above this section, so the pinned lines move +3
+  // (7086→7089, 7085→7088, 7090→7093); the lines themselves are unchanged.
+  assert.equal(lineNo, 7089, 'the uptime heading sits on index.html:7089');
   assert.ok(indexLines[lineNo - 1].includes('<h4 id="uptimeHeading" data-i18n="upt_heading">Online / offline time</h4>'), 'the heading is an h4 with the same text and key');
   assert.ok(!indexSrc.includes('<h3 id="uptimeHeading"'), 'no h3 uptime heading remains anywhere');
   assert.ok(indexLines[lineNo - 2].includes('<section class="incident-section uptime-section" aria-labelledby="uptimeHeading">'), 'the section keeps its classes and aria-labelledby');
@@ -114,8 +117,8 @@ test('Plan 594: CLV and package history stay h4 (520/509 pins re-asserted)', () 
 // G2 — The demotion itself: byte-identical except the tag, no line shift.
 
 test('Plan 594: the demoted heading line is byte-identical to the base line except the tag name', () => {
-  assert.equal(indexLines[7085], EXPECTED_UPTIME_LINE, 'the :7086 line matches the pinned line in full');
-  const restored = indexLines[7085]
+  assert.equal(indexLines[7088], EXPECTED_UPTIME_LINE, 'the :7089 line matches the pinned line in full');
+  const restored = indexLines[7088]
     .replace('<h4 id="uptimeHeading"', '<h3 id="uptimeHeading"')
     .replace('Online / offline time</h4>', 'Online / offline time</h3>');
   assert.ok(restored.includes('<h3 id="uptimeHeading" data-i18n="upt_heading">Online / offline time</h3>'), 'swapping the tag back restores the base heading exactly');
@@ -123,14 +126,14 @@ test('Plan 594: the demoted heading line is byte-identical to the base line exce
 
 test('Plan 594: the heading sits on the same line number — no line shift, no panel move', () => {
   const sectionNo = indexLines.findIndex((l) => l.includes('<section class="incident-section uptime-section"')) + 1;
-  assert.equal(sectionNo, 7085, 'the section still opens at :7085');
+  assert.equal(sectionNo, 7088, 'the section still opens at :7088');
   assert.ok(appSrc.includes("info:['.customer-meta','.uptime-section']"), 'the mount still puts the section second in Info');
   assert.ok(appSrc.includes("complaints:['.incident-section:not(.uptime-section)']"), 'the Complaints mount still excludes the uptime section');
 });
 
 test('Plan 594: the manual-log heading stays h3 with its text unchanged', () => {
   const lineNo = indexLines.findIndex((l) => l.includes('id="incidentHeading"')) + 1;
-  assert.equal(lineNo, 7090, 'the manual-log heading sits on index.html:7090');
+  assert.equal(lineNo, 7093, 'the manual-log heading sits on index.html:7093');
   assert.ok(indexLines[lineNo - 1].includes('<h3 id="incidentHeading" data-i18n="prof_incident_heading">Complaints &amp; outages</h3>'), 'the manual log keeps its h3 and its text');
 });
 
@@ -191,8 +194,8 @@ test('Plan 594: the scoped rule adds no hex and the dead package-history h3 rule
 test('Plan 594: upt_heading exists in both tables and parity does not move', () => {
   assert.equal(TRANSLATIONS.en.upt_heading, 'Online / offline time', 'the English heading text is pinned');
   assert.equal(TRANSLATIONS.ur.upt_heading, 'آن لائن / آف لائن وقت', 'the Urdu heading text is pinned');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5195, 'EN parity 5,162');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5195, 'UR parity 5,162');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5203, 'EN parity 5,162');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5203, 'UR parity 5,162');
   // Trap T6: 591's G5a fails the suite if any test file contains the
   // old-count digits (now the previous total, four-seven-six-six).
   // The digits are built, never spelled, so this guard cannot trip the

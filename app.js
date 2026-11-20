@@ -233,7 +233,8 @@ import { setupBillVoucherDialog } from './a4-voucher-grid-print.js';
 import { setupOwnerPinGuard, guardDecision, loadOwnerPinRecord } from './owner-pin-guard.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
-import { calculateLifetimePnl, calculatePnlAnalytics, formatDateYmd, formatHisaabDate, formatHisaabDuration, setupPnlModal } from './dashboard-pnl.js';
+import { ACHIEVEMENT_MILESTONES, BUSINESS_START_DATE, calculateHisaabAverages, calculateLifetimePnl, calculatePnlAnalytics, checkAchievements, countBusinessDays, formatDateYmd, formatHisaabDate, formatHisaabDuration, setupPnlModal } from './dashboard-pnl.js';
+import { loadAchievements, saveAchievements } from './achievements.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal, calculateCollectorCashExpected, getDailyCashHandovers } from './dashboard-daily-closing.js';
 import { buildFieldDayFlow, preserveFieldDayView, restoreFieldDayView, fieldDayFlowStripHtml } from './field-day-flow.js';
@@ -2448,6 +2449,41 @@ function setupAreaAnalyticsModule() {
 // render applies it every time); default is the month view.
 let hisaabView = 'month';
 let hisaabViewToggleBound = false;
+// Achievements (Feature C): celebrate newly-crossed milestones with the
+// existing toast system (Sharafat 98) -- one toast per new milestone, type
+// success, system default duration (4 s). Once-only: the achieved set is
+// persisted in shahdara_achievements_v1; a re-render never re-toasts.
+// First run: the key is absent, so the already-passed milestones are saved
+// SILENTLY (no toasts) -- the 100 customers reached 2026-11-08 and the
+// days-100/365/500 rungs must not all fire at once on first launch.
+// Multi-cross: every newly-achieved milestone gets its own toast call in
+// ladder order; the toast system stacks at most 3 (its own cap).
+function maybeCelebrateAchievements({ days, lifetimeProfit, activeCustomers }) {
+  if (typeof days !== 'number' || days === null) return;
+  const metrics = { days, lifetimeProfit, activeCustomers };
+  const stored = loadAchievements();
+  if (stored === null) {
+    saveAchievements({ achieved: checkAchievements(metrics, []) });
+    return;
+  }
+  const newly = checkAchievements(metrics, stored.achieved || []);
+  if (newly.length === 0) return;
+  saveAchievements({ achieved: [...(stored.achieved || []), ...newly] });
+  for (const id of newly) toast(achievementMessage(id), { type: 'success' });
+}
+
+function achievementMessage(id) {
+  const milestone = ACHIEVEMENT_MILESTONES.find((m) => m.id === id);
+  if (!milestone) return '';
+  if (milestone.metric === 'days') {
+    return id === 'days-1000'
+      ? t('ach_days_1000')
+      : t('ach_days', null, { n: milestone.label });
+  }
+  if (milestone.metric === 'lifetimeProfit') return t('ach_profit', null, { amount: formatAmount(milestone.label) });
+  return t('ach_customers', null, { count: milestone.label });
+}
+
 function renderHisaabSection(state, referenceDate) {
   const sectionEl = $('#hisaabSection');
   if (!sectionEl) return;
@@ -2523,6 +2559,31 @@ function renderHisaabSection(state, referenceDate) {
     monthBtnEl?.addEventListener('click', () => { hisaabView = 'month'; renderHisaabSection(state, new Date()); });
     lifeBtnEl?.addEventListener('click', () => { hisaabView = 'life'; renderHisaabSection(state, new Date()); });
   }
+
+  // Feature A: business-days counter -- business age, NOT ledger age, so it
+  // is visible in both month/life views and never hides with the toggle.
+  const businessDays = countBusinessDays(BUSINESS_START_DATE, formatDateYmd(referenceDate));
+  const businessDaysEl = $('#hisaabBusinessAge');
+  if (businessDaysEl) {
+    businessDaysEl.hidden = businessDays === null;
+    if (businessDays !== null) businessDaysEl.textContent = t('hisaab_business_days', null, { n: businessDays, date: formatHisaabDate(BUSINESS_START_DATE) });
+  }
+  // Feature B: live billing averages -- same period as the totals above them.
+  // The month line hides on NO_ACTIVITY; the life line hides without records.
+  const activeCustomerCount = countActiveCustomers(state.customers);
+  const setHisaabAverages = (elId, income, expenses, payerCount, visible) => {
+    const el = $(elId);
+    if (!el) return;
+    const avg = calculateHisaabAverages({ income, expenses, payerCount, activeCustomerCount });
+    const bits = [];
+    if (avg.avgBill !== null) bits.push(t('hisaab_avg_bill', null, { amount: formatAmount(avg.avgBill), count: payerCount }));
+    if (avg.expensePerCustomer !== null) bits.push(t('hisaab_expense_per_customer', null, { amount: formatAmount(avg.expensePerCustomer) }));
+    if (avg.profitPerCustomer !== null) bits.push(t('hisaab_profit_per_customer', null, { amount: formatAmount(avg.profitPerCustomer) }));
+    el.hidden = !visible || bits.length === 0;
+    if (bits.length > 0) el.textContent = bits.join(' · ');
+  };
+  setHisaabAverages('#hisaabMonthAverages', monthRow.income, monthRow.expenses, monthRow.payerCount, monthRow.status !== 'NO_ACTIVITY' && hisaabView === 'month');
+  setHisaabAverages('#hisaabLifeAverages', life.income, life.expenses, life.payerCount, life.hasRecords && hisaabView === 'life');
 
   // One line per ACTIVE provider, Nayatel first (register order — the
   // seed is first). Inactive providers stay hidden (D6(a)).
@@ -2603,6 +2664,9 @@ function renderHisaabSection(state, referenceDate) {
     honestyEl.hidden = !(providersData.providers || []).some((provider) =>
       (provider.bills || []).some((bill) => bill.seeded));
   }
+  // Feature C: celebrate newly-crossed milestones (once only; first run seeds silently).
+  maybeCelebrateAchievements({ days: businessDays, lifetimeProfit: life.profit, activeCustomers: activeCustomerCount });
+
 }
 
 function renderDashboard() {

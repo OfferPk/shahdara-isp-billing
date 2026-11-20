@@ -263,7 +263,7 @@ test('Plan 598: the toggle label reuses the vault words, no new i18n key', () =>
   assert.ok(!bindSrc.includes('aria-label'), 'no hardcoded English aria-label on the toggle');
   // Parity moved with Plan 606's keys: both dicts now hold the new
   // total, counted without spelling the digits (see the file header).
-  const total = Number('51' + '95');
+  const total = Number('52' + '03');
   assert.equal(Object.keys(TRANSLATIONS.en).length, total);
   assert.equal(Object.keys(TRANSLATIONS.ur).length, total);
 });

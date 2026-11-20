@@ -258,6 +258,7 @@ import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, computeComplaintSeed, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, readComplaintCounter, saveComplaints, seedComplaintCounter, setComplaintStatus, setupComplaintRegisterModal, writeComplaintCounter } from './complaint-register.js';
 import { rootCauseAdviceForCustomer, rootCauseBannerHtml } from './root-cause-advisor.js';
 import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, buildVisitPrefillFromTicket, computeTicketSeed, hasRecurringFaultWarning, loadTickets, readTicketCounter, saveTickets, seedTicketCounter, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment, writeTicketCounter } from './complaint-tickets.js';
+import { computeReceiptSequenceSeed, ensureReceiptSequences, readReceiptSequenceCounter, writeReceiptSequenceCounter } from './receipt-sequence.js';
 import { assignTicketForComplaint, bulkAssignTicketsForComplaints, collectTechnicianNames, linkedTicketSummary, openUnlinkedComplaints, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
@@ -1233,6 +1234,11 @@ try {
 }
 state = generateMonthlyBillsThroughCurrentMonth(state, new Date(), loadBillingCycleChoices());
 if (!persistenceBlocked) state = autoClosePreviousMonth(state, new Date());
+// QC receipt numbering: backfill sequences onto stored payments that
+// lack one (1..N in date, ledger order) and hydrate the counter —
+// idempotent, so a later boot assigns nothing new. Runs before the
+// first persist below, so the backfilled state is saved at once.
+if (!persistenceBlocked) state = ensureReceiptSequences(state, localStorage);
 // Owner default roster (2026-10-29): ALEX's written customer list is
 // imported once by default (settings marker + idempotent planner in
 // default-customers.js) — blank records only; packages and mobile
@@ -2042,6 +2048,10 @@ function save() {
       toast('Could not save — your latest changes were NOT saved. Check browser storage is available, then retry.', { type: 'error', title: 'Save failed', duration: 8000 });
     }
   }
+  // QC receipt numbering: mirror the live counter into its own key on
+  // every save (the ticket-counter pattern) — the key is the
+  // cross-restore safety net; the write never rewinds.
+  try { writeReceiptSequenceCounter(localStorage, state.receiptSequenceNext ?? 1); } catch { /* counter mirror only: a failed mirror never blocks the save */ }
   // Sharafat 82: coalesce the render tail. Several saves in one
   // synchronous stretch (e.g. the void confirm handler's save after
   // voidPayment plus its save after addon charges reopen) used to run
@@ -11469,10 +11479,18 @@ function restoreIdCounters(preview) {
     const snapCmp = typeof preview?.complaintsNextId === 'number' && Number.isFinite(preview.complaintsNextId) ? Math.floor(preview.complaintsNextId) : null;
     const seedCmp = computeComplaintSeed(loadComplaints(), loadTickets(), loadComplaintFollowups(), loadComplaintReopens(), loadComplaintEscalationOwnerNotes());
     writeComplaintCounter(localStorage, Math.max(storedCmp ?? 101, snapCmp ?? 101, seedCmp));
+    // QC receipt numbering: the same max(stored, snapshot, seed) rule
+    // for the receipt-sequence counter — a snapshot that predates the
+    // counter is re-seeded from the restored payments instead of
+    // resetting to 1, so restored receipts never collide with new ones.
+    const storedSeq = readReceiptSequenceCounter(localStorage);
+    const snapSeq = typeof preview?.receiptSequenceNext === 'number' && Number.isFinite(preview.receiptSequenceNext) ? Math.floor(preview.receiptSequenceNext) : null;
+    const seedSeq = computeReceiptSequenceSeed(state);
+    writeReceiptSequenceCounter(localStorage, Math.max(storedSeq ?? 1, snapSeq ?? 1, seedSeq));
   } catch { /* id counters only: a failed restore leaves max-over-list behaviour */ }
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), complaintsNextId: readComplaintCounter(localStorage), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), ticketsNextId: readTicketCounter(localStorage), inventory: loadInventory(), converterSides: loadConverterSides(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), upstreamProviders: loadUpstreamProviders(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), splitterPolish: loadSplitterPolish(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), complaintsNextId: readComplaintCounter(localStorage), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), ticketsNextId: readTicketCounter(localStorage), receiptSequenceNext: readReceiptSequenceCounter(localStorage), inventory: loadInventory(), converterSides: loadConverterSides(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), upstreamProviders: loadUpstreamProviders(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), splitterPolish: loadSplitterPolish(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;

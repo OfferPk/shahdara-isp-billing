@@ -201,8 +201,11 @@ export function cashInHandPromptHtml(status) {
 export function cashInHandReceiptsHtml(receipts) {
   const rows = normalizeCashReceipts(receipts);
   if (rows.length === 0) return '<p class="empty-state">No unhanded-over cash receipts for this day.</p>';
-  const lines = rows.map((row) => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.customerName || '—')}</td><td>${escapeHtml(row.collector || '—')}</td><td>${escapeHtml(formatCashCents(row.amountCents))}</td></tr>`).join('');
-  return `<table class="cash-in-hand-table"><thead><tr><th>Date</th><th>Customer</th><th>Collector</th><th>Amount</th></tr></thead><tbody>${lines}</tbody></table>`;
+  // More-audit cleanup: the 4-column table has no CSS rule, so the name
+  // crushed into 4 lines — re-emit as .payment-row cards (the profile
+  // Recent Payments row pattern), zero new CSS.
+  const items = rows.map((row) => `<li class="payment-row"><span class="payment-main"><strong>${escapeHtml(row.customerName || '—')}</strong><span class="payment-meta">${escapeHtml(row.date)} · ${escapeHtml(row.collector || '—')}</span></span><span class="payment-amount">${escapeHtml(formatCashCents(row.amountCents))}</span></li>`).join('');
+  return `<ul class="payment-list">${items}</ul>`;
 }
 
 export function cashInHandCsv(receipts) {

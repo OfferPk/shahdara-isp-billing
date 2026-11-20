@@ -288,10 +288,12 @@ test('export buttons + pack heading: Lucide icons replace the emoji (Print A4 un
   assert.ok(html.includes('📄 Print A4')); // out of scope, left alone
 });
 
-test('audit captions: four month-end captions collapse behind <details>', () => {
+// More-audit cleanup: the seven audit sections adopt the same subtitle +
+// audit-explainer pattern, so the count moves 4 → 11 (4 month-end + 7 audit).
+test('audit captions: month-end + audit captions collapse behind <details>', () => {
   const html = read('index.html');
-  assert.equal((html.match(/<details class="audit-explainer">/g) || []).length, 4);
-  assert.equal((html.match(/ⓘ How this audit rule works/g) || []).length, 4);
+  assert.equal((html.match(/<details class="audit-explainer">/g) || []).length, 11);
+  assert.equal((html.match(/ⓘ How this audit rule works/g) || []).length, 11);
   // The full caption text stays verbatim inside the details block.
   assert.ok(html.includes('Read-only audit record, taken only when the month-end checklist records the month as closed'));
 });

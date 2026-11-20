@@ -25949,6 +25949,16 @@ function renderPatternWatch() {
   const dimension = $('#patternWatchDimension')?.value ?? '';
   const mohalla = $('#patternWatchMohalla')?.value ?? '';
   const shown = filterReviewItems(items, { dimension, mohalla });
+  // More-audit cleanup: hide Export + filters + review row at 0 events.
+  // The thresholds collapse into a <details> that stays visible, so the
+  // operator can lower a threshold to surface a pattern.
+  const patternEmpty = events.length === 0;
+  const patternWatchExportBtn = $('#patternWatchExportBtn');
+  if (patternWatchExportBtn) patternWatchExportBtn.hidden = patternEmpty;
+  const patternWatchFilterRow = $('#patternWatchFilterRow');
+  if (patternWatchFilterRow) patternWatchFilterRow.hidden = patternEmpty;
+  const patternWatchReviewRow = $('#patternWatchReviewRow');
+  if (patternWatchReviewRow) patternWatchReviewRow.hidden = patternEmpty;
   bodyEl.innerHTML = reviewHtml(shown);
   const summaryEl = $('#patternWatchSummary');
   if (summaryEl) summaryEl.textContent = patternSummaryText(buildPatternSummary(events)) + ` · ${items.length} pattern${items.length === 1 ? '' : 's'} above threshold, showing ${shown.length}.`;
@@ -26129,6 +26139,15 @@ function renderReceiptGapAudit() {
   const audit = buildGapAudit({ receipts, voids, explanations });
   const status = $('#receiptGapStatus')?.value ?? '';
   const shown = filterGaps(audit.gaps, status);
+  // More-audit cleanup: hide Export + filter row at 0 gaps; the filter row
+  // stays while an explanation exists, so 'Remove explanation' stays
+  // reachable for a stale explanation on a number that is no longer a gap.
+  const gapTotal = audit.gaps.length + audit.runs.reduce((n, run) => n + run.gaps.length, 0);
+  const gapHasExplanations = explanations.length > 0;
+  const receiptGapExportBtn = $('#receiptGapExportBtn');
+  if (receiptGapExportBtn) receiptGapExportBtn.hidden = gapTotal === 0;
+  const receiptGapFilterRow = $('#receiptGapFilterRow');
+  if (receiptGapFilterRow) receiptGapFilterRow.hidden = gapTotal === 0 && !gapHasExplanations;
   const summaryEl = $('#receiptGapSummary');
   if (summaryEl) {
     // Sharafat 48: the plain run first, then one summary line per
@@ -26195,6 +26214,7 @@ function statusBoardSource() {
   return { mohallas, outages: loadOutageGrouping(), windows: loadMaintenanceWindows(), today: localDate() };
 }
 let statusBoardBound = false;
+let statusBoardExpanded = false;
 function renderStatusBoard() {
   const bodyEl = $('#statusBoardBody');
   if (!bodyEl) return;
@@ -26204,6 +26224,20 @@ function renderStatusBoard() {
   const summaryEl = $('#statusBoardSummary');
   if (summaryEl) summaryEl.textContent = boardSummaryText(board) + ` · showing ${shown.length}.`;
   bodyEl.innerHTML = boardHtml({ ...board, rows: shown });
+  // More-audit cleanup: with every mohalla Normal, collapse the board
+  // behind a live-count banner; Export/Print stay visible in the header.
+  const boardAllNormal = board.rows.length > 0 && board.rows.every((row) => row.status === 'normal');
+  const statusBoardAllNormalBanner = $('#statusBoardAllNormalBanner');
+  if (statusBoardAllNormalBanner) {
+    statusBoardAllNormalBanner.hidden = !boardAllNormal;
+    const statusBoardAllNormalCount = $('#statusBoardAllNormalCount');
+    if (statusBoardAllNormalCount) statusBoardAllNormalCount.textContent = String(board.rows.length);
+  }
+  const statusBoardViewBoardBtn = $('#statusBoardViewBoardBtn');
+  if (statusBoardViewBoardBtn) statusBoardViewBoardBtn.textContent = statusBoardExpanded ? 'Hide Board ▴' : 'View Board ▾';
+  const statusBoardFilterRow = $('#statusBoardFilterRow');
+  if (statusBoardFilterRow) statusBoardFilterRow.hidden = boardAllNormal && !statusBoardExpanded;
+  bodyEl.hidden = boardAllNormal && !statusBoardExpanded;
   if (!statusBoardBound) {
     statusBoardBound = true;
     $('#statusBoardStatus')?.addEventListener('change', () => renderStatusBoard());
@@ -26212,6 +26246,10 @@ function renderStatusBoard() {
       downloadCsvFile(boardFilename(current.today), boardCsv(current));
     });
     $('#statusBoardPrintBtn')?.addEventListener('click', () => window.print());
+    $('#statusBoardViewBoardBtn')?.addEventListener('click', () => {
+      statusBoardExpanded = !statusBoardExpanded;
+      renderStatusBoard();
+    });
   }
 }
 const OUTAGE_CREDITS_KEY = 'shahdara_outage_credits_v1';
@@ -26232,6 +26270,12 @@ function renderOutageCredits() {
   const records = loadOutageCredits();
   const outageIdFilter = $('#outageCreditFilterOutage')?.value ?? '';
   const shown = filterOutageCredits(records, { outageId: outageIdFilter });
+  // More-audit cleanup: hide Export + the action row at 0 records.
+  const outageEmpty = records.length === 0;
+  const outageCreditExportBtn = $('#outageCreditExportBtn');
+  if (outageCreditExportBtn) outageCreditExportBtn.hidden = outageEmpty;
+  const outageCreditActionRow = $('#outageCreditActionRow');
+  if (outageCreditActionRow) outageCreditActionRow.hidden = outageEmpty;
   const summaryEl = $('#outageCreditSummary');
   if (summaryEl) summaryEl.textContent = outageCreditSummaryText(buildOutageCreditSummary(records)) + ` · showing ${shown.length} record${shown.length === 1 ? '' : 's'}.`;
   bodyEl.innerHTML = outageCreditHtml(shown);
@@ -26356,6 +26400,15 @@ function renderPriceNotices() {
   const baselines = BILL_PACKAGES.map((plan) => ({ packageKey: plan.id, amount: plan.price }));
   const drafts = buildNoticeDrafts(history, baselines);
   const notices = loadPriceNotices();
+  // More-audit cleanup: hide Export + Log send + Remove notice at 0 notices.
+  // The pick row stays (view control; it shows 'No notices yet').
+  const noticesEmpty = notices.length === 0;
+  const priceNoticeExportBtn = $('#priceNoticeExportBtn');
+  if (priceNoticeExportBtn) priceNoticeExportBtn.hidden = noticesEmpty;
+  const priceNoticeSendBtn = $('#priceNoticeSendBtn');
+  if (priceNoticeSendBtn) priceNoticeSendBtn.hidden = noticesEmpty;
+  const priceNoticeRemoveBtn = $('#priceNoticeRemoveBtn');
+  if (priceNoticeRemoveBtn) priceNoticeRemoveBtn.hidden = noticesEmpty;
   const draftEl = $('#priceNoticeDraftBody');
   if (draftEl) draftEl.innerHTML = priceNoticeDraftHtml(drafts);
   bodyEl.innerHTML = priceNoticeHtml(notices);

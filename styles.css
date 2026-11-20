@@ -9702,12 +9702,13 @@ button:not([hidden]).qc-date-chip {
 /* Req 1 — Nastaliq: the Urdu package message and the QC card's terms
    block render in Noto Nastaliq Urdu. !important beats the
    body * { font-family: ... !important; } stack (Plan 487 precedent).
-   Line-height 2.0: Nastaliq's tall glyphs clip below it. The terms keep
+   Line-height 2.1 (QC receipt micro-polish, 2026-11-20; was 2.0):
+   Nastaliq's tall glyphs clip below 2.0. The terms keep
    their 12px size from the global rule; the message is 14px. */
 #quickCollectSuccessMessage.qc-urdu-nastaliq,
 .qc-receipt-card .receipt-urdu-notice.qc-urdu-nastaliq {
   font-family: var(--font-urdu) !important;
-  line-height: 2.0;
+  line-height: 2.1;
 }
 
 #quickCollectSuccessMessage.qc-urdu-nastaliq { font-size: 14px; }
@@ -9766,11 +9767,11 @@ button:not([hidden]).qc-date-chip {
 #quickCollectModal.qc-success-open .modal-heading .eyebrow { display: none; }
 
 /* B1 (polish 21): the hero check row is gone — the tick is inline in
-   the heading row at 32px (28px before the tick-in-box fix — the tick
-   looked lost beside the two-line 18px heading; 32px still fits inside
-   the ~54px row, so it costs 0px vertically). This rule is the size
+   the heading row at 24px (32px before the QC receipt micro-polish,
+   2026-11-20 — the 32px check + 16px title wrapped to two lines at
+   360px; 24px + the 14px title fit one line). This rule is the size
    only; the pop lives under the .qc-tick-play trigger class. */
-#quickCollectModal.qc-success-open .qc-success-check { width: 32px; height: 32px; }
+#quickCollectModal.qc-success-open .qc-success-check { width: 24px; height: 24px; }
 
 /* Req 7 (polish 21): the tick animations, gated behind the trigger
    class. showStep removes .qc-tick-play, forces a reflow, and re-adds
@@ -9786,6 +9787,7 @@ button:not([hidden]).qc-date-chip {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-top: 8px;
   background: var(--ds-brand-soft);
   border: 1px solid var(--ds-success-border);
   border-radius: 12px;
@@ -9793,7 +9795,7 @@ button:not([hidden]).qc-date-chip {
 }
 
 /* B3: heading explicit 18px, no margins (it inherits browser h3 sizing today). */
-#quickCollectSuccessHeading { display: inline; font-size: 16px; margin: 0; }
+#quickCollectSuccessHeading { display: inline; font-size: 14px; margin: 0; }
 
 /* M2: message <p> margins → 0 (the banner padding already gives the air). */
 #quickCollectSuccessMessage { margin: 0; }
@@ -9840,34 +9842,23 @@ button:not([hidden]).qc-date-chip {
 /* C1 + C2: receipt card padding 14 → 10px, gap 10 → 8px. */
 #quickCollectModal.qc-success-open .qc-receipt-card { padding: 8px; gap: 6px; }
 
-/* C3: card header badges stop wrapping; the receipt reference group
-   drops to its own right-aligned line only if it cannot fit. The id
-   rule is scoped to the split card's direct-child title — the
+/* C3: the shared badge is GONE from the QC receipt card (user
+   instruction 2026-11-20 — removed, not hidden), so the header keeps
+   only the receipt reference group on its own right-aligned line.
+   The id rule is scoped to the split card's direct-child title — the
    ordinary id is nested inside .qc-receipt-ref now (the wrapper
    carries the auto margin), and the unscoped rule would reach it.
-   QC receipt-bottom polish (2026-11-19): the badge now shows the FULL
-   stored number (17 chars, ~122px by the TOP width model), so badge +
-   ref (371px) can no longer fit one row at 360px (292px budget) — the
-   header wraps again and the ref sits on its own right-aligned line.
-   The number is never re-shortened to fit. */
+   QC receipt-bottom polish (2026-11-19): the reference shows the FULL
+   stored number (17 chars). The number is never re-shortened to fit. */
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }
-#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }
-#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-shared { white-space: nowrap; }
-/* QC success-receipt polish (TOP): the unshared badge is shaved (padding
-   2px 6px, gap 2px) so badge + Receipt No. fit one row at 360px. Split
-   out of the shared selector list so the shave stays scoped to the
-   unshared form — the base badge rule is shared with the profile card. */
-#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { white-space: nowrap; padding: 2px 6px; gap: 2px; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header > .qc-receipt-id { white-space: nowrap; margin-inline-start: auto; }
 
-/* QC success-receipt polish (TOP): shave the header so badge + Receipt No.
-   fit on one row at 360px (DejaVu budget 292px vs 300px inner). All scoped
-   to the success-open card — the base badge rule is shared with the
-   profile card (the badge shave itself lives in the split unshared rule
-   above, so a first-match rule lookup sees it). QC receipt-bottom polish
-   (2026-11-19): with the FULL 17-char number the one-row fit no longer
-   holds (371px vs 292px) — the ref wraps to its own line instead; the
-   shaves stay, they keep each row inside the inner width. */
+/* QC success-receipt polish (TOP): keep the header tight — the ref gap
+   stays 4px and the txnid code keeps its 2px 4px padding. All scoped
+   to the success-open card. (The badge the one-row fit was measured
+   against is gone — user instruction 2026-11-20 — so the header is
+   ref-only; with the FULL 17-char number the ref wraps to its own
+   line instead.) */
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-ref { gap: 4px; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header .qc-txnid-code { padding: 2px 4px; }
 
@@ -9890,7 +9881,7 @@ button:not([hidden]).qc-date-chip {
    at 44px — so the pill sets min-height: 0 (scoped) and restyles the
    <select> itself (appearance: none, pill border, chevron via the
    wrapper). The delegated change handler still fires and still saves. */
-#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid { gap: 5px; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid { row-gap: 2px; column-gap: 5px; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-area-select {
   min-height: 0;
   height: 30px;
@@ -9956,17 +9947,7 @@ button:not([hidden]).qc-date-chip {
 .qc-receipt-card .receipt-support-action.receipt-support-call { color: inherit; }
 .qc-receipt-card .receipt-support-action svg { display: block; }
 
-/* Req 8 (QC receipt-modal overhaul, §4.3.3) — "WhatsApp Pending" reads as a
-   task still pending on the success screen, now AMBER (DS-0 warning
-   tokens). This is a deliberate reversal of polish #21's user-requested
-   red (2026-11-09), scoped to the success state only. The global
-   .badge-receipt-unshared rule is untouched (other surfaces keep the grey
-   pending look); the sent state (green shared badge) is unchanged. This
-   ID-scoped rule wins over the dark-theme global override by specificity,
-   so the amber shows in both themes. */
-#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { background: var(--ds-warning-bg); color: var(--ds-warning); border-color: var(--ds-warning-border); }
-
-/* End Polish 21 — Quick Collect success screen (tick inline + replay + status merge + red pending; the red is now amber, see the QC receipt-modal overhaul below). */
+/* End Polish 21 — Quick Collect success screen (tick inline + replay + status merge + red pending; the success-scoped amber badge rule was removed with the badge itself by the QC receipt micro-polish, 2026-11-20 — the global badge rules are untouched). */
 
 /* QC receipt-modal overhaul — the success screen, scoped to
    #quickCollectModal.qc-success-open (or new .qc-* / .rsd-* classes).
@@ -10371,14 +10352,15 @@ button:not([hidden]).eds-panel-dismiss {
 /* §4.2.3 — Urdu package note as its own soft callout below the banner.
    The animated gradient is dropped for the message (the terms box keeps
    its gradient via the card builder's replace). Nastaliq + line-height
-   2.0 still come from the #quickCollectSuccessMessage.qc-urdu-nastaliq
+   2.1 still come from the #quickCollectSuccessMessage.qc-urdu-nastaliq
    rule, so the glyphs never clip; the callout's 1.7 is the English
-   fallback's line-height. */
+   fallback's line-height. The accent sits on the inline-start edge
+   (right under RTL, QC receipt micro-polish 2026-11-20). */
 #quickCollectModal.qc-success-open .qc-success-callout {
   background: var(--ds-nested);
-  border-inline-end: 3px solid var(--ds-brand);
+  border-inline-start: 3px solid var(--ds-brand);
   border-radius: 8px;
-  padding: 8px 12px;
+  padding: 12px 16px;
   font-size: 14px;
   line-height: 1.7;
   direction: rtl;

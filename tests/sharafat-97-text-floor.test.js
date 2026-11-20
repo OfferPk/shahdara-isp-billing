@@ -192,11 +192,10 @@ test('sweep: no content text below 11px anywhere in the 5 CSS files or the 28 JS
   const raise10 = new Set(DATA.filter((r) => r.disp === 'RAISE10').map((r) => `${r.file}|${r.selector}`));
   // DS-0 exception: .bottom-nav-badge stays 10px by design (see header).
   const ds0Exceptions = new Set(['nav.css|.bottom-nav-badge']);
-  // Phase 1 (D12) exception: .build-stamp is 9px by design (see the
-  // guard test below — a non-content build label, the DS-0-badge
-  // precedent). The sweep's ds0Exceptions shape allows exactly 10px;
-  // the stamp needs exactly 9px, so it gets its own set.
-  const phase1Exceptions = new Set(['styles.css|.build-stamp']);
+  // Hisaab-home polish: the Phase 1 (D12) .build-stamp exception is gone
+  // with the stamp itself (the "d23" header text was removed at the
+  // user's request) — no 9px exception remains.
+  const phase1Exceptions = new Set([]);
   for (const f of cssFiles) {
     const rules = cssRules(f);
     const cands = new Map();
@@ -273,16 +272,13 @@ test('DS-0 exception: .bottom-nav-badge stays 10px on an 18px line', () => {
   assert.ok(m[1].includes('height: 18px') && m[1].includes('min-width: 18px'), 'badge must stay an 18px pill');
 });
 
-test('Phase 1 (D12) exception: .build-stamp stays 9px (a non-content build label)', () => {
-  // Deliberate Phase 1 pin (phase1-cards-compaction.test.js G5b): the
-  // "d23" stamp is a build label, not content text — the same precedent
-  // as the DS-0 bottom-nav badge (10px). The 97 floor yields to it.
-  // Do NOT "fix" this to 11px without a parent decision overriding D12.
+test('Hisaab-home polish: the .build-stamp rule and the d23 header text are gone (Phase 1 D12 exception retired with the stamp)', () => {
+  // The "d23" stamp was removed from the header at the user's request
+  // (it read as stray debug text) — the 9px exception dies with it.
+  // Do NOT re-add a sub-11px build label without a parent decision.
   const styles = read('styles.css');
-  const m = styles.match(/\.build-stamp\s*\{([^}]*)\}/);
-  assert.ok(m, '.build-stamp rule missing from styles.css');
-  assert.ok(m[1].includes('font-size: 9px'), 'stamp text must stay 9px (D12, blessed)');
-  assert.ok(m[1].includes('font-weight: 700'), 'stamp stays bold');
+  assert.ok(!/\.build-stamp\s*\{/.test(styles), '.build-stamp rule is back in styles.css');
+  assert.ok(!read('index.html').includes('<span class="build-stamp"'), 'the d23 stamp is back in the header');
 });
 
 test('C-guard: the dead .command-palette-trigger rule set is absent (Sharafat 96 A3, kept absent)', () => {

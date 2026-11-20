@@ -487,8 +487,11 @@ test('plan 549 (REPRO): the large-cash refusal speaks English in en mode', async
   const h = plan549Controller(plan549State(), 'en');
   try {
     const form = openForm(h);
-    h.getEl('quickCollectLargeCashThreshold').value = '5000';
-    h.getEl('quickCollectAmountInput').value = '10000.00';
+    // QC month-note: the per-payment threshold input is gone (D3) —
+    // the submit reads the standing default (PKR 10,000), so the gate
+    // is triggered with an amount above the default instead of by
+    // lowering the threshold.
+    h.getEl('quickCollectAmountInput').value = '15000.00';
     h.getEl('quickCollectMethodSelect').value = 'Cash';
     await form.dispatch('submit');
 
@@ -505,8 +508,11 @@ test('plan 549 (REPRO): the large-cash refusal speaks Urdu in ur mode', async ()
   const h = plan549Controller(plan549State(), 'ur');
   try {
     const form = openForm(h);
-    h.getEl('quickCollectLargeCashThreshold').value = '5000';
-    h.getEl('quickCollectAmountInput').value = '10000.00';
+    // QC month-note: the per-payment threshold input is gone (D3) —
+    // the submit reads the standing default (PKR 10,000), so the gate
+    // is triggered with an amount above the default instead of by
+    // lowering the threshold.
+    h.getEl('quickCollectAmountInput').value = '15000.00';
     h.getEl('quickCollectMethodSelect').value = 'Cash';
     await form.dispatch('submit');
 

@@ -285,14 +285,14 @@ function extractBalanced(css, marker) {
   return '';
 }
 
-test('Nastaliq rule: scoped to the success message + the QC card terms, font-family !important, line-height 2.0, message 14px', () => {
+test('Nastaliq rule: scoped to the success message + the QC card terms, font-family !important, line-height 2.1, message 14px', () => {
   const ruleStart = stylesSrc.indexOf('#quickCollectSuccessMessage.qc-urdu-nastaliq,');
   assert.ok(ruleStart >= 0, 'Nastaliq rule missing');
   const ruleEnd = stylesSrc.indexOf('}', ruleStart);
   const rule = stylesSrc.slice(ruleStart, ruleEnd);
   assert.ok(rule.includes('.qc-receipt-card .receipt-urdu-notice.qc-urdu-nastaliq'), 'terms selector must be scoped to the QC card');
   assert.ok(rule.includes('font-family: var(--font-urdu) !important'), 'Nastaliq rule must beat the body * !important stack');
-  assert.ok(rule.includes('line-height: 2.0'), 'Nastaliq line-height must be 2.0 (tall glyphs clip below it)');
+  assert.ok(rule.includes('line-height: 2.1'), 'Nastaliq line-height must be 2.1 (QC receipt micro-polish 2026-11-20; tall glyphs clip below 2.0)');
   const messageSize = extractRule(stylesSrc, '#quickCollectSuccessMessage.qc-urdu-nastaliq {');
   assert.ok(messageSize.includes('font-size: 14px'), 'Urdu message must be 14px Nastaliq');
 });

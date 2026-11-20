@@ -202,10 +202,21 @@ test('hisaab G4: the section sits directly after Today\'s Summary and before Rec
   assert.ok(/is register se pehle diye gaye/.test(indexHtml), 'the verbatim honesty-line text exists in the section');
   assert.ok(indexHtml.includes('Hisaab — Kya khoya, kya paya'), 'the widget-order placeholder names the Hisaab section');
   // The 3-across grid rule (D4(a)): repeat(3, minmax(0,1fr)), 8px gap,
-  // values wrap — in dashboard.css, never styles.css (which H3 must not touch).
+  // values never wrap (polish reversal — see the note below) — in
+  // dashboard.css, never styles.css (which H3 must not touch).
   assert.ok(/\.hisaab-metric-grid\s*\{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)[^}]*gap:\s*8px/s.test(dashboardCss), 'the Hisaab grid is 3-across with an 8px gap');
   assert.ok(/\.hisaab-metric-grid \.ds-stat\s*\{[^}]*min-width:\s*0/s.test(dashboardCss), 'the metric cards can shrink to their column');
-  assert.ok(/\.hisaab-metric \.home-kpi-val\s*\{[^}]*overflow-wrap:\s*anywhere/s.test(dashboardCss), 'values wrap, never clip');
+  // Hisaab-home polish — NAMED REVERSAL of the H3 D4(a) "values wrap"
+  // pin above: the user reported a 6-digit figure WRAPPING (final digit
+  // on a new line) as the defect, so the value rule now forbids wrapping
+  // outright — 14px/800, nowrap, tabular-nums, overflow-wrap normal.
+  // The "never clip" half survives as an ellipsis: an over-long figure
+  // (8 digits at 360px) shows '…' instead of wrapping or clipping
+  // invisibly. Bare numbers + px-2 make 6-digit figures fit both
+  // 360px (80px content) and 320px (66.7px content).
+  assert.ok(/\.hisaab-metric \.home-kpi-val\s*\{[^}]*white-space:\s*nowrap/s.test(dashboardCss), 'values never wrap (polish reversal of the H3 wrap pin)');
+  assert.ok(/\.hisaab-metric \.home-kpi-val\s*\{[^}]*overflow-wrap:\s*normal/s.test(dashboardCss), 'the old anywhere wrap is neutralised');
+  assert.ok(!/\.hisaab-metric \.home-kpi-val\s*\{[^}]*overflow-wrap:\s*anywhere/s.test(dashboardCss), 'no anywhere wrap left on the hisaab value');
 });
 
 /* ---------------- G5 — Navigation + i18n steady (D5(a), D8(a)) ---------------- */
@@ -234,7 +245,7 @@ test('hisaab G5: "Kharch dekhein" is bound once, with a guard flag, to the ledge
 /* ---------------- G6 — H5 i18n + parity + munafa (D1(a)–D10(a)) ---------------- */
 
 const HISAAB_KEYS = [
-  'hisaab_section_eyebrow', 'hisaab_section_title', 'hisaab_section_subtitle',
+  'hisaab_section_title', 'hisaab_section_subtitle', 'hisaab_toggle_month',
   'hisaab_label_income', 'hisaab_label_expenses', 'hisaab_label_profit',
   'hisaab_label_paid', 'hisaab_section_lifetime', 'hisaab_month_empty',
   'hisaab_lifetime_empty', 'hisaab_open_pnl', 'hisaab_show_expenses',
@@ -380,8 +391,8 @@ test('hisaab G6e: munafa colour + wiring pins — brand-500/danger pass 4.5:1 in
   assert.ok(appJs.includes("classList.toggle('hisaab-metric--loss'"), 'the loss class is toggled');
   assert.ok(appJs.includes('monthRow.netProfit >= 0'), 'month munafa: ≥ 0 is profit');
   assert.ok(appJs.includes('life.profit >= 0'), 'lifetime munafa: ≥ 0 is profit');
-  // The section: all 13 static strings keyed (20 attributes) — and the
-  // 6 money-value elements + the 4 param elements carry NO data-i18n
+  // The section: all 13 static strings keyed (19 attributes) — and the
+  // 6 money-value elements + the 5 param elements carry NO data-i18n
   // (D10: the toggle walk would write {month} literally on the params).
   // The values were keyed prof_not_set in the first H5 draft and the
   // 360px sample caught it: at boot the walk overwrote render's money
@@ -390,12 +401,16 @@ test('hisaab G6e: munafa colour + wiring pins — brand-500/danger pass 4.5:1 in
   // the "Not set" text stays as pre-JS paint only, like the param
   // initials. The profile <option> prof_not_set uses elsewhere are
   // static options, not render-written, and are untouched.
+  // Hisaab-home polish: the overline eyebrow is gone (its key deleted);
+  // the toggle carries hisaab_toggle_month + hisaab_section_lifetime,
+  // and the Kul Munafa subtitle is the render-written #hisaabLifeMargin
+  // (no data-i18n) — so paid ×5 → ×4 and attributes 20 → 19.
   const secMatch = indexHtml.match(/<section[^>]*id="hisaabSection"[\s\S]*?<\/section>/);
   assert.ok(secMatch, 'the Hisaab section exists');
   const sec = secMatch[0];
   // The 13 static keys are data-i18n'd; the 17 param keys are NOT
   // (they render through t() in renderHisaabSection — D10).
-  const STATIC_KEYS = ['hisaab_section_eyebrow', 'hisaab_section_title', 'hisaab_section_subtitle', 'hisaab_label_income', 'hisaab_label_expenses', 'hisaab_label_profit', 'hisaab_label_paid', 'hisaab_section_lifetime', 'hisaab_month_empty', 'hisaab_lifetime_empty', 'hisaab_open_pnl', 'hisaab_show_expenses', 'hisaab_honesty'];
+  const STATIC_KEYS = ['hisaab_section_title', 'hisaab_section_subtitle', 'hisaab_toggle_month', 'hisaab_label_income', 'hisaab_label_expenses', 'hisaab_label_profit', 'hisaab_label_paid', 'hisaab_section_lifetime', 'hisaab_month_empty', 'hisaab_lifetime_empty', 'hisaab_open_pnl', 'hisaab_show_expenses', 'hisaab_honesty'];
   for (const key of STATIC_KEYS) {
     assert.ok(sec.includes(`data-i18n="${key}"`), `the section keys ${key}`);
   }
@@ -404,13 +419,13 @@ test('hisaab G6e: munafa colour + wiring pins — brand-500/danger pass 4.5:1 in
   for (const key of PARAM_KEYS) {
     assert.ok(!sec.includes(`data-i18n="${key}"`), `param key ${key} is never a data-i18n attribute`);
   }
-  assert.equal((sec.match(/data-i18n="hisaab_/g) || []).length, 20, '13 keys → 20 attributes (labels ×2, paid ×5)');
+  assert.equal((sec.match(/data-i18n="hisaab_/g) || []).length, 19, '13 keys → 19 attributes (labels ×2, paid ×4, toggle ×2)');
   assert.equal((sec.match(/data-i18n="prof_not_set"/g) || []).length, 0, 'no prof_not_set in the section — the 6 money values are render-written, never walked');
   for (const id of ['hisaabMonthIncome', 'hisaabMonthExpenses', 'hisaabMonthProfit', 'hisaabLifeIncome', 'hisaabLifeExpenses', 'hisaabLifeProfit']) {
     const tag = sec.match(new RegExp(`<[^>]*id="${id}"[^>]*>`))[0];
     assert.ok(!tag.includes('data-i18n'), `#${id} carries no data-i18n (render-written value)`);
   }
-  for (const id of ['hisaabMonthLabel', 'hisaabMonthMargin', 'hisaabLifeSince']) {
+  for (const id of ['hisaabMonthLabel', 'hisaabMonthMargin', 'hisaabLifeMargin', 'hisaabLifeSince']) {
     const tag = sec.match(new RegExp(`<[^>]*id="${id}"[^>]*>`))[0];
     assert.ok(!tag.includes('data-i18n'), `#${id} carries no data-i18n (param key)`);
   }

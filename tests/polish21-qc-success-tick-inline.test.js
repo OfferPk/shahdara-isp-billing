@@ -111,10 +111,10 @@ test('tick inline: 32px circle on success, centred row, tick never shrinks', () 
   assert.ok(tickInRow.includes('flex-shrink: 0'), 'the tick must never squeeze');
   assert.ok(tickInRow.includes('vertical-align: middle'), 'the tick must sit on the text baseline');
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
-  // Tick-in-box fix: 28 → 32px — the tick looked lost beside the
-  // two-line 18px heading. It costs 0px vertically (row height is
-  // driven by the ~54px heading).
-  assert.ok(check.includes('width: 32px') && check.includes('height: 32px'), 'inline tick must be 32px on success');
+  // QC receipt micro-polish, 2026-11-20: 32 → 24px — the 32px check +
+  // 16px title wrapped to two lines at 360px; 24px + the 14px title
+  // fit one line. The 20px SVG stays inside the 24px span.
+  assert.ok(check.includes('width: 24px') && check.includes('height: 24px'), 'inline tick must be 24px on success');
   assert.ok(!check.includes('animation:'), 'the pop must not live on the size rule any more (it is trigger-gated)');
 });
 
@@ -163,8 +163,11 @@ test('separation: the Urdu message gets 6px of air below the heading on success'
   // The message inside the callout keeps margin 0.
   // QC success-receipt polish (TOP, 2026-11-19): callout padding
   // 10px 14px → 8px 12px, step gap 8px → 6px — the air is 6px now.
+  // QC receipt micro-polish (2026-11-20): callout padding 8px 12px →
+  // 12px 16px (py-3 px-4 translated) — the air is still the 6px step
+  // gap; the callout's own padding is not the air.
   const callout = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-callout {');
-  assert.ok(callout.includes('padding: 8px 12px'), 'callout must carry its own padding');
+  assert.ok(callout.includes('padding: 12px 16px'), 'callout must carry its own padding');
   const message = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-callout #quickCollectSuccessMessage {');
   assert.ok(message.includes('margin: 0'), 'message margins stay 0 inside the callout');
   const step = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open #quickCollectStepSuccess {');
@@ -301,7 +304,7 @@ test('status merge: the card headers no longer carry the settle badge (ordinary 
   const headerStart = card.indexOf('qc-receipt-header');
   const headerEnd = card.indexOf('</div>', headerStart);
   const header = card.slice(headerStart, headerEnd);
-  assert.ok(header.includes('badge-receipt-unshared'), 'ordinary card header must keep the shared badge');
+  assert.ok(!header.includes('badge-receipt-unshared') && !header.includes('badge-receipt-shared'), 'ordinary card header must not carry the shared badge (removed by the QC receipt micro-polish, 2026-11-20)');
   assert.ok(header.includes('RCPT-12-202611-01'), 'ordinary card header must keep the receipt id');
   const splitSettled = renderSplitReceiptCardHtml(SPLIT_COMBINED);
   assert.ok(!splitSettled.includes('Settle in Full'), 'split card header must not carry the settle badge any more');
@@ -354,23 +357,17 @@ test('status merge: compact badge sizing (12px, 2px 8px) + 6px section gap', () 
   assert.ok(!stylesSrc.includes('.qc-receipt-badge.settled'), 'no settle-badge sizing may remain');
 });
 
-// --- Req 8: red pending pill ----------------------------------------------
+// --- Req 8: red pending pill — REMOVED with the badge (QC receipt micro-polish, 2026-11-20) ---
 
-test('amber pending pill: success-scoped warning amber + dark text; global rule and sent state untouched', () => {
-  // QC receipt-modal overhaul (§4.3.4): the pending pill is AMBER now —
-  // a deliberate reversal of polish #21's user-requested red (the red
-  // read as an error on a success screen; amber reads as "waiting").
-  // The rule lives in the Polish 21 block — look it up there, not in
-  // the whole sheet: the polish #17 C3 rule shares the same selector
-  // tail (white-space: nowrap) and would match first.
+test('amber pending pill: success-scoped rule is gone (badge removed); global rule and sent state untouched', () => {
+  // QC receipt micro-polish (2026-11-20): the shared badge is REMOVED
+  // from the QC receipt card, so the success-scoped amber rule dies
+  // with it. The global rules + the builder survive for the profile
+  // card (the pending pill still renders there).
   const polish21Start = stylesSrc.indexOf('/* Polish 21 — Quick Collect');
   assert.ok(polish21Start >= 0, 'Polish 21 CSS block missing');
   const polish21Css = stylesSrc.slice(polish21Start, stylesSrc.indexOf('/* End Polish 21', polish21Start));
-  const red = ruleBlock(polish21Css, '#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared {');
-  assert.ok(red.includes('background: var(--ds-warning-bg)'), 'pending pill background must be the warning token');
-  assert.ok(red.includes('color: var(--ds-warning)'), 'pending pill text must be the warning token');
-  assert.ok(red.includes('border-color: var(--ds-warning-border)'), 'pending pill border must be the warning-border token');
-  assert.ok(!red.includes('#'), 'amber pill rule must add zero hex literals (tokens only)');
+  assert.ok(!polish21Css.includes('#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared {'), 'success-scoped amber rule must be gone (badge removed 2026-11-20)');
   // The global rule starts at column 0 — the polish #17 C3 rule shares
   // the selector tail mid-line and would match first.
   const global = ruleBlock(stylesSrc, '\n.badge-receipt-unshared {');

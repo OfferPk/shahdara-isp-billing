@@ -394,8 +394,8 @@ test('plan566 G1: EN/UR parity stays 4,669/4,669 — the guard adds no i18n keys
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5204, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5204, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5210, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5210, 'UR key count moved');
 });
 
 // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338

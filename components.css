@@ -175,7 +175,7 @@
 }
 .analytics-btn-row .month-close-tick-btn {
   border-color: var(--ds-brand);
-  color: var(--ds-brand);
+  color: var(--white);
 }
 .analytics-btn-row .month-close-remove-btn {
   border-color: var(--ds-danger-border);

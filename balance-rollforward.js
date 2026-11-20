@@ -249,7 +249,7 @@ const moneyCell = (cents) => (cents === null ? 'Not recorded' : `Rs. ${(cents / 
 function rollLinesHtml(lines, title) {
   if (!lines.length) return '';
   const rows = lines.map((line) => `<tr><td>${escapeHtml(line.label)}</td><td>${escapeHtml(line.sourceId)}</td><td>${moneyCell(line.amountCents)}</td></tr>`).join('');
-  return `<p style="font-size: 12px; margin: 8px 0 2px;"><strong>${escapeHtml(title)}</strong></p><table class="data-table"><thead><tr><th>Line</th><th>Source record</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<p style="font-size: 12px; margin: 8px 0 2px;"><strong>${escapeHtml(title)}</strong></p><div class="table-scroll"><table class="data-table"><thead><tr><th>Line</th><th>Source record</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 /** Detail table for one customer's roll-forward, every line traced. */

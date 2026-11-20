@@ -319,7 +319,7 @@ export function precloseSweepHtml(sweep) {
     const cards = group.items.map((item) => {
       const meta = [];
       if (item.date) meta.push(escapeHtml(item.date));
-      if (item.id) meta.push(escapeHtml(item.id));
+      if (item.id && group.id !== 'wallet') meta.push(escapeHtml(item.id));
       if (item.ageDays !== null) meta.push(`${item.ageDays} days`);
       const main = [`<strong>${escapeHtml(item.label)}</strong>`];
       if (item.detail) main.push(`<span>${escapeHtml(item.detail)}</span>`);

@@ -31,6 +31,14 @@
 // defeater — F10 below is rewritten to pin that, not to pass it).
 // The global floor itself is untouched, and the two defeaters are
 // the ONLY new ones (R6c counts them).
+//
+// MONTH-END CLOSE POLISH (2026-11-20, D5): the registry (i) buttons in
+// the analytics panels shrink to 28px by a NAMED scoped exception
+// (.analytics-panel .help-icon, F4 below) — the user asked for the
+// oversized standalone (i) buttons to shrink. F4 now pins the base
+// 40x40 rule AND the 28px exception, and fails any other sub-40px
+// .help-icon rule. The More-tab item (20px for its own sections)
+// extends this exception by name at its own spawn.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -103,8 +111,26 @@ test('F3 Saad-visits / install-tracker secondary buttons carry min-height >=40 i
 });
 
 test('F4 help-icon (summary) is 40x40 in its own rule', () => {
-  assert.ok(allAtLeast(ruleBodies(stylesNC, '.help-icon'), 40),
+  // Month-end close polish (2026-11-20, D5): the registry (i) buttons
+  // in the analytics panels shrink to 28px by a NAMED scoped
+  // exception (.analytics-panel .help-icon) — the user asked for the
+  // oversized standalone (i) buttons to shrink. The BASE .help-icon
+  // rule stays 40x40 in its own rule (a <summary>, so the button
+  // floor never reaches it), and the 28px exception is the ONLY
+  // sub-40px .help-icon rule. Any further shrink (e.g. the More-tab
+  // 20px sections) must extend this exception by name, not pass
+  // silently.
+  const base = /\.help-icon\{([^}]*)\}/.exec(stylesNC)?.[1];
+  assert.ok(base, 'base .help-icon rule present');
+  assert.ok(sizes([base]).length > 0 && sizes([base]).every((v) => v >= 40),
     'styles.css .help-icon still 32x32 — a <summary>, so the button floor never reaches it');
+  const scoped = /\.analytics-panel\s+\.help-icon\s*\{([^}]*)\}/.exec(stylesNC)?.[1];
+  assert.ok(scoped, 'scoped .analytics-panel .help-icon rule present');
+  assert.deepEqual(sizes([scoped]).sort((a, b) => a - b), [28, 28, 28],
+    'scoped registry (i) is exactly 28px (Month-end D5)');
+  const all = sizes(ruleBodies(stylesNC, '.help-icon'));
+  assert.ok(all.every((v) => v >= 40 || v === 28),
+    'a .help-icon rule other than the named 28px exception carries a sub-40px size');
 });
 
 test('F5 detail-identity-action (a) is 40x40 in its own rule', () => {

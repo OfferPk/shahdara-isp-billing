@@ -112,7 +112,7 @@ import { verifyBackup, describeRestoreChanges } from './backup-verification.js?v
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
 import { calculateDashboardKpis, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast, buildPonCapacityReport, renderPonCapacityRows } from './dashboard.js?v=1.11.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, wireDsIcons, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, setupSwUpdatePrompt, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupSpeedDialScrollHide, wireDsIcons, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, setupSwUpdatePrompt, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
 import { dsIcon } from './ds-icons.js';
 
 import {
@@ -2443,6 +2443,11 @@ function setupAreaAnalyticsModule() {
 // the Owner Khata block; renderDashboard runs on every save, so this
 // writes figures only and binds nothing (the "Kharch dekhein" listener
 // is bound once at module level, below).
+// Hisaab-home polish: the section shows ONE grid at a time behind the
+// [ Is mahine | Kul ] toggle. The choice survives re-renders (the
+// render applies it every time); default is the month view.
+let hisaabView = 'month';
+let hisaabViewToggleBound = false;
 function renderHisaabSection(state, referenceDate) {
   const sectionEl = $('#hisaabSection');
   if (!sectionEl) return;
@@ -2455,9 +2460,18 @@ function renderHisaabSection(state, referenceDate) {
   const monthLabelEl = $('#hisaabMonthLabel');
   if (monthLabelEl) monthLabelEl.textContent = t('hisaab_month_label', null, { month: displayMonthName(month) });
   const setMoney = (id, value) => { const el = $(id); if (el) el.textContent = formatAmount(value); };
-  setMoney('#hisaabMonthIncome', monthRow.income);
-  setMoney('#hisaabMonthExpenses', monthRow.expenses);
-  setMoney('#hisaabMonthProfit', monthRow.netProfit);
+  // Hisaab-home polish: the KPI values are bare numbers — 'PKR' lives
+  // once in the section subtitle (the card's top label), so a 6-digit
+  // figure fits on one line in the ~80px card at 360px.
+  const setBareMoney = (id, value) => {
+    const el = $(id);
+    if (!el) return;
+    const text = formatAmount(value);
+    el.textContent = text.startsWith('PKR ') ? text.slice(4) : text;
+  };
+  setBareMoney('#hisaabMonthIncome', monthRow.income);
+  setBareMoney('#hisaabMonthExpenses', monthRow.expenses);
+  setBareMoney('#hisaabMonthProfit', monthRow.netProfit);
   // Hisaab H5 (D3(a)): munafa text colour only — profit (≥ 0, zero
   // counts as profit) in brand-500, loss in danger (both ≥ 4.5:1 in
   // both themes). Never --color-paid / --color-overdue (fail in dark).
@@ -2469,15 +2483,14 @@ function renderHisaabSection(state, referenceDate) {
   const monthMarginEl = $('#hisaabMonthMargin');
   if (monthMarginEl) monthMarginEl.textContent = t('hisaab_month_margin', null, { margin: monthRow.profitMargin });
   const monthEmptyEl = $('#hisaabMonthEmpty');
-  if (monthEmptyEl) monthEmptyEl.hidden = monthRow.status !== 'NO_ACTIVITY';
+  if (monthEmptyEl) monthEmptyEl.hidden = monthRow.status !== 'NO_ACTIVITY' || hisaabView !== 'month';
 
   const lifeGridEl = $('#hisaabLifeGrid');
-  if (lifeGridEl) lifeGridEl.hidden = !life.hasRecords;
   const lifeEmptyEl = $('#hisaabEmpty');
-  if (lifeEmptyEl) lifeEmptyEl.hidden = life.hasRecords;
-  setMoney('#hisaabLifeIncome', life.income);
-  setMoney('#hisaabLifeExpenses', life.expenses);
-  setMoney('#hisaabLifeProfit', life.profit);
+  if (lifeEmptyEl) lifeEmptyEl.hidden = life.hasRecords || hisaabView !== 'life';
+  setBareMoney('#hisaabLifeIncome', life.income);
+  setBareMoney('#hisaabLifeExpenses', life.expenses);
+  setBareMoney('#hisaabLifeProfit', life.profit);
   const lifeProfitEl = $('#hisaabLifeProfit');
   if (lifeProfitEl) {
     lifeProfitEl.classList.toggle('hisaab-metric--profit', life.profit >= 0);
@@ -2487,6 +2500,28 @@ function renderHisaabSection(state, referenceDate) {
   if (lifeSinceEl) {
     lifeSinceEl.hidden = !life.earliest;
     if (life.earliest) lifeSinceEl.textContent = t('hisaab_since', null, { date: formatHisaabDate(life.earliest) });
+  }
+
+  // Kul Munafa subtitle is the lifetime margin (same template as the
+  // month margin — the template carries no month reference).
+  const lifeMarginEl = $('#hisaabLifeMargin');
+  if (lifeMarginEl) lifeMarginEl.textContent = t('hisaab_month_margin', null, { margin: life.margin });
+  // The [ Is mahine | Kul ] toggle: one grid visible at a time, the
+  // choice survives re-renders. No lifetime records → the Kul button
+  // is disabled and the view falls back to the month.
+  if (!life.hasRecords && hisaabView === 'life') hisaabView = 'month';
+  const monthGridEl = $('#hisaabMonthGrid');
+  if (monthGridEl) monthGridEl.hidden = hisaabView !== 'month';
+  if (lifeGridEl) lifeGridEl.hidden = hisaabView !== 'life';
+  if (monthLabelEl) monthLabelEl.hidden = hisaabView !== 'month';
+  const monthBtnEl = $('#hisaabViewMonthBtn');
+  const lifeBtnEl = $('#hisaabViewLifeBtn');
+  if (monthBtnEl) { monthBtnEl.setAttribute('aria-pressed', String(hisaabView === 'month')); monthBtnEl.classList.toggle('is-active', hisaabView === 'month'); }
+  if (lifeBtnEl) { lifeBtnEl.setAttribute('aria-pressed', String(hisaabView === 'life')); lifeBtnEl.classList.toggle('is-active', hisaabView === 'life'); lifeBtnEl.disabled = !life.hasRecords; }
+  if (!hisaabViewToggleBound) {
+    hisaabViewToggleBound = true;
+    monthBtnEl?.addEventListener('click', () => { hisaabView = 'month'; renderHisaabSection(state, new Date()); });
+    lifeBtnEl?.addEventListener('click', () => { hisaabView = 'life'; renderHisaabSection(state, new Date()); });
   }
 
   // One line per ACTIVE provider, Nayatel first (register order — the
@@ -2537,6 +2572,28 @@ function renderHisaabSection(state, referenceDate) {
     providerLinesEl.innerHTML = lines.length
       ? lines.map((line) => `<p class="phase3-note hisaab-provider-line">${escapeHtml(line)}</p>`).join('')
       : `<p class="empty-state">${t('hisaab_provider_none')}</p>`;
+  }
+
+  // Hisaab-home polish: the Nayatel footnote collapses into a 1-line
+  // expandable note — the summary shows the first active provider's
+  // pending bill (or its paid total), reusing the pending/paid
+  // templates; the full lines + honesty line stay inside the
+  // <details>, reachable on expand. No new key.
+  const providerSummaryEl = $('#hisaabProviderSummary');
+  if (providerSummaryEl) {
+    const firstSummary = (providersData.providers || [])
+      .filter((provider) => provider.active)
+      .map((provider) => summarizeProvider(provider))
+      .find(Boolean);
+    if (!firstSummary) {
+      providerSummaryEl.textContent = `${t('hisaab_provider_none')} ▾`;
+    } else if (firstSummary.pendingBill) {
+      providerSummaryEl.textContent = `📡 ${firstSummary.name}: ${t('hisaab_provider_pending', null, { month: displayMonthName(firstSummary.pendingBill.month), amount: firstSummary.pendingBill.amount == null ? t('hisaab_amount_unknown') : formatAmount(firstSummary.pendingBill.amount) })} ▾`;
+    } else if (firstSummary.billCount === 0) {
+      providerSummaryEl.textContent = `📡 ${firstSummary.name}: ${t('hisaab_provider_no_bills')} ▾`;
+    } else {
+      providerSummaryEl.textContent = `📡 ${firstSummary.name}: ${t('hisaab_provider_paid_total', null, { amount: formatAmount(firstSummary.total) })} ▾`;
+    }
   }
 
   // The honesty line is the verbatim design text, shown only while seeded
@@ -16264,6 +16321,7 @@ navDrawer = setupNavigationDrawer({
 
 setupSidebarRailToggle();
 setupScrollToTop();
+setupSpeedDialScrollHide();
 wireDsIcons();
 updateNavigationBadges(state);
 setupNetworkStatusIndicator({ onToast: toast });

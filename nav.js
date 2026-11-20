@@ -476,6 +476,35 @@ export function setupScrollToTop() {
 }
 
 /**
+ * Hides the floating + speed-dial FAB while the operator is actively
+ * scrolling and brings it back ~1s after the LAST scroll event — the
+ * setupScrollToTop pattern above, applied to #mobileSpeedDial, which
+ * otherwise floats over the Recent Payments rows sliding past it.
+ * Skipped while the speed-dial menu is open (hiding the container
+ * would hide the open menu) and while the dial is suppressed (dialog /
+ * More / Transactions / Inbox — the CSS already hides it there).
+ */
+export function setupSpeedDialScrollHide() {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+  const container = document.getElementById('mobileSpeedDial');
+  if (!container) return;
+  if (container.dataset?.speedDialScrollWired) return;
+  if (container.dataset) container.dataset.speedDialScrollWired = 'true';
+  else if (container.setAttribute) container.setAttribute('data-speed-dial-scroll-wired', 'true');
+  let idleTimer = null;
+  window.addEventListener('scroll', () => {
+    if (container.classList.contains('is-open')) return;
+    container.hidden = true;
+    if (idleTimer !== null && typeof clearTimeout === 'function') clearTimeout(idleTimer);
+    if (typeof setTimeout !== 'function') return;
+    idleTimer = setTimeout(() => {
+      idleTimer = null;
+      if (!container.classList.contains('is-open') && !container.classList.contains('is-suppressed')) container.hidden = false;
+    }, 1000);
+  }, { passive: true });
+}
+
+/**
  * Monitors and displays network connection and offline cache status.
  */
 export function setupNetworkStatusIndicator({ onToast } = {}) {

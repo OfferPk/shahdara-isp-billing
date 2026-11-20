@@ -165,11 +165,10 @@
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
     <div class="brand-mark" aria-hidden="true">S</div>
-    <!-- Phase 1 (D3/D12): visible build stamp — "d23" is the dist
-         file count (dist stays 23); the frozen APP_VERSION 1.11.0
-         never changes, so the stamp is how the operator tells which
-         build is running. 9px, blessed (DS-0-badge precedent). -->
-    <span class="build-stamp" aria-hidden="true">d23</span>
+    <!-- Hisaab-home polish: the visible "d23" build stamp was removed
+         from the header at the user's request (it read as stray debug
+         text). The build identity is the frozen APP_VERSION 1.11.0 +
+         the ?v= pins (nav-pwa.js); no visible stamp remains. -->
     <div class="brand-copy"><h1 title="Shahdara ISP Billing"><span class="brand-title-full">Shahdara ISP Billing</span><span class="brand-title-short">Shahdara</span></h1><p>Customer ledger</p></div>
     <div class="topbar-actions">
       <button id="networkStatusPill" class="network-status-pill" type="button" aria-live="polite" title="Check connection status">
@@ -484,10 +483,13 @@
         <div class="home-today-card" id="hisaabCard">
           <div class="home-today-header">
             <div class="home-today-title-wrap">
-              <p class="eyebrow" data-i18n="hisaab_section_eyebrow">HISAAB · KYA KHOYA, KYA PAYA</p>
               <h3 id="hisaabHeading" class="home-today-title" data-i18n="hisaab_section_title">Hisaab — Kya khoya, kya paya</h3>
-              <p class="home-today-subtitle" data-i18n="hisaab_section_subtitle">Is mahine aur kul — aamdani, kharch, munafa, ek jhalak mein</p>
+              <p class="home-today-subtitle" data-i18n="hisaab_section_subtitle">Is mahine aur kul — aamdani, kharch, munafa, ek jhalak mein · PKR</p>
             </div>
+          </div>
+          <div class="hisaab-view-toggle" id="hisaabViewToggle" role="group" aria-labelledby="hisaabHeading">
+            <button type="button" class="hisaab-view-toggle-btn is-active" id="hisaabViewMonthBtn" data-i18n="hisaab_toggle_month" aria-pressed="true">Is mahine</button>
+            <button type="button" class="hisaab-view-toggle-btn" id="hisaabViewLifeBtn" data-i18n="hisaab_section_lifetime" aria-pressed="false">Kul</button>
           </div>
           <p class="eyebrow" id="hisaabMonthLabel">Is mahine</p>
           <div class="hisaab-metric-grid" id="hisaabMonthGrid">
@@ -508,8 +510,7 @@
             </article>
           </div>
           <p class="empty-state" id="hisaabMonthEmpty" data-i18n="hisaab_month_empty" hidden>Is mahine koi record nahi</p>
-          <p class="eyebrow" data-i18n="hisaab_section_lifetime">Kul</p>
-          <div class="hisaab-metric-grid" id="hisaabLifeGrid">
+          <div class="hisaab-metric-grid" id="hisaabLifeGrid" hidden>
             <article class="ds-stat hisaab-metric">
               <span class="home-kpi-label" data-i18n="hisaab_label_income">Aamdani</span>
               <strong class="home-kpi-val" id="hisaabLifeIncome">Not set</strong>
@@ -523,13 +524,16 @@
             <article class="ds-stat hisaab-metric">
               <span class="home-kpi-label" data-i18n="hisaab_label_profit">Munafa</span>
               <strong class="home-kpi-val" id="hisaabLifeProfit">Not set</strong>
-              <small class="home-kpi-sub" data-i18n="hisaab_label_paid">Ada shuda</small>
+              <small class="home-kpi-sub" id="hisaabLifeMargin">Margin 0%</small>
             </article>
           </div>
           <p class="empty-state" id="hisaabEmpty" data-i18n="hisaab_lifetime_empty" hidden>Abhi koi record nahi</p>
           <p class="phase3-note" id="hisaabLifeSince" hidden></p>
-          <div id="hisaabProviderLines"></div>
-          <p class="phase3-note" id="hisaabHonestyLine" data-i18n="hisaab_honesty" hidden>Nayatel ko May 2025–Oct 2026 tak PKR 502,820 is register se pehle diye gaye — ye ledger kharch mein nahi, is liye kul munafa is se PKR 502,820 zyada nazar aata hai.</p>
+          <details class="hisaab-provider-details" id="hisaabProviderDetails">
+            <summary class="hisaab-provider-summary" id="hisaabProviderSummary">📡 Nayatel ▾</summary>
+            <div id="hisaabProviderLines"></div>
+            <p class="phase3-note" id="hisaabHonestyLine" data-i18n="hisaab_honesty" hidden>Nayatel ko May 2025–Oct 2026 tak PKR 502,820 is register se pehle diye gaye — ye ledger kharch mein nahi, is liye kul munafa is se PKR 502,820 zyada nazar aata hai.</p>
+          </details>
           <div class="hisaab-actions">
             <button id="hisaabOpenPnlBtn" class="primary-button" type="button" data-i18n="hisaab_open_pnl">Poora hisaab dekhein</button>
             <button id="hisaabShowExpensesBtn" class="secondary-button" type="button" data-i18n="hisaab_show_expenses">Kharch dekhein</button>

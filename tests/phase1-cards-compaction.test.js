@@ -521,21 +521,16 @@ test('p1 G4d: pills stay >= 11px (D5 — no pill was shrunk to reach the name ta
 
 // ---------- G5 — stamp + cache-bust (10) ----------
 
-test('p1 G5a: the top bar renders a d23 stamp (D3 — dist stays 23)', () => {
-  assert.ok(indexHtml.includes('<span class="build-stamp" aria-hidden="true">d23</span>'), 'the top bar carries the d23 stamp after the brand mark');
+test('p1 G5a: the top bar carries NO d23 stamp (Hisaab-home polish — removed at the user\'s request, it read as stray debug text)', () => {
+  assert.ok(!indexHtml.includes('<span class="build-stamp"'), 'the d23 stamp is gone from the top bar');
+  assert.ok(!indexHtml.includes('>d23<'), 'no d23 text node remains in the header markup');
   assert.ok(!indexHtml.includes('d24'), 'no d24 stamp anywhere (the spec\'s literal d24 was re-decided)');
   assert.ok(!/dist24/.test(indexHtml + swSource), 'no ?v=dist24 anywhere');
 });
 
-test('p1 G5b: the stamp is 9px, blessed (D12 — DS-0-badge precedent)', () => {
+test('p1 G5b: the .build-stamp rule is gone with the stamp (Hisaab-home polish)', () => {
   const stamp = cssRule(styles, '.build-stamp');
-  assert.ok(stamp, 'the .build-stamp rule exists');
-  assert.match(stamp, /font-size:\s*9px/, 'the stamp is 9px');
-  assert.match(stamp, /font-weight:\s*700/, 'the stamp is bold');
-  assert.match(stamp, /opacity:\s*0\.65/, 'the stamp is muted, not a content label');
-  // 9px is a non-content build label, the same precedent as the DS-0
-  // bottom-nav badge (10px) — excepted in the Sharafat 97 sweep with
-  // this guard test, not by loosening the floor.
+  assert.ok(!stamp, 'the .build-stamp rule is gone from styles.css');
 });
 
 test('p1 G5c: APP_VERSION stays 1.11.0 (frozen) and the build gate still pins dist 23', () => {

@@ -172,7 +172,7 @@ import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { oldestOpenBillPrefill } from './transaction-prefill.js';
 import { duesAmountDefault } from './dues-amount-default.js';
 import { amountInWords, amountInWordsLineText } from './amount-in-words.js';
-import { nextReceiptNumberFor } from './next-receipt-number.js';
+import { nextReceiptSequence } from './receipt-sequence.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
@@ -1405,6 +1405,11 @@ export function executeQuickCollection(state, {
     success: true,
     paymentId,
     receiptNumber,
+    // QC receipt numbering: the payment's global sequence number —
+    // the number the card, the WhatsApp draft and the finder show.
+    // Null for legacy receipts recorded before the feature (the card
+    // falls back to the stored number in that case, never blank).
+    receiptSequence: newPayment?.receiptSequence ?? null,
     previousPayments,
     customerId: customer.id,
     customerNumber: customer.customerNumber,
@@ -1675,7 +1680,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     `━━━━━━━━━━━━━━━━━━━━━━━━`,
     `*${L.title}*`,
     ``,
-    `🧾 *${L.receiptNo}:* ${receipt.receiptNumber}`,
+    `🧾 *${L.receiptNo}:* ${receipt.receiptSequence ?? receipt.receiptNumber}`,
     `📅 *${L.date}:* ${formatQcReceiptDate(receipt.date)}`,
     `👤 *${L.customer}:* ${receipt.customerName} (#${receipt.customerNumber})`,
     receipt.phone ? `📱 *${L.phone}:* ${receipt.phone}` : null,
@@ -2497,23 +2502,19 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
         </div>`).join('');
   return `
     <div class="qc-receipt-card" role="region" aria-label="Payment Receipt Slip">
-      <div class="qc-receipt-header">
-        <!-- Polish 21 (Req 6): the settle/partial badge moved out of the
-             card header — and the QC receipt-modal overhaul removed it
-             entirely (the merged Still-owed row + the still-owes pill
-             state the settled/partial state now) — so the header keeps
-             only the receipt reference. The reference
-             is a labelled chip ("Receipt No." + the id in the
-             Transaction ID row's .qc-txnid-code): the card was the only
-             receipt surface showing the number with no label at all.
-             QC receipt-bottom polish: the chip shows the FULL stored
-             number (RCPT-83-202611-01), the same number the WhatsApp
-             preview shows — the short form from the earlier card polish
-             is retired here; split legs keep the short form. The shared
-             badge is gone (user instruction — removed, not
-             hidden), so the header is ref-only on its own
-             right-aligned line. -->
-        <span class="qc-receipt-ref"><span class="qc-receipt-label">Receipt No.</span> <span class="qc-receipt-id qc-txnid-code" title="${escapeHtml(receipt.receiptNumber)}" data-full-receipt-number="${escapeHtml(receipt.receiptNumber)}">${escapeHtml(receipt.receiptNumber)}</span></span>
+      <!-- QC receipt numbering: the receipt reference chip lived in the
+           header (QC-bottom D4 showed the FULL stored number for
+           uniqueness/traceability). The number now lives in its own
+           pill row below, in the amount-pill style, as the one
+           global sequence (1, 2, 3, ...) — uniqueness kept a
+           different way, one number per receipt, never re-issued.
+           The header div itself is gone too: the micro-polish removed
+           the shared badge and this change removes the ref chip, so
+           the header held nothing — numbering lands second and owns
+           the removal (§0.4 empty-header rule). -->
+      <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-number-row">
+        <span class="qc-receipt-label">Receipt No.</span>
+        <strong class="qc-receipt-amount">${escapeHtml(String(receipt.receiptSequence ?? receipt.receiptNumber))}</strong>
       </div>
 
       <div class="qc-receipt-amount-row qc-amount-pill">
@@ -3010,7 +3011,7 @@ export function setupQuickCollectModal({
       prefillLine.hidden = true;
       return;
     }
-    const receipt = !splitToggle?.checked ? nextReceiptNumberFor(customer, month) : '';
+    const receipt = !splitToggle?.checked ? String(nextReceiptSequence(getState())) : '';
     const billPart = `Bill ${month} (PKR ${dues.toLocaleString('en-PK')})`;
     prefillLine.textContent = receipt ? `${billPart} · Next: ${receipt}` : billPart;
     prefillLine.hidden = false;
@@ -3281,7 +3282,7 @@ export function setupQuickCollectModal({
       amount: amountVal,
       amountWords: amountInWords(amountVal),
       method: methodSelect?.value || 'Cash',
-      receiptNumber: customer && month ? nextReceiptNumberFor(customer, month) : '',
+      receiptNumber: customer && month ? String(nextReceiptSequence(getState())) : '',
       date: dateInput?.value || getPakistanLocalDate(),
       billMonth: month,
       remainingBalanceCents,

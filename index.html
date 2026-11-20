@@ -27496,19 +27496,19 @@
                 <select id="quickCollectCrossPayerSelect" class="qc-input"></select>
               </div>
 
-              <div class="qc-field-group">
+              <div class="qc-field-group" id="quickCollectCrossPayerNameField">
                 <label for="quickCollectCrossPayerNameInput" class="qc-label">Payer name (optional)</label>
                 <input id="quickCollectCrossPayerNameInput" type="text" maxlength="100" placeholder="e.g. Ahmed" class="qc-input">
               </div>
 
-              <div class="qc-field-group">
+              <div class="qc-field-group" id="quickCollectCrossRelationshipField">
                 <label for="quickCollectCrossRelationshipInput" class="qc-label">Relationship (optional)</label>
                 <input id="quickCollectCrossRelationshipInput" type="text" maxlength="60" placeholder="e.g. son, father, neighbour" class="qc-input">
               </div>
             </div>
             <!-- Plan 395: the excess cash note — when the customer hands over more cash than the dues, what the extra is for in plain words: advance, credit, or change to return. Optional; a payment that does not exceed the dues records no note, and the note applies nothing by itself. -->
             <div class="qc-form-row" style="margin-top:8px;">
-              <div class="qc-field-group">
+              <div class="qc-field-group" id="quickCollectExcessCashField">
                 <label for="quickCollectExcessCashPurposeSelect" class="qc-label">Extra cash is for (optional)</label>
                 <select id="quickCollectExcessCashPurposeSelect" class="qc-input">
                   <option value="">—</option>
@@ -27521,11 +27521,7 @@
             </div>
             <!-- Plan 397: the large-cash approval — cash above the operator-set threshold needs the owner's initials or name recorded before it posts. The threshold defaults to PKR 10,000 (the module default); the approver starts blank on every open. -->
             <div class="qc-form-row" style="margin-top:8px;">
-              <div class="qc-field-group">
-                <label for="quickCollectLargeCashThreshold" class="qc-label">Large cash threshold (PKR)</label>
-                <input id="quickCollectLargeCashThreshold" type="number" min="0" step="1" inputmode="numeric" value="10000" placeholder="10000" class="qc-input">
-              </div>
-              <div class="qc-field-group">
+              <div class="qc-field-group" id="quickCollectLargeCashApproverField">
                 <label for="quickCollectLargeCashApprover" class="qc-label">Approved by (owner)</label>
                 <input id="quickCollectLargeCashApprover" type="text" maxlength="100" autocomplete="off" placeholder="e.g. owner initials" class="qc-input">
               </div>
@@ -27560,7 +27556,7 @@
                 <span data-i18n="adv_qc_label">Advance payment (next bill credit)</span>
               </label>
             </div>
-            <div class="qc-field-group" style="margin-top:8px;">
+            <div class="qc-field-group" id="quickCollectAdvanceTargetField" style="margin-top:8px;">
               <label for="quickCollectAdvanceTargetMonth" class="qc-label" data-i18n="adv_target_label">Advance for month</label>
               <select id="quickCollectAdvanceTargetMonth" class="qc-input"></select>
             </div>

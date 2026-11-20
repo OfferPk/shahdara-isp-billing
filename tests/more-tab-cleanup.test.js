@@ -153,7 +153,8 @@ test('More-tab: Wallet reference (TID) shows only for a non-cash channel, live o
 });
 
 // 3(a) — captions condensed to their first sentences; rest in the tooltips.
-test('More-tab: three long captions are exactly their first sentences', () => {
+// (The third caption moved on: see the More-audit block below.)
+test('More-tab: long captions are exactly their first sentences', () => {
   const cases = [
     ['Hold history and fair-use guard',
       'Read-only history per customer, drawn from the vacation holds and move pauses: every hold in date order with its reason and billing treatment.',
@@ -161,9 +162,6 @@ test('More-tab: three long captions are exactly their first sentences', () => {
     ['Near-duplicate payment warning at entry time',
       'A warning only, shown before a payment is saved: same customer, same amount, and same channel within the operator-set window (same day by default), or the same wallet reference already recorded, surfaces the earlier payment for comparison.',
       'Voided payments never warn.'],
-    ['Unusual payment flag for review',
-      "Read-only review list, computed fresh from the customers' own bills and payments: a payment that differs from its bill by more than the tolerance, a payment with no bill above the threshold, or several payments for one customer on one day.",
-      'Clearing a flag only records who reviewed it and why'],
   ];
   for (const [heading, first, remainder] of cases) {
     const cap = captionAfter(heading);
@@ -173,6 +171,20 @@ test('More-tab: three long captions are exactly their first sentences', () => {
     assert.ok(tip !== null, `tooltip missing after ${heading}`);
     assert.ok(tip.includes(remainder), `tooltip for ${heading} must hold the removed sentences verbatim`);
   }
+  // More-audit cleanup: the unusual-flag caption moved to a 46-char
+  // subtitle with the full text in the audit-explainer, and the More-tab
+  // help-tip was removed — keeping both would show the remainder
+  // sentences twice. The tooltip is gone; the explainer holds the
+  // full 449-char original verbatim.
+  const heading = 'Unusual payment flag for review';
+  const cap = captionAfter(heading);
+  assert.ok(cap !== null, `caption missing after ${heading}`);
+  assert.equal(cap.replace(/<[^>]+>/g, '').trim(), 'Payments that differ from their bill, flagged.', `caption for ${heading} must be the audit subtitle`);
+  assert.equal(tooltipAfter(heading), null, `tooltip for ${heading} must be gone (absorbed into the audit-explainer)`);
+  const seg = html.slice(html.indexOf('id="unusualFlagHeading"'), html.indexOf('id="unusualFlagHeading"') + 9000);
+  const ex = seg.match(/<details class="audit-explainer"><summary>ⓘ How this audit rule works<\/summary><p class="chart-caption">([\s\S]*?)<\/p><\/details>/);
+  assert.ok(ex !== null, `audit-explainer missing after ${heading}`);
+  assert.equal(ex[1], "Read-only review list, computed fresh from the customers' own bills and payments: a payment that differs from its bill by more than the tolerance, a payment with no bill above the threshold, or several payments for one customer on one day. Flagging never blocks a payment, never changes an amount, and never creates a suspense item or a dispute case. Clearing a flag only records who reviewed it and why — the payment record itself is never touched.");
 });
 
 // 3(b) — config + check forms in closed-by-default accordions.

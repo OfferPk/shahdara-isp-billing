@@ -566,16 +566,16 @@ test('hisaab H4 G3: buried triggers untouched and no Hisaab wiring in the engine
 });
 
 // G4 — the binding is once-only, and parity moves with the 612 keys.
-// The parity digits are searched as a split literal ('51' + '95'): this
+// The parity digits are searched as a split literal ('52' + '03'): this
 // file must NOT contain the bare digits — 591's G5a sweep counts every
-// test file containing them and asserts 36, so a literal here would make
-// this the 37th file and break the suite. The count below is 36 pinning
-// files (35 re-pins + the Analytics pinning file); the privacy canary
+// test file containing them and asserts 37, so a literal here would make
+// this the 38th file and break the suite. The count below is 37 pinning
+// files (36 re-pins + the business-counter pinning file); the privacy canary
 // (tests/privacy-zero-pii-ratchet.test.js)
 // no longer holds the current digits — its invented CNIC holds the OLD
 // digits, so it is not counted. (The CNIC itself is spelled out in the
 // G5a comment — never spell the digits here, or this file becomes the
-// 37th.)
+// 38th.)
 test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag, and parity stays steady', () => {
   const appJs = fs.readFileSync(path.resolve(__dirname, '../app.js'), 'utf8');
   const bindings = (appJs.match(/\$\('#hisaabOpenPnlBtn'\)\?\.addEventListener\('click'/g) || []).length;
@@ -585,15 +585,15 @@ test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag,
   assert.ok(!appJs.includes('hisaabShowExpensesBound = true;\n  $(\'#hisaabOpenPnlBtn\')'),
     'the P&L binding does not reuse the Kharch flag — each button has its own flag');
   const navJs = fs.readFileSync(path.resolve(__dirname, '../nav-language.js'), 'utf8');
-  // Hisaab H5: the hisaab_* keys exist now (30, ×2 dicts) + the one
+  // Hisaab H5: the hisaab_* keys exist now (34, ×2 dicts) + the one
   // exp_* refusal hint (D2(b)). This assert flipped with the keys;
   // the G5a sweep counts only bare digits, so no new file is added.
   assert.ok(/hisaab_section_title/.test(navJs) && /exp_upstream_synced_hint/.test(navJs),
-    'the H5 keys exist in nav-language.js (30 hisaab_* + the one exp_* refusal hint)');
+    'the H5 keys exist in nav-language.js (34 hisaab_* + the one exp_* refusal hint)');
   assert.equal(Object.keys(TRANSLATIONS.en).length, Object.keys(TRANSLATIONS.ur).length,
     'the EN and UR dicts still agree');
-  const parityDigits = '51' + '95';
+  const parityDigits = '52' + '03';
   const pinning = fs.readdirSync(path.join(__dirname)).filter((f) =>
     f.endsWith('.test.js') && fs.readFileSync(path.join(__dirname, f), 'utf8').includes(parityDigits));
-  assert.equal(pinning.length, 36, `expected 36 test files containing the current parity digits (35 re-pins + the Analytics pinning file; the privacy canary holds the old digits), got ${pinning.length}: ${pinning.join(', ')}`);
+  assert.equal(pinning.length, 37, `expected 37 test files containing the current parity digits (36 re-pins + the business-counter pinning file; the privacy canary holds the old digits), got ${pinning.length}: ${pinning.join(', ')}`);
 });

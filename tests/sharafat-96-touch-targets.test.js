@@ -37,8 +37,8 @@
 // (.analytics-panel .help-icon, F4 below) — the user asked for the
 // oversized standalone (i) buttons to shrink. F4 now pins the base
 // 40x40 rule AND the 28px exception, and fails any other sub-40px
-// .help-icon rule. The More-tab item (20px for its own sections)
-// extends this exception by name at its own spawn.
+// .help-icon rule. The More-tab item uses the same 28px exception
+// for its own sections (markup moves only — no new CSS rule).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

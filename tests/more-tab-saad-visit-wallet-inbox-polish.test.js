@@ -78,17 +78,17 @@ test('ops cards: all 22 carry the scoped class and a single-row header (tile + t
     assert.match(block, /<strong id="dashboard[a-zA-Z]+" class="summary-value ds-card-metric">/, 'value carries .ds-card-metric');
     assert.ok(!hasPictograph(block), 'no pictograph survives inside an ops card');
   }
-  // Header tiles: 22, button tiles: 29 — counted INSIDE the ops-card
+  // Header tiles: 22, button tiles: 24 — counted INSIDE the ops-card
   // blocks only (other surfaces use the same spans: profile actions,
   // speed dial, …). Fleet + PON have no buttons; the per-card button
   // counts are: Billing 2, Complaint 2, Field 1, Monthly 1, Saad 1,
-  // Group 1, Lineman 1, Downtime 1, SLA 1, Splitter 4, Outage 3,
-  // Daisy 1, PoleDir 1, PoleReg 1, Power 1, Stock 3, Drums 1,
+  // Group 1, Lineman 1, Downtime 0, SLA 0, Splitter 3, Outage 3,
+  // Daisy 0, PoleDir 1, PoleReg 0, Power 1, Stock 3, Drums 1,
   // Recovery 1, Pending 1, Health 1.
   const headerTiles = blocks.reduce((n, b) => n + ((b.match(/<span class="ds-icon-tile" data-ds-icon="/g) || []).length), 0);
   const buttonTiles = blocks.reduce((n, b) => n + ((b.match(/<span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="/g) || []).length), 0);
   assert.equal(headerTiles, 22);
-  assert.equal(buttonTiles, 29);
+  assert.equal(buttonTiles, 24);
   // Every icon named on an ops card exists in the DS-0 set.
   for (const block of blocks) {
     for (const [, name] of block.matchAll(/data-ds-icon="([A-Za-z]+)"/g)) {

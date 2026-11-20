@@ -5148,9 +5148,9 @@ export const TRANSLATIONS = {
     // in renderHisaabSection — never data-i18n (the toggle walk passes
     // no params). The honesty line is frozen seed history (D7(a)):
     // figures baked in, never derived from live code.
-    hisaab_section_eyebrow: 'HISAAB · KYA KHOYA, KYA PAYA',
     hisaab_section_title: 'Hisaab — Kya khoya, kya paya',
-    hisaab_section_subtitle: 'Is mahine aur kul — aamdani, kharch, munafa, ek jhalak mein',
+    hisaab_toggle_month: 'Is mahine',
+    hisaab_section_subtitle: 'Is mahine aur kul — aamdani, kharch, munafa, ek jhalak mein · PKR',
     hisaab_label_income: 'Aamdani',
     hisaab_label_expenses: 'Kharch',
     hisaab_label_profit: 'Munafa',
@@ -10486,9 +10486,9 @@ export const TRANSLATIONS = {
     // ہیں، ٹکڑے نہیں۔ پیرامیٹر والی کنجیاں ({month}، {date}، {amount}،
     // {margin}، {count}، {n}) renderHisaabSection میں t() سے بنتی ہیں —
     // کبھی data-i18n نہیں۔ ایمانداری والی لائن منجمد تاریخ ہے (D7(a))۔
-    hisaab_section_eyebrow: 'حساب · کیا کھویا، کیا پایا',
     hisaab_section_title: 'حساب — کیا کھویا، کیا پایا',
-    hisaab_section_subtitle: 'اس مہینے اور کل — آمدنی، خرچ، منافع، ایک جھلک میں',
+    hisaab_toggle_month: 'اس مہینے',
+    hisaab_section_subtitle: 'اس مہینے اور کل — آمدنی، خرچ، منافع، ایک جھلک میں · PKR',
     hisaab_label_income: 'آمدنی',
     hisaab_label_expenses: 'خرچ',
     hisaab_label_profit: 'منافع',

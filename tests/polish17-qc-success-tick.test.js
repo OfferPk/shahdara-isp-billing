@@ -85,10 +85,10 @@ test('tick draw: the path starts fully hidden (dashoffset 24) and draws once in 
 
 test('tick pop: the circle pops once on arrival (scale .6 → 1.08 → 1) — only under the play trigger', () => {
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
-  // Tick-in-box fix: 28 → 32px — the tick looked lost beside the
-  // two-line 18px heading. It costs 0px vertically (row height is
-  // driven by the ~54px heading).
-  assert.ok(check.includes('width: 32px') && check.includes('height: 32px'), 'inline tick must be 32px on success');
+  // QC receipt micro-polish, 2026-11-20: 32 → 24px — the 32px check +
+  // 16px title wrapped to two lines at 360px; 24px + the 14px title
+  // fit one line. The 20px SVG stays inside the 24px span.
+  assert.ok(check.includes('width: 24px') && check.includes('height: 24px'), 'inline tick must be 24px on success');
   assert.ok(!check.includes('animation:'), 'the pop must not live on the size rule any more (it is trigger-gated)');
   const playPop = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check.qc-tick-play {');
   assert.ok(playPop.includes('animation: qc-check-pop .45s cubic-bezier(.2,1.4,.4,1) forwards'), 'triggered circle must pop in 0.45s, once, forwards');

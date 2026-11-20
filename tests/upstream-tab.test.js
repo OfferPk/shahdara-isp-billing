@@ -354,7 +354,10 @@ test('G7: the Upstream tab and panel exist in the Expenses view, after Fixed ove
   assert.ok(indexHtml.indexOf('id="upstreamPanel"') > indexHtml.indexOf('id="overheadsPanel"'),
     'the panel section sits after the overheads panel section');
   const tabIds = [...new Set(indexHtml.match(/id="expenseTab[A-Z][a-z]+"/g) || [])];
-  assert.equal(tabIds.length, 6, `six expense tabs, got: ${tabIds.join(', ')}`);
+  // Expenses 3-tab polish: the per-partner tabs are gone — the bar is
+  // Ledger | Payroll | Partners | Fixed overheads | Upstream (five, not
+  // six); Fixed overheads and Upstream keep their own panels.
+  assert.equal(tabIds.length, 5, `five expense tabs, got: ${tabIds.join(', ')}`);
   assert.ok(indexHtml.includes('aria-controls="upstreamPanel"'), 'the tab controls the panel');
   assert.ok(!indexHtml.includes('accountId') && !indexHtml.includes('NTL'),
     'the panel has no account-ID field anywhere (hard rule)');

@@ -43290,8 +43290,6 @@ let expenseSearchQuery = '';
 let expenseSourceFilter = 'all';
 let expenseRoznamchaCategoryFilter = 'all';
 let expenseActiveTab = 'ledger';
-let nasirShareMonth = '';
-let aqibShareMonth = '';
 
 let inventoryActiveTab = 'equipment';
 function syncInventoryTabs() {
@@ -43301,50 +43299,42 @@ function syncInventoryTabs() {
   for (const [key, sel] of Object.entries(panels)) { const panel = $(sel); if (panel) panel.hidden = key !== inventoryActiveTab; }
 }
 function syncExpenseTabs() {
-  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib', settlement: '#expenseTabSettlement', overheads: '#expenseTabOverheads', upstream: '#expenseTabUpstream' };
-  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel', settlement: '#partnerSettlementPanel', overheads: '#overheadsPanel', upstream: '#upstreamPanel' };
+  const tabs = { ledger: '#expenseTabLedger', payroll: '#expenseTabPayroll', partners: '#expenseTabPartners', overheads: '#expenseTabOverheads', upstream: '#expenseTabUpstream' };
+  const panels = { ledger: '#expensesLedgerPanel', payroll: '#payrollPanel', partners: '#partnersPanel', overheads: '#overheadsPanel', upstream: '#upstreamPanel' };
   for (const [key, sel] of Object.entries(tabs)) { const btn = $(sel); if (btn) btn.setAttribute('aria-selected', String(key === expenseActiveTab)); }
   for (const [key, sel] of Object.entries(panels)) { const panel = $(sel); if (panel) panel.hidden = key !== expenseActiveTab; }
 }
 function partnerShareLine(label, value) { return `<div class="partner-share-row"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`; }
-function renderPartnerShare(key) {
-  const name = key === 'nasir' ? 'Nasir' : 'Aqib';
-  const monthSelect = $(key === 'nasir' ? '#nasirShareMonth' : '#aqibShareMonth');
-  const host = $(key === 'nasir' ? '#nasirShareContent' : '#aqibShareContent');
-  if (!monthSelect || !host) return;
-  const report = buildPartnerShareReport(state, key === 'nasir' ? nasirShareMonth : aqibShareMonth, new Date());
-  if (key === 'nasir') nasirShareMonth = report.month; else aqibShareMonth = report.month;
-  const monthsKey = report.months.join(',');
-  if (monthSelect.dataset.months !== monthsKey) {
-    monthSelect.innerHTML = report.months.map(month => `<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
-    monthSelect.dataset.months = monthsKey;
-  }
-  monthSelect.value = report.month;
+// Expenses 3-tab polish: the per-partner tabs are gone — the Partners tab
+// renders one shared detail for BOTH partners from the settlement month.
+// The 4-metric grid is NOT duplicated here: the settlement cards above
+// already show share / out-of-pocket / drawings / net payout per partner.
+// Per-partner month selection is lost by design: two different months for
+// one 50/50 split was incoherent.
+function renderPartnerShareDetail(month) {
+  const host = $('#partnerShareDetail');
+  if (!host) return;
+  const report = buildPartnerShareReport(state, month, new Date());
   const s = report.summary, prev = report.previousMonth, total = report.allTime;
-  const profitLabel = s.profit >= 0 ? 'Profit (bachat)' : 'Loss';
-  const profitClass = s.profit >= 0 ? 'partner-share-profit' : 'partner-share-loss';
-  const shareNote = s.profit > 0 ? '50% of this month’s profit' : (s.profit === 0 ? 'No profit, no share this month' : 'No share on a loss month — the loss is shown above');
   const breakdown = s.categoryBreakdown.length
     ? s.categoryBreakdown.map(row => partnerShareLine(`${row.category} · ${row.count} entr${row.count === 1 ? 'y' : 'ies'}`, formatAmount(row.amount))).join('')
     : '<p class="phase3-note">No expenses recorded this month.</p>';
-  const history = report.history.map(row => {
-    const rowProfit = row.profit >= 0 ? `Profit ${formatAmount(row.profit)}` : `Loss ${formatAmount(-row.profit)}`;
-    return `<div class="partner-share-history-row"><strong>${escapeHtml(monthName(row.month))}</strong><small>Revenue ${formatAmount(row.revenue)} · Expenses ${formatAmount(row.expenses)} · ${rowProfit} · ${name}’s share ${formatAmount(row.share)}</small></div>`;
-  }).join('');
-  host.innerHTML = `<div class="partner-share-grid">`
-    + `<article class="phase3-metric"><span>Total revenue · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(s.revenue))}</strong><small>${s.receiptCount} bill collection receipt${s.receiptCount === 1 ? '' : 's'}</small></article>`
-    + `<article class="phase3-metric"><span>Total expenses · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(s.expenses))}</strong><small>${s.expenseCount} recorded expense entr${s.expenseCount === 1 ? 'y' : 'ies'} · every category</small></article>`
-    + `<article class="phase3-metric"><span>${profitLabel}</span><strong class="${profitClass}">${escapeHtml(formatAmount(s.profit))}</strong><small>Revenue − expenses</small></article>`
-    + `<article class="phase3-metric"><span>${name}’s share (50%)</span><strong>${escapeHtml(formatAmount(s.share))}</strong><small>${shareNote}</small></article></div>`
-    + `<p class="phase3-note">${escapeHtml(report.basis)}</p>`
-    + `<h4>Expense breakdown · ${escapeHtml(monthName(report.month))}</h4><div>${breakdown}</div>`
-    + `<h4>Previous month · ${escapeHtml(monthName(prev.month))}</h4><div>`
-    + partnerShareLine('Revenue', formatAmount(prev.revenue)) + partnerShareLine('Expenses', formatAmount(prev.expenses))
-    + partnerShareLine(prev.profit >= 0 ? 'Profit' : 'Loss', formatAmount(prev.profit)) + partnerShareLine(`${name}’s share`, formatAmount(prev.share)) + `</div>`
-    + `<h4>All time so far</h4><div>`
-    + partnerShareLine('Total revenue', formatAmount(total.revenue)) + partnerShareLine('Total expenses', formatAmount(total.expenses))
-    + partnerShareLine(total.profit >= 0 ? 'Total profit' : 'Total loss', formatAmount(total.profit)) + partnerShareLine(`Total ${name} share paid out so far`, formatAmount(total.share)) + `</div>`
-    + `<h4>Monthly history</h4><div class="partner-share-history">${history}</div>`;
+  const partnerSection = name => {
+    const history = report.history.map(row => {
+      const rowProfit = row.profit >= 0 ? `Profit ${formatAmount(row.profit)}` : `Loss ${formatAmount(-row.profit)}`;
+      return `<div class="partner-share-history-row"><strong>${escapeHtml(monthName(row.month))}</strong><small>Revenue ${formatAmount(row.revenue)} · Expenses ${formatAmount(row.expenses)} · ${rowProfit} · ${name}’s share ${formatAmount(row.share)}</small></div>`;
+    }).join('');
+    return `<h4>${escapeHtml(name)} · Expense breakdown · ${escapeHtml(monthName(report.month))}</h4><div>${breakdown}</div>`
+      + `<h4>Previous month · ${escapeHtml(monthName(prev.month))}</h4><div>`
+      + partnerShareLine('Revenue', formatAmount(prev.revenue)) + partnerShareLine('Expenses', formatAmount(prev.expenses))
+      + partnerShareLine(prev.profit >= 0 ? 'Profit' : 'Loss', formatAmount(prev.profit)) + partnerShareLine(`${name}’s share`, formatAmount(prev.share)) + `</div>`
+      + `<h4>All time so far</h4><div>`
+      + partnerShareLine('Total revenue', formatAmount(total.revenue)) + partnerShareLine('Total expenses', formatAmount(total.expenses))
+      + partnerShareLine(total.profit >= 0 ? 'Total profit' : 'Total loss', formatAmount(total.profit)) + partnerShareLine(`Total ${name} share paid out so far`, formatAmount(total.share)) + `</div>`
+      + `<h4>Monthly history</h4><div class="partner-share-history">${history}</div>`;
+  };
+  host.innerHTML = `<p class="phase3-note">${escapeHtml(report.basis)}</p>`
+    + partnerSection('Nasir') + partnerSection('Aqib');
 }
 
 let partnerSettlementMonth = '';
@@ -43437,7 +43427,7 @@ function renderPartnerSettlement() {
   const waLink = $('#partnerSettlementWhatsAppLink');
   if (waLink) waLink.href = partnerSettlementWhatsAppUrl(generatePartnerSettlementWhatsAppText(report, slip));
   const reopenBtn = $('#partnerSettlementReopenBtn');
-  if (reopenBtn) reopenBtn.disabled = !slip;
+  if (reopenBtn) reopenBtn.hidden = !slip;
   const table = $('#partnerLedgerTable');
   const emptyEl = $('#partnerLedgerEmpty');
   if (table) {
@@ -43464,6 +43454,8 @@ function renderPartnerSettlement() {
       $('#partnerLedgerNote').value = entry.note || '';
       $('#partnerLedgerSubmit').textContent = 'Save movement changes';
       $('#partnerLedgerCancel').hidden = false;
+      const partnerLedgerDetails = $('#partnerLedgerCreateDetails');
+      if (partnerLedgerDetails) partnerLedgerDetails.open = true;
       $('#partnerLedgerForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
     }));
     table.querySelectorAll('[data-delete-partner-ledger]').forEach(button => button.addEventListener('click', async () => {
@@ -43478,6 +43470,7 @@ function renderPartnerSettlement() {
   if (emptyEl) emptyEl.hidden = report.entries.length > 0;
   const dateInput = $('#partnerLedgerDate');
   if (dateInput && !dateInput.value && !partnerLedgerEditId) dateInput.value = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+  renderPartnerShareDetail(report.month);
 }
 /* SISP-25 — WhatsApp Templates: Template Studio + 1-tap Campaign Queue.
    Templates live under sisp_wa_templates_v1 (never in the business ledger).
@@ -44086,6 +44079,10 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   $('#saadAttendanceCount').textContent=payroll.attendanceDayCount?`${payroll.attendanceDayCount} unique day${payroll.attendanceDayCount===1?'':'s'}`:'No attendance entries';
   $('#umairWorkdayExpense').textContent=payroll.umairWorkdayCount?formatAmount(payroll.umairMonthlyExpense):'No workday entries';
   $('#umairWorkdayDetail').textContent=payroll.umairWorkdayCount?`${payroll.umairWorkdayCount} logged date${payroll.umairWorkdayCount===1?'':'s'} × ${formatPKR(UMAIR_PER_LOGGED_WORKDAY)}`:'No recorded workdays; no amount is assumed.';
+  // Expenses 3-tab polish: at 0 logged workdays the Record button is a
+  // dead tap — hide it (the toast in the handler stays as a backstop).
+  // Saad's button always stays: the 15,000 base guarantees amount > 0.
+  $('#recordUmairSalaryExpenseBtn').hidden = payroll.umairWorkdayCount === 0;
   $('#saadAttendanceList').innerHTML=payroll.attendanceDays.map(date=>`<li><time datetime="${date}">${date}</time><button type="button" class="delete-incident" data-remove-attendance="${date}">Remove</button></li>`).join('');
   $('#saadAttendanceEmpty').hidden=payroll.attendanceDays.length>0;
   $('#umairWorkdaysList').innerHTML=payroll.umairWorkdays.map(date=>`<li><time datetime="${date}">${date}</time><button type="button" class="delete-incident" data-remove-workday="${date}">Remove</button></li>`).join('');
@@ -44093,8 +44090,6 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   $('#saadAttendanceList').querySelectorAll('[data-remove-attendance]').forEach(button=>button.addEventListener('click',async()=>{const date=button.dataset.removeAttendance;if(!await appConfirm({tone:'danger',title:'Remove this attendance day?',subject:`Saad · ${date}`,message:"Removes Saad's manually logged attendance day from this device.",confirmLabel:'Remove day'}))return;try{state=removeSaadAttendanceDay(state,date);save();toast('Attendance date removed from this device.');}catch(error){toast(error.message);}}));
   $('#umairWorkdaysList').querySelectorAll('[data-remove-workday]').forEach(button=>button.addEventListener('click',async()=>{const date=button.dataset.removeWorkday;if(!await appConfirm({tone:'danger',title:'Remove this workday?',subject:`Umair · ${date}`,message:"Removes Umair's manually logged workday (PKR 1,000) from this device.",confirmLabel:'Remove workday'}))return;try{state=removeUmairWorkday(state,date);save();toast('Workday removed from this device.');}catch(error){toast(error.message);}}));
   const allRows=[...(state.expenses??[])];
-  $('#expenseEntryCount').textContent=allRows.length?String(allRows.length):'No entries';
-  $('#expenseEntryHelp').textContent=allRows.length?'Actual dated expenses recorded on this device.':'No expense entries recorded; not an assertion that spending was zero.';
   const current=buildPhase3Analytics(state,new Date()).currentMonth,monthRows=allRows.filter(row=>row.date.slice(0,7)===current);
   $('#expenseCurrentMonthTotal').textContent=monthRows.length?formatAmount(monthRows.reduce((sum,row)=>sum+Number(row.amount),0)):'No entries';
 
@@ -44155,12 +44150,12 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   }
 
   const categoryTotals = buildExpenseCategoryTotals(filteredRows);
-  const categoryTotalsBody = $('#expenseCategoryTotalsBody');
-  if (categoryTotalsBody) {
-    const totalRow = `<tr><th scope="row">Total</th><td>${filteredRows.length}</td><td>${phase3Cell(formatAmount(filteredTotal))}</td></tr>`;
-    categoryTotalsBody.innerHTML = categoryTotals.length
-      ? categoryTotals.map(entry => `<tr><th scope="row">${phase3Cell(entry.category)}</th><td>${entry.count}</td><td>${phase3Cell(formatAmount(entry.total))}</td></tr>`).join('') + totalRow
-      : `<tr><td colspan="3">No expenses match the current filters.</td></tr>`;
+  const categoryTotalsList = $('#expenseCategoryTotalsList');
+  if (categoryTotalsList) {
+    const totalRow = `<li class="partner-share-row"><span>Total · ${filteredRows.length} entries</span><strong>${escapeHtml(formatAmount(filteredTotal))}</strong></li>`;
+    categoryTotalsList.innerHTML = categoryTotals.length
+      ? categoryTotals.map(entry => `<li class="partner-share-row"><span>${escapeHtml(entry.category)} · ${entry.count} entr${entry.count === 1 ? 'y' : 'ies'}</span><strong>${escapeHtml(formatAmount(entry.total))}</strong></li>`).join('') + totalRow
+      : '<li class="empty-state">No expenses match the current filters.</li>';
   }
 
   const sortedRows = sortExpenseRows(filteredRows, expenseSortKey, expenseSortAsc);
@@ -44258,8 +44253,7 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   }));
   updateNavigationBadges(state);
   syncExpenseTabs();
-  if (expenseActiveTab === 'nasir' || expenseActiveTab === 'aqib') renderPartnerShare(expenseActiveTab);
-  if (expenseActiveTab === 'settlement') renderPartnerSettlement();
+  if (expenseActiveTab === 'partners') renderPartnerSettlement();
   if (expenseActiveTab === 'overheads') renderOverheads();
   if (expenseActiveTab === 'upstream') renderUpstream();
 }
@@ -44682,6 +44676,9 @@ $('#recordSaadSalaryExpenseBtn')?.addEventListener('click',()=>{
   }
   const form=$('#expenseForm');
   if(form){
+    // The form lives in the Ledger tab — switch to it first, or the
+    // scroll lands on a hidden panel.
+    expenseActiveTab='ledger'; syncExpenseTabs();
     form.scrollIntoView({behavior:'smooth',block:'center'});
     form.classList.add('prefilled-pulse');
     setTimeout(()=>form.classList.remove('prefilled-pulse'),1500);
@@ -44716,6 +44713,9 @@ $('#recordUmairSalaryExpenseBtn')?.addEventListener('click',()=>{
   }
   const form=$('#expenseForm');
   if(form){
+    // The form lives in the Ledger tab — switch to it first, or the
+    // scroll lands on a hidden panel.
+    expenseActiveTab='ledger'; syncExpenseTabs();
     form.scrollIntoView({behavior:'smooth',block:'center'});
     form.classList.add('prefilled-pulse');
     setTimeout(()=>form.classList.remove('prefilled-pulse'),1500);
@@ -44729,11 +44729,9 @@ $('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
 });
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
-[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement'],['overheads','#expenseTabOverheads'],['upstream','#expenseTabUpstream']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',async()=>{const pinAction=key==='settlement'?'partner-settlement':(key==='nasir'||key==='aqib')?'partner-shares':null;if(pinAction&&collectorBlocked(pinAction))return;if(pinAction&&!await requireOwnerPin(pinAction))return;expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key==='upstream')renderUpstream();else if(key!=='ledger')renderPartnerShare(key);});});
+[['ledger','#expenseTabLedger'],['payroll','#expenseTabPayroll'],['partners','#expenseTabPartners'],['overheads','#expenseTabOverheads'],['upstream','#expenseTabUpstream']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',async()=>{const pinAction=key==='partners'?'partner-settlement':null;if(pinAction&&collectorBlocked(pinAction))return;if(pinAction&&!await requireOwnerPin(pinAction))return;expenseActiveTab=key;syncExpenseTabs();if(key==='partners')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key==='upstream')renderUpstream();});});
 [['stock','#inventoryTabStock'],['equipment','#inventoryTabEquipment']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{inventoryActiveTab=key;syncInventoryTabs();});});
 $('#inventoryItemCreateSummary')?.addEventListener('click',event=>{const details=$('#inventoryItemCreateDetails');if(details?.open)event.preventDefault();setTimeout(()=>{$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});$('#inventoryName')?.focus({preventScroll:true});},0);});
-$('#nasirShareMonth')?.addEventListener('change',event=>{nasirShareMonth=event.currentTarget.value;renderPartnerShare('nasir');});
-$('#aqibShareMonth')?.addEventListener('change',event=>{aqibShareMonth=event.currentTarget.value;renderPartnerShare('aqib');});
 $('#partnerSettlementMonth')?.addEventListener('change',event=>{partnerSettlementMonth=event.currentTarget.value;renderPartnerSettlement();});
 $('#overheadsMonth')?.addEventListener('change',event=>{overheadsMonth=event.currentTarget.value;renderOverheads();});
 $('#upstreamMonth')?.addEventListener('change',event=>{upstreamMonth=event.currentTarget.value;renderUpstream();});
@@ -44753,6 +44751,8 @@ $('#partnerLedgerForm')?.addEventListener('submit',event=>{
     $('#partnerLedgerId').value = '';
     $('#partnerLedgerSubmit').textContent = 'Record movement';
     $('#partnerLedgerCancel').hidden = true;
+    const partnerLedgerDetails = $('#partnerLedgerCreateDetails');
+    if (partnerLedgerDetails) partnerLedgerDetails.open = false;
     toast('Partner movement recorded on this device.');
     renderPartnerSettlement();
   } catch (error) { toast(error.message, { type: 'error' }); }
@@ -44763,6 +44763,8 @@ $('#partnerLedgerCancel')?.addEventListener('click',()=>{
   $('#partnerLedgerId').value = '';
   $('#partnerLedgerSubmit').textContent = 'Record movement';
   $('#partnerLedgerCancel').hidden = true;
+  const partnerLedgerDetails = $('#partnerLedgerCreateDetails');
+  if (partnerLedgerDetails) partnerLedgerDetails.open = false;
 });
 $('#partnerSettlementConfirmBtn')?.addEventListener('click',()=>{
   try {

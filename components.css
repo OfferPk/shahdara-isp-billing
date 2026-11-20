@@ -1739,14 +1739,16 @@ body.field-mode-open { overflow: hidden; }
 
 /* SISP-22: partner drawings, capital outlay & monthly settlement ledger. Theme tokens only. */
 .partner-settlement-panel { min-width: 0; }
-/* SISP-114: charity / sadqah reserve % control. Theme tokens only. */
+/* SISP-114: charity / sadqah reserve % control. Theme tokens only.
+   Expenses 3-tab polish: the input gets the standard token border (the
+   global input rule sets radius only, so it used to show the raw
+   browser-default black border); the ≤480px full-width Save rule is
+   deleted, so input (120px) + Save sit on one row and wrap gracefully
+   instead of clipping. */
 .charity-reserve-control { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 12px 0 4px; min-width: 0; }
 .charity-reserve-label { display: grid; gap: 4px; font-weight: 600; color: var(--ink); min-width: 0; }
-.charity-reserve-label input { width: 120px; max-width: 100%; min-height: 48px; }
+.charity-reserve-label input { width: 120px; max-width: 100%; min-height: 48px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); padding: 9px 10px; }
 .charity-reserve-control .phase3-note { flex-basis: 100%; margin: 0; }
-@media (max-width: 480px) {
-  .charity-reserve-control .secondary-button { width: 100%; text-align: center; justify-content: center; }
-}
 .partner-settlement-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
 .partner-settlement-whatsapp { text-decoration: none; display: inline-flex; align-items: center; }
 .partner-settlement-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }

@@ -207,7 +207,10 @@ test('cleanup: captions are one line; the full rules live in the tooltips', () =
   // Expenses 3-tab polish: the Saad payroll card adds one more
   // help-tip (the (i) holding the salary rules), so the count
   // moved 10 → 11.
-  assert.equal(html.split('class="help-tip"').length - 1, 11, 'dashboard + three Annual + six Operational + Saad payroll tooltips');
+  // More-tab cleanup: the three condensed captions (hold-guard,
+  // duplicate-warning, unusual-flags) each add one help-tip holding
+  // the removed sentences, so the count moved 11 → 14.
+  assert.equal(html.split('class="help-tip"').length - 1, 14, 'dashboard + three Annual + six Operational + Saad payroll + three More-tab tooltips');
   assert.ok(html.includes('with the pending list ordered by age as the queue the operator works through'), 'enquiry rules kept in its tooltip');
   assert.ok(html.includes('it adds the per-device record those money paths never kept'), 'deposit rules kept in its tooltip');
   assert.ok(html.includes("returning a loan leaves the original device"), 'loan rules kept in its tooltip');

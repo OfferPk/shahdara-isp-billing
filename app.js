@@ -25456,6 +25456,17 @@ function renderMoveTransfers() {
   if (!bodyEl) return;
   const customers = state.customers ?? [];
   const entries = loadMoveTransfers();
+  // More-tab cleanup: hide Export + filters + mutation rows at 0 moves
+  // (unfiltered total — filtering to 0 must leave filters visible).
+  const moveExportBtn = $('#moveExportBtn');
+  if (moveExportBtn) moveExportBtn.hidden = entries.length === 0;
+  setRegistryRowVisible($('#moveFilterRow'), entries.length !== 0);
+  setRegistryRowVisible($('#moveActionRow'), entries.length !== 0);
+  setRegistryRowVisible($('#moveCheckRow'), entries.length !== 0);
+  // More-tab cleanup: Retention Rs. only applies to a retention move
+  // (setRegistryFieldVisible CLEARS the value on hide, per the shipped
+  // convention — normalizeMove drops it for no_bill either way).
+  setRegistryFieldVisible($('#moveRetentionLabel'), $('#moveTreatment')?.value === 'retention', $('#moveRetention'));
   const shown = movesFiltered(entries, {
     status: $('#moveFilterStatus')?.value ?? '',
     treatment: $('#moveFilterTreatment')?.value ?? '',
@@ -25497,6 +25508,9 @@ function renderMoveTransfers() {
     $('#moveFilterStatus')?.addEventListener('change', () => renderMoveTransfers());
     $('#moveFilterTreatment')?.addEventListener('change', () => renderMoveTransfers());
     $('#moveFilterMohalla')?.addEventListener('input', () => renderMoveTransfers());
+    $('#moveTreatment')?.addEventListener('change', () => {
+      setRegistryFieldVisible($('#moveRetentionLabel'), $('#moveTreatment')?.value === 'retention', $('#moveRetention'));
+    });
     $('#moveCustomer')?.addEventListener('change', () => {
       const selected = customers.find((c) => String(c.id) === String($('#moveCustomer')?.value ?? ''));
       const mohallaInput = $('#moveOldMohalla');
@@ -25527,6 +25541,7 @@ function renderMoveTransfers() {
         return;
       }
       saveMoveTransfers(next);
+      if (moveCreateDetails) moveCreateDetails.open = false;
       toast('Move recorded. The customer keeps one profile; no bill, payment, or deposit is created here.');
       renderMoveTransfers();
       renderResumeQueue();
@@ -25627,6 +25642,13 @@ function renderDuplicateWarning() {
       || '<option value="">No customers yet</option>';
   }
   const settings = loadDuplicateWarningSettings();
+  // More-tab cleanup: Wallet reference (TID) only applies to a non-cash
+  // channel (setRegistryFieldVisible CLEARS the value on hide — load-bearing
+  // against the channel-agnostic same-reference rule).
+  setRegistryFieldVisible($('#duplicateWarningReferenceLabel'), $('#duplicateWarningChannel')?.value !== 'Cash', $('#duplicateWarningReference'));
+  // More-tab cleanup: Export hides until a check has warned.
+  const duplicateWarningExportBtn = $('#duplicateWarningExportBtn');
+  if (duplicateWarningExportBtn) duplicateWarningExportBtn.hidden = !lastDuplicateWarning || lastDuplicateWarning.check.warnings.length === 0;
   const windowEl = $('#duplicateWarningWindow');
   if (windowEl && document.activeElement !== windowEl) windowEl.value = String(settings.windowDays);
   const ackEl = $('#duplicateWarningAckBody');
@@ -25636,6 +25658,9 @@ function renderDuplicateWarning() {
   }));
   if (!duplicateWarningBound) {
     duplicateWarningBound = true;
+    $('#duplicateWarningChannel')?.addEventListener('change', () => {
+      setRegistryFieldVisible($('#duplicateWarningReferenceLabel'), $('#duplicateWarningChannel')?.value !== 'Cash', $('#duplicateWarningReference'));
+    });
     $('#duplicateWarningSaveWindowBtn')?.addEventListener('click', () => {
       saveDuplicateWarningSettings({ windowDays: $('#duplicateWarningWindow')?.value ?? '' });
       toast('Warning window saved. It warns only; it never blocks a payment.');
@@ -25657,6 +25682,8 @@ function renderDuplicateWarning() {
         overrideReason: $('#duplicateWarningReason')?.value ?? '',
       });
       lastDuplicateWarning = { check, candidate: { customerId: id, date, amountCents: Math.round(amountRaw * 100), channel, reference } };
+      const duplicateWarningExportBtn = $('#duplicateWarningExportBtn');
+      if (duplicateWarningExportBtn) duplicateWarningExportBtn.hidden = !lastDuplicateWarning || lastDuplicateWarning.check.warnings.length === 0;
       if (resultEl) resultEl.textContent = check.message;
       bodyEl.innerHTML = warningHtml(check.warnings);
     });
@@ -25744,6 +25771,7 @@ function unusualFlagSource() {
   return { bills, payments };
 }
 let unusualFlagBound = false;
+let unusualFlagShowAll = false;
 function renderUnusualPaymentFlags() {
   const bodyEl = $('#unusualFlagBody');
   if (!bodyEl) return;
@@ -25756,9 +25784,17 @@ function renderUnusualPaymentFlags() {
   const reason = reasonEl?.value ?? '';
   const mohalla = mohallaEl?.value ?? '';
   const shown = flagsFiltered(flags, { reason, mohalla });
-  bodyEl.innerHTML = flagsHtml(shown);
+  // More-tab cleanup: Top 5 by default; the toggle shows all (live count).
+  // The slice lives here, never in flagsHtml (plan88 + owner-5-part-fix pins).
+  const visible = unusualFlagShowAll ? shown : shown.slice(0, 5);
+  bodyEl.innerHTML = flagsHtml(visible);
   const summaryEl = $('#unusualFlagSummary');
-  if (summaryEl) summaryEl.textContent = flagSummaryText(buildFlagSummary(flags)) + ` · showing ${shown.length}.`;
+  if (summaryEl) summaryEl.textContent = flagSummaryText(buildFlagSummary(flags)) + (unusualFlagShowAll ? ` · showing ${shown.length}.` : ` · showing ${visible.length} of ${shown.length}.`);
+  const showAllBtn = $('#unusualFlagShowAllBtn');
+  if (showAllBtn) {
+    showAllBtn.hidden = shown.length <= 5;
+    showAllBtn.textContent = unusualFlagShowAll ? 'Show top 5' : `Show all ${shown.length}`;
+  }
   const clearedEl = $('#unusualFlagClearedBody');
   if (clearedEl) clearedEl.innerHTML = clearedHtml(cleared.map((entry) => {
     const c = customers.find((x) => x.id === entry.customerId);
@@ -25800,6 +25836,10 @@ function renderUnusualPaymentFlags() {
     });
     $('#unusualFlagReason')?.addEventListener('change', renderUnusualPaymentFlags);
     $('#unusualFlagMohalla')?.addEventListener('change', renderUnusualPaymentFlags);
+    $('#unusualFlagShowAllBtn')?.addEventListener('click', () => {
+      unusualFlagShowAll = !unusualFlagShowAll;
+      renderUnusualPaymentFlags();
+    });
     $('#unusualFlagExportBtn')?.addEventListener('click', () => {
       const r = $('#unusualFlagReason')?.value ?? '';
       const m = $('#unusualFlagMohalla')?.value ?? '';
@@ -42998,6 +43038,9 @@ function renderHoldGuard() {
   const history = buildHoldHistory(loadVacationHolds(), loadMoveTransfers());
   const customerId = $('#holdGuardCustomer')?.value ?? '';
   const shown = historyForCustomer(history, customerId).map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' }));
+  // More-tab cleanup: Export hides when the picked customer has no holds in history.
+  const holdGuardExportBtn = $('#holdGuardExportBtn');
+  if (holdGuardExportBtn) holdGuardExportBtn.hidden = shown.length === 0;
   bodyEl.innerHTML = holdHistoryHtml(shown);
   const summaryEl = $('#holdGuardSummary');
   if (summaryEl) summaryEl.textContent = guardSettingsText(loadHoldGuardSettings()) + ` · ${shown.length} hold${shown.length === 1 ? '' : 's'} in this customer's history.`;

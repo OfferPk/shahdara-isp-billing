@@ -115,6 +115,24 @@ test('conditional fields carry label ids for the visibility wiring', () => {
   }
 });
 
+test('suspensionActionRow wraps the mutation row, not the create form (More-tab cleanup)', () => {
+  // The id used to sit on the create-form div inside suspensionCreateDetails,
+  // so renderSuspensions hid the create form at 0 suspensions and never hid
+  // the mutation row. The id moved to the mutation div (Reconnection date /
+  // Reconnect / Reopen / Remove); the create form keeps no id and stays
+  // reachable at 0 behind "+ Record Suspension".
+  const i = html.indexOf('id="suspensionActionRow"');
+  assert.ok(i >= 0, 'suspensionActionRow id missing');
+  const open = html.lastIndexOf('<div', i);
+  const tail = html.slice(open, open + 3000);
+  const end = tail.search(/<\/div>\s*<(div|details|section|p id=)/);
+  const seg = end < 0 ? tail : tail.slice(0, end);
+  assert.ok(seg.includes('suspensionReconnectBtn'), 'mutation row must hold Reconnect customer');
+  assert.ok(seg.includes('suspensionReopenBtn'), 'mutation row must hold Reopen suspension');
+  assert.ok(seg.includes('suspensionRemoveBtn'), 'mutation row must hold Remove suspension');
+  assert.ok(!seg.includes('suspensionRecordBtn'), 'mutation row must not hold the create form Record button');
+});
+
 test('checkbox labels use the registry class (one RMA + three suspension)', () => {
   assert.equal(html.split('class="registry-check-label"').length - 1, 4, 'expected 4 registry-check-label labels');
   assert.ok(html.includes('<label class="registry-check-label" style="font-size: 12px;"><input id="rmaShowAwaiting"'), 'RMA awaiting checkbox label missing the class');

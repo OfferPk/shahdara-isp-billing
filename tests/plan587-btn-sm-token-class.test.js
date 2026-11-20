@@ -300,8 +300,8 @@ test('G5: ratchet baselines hold and parity is unchanged at 4,722/4,722 (no i18n
   assert.ok(distinctHex(stylesCss) <= 616, `styles.css distinct hex must not exceed 616 (now ${distinctHex(stylesCss)})`);
   assert.ok(distinctHex(navCss) <= 164, `nav.css distinct hex must not exceed 164 (now ${distinctHex(navCss)})`);
   assert.equal(distinctHex(componentsCss), 0, 'components.css stays hex-free');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5187, 'EN keys');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5187, 'UR keys');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5195, 'EN keys');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5195, 'UR keys');
   assert.deepEqual(
     Object.keys(TRANSLATIONS.en).sort(),
     Object.keys(TRANSLATIONS.ur).sort(),

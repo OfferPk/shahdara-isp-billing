@@ -43919,6 +43919,8 @@ function showHomeBudgetInlineError(id, message) {
   if (el) { el.textContent = message; el.hidden = false; }
 }
 function resetHomeBudgetForm() {
+  const formDetails = $('#homeBudgetFormDetails');
+  if (formDetails) formDetails.open = false;
   const form = $('#homeBudgetForm');
   if (form) form.reset();
   const idInput = $('#homeBudgetId');
@@ -43943,10 +43945,6 @@ function renderHomeBudget() {
   if (monthTotalEl) monthTotalEl.textContent = formatAmount(homeBudgetMonthFilter === 'all' ? summary.allTimeTotal : (monthRow?.total ?? 0));
   const monthHelp = $('#homeBudgetMonthHelp');
   if (monthHelp) monthHelp.textContent = homeBudgetMonthFilter === 'all' ? 'All months' : monthName(homeBudgetMonthFilter);
-  const countEl = $('#homeBudgetEntryCount');
-  if (countEl) countEl.textContent = String(summary.count);
-  const countHelp = $('#homeBudgetEntryHelp');
-  if (countHelp) countHelp.textContent = summary.count ? `${summary.count} ${summary.count === 1 ? 'entry' : 'entries'} recorded` : 'No home entries recorded';
   const monthFilter = $('#homeBudgetMonthFilter');
   if (monthFilter) {
     const months = homeBudgetMonths(entries);
@@ -43966,8 +43964,10 @@ function renderHomeBudget() {
   if (monthTotalsEl) {
     monthTotalsEl.innerHTML = summary.months.map(row => `<li class="home-budget-month-row"><span>${escapeHtml(monthName(row.month))} · ${row.count} ${row.count === 1 ? 'entry' : 'entries'}</span><strong>${escapeHtml(formatAmount(row.total))}</strong></li>`).join('');
   }
-  const monthTotalsEmpty = $('#homeBudgetMonthTotalsEmpty');
-  if (monthTotalsEmpty) monthTotalsEmpty.hidden = summary.months.length > 0;
+  const monthsCard = $('#homeBudgetMonthsCard');
+  if (monthsCard) monthsCard.hidden = summary.months.length === 0;
+  const filterToolbar = $('#homeBudgetFilterToolbar');
+  if (filterToolbar) filterToolbar.hidden = entries.length === 0;
   const filtered = filterHomeBudget(entries, { month: homeBudgetMonthFilter, category: homeBudgetCategoryFilter, query: homeBudgetSearchQuery });
   const sorted = sortHomeBudgetEntries(filtered);
   const listEl = $('#homeBudgetList');
@@ -44001,6 +44001,8 @@ function renderHomeBudget() {
       const cancel = $('#homeBudgetCancel');
       if (cancel) cancel.hidden = false;
       clearHomeBudgetInlineErrors();
+      const formDetails = $('#homeBudgetFormDetails');
+      if (formDetails) formDetails.open = true;
       $('#homeBudgetForm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }));
     listEl.querySelectorAll('[data-delete-home-budget]').forEach(button => button.addEventListener('click', async () => {

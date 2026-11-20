@@ -25,6 +25,7 @@ test('home budget records entries, totals, and a custom category without touchin
   const errors = trackErrors(page);
   await boot(page);
   await page.goto('/#/homeBudget');
+  await page.locator('#homeBudgetFormDetails summary').click();
   await expect(page.locator('#homeBudgetForm')).toBeVisible({ timeout: 20000 });
   await expect(page.locator('#homeBudgetView')).toContainText('never enter the business expense ledger');
   await expect(page.locator('#homeBudgetAllTimeTotal')).toContainText('PKR 0');
@@ -38,6 +39,7 @@ test('home budget records entries, totals, and a custom category without touchin
   await expect(page.locator('#homeBudgetList')).toContainText('PKR 1,500');
   await expect(page.locator('#homeBudgetAllTimeTotal')).toContainText('PKR 1,500');
 
+  await page.locator('#homeBudgetFormDetails summary').click();
   await page.locator('#homeBudgetDate').fill('2026-10-06');
   await page.locator('#homeBudgetAmount').fill('3000');
   await page.locator('#homeBudgetCategory').selectOption('__custom__');

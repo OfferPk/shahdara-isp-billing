@@ -1284,21 +1284,10 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
    components.css) lets the 36px class rule beat the 44px floor
    (styles.css:923) for the <button> actions. */
 button:not([hidden]).customer-card-action-btn { min-height: 36px !important; }
-/* Phase 1 (D12/D3): the visible build stamp — "d23" (dist count, D3:
-   dist stays 23) — sits in the top bar after the brand mark so the
-   operator can tell at a glance which build is running (the frozen
-   APP_VERSION 1.11.0 never changes, so the stamp is the build's
-   identity). 9px is BLESSED, not a floor violation: it is a
-   non-content build label, the same precedent as the DS-0
-   bottom-nav badge (10px, pinned in ds0-design-system.test.js and
-   excepted in the Sharafat 97 sweep). Pinned by a guard test. */
-.build-stamp {
-  flex: 0 0 auto;
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  opacity: 0.65;
-}
+/* Hisaab-home polish: the .build-stamp rule is gone with the "d23"
+   header stamp (removed at the user's request — it read as stray
+   debug text). The build identity is the frozen APP_VERSION 1.11.0 +
+   the ?v= pins (nav-pwa.js); no visible stamp remains. */
 .customer-card-action-btn svg { flex: 0 0 auto; }
 .customer-card-action-collect {
   flex: 1 1 0;

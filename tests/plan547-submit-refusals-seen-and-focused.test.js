@@ -312,8 +312,11 @@ test('plan 547 (REPRO): large cash with no approver opens More Options, scrolls 
     const form = openForm(h);
     const details = h.getEl('quickCollectMoreOptions');
     details.open = false;
-    h.getEl('quickCollectLargeCashThreshold').value = '5000';
-    h.getEl('quickCollectAmountInput').value = '10000.00';
+    // QC month-note: the per-payment threshold input is gone (D3) —
+    // the submit reads the standing default (PKR 10,000), so the gate
+    // is triggered with an amount above the default instead of by
+    // lowering the threshold.
+    h.getEl('quickCollectAmountInput').value = '15000.00';
     h.getEl('quickCollectMethodSelect').value = 'Cash';
     await form.dispatch('submit');
 
@@ -430,7 +433,10 @@ test('plan 547 wiring: the TID pattern shared, pre-checks before the confirm and
   // The large-cash block opens More Options before focusing the
   // approver, and it is the only submit-time focus target inside
   // the section.
-  const cashIdx = wiringSrc.indexOf('requiresLargeCashApproval(isCashPaymentMethod(methodVal)');
+  // QC month-note: renderMonthNoteConditionals calls the same rule
+  // earlier in the file, so the first occurrence is the render, not
+  // the submit gate — anchor the slice at the submit handler.
+  const cashIdx = wiringSrc.indexOf('requiresLargeCashApproval(isCashPaymentMethod(methodVal)', submitIdx);
   const cashBlock = wiringSrc.slice(cashIdx, cashIdx + 1200);
   assert.ok(cashBlock.includes('moreOptionsDetails.open = true;'), 'details opened before the focus');
   assert.ok(cashBlock.indexOf('moreOptionsDetails.open = true;') < cashBlock.indexOf('largeCashApproverInput?.focus();'), 'open happens before focus');

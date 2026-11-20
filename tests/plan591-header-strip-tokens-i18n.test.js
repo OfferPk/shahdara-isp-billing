@@ -441,9 +441,9 @@ test('G4c: the pills stay pale in dark — DISCLOSED shortfall, not a pass', () 
 
 // ================= G5 — Guards + completeness =================
 
-test('G5a: parity is 5,203/5,203 and the re-pin set is complete', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5203, 'EN parity 5,203');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5203, 'UR parity 5,203');
+test('G5a: parity is 5,204/5,204 and the re-pin set is complete', () => {
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5204, 'EN parity 5,204');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5204, 'UR parity 5,204');
   // Every file that pinned 5,195 now pins 5,203 (36 files), and no file
   // still pins the old count. This file itself asserts 5,168 — plus
   // Plan 592's new test file, which pins 5,168 as its own G5 guard
@@ -467,7 +467,9 @@ test('G5a: parity is 5,203/5,203 and the re-pin set is complete', () => {
   // holds at 35 through 612 — and the Performance & Collection
   // Analytics new test file pins the new total, which is why the count
   // moves to 36 — and the business-counter new test file pins the new
-  // total, which is why the count moves to 37.) The sweep below
+  // total, which is why the count moves to 37 — and the Inventory &
+  // Materials new test file pins no parity total, which is why the
+  // count holds at 37.) The sweep below
   // counts 37, not 38: the privacy canary
   // (tests/privacy-zero-pii-ratchet.test.js) holds the OLD digits
   // '5162' inside the invented CNIC '35202-4815162-3' — a PII fixture,
@@ -479,9 +481,9 @@ test('G5a: parity is 5,203/5,203 and the re-pin set is complete', () => {
   // which holds the old digits inside its invented CNIC. Every OTHER
   // file must be clean.
   const old = testFiles.filter((f) => f !== 'plan591-header-strip-tokens-i18n.test.js' && f !== 'privacy-zero-pii-ratchet.test.js' && read(`tests/${f}`).includes('5195'));
-  const fresh = testFiles.filter((f) => read(`tests/${f}`).includes('5203'));
+  const fresh = testFiles.filter((f) => read(`tests/${f}`).includes('5204'));
   assert.deepEqual(old, [], 'no test file may still pin 5,195');
-  assert.equal(fresh.length, 37, `expected 37 files containing 5,203 (36 re-pins + the business-counter pinning file; the privacy canary holds the old digits), got ${fresh.length}: ${fresh.join(', ')}`);
+  assert.equal(fresh.length, 37, `expected 37 files containing 5,204 (36 re-pins + the business-counter pinning file; the privacy canary holds the old digits), got ${fresh.length}: ${fresh.join(', ')}`);
 });
 
 test('G5b: the wiring is the labels object, and the module stays pure', () => {
@@ -529,7 +531,7 @@ test('G5c: the strings left behind are listed, not silently claimed fixed', () =
   for (const name of staleTitleFiles) {
     const src = read(`tests/${name}`);
     assert.ok(src.includes('4,669'), `${name} still carries its stale '4,669' title/comment (not this plan's sweep)`);
-    assert.ok(src.includes('5203'), `${name} pins 5,203 in its asserts`);
+    assert.ok(src.includes('5204'), `${name} pins 5,204 in its asserts`);
     assert.ok(!src.includes('5195'), `${name} no longer pins 5,195`);
   }
 });

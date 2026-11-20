@@ -566,7 +566,7 @@ test('hisaab H4 G3: buried triggers untouched and no Hisaab wiring in the engine
 });
 
 // G4 — the binding is once-only, and parity moves with the 612 keys.
-// The parity digits are searched as a split literal ('52' + '03'): this
+// The parity digits are searched as a split literal ('52' + '04'): this
 // file must NOT contain the bare digits — 591's G5a sweep counts every
 // test file containing them and asserts 37, so a literal here would make
 // this the 38th file and break the suite. The count below is 37 pinning
@@ -592,7 +592,7 @@ test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag,
     'the H5 keys exist in nav-language.js (34 hisaab_* + the one exp_* refusal hint)');
   assert.equal(Object.keys(TRANSLATIONS.en).length, Object.keys(TRANSLATIONS.ur).length,
     'the EN and UR dicts still agree');
-  const parityDigits = '52' + '03';
+  const parityDigits = '52' + '04';
   const pinning = fs.readdirSync(path.join(__dirname)).filter((f) =>
     f.endsWith('.test.js') && fs.readFileSync(path.join(__dirname, f), 'utf8').includes(parityDigits));
   assert.equal(pinning.length, 37, `expected 37 test files containing the current parity digits (36 re-pins + the business-counter pinning file; the privacy canary holds the old digits), got ${pinning.length}: ${pinning.join(', ')}`);

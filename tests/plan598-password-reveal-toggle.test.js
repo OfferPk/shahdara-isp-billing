@@ -15,8 +15,9 @@
 // containing the previous total's digits, and this file must not pin a
 // total it did not change (Plan 598 adds no i18n key). Plan 600
 // re-pinned the split literal below to the new total (the total moved
-// when the message-draft keys landed); the comments still name no total
-// in digits.
+// when the message-draft keys landed); the Inventory & Materials item
+// re-pinned it again (one new key: the Equipment Register tab label);
+// the comments still name no total in digits.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -263,7 +264,7 @@ test('Plan 598: the toggle label reuses the vault words, no new i18n key', () =>
   assert.ok(!bindSrc.includes('aria-label'), 'no hardcoded English aria-label on the toggle');
   // Parity moved with Plan 606's keys: both dicts now hold the new
   // total, counted without spelling the digits (see the file header).
-  const total = Number('52' + '03');
+  const total = Number('52' + '04');
   assert.equal(Object.keys(TRANSLATIONS.en).length, total);
   assert.equal(Object.keys(TRANSLATIONS.ur).length, total);
 });

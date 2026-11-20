@@ -38,7 +38,7 @@ export const SCREENS = {
   assistant: { view: 'ownerCommandCenter', title: 'Owner Assistant', subtitle: 'Ask about saved bills, collections, and customer balances', action: { label: 'Ask Question', focus: '#ownerCommandInput' } },
   backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
   analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', title: 'Area Analytics', subtitle: 'Areas, zones and packages', action: { label: 'Export Area CSV', click: '#exportAreaIntelCsvBtn' } },
-  inventory: { view: 'inventoryView', tab: 'showInventoryButton', title: 'Inventory', subtitle: 'Stock items and movements', action: { label: '+ Add Item', focus: '#inventoryItemForm' } },
+  inventory: { view: 'inventoryView', tab: 'showInventoryButton', title: 'Inventory', subtitle: 'Stock items and movements', action: { label: '+ Add Item', click: '#inventoryItemCreateSummary' } },
   expenses: { view: 'expensesView', tab: 'showExpensesButton', title: 'Expenses', subtitle: 'Business expenses and payroll', action: { label: '+ Add Expense', focus: '#expenseForm' } },
   homeBudget: { view: 'homeBudgetView', tab: 'showHomeBudgetButton', title: 'Home Budget', subtitle: 'Personal household expenses, kept apart from business money', action: { label: '+ Add Home Expense', focus: '#homeBudgetDate' } },
   loans: { view: 'loanView', tab: 'showLoansButton', title: 'Loan Ledger', subtitle: 'Personal loans: dena hai and lena hai, kept apart from business money', action: { label: '+ Add Loan', focus: '#loanForm' } },

@@ -43162,6 +43162,13 @@ function renderInventory() {
   metric('inventoryValue',summary.hasMovements?formatAmount(summary.availableValue):'Not set');
 
   const allItems = items;
+  const metricGrid = $('#inventoryMetricGrid');
+  if (metricGrid) metricGrid.hidden = allItems.length === 0;
+  const filterToolbar = $('#inventoryFilterToolbar');
+  if (filterToolbar) filterToolbar.hidden = allItems.length === 0;
+  const movementTableScroll = $('#inventoryMovementTableScroll');
+  if (movementTableScroll) movementTableScroll.hidden = summary.movements.length === 0;
+  syncInventoryTabs();
   const filteredItems = allItems.filter(item => {
     if (inventoryCategoryFilter !== 'all' && item.category !== inventoryCategoryFilter) return false;
     if (inventoryStockFilter !== 'all') {
@@ -43266,7 +43273,7 @@ function renderInventory() {
   $('#inventoryMovementsEmpty').hidden=summary.movements.length>0;
   const movDate=$('#movementDate');
   if(movDate&&!movDate.value) movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);
-  const bindInventoryEditButtons=(root)=>{root?.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));};
+  const bindInventoryEditButtons=(root)=>{root?.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;const itemDetails=$('#inventoryItemCreateDetails');if(itemDetails)itemDetails.open=true;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));};
   bindInventoryEditButtons(itemsTable);
   bindInventoryEditButtons(itemCards);
   $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',async()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement)return;if(!await appConfirm({tone:'danger',title:'Delete this stock movement?',subject:`${movement.type} · ${movement.quantity} ${movement.unit} · ${movement.date}`,message:'This may change all current inventory balances.',confirmLabel:'Delete movement'}))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.',{type:'success',title:'Deleted'});}catch(error){toast(error.message,{type:'error'});}}));
@@ -43285,6 +43292,13 @@ let expenseActiveTab = 'ledger';
 let nasirShareMonth = '';
 let aqibShareMonth = '';
 
+let inventoryActiveTab = 'equipment';
+function syncInventoryTabs() {
+  const tabs = { stock: '#inventoryTabStock', equipment: '#inventoryTabEquipment' };
+  const panels = { stock: '#inventoryStockPanel', equipment: '#inventoryEquipmentPanel' };
+  for (const [key, sel] of Object.entries(tabs)) { const btn = $(sel); if (btn) btn.setAttribute('aria-selected', String(key === inventoryActiveTab)); }
+  for (const [key, sel] of Object.entries(panels)) { const panel = $(sel); if (panel) panel.hidden = key !== inventoryActiveTab; }
+}
 function syncExpenseTabs() {
   const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib', settlement: '#expenseTabSettlement', overheads: '#expenseTabOverheads', upstream: '#expenseTabUpstream' };
   const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel', settlement: '#partnerSettlementPanel', overheads: '#overheadsPanel', upstream: '#upstreamPanel' };
@@ -44203,7 +44217,7 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   if (expenseActiveTab === 'upstream') renderUpstream();
 }
 function renderPhase3() { renderAnalytics();renderInventory();renderExpenses();renderHomeBudget(); }
-function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
+function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true;const itemDetails=$('#inventoryItemCreateDetails');if(itemDetails)itemDetails.open=false; }
 
 function clearExpenseInlineErrors() {
   ['expenseDateError', 'expenseAmountError', 'expenseCategoryError', 'expenseAreaError', 'expenseNotesError'].forEach(id => {
@@ -44257,7 +44271,14 @@ function resetExpenseForm() {
 }
 $('#inventoryItemForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={name:data.get('name'),category:data.get('category'),unit:data.get('unit'),minimumStock:data.get('minimumStock'),unitCost:data.get('unitCost')||null,createdDate:data.get('createdDate')||null,notes:data.get('notes')};try{const id=data.get('itemId');state=id?updateInventoryItem(state,id,fields):addInventoryItem(state,fields);save();resetInventoryForm();toast(id?'Inventory item updated on this device.':'Item definition saved; no stock was added.');}catch(error){toast(error.message);}});
 $('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
-$('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();const movDate=$('#movementDate');if(movDate)movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
+function syncMovementFields() {
+  const type = $('#movementType')?.value || '';
+  setRegistryFieldVisible($('#movementFromState')?.closest('label'), type === 'damage' || type === 'correction', $('#movementFromState'));
+  setRegistryFieldVisible($('#movementToState')?.closest('label'), type === 'correction', $('#movementToState'));
+}
+$('#movementType')?.addEventListener('change', syncMovementFields);
+syncMovementFields();
+$('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();const movDate=$('#movementDate');if(movDate)movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);syncMovementFields();const movDetails=$('#inventoryMovementCreateDetails');if(movDetails)movDetails.open=false;toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
 $('#loanForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={person:data.get('person'),phone:data.get('phone'),direction:data.get('direction'),kind:data.get('kind'),amount:data.get('amount'),date:data.get('date'),note:data.get('note')};try{saveLoans(addLoanEntry(loadLoans(),fields));event.currentTarget.reset();const loanDate=$('#loanDate');if(loanDate)loanDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);renderLoans();toast('Loan entry saved on this device.');}catch(error){toast(error.message);}});
 $('#loanSearchInput').addEventListener('input',event=>{loanSearchQuery=event.currentTarget.value;renderLoans();});
 $('#loanDirectionFilter').addEventListener('change',event=>{loanDirectionFilter=event.currentTarget.value;renderLoans();});
@@ -44662,6 +44683,8 @@ $('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
 [['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement'],['overheads','#expenseTabOverheads'],['upstream','#expenseTabUpstream']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',async()=>{const pinAction=key==='settlement'?'partner-settlement':(key==='nasir'||key==='aqib')?'partner-shares':null;if(pinAction&&collectorBlocked(pinAction))return;if(pinAction&&!await requireOwnerPin(pinAction))return;expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key==='upstream')renderUpstream();else if(key!=='ledger')renderPartnerShare(key);});});
+[['stock','#inventoryTabStock'],['equipment','#inventoryTabEquipment']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{inventoryActiveTab=key;syncInventoryTabs();});});
+$('#inventoryItemCreateSummary')?.addEventListener('click',event=>{const details=$('#inventoryItemCreateDetails');if(details?.open)event.preventDefault();setTimeout(()=>{$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});$('#inventoryName')?.focus({preventScroll:true});},0);});
 $('#nasirShareMonth')?.addEventListener('change',event=>{nasirShareMonth=event.currentTarget.value;renderPartnerShare('nasir');});
 $('#aqibShareMonth')?.addEventListener('change',event=>{aqibShareMonth=event.currentTarget.value;renderPartnerShare('aqib');});
 $('#partnerSettlementMonth')?.addEventListener('change',event=>{partnerSettlementMonth=event.currentTarget.value;renderPartnerSettlement();});
@@ -48156,7 +48179,9 @@ if (typeof document !== 'undefined') {
     if (hardwareRecoveryModal && typeof hardwareRecoveryModal.showModal === 'function') hardwareRecoveryModal.showModal();
   };
   $('#hardwareRecoveryCloseBtn')?.addEventListener('click', () => hardwareRecoveryModal?.close());
-  $('#openHardwareRecoveryModalBtn')?.addEventListener('click', openHardwareRecoveryModal);
+  const recoveryHead = document.querySelector('.summary-hardware-recovery .ds-card-head');
+  recoveryHead?.addEventListener('click', openHardwareRecoveryModal);
+  recoveryHead?.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openHardwareRecoveryModal(); } });
   hardwareRecoveryList?.addEventListener('click', (event) => {
     const recoverBtn = event.target.closest('[data-hardware-recover]');
     const recoverAllBtn = event.target.closest('[data-hardware-recover-all]');

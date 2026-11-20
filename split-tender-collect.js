@@ -571,6 +571,11 @@ export function buildSplitTenderReceipt(state, customerId, groupId, tickets = nu
       leg,
       paymentId: payment.id,
       receiptNumber: receipt.permanentReceiptNumber || receipt.receiptNumber,
+      // QC receipt numbering: each leg carries its own global sequence
+      // (issued by addPayment, like every other payment) — the split
+      // card shows it; the VER stamp below still re-derives from the
+      // leg's receiptNumber, never from the sequence.
+      receiptSequence: payment.receiptSequence ?? null,
       method: receipt.paymentMethod || payment.method || '',
       amount: moneyOf(payment.amount),
       transactionId: receipt.transactionId || '',
@@ -1018,7 +1023,7 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { next
     return `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))} · ${escapeHtml(leg.method)}${leg.voided ? ` (${escapeHtml(t('split_voided_leg'))})` : ''}</span>
-          <strong class="qc-meta-val">PKR ${Number(leg.amount).toLocaleString('en-PK')} · ${escapeHtml(shortReceiptNumber(leg.receiptNumber))}${leg.transactionId ? ` · TID ${escapeHtml(leg.transactionId)}` : ''}${legVerStamp ? ` · ${escapeHtml(legVerStamp)}` : ''}</strong>
+          <strong class="qc-meta-val">PKR ${Number(leg.amount).toLocaleString('en-PK')} · ${leg.receiptSequence != null ? escapeHtml(String(leg.receiptSequence)) : escapeHtml(shortReceiptNumber(leg.receiptNumber))}${leg.transactionId ? ` · TID ${escapeHtml(leg.transactionId)}` : ''}${legVerStamp ? ` · ${escapeHtml(legVerStamp)}` : ''}</strong>
         </div>`;
   }).join('');
   // Sharafat 1: the waived-fee and remainder-waada rows, in the single

@@ -310,18 +310,24 @@ test('Plan 397: core.js validates, carries, and projects the approval', () => {
   assert.equal(coreSrc.includes('largeCashApproval: largeCashApprovalOf(payment)'), true);
 });
 
-test('Plan 397: the Quick Collect form offers the threshold and approver and the submit carries them', () => {
-  assert.equal(indexSrc.includes('id="quickCollectLargeCashThreshold"'), true);
+// QC month-note: the per-payment threshold input is gone from the QC
+// form (D3) — the submit reads the standing module default instead.
+// The four threshold-input assertions below are flipped to absent and
+// the submit-read assertion names the default; the approver field and
+// its carries are unchanged, and the profile form keeps its own
+// threshold input (pinned by the test below).
+test('Plan 397: the Quick Collect form offers the approver and the submit carries it at the standing default threshold', () => {
+  assert.equal(indexSrc.includes('id="quickCollectLargeCashThreshold"'), false);
   assert.equal(indexSrc.includes('id="quickCollectLargeCashApprover"'), true);
-  assert.equal(indexSrc.includes('value="10000"'), true);
   assert.equal(LARGE_CASH_DEFAULT_THRESHOLD_CENTS / 100, 10000);
   assert.equal(navSrc.includes("from './large-cash-approval.js'"), true);
-  assert.equal(navSrc.includes('largeCashThresholdInput?.value'), true);
+  assert.equal(navSrc.includes('largeCashThresholdInput?.value'), false);
   assert.equal(navSrc.includes('largeCashApproverInput?.value'), true);
   assert.equal(navSrc.includes('largeCashApproval: largeCashApprover || undefined,'), true);
   assert.equal(navSrc.includes('largeCashThresholdCents: largeCashThresholdCents,'), true);
   assert.equal(navSrc.includes('largeCashApproval: largeCashApproval || undefined,'), true);
-  assert.equal(navSrc.includes("if (largeCashThresholdInput) largeCashThresholdInput.value = String(LARGE_CASH_DEFAULT_THRESHOLD_CENTS / 100);"), true);
+  assert.equal(navSrc.includes('const largeCashThresholdCents = LARGE_CASH_DEFAULT_THRESHOLD_CENTS;'), true);
+  assert.equal(navSrc.includes("if (largeCashThresholdInput) largeCashThresholdInput.value = String(LARGE_CASH_DEFAULT_THRESHOLD_CENTS / 100);"), false);
   assert.equal(navSrc.includes("if (largeCashApproverInput) largeCashApproverInput.value = '';"), true);
 });
 

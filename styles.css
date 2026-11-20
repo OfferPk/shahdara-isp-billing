@@ -1575,6 +1575,12 @@ is only ~300px wide. */
 .profile-tab-panels{min-width:0}
 .profile-tab-panel{min-width:0}
 .profile-tab-panel[hidden],.customer-profile-view[hidden],.customer-profile-form[hidden]{display:none!important}
+.wa-tab-panel[hidden]{display:none!important}
+.wa-intro-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.wa-intro-row .phase3-note{flex:1 1 auto;min-width:0}
+.wa-intro-row .local-only-badge{flex:none}
+#waStudioCards textarea.wa-template-text{width:100%;min-width:0;min-height:40px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:9px 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;resize:vertical}
+/* No :focus rule here by design — the global :focus-visible baseline (Plan 589) gives this textarea the single green ring; a :focus #cce9dd rule would add a 9th exception to the pinned tally. */
 .customer-profile-view{min-width:0}
 .profile-view-heading{margin-bottom:12px;flex-wrap:wrap}
 /* Plan 510: the heading badges live on their own full-width row under the

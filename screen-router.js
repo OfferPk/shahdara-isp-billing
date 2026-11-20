@@ -42,7 +42,7 @@ export const SCREENS = {
   expenses: { view: 'expensesView', tab: 'showExpensesButton', title: 'Expenses', subtitle: 'Business expenses and payroll', action: { label: '+ Add Expense', focus: '#expenseForm' } },
   homeBudget: { view: 'homeBudgetView', tab: 'showHomeBudgetButton', title: 'Home Budget', subtitle: 'Personal household expenses, kept apart from business money', action: { label: '+ Add Home Expense', focus: '#homeBudgetDate' } },
   loans: { view: 'loanView', tab: 'showLoansButton', title: 'Loan Ledger', subtitle: 'Personal loans: dena hai and lena hai, kept apart from business money', action: { label: '+ Add Loan', focus: '#loanForm' } },
-  waTemplates: { view: 'waTemplatesView', tab: 'showWaTemplatesButton', title: 'WhatsApp Templates', subtitle: 'Editable Urdu and Roman Urdu messages plus a 1-tap campaign queue', action: { label: 'Start Campaign', focus: '#waCampaignStart' } },
+  waTemplates: { view: 'waTemplatesView', tab: 'showWaTemplatesButton', title: 'WhatsApp Templates', subtitle: 'Editable Urdu and Roman Urdu messages plus a 1-tap campaign queue', action: { label: 'Start Campaign', click: '#waTabCampaign' } },
   // Payments Inbox cleanup: no header action — the toolbar inside the
   // view already carries the one Sync Sheet button, and a header action
   // would be the third copy of it. The shorter subtitle fits the phone

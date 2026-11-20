@@ -210,6 +210,9 @@ test('Inner Tabs (§6): the four secondary forms collapse into accordions, defau
   assert.ok(ui.includes("<details class=\"profile-accordion\"><summary>${esc(t('boost_add'))}</summary>"), 'the boost add form is a collapsed accordion');
   for (const source of [app, ui]) {
     for (const tag of source.match(/<details[^>]*profile-accordion[^>]*>/g) ?? []) {
+      // WhatsApp template accordions are a separate surface (first card opens
+      // by design) — this assertion owns only the profile forms.
+      if (tag.includes('wa-template-accordion')) continue;
       assert.ok(!tag.includes(' open'), `no accordion opens by default: ${tag}`);
     }
   }

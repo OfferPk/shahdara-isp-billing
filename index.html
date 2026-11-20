@@ -14979,13 +14979,15 @@
         </section>
       </div>
     </section>
-    <section id="waTemplatesView" class="phase3-view" aria-labelledby="waTemplatesHeading" hidden>
+    <section id="waTemplatesView" class="phase3-view" aria-label="WhatsApp Templates" hidden>
       <div class="phase3-pane">
-        <div class="phase3-heading"><div><p class="eyebrow">MESSAGING · 1-TAP ONLY, NEVER AUTOMATIC</p><h2 id="waTemplatesHeading">WhatsApp Templates</h2><p class="phase3-note">Edit the five messages in Roman Urdu or Urdu script, then run a campaign through unpaid customers one by one. Send &amp; Next opens the WhatsApp draft and stamps lastRemindedAt on that customer.</p></div><p class="local-only-badge">Local only</p></div>
-        <section class="table-card"><div class="table-heading"><div><p class="eyebrow">TEMPLATE STUDIO</p><h3>Edit message templates</h3></div></div>
-          <div id="waStudioCards" aria-live="polite"></div>
-        </section>
-        <section class="table-card"><div class="table-heading"><div><p class="eyebrow">CAMPAIGN QUEUE</p><h3>Send &amp; Next, one customer at a time</h3></div></div>
+        <div class="profile-tabs" role="tablist" aria-label="WhatsApp Templates sections">
+          <button id="waTabCampaign" class="profile-tab-button" type="button" role="tab" aria-controls="waCampaignPanel" aria-selected="true" tabindex="0"><span class="profile-tab-label" data-i18n="wa_tab_campaign">Campaign Queue</span></button>
+          <button id="waTabTemplates" class="profile-tab-button" type="button" role="tab" aria-controls="waTemplatesPanel" aria-selected="false" tabindex="-1"><span class="profile-tab-label" data-i18n="wa_tab_templates">Templates</span></button>
+        </div>
+        <div class="wa-intro-row"><p class="phase3-note">Edit the six messages in Roman Urdu or Urdu script, then run a campaign through unpaid customers one by one. Send &amp; Next opens the WhatsApp draft and marks the customer as reminded.</p><p class="local-only-badge">Local only</p></div>
+        <section class="table-card wa-tab-panel" id="waCampaignPanel" role="tabpanel" aria-labelledby="waTabCampaign"><div class="table-heading"><div><p class="eyebrow">CAMPAIGN QUEUE</p><h3>Send &amp; Next, one customer at a time</h3></div></div>
+          <p class="phase3-note" id="waCampaignHelp">Start a campaign to step through unpaid customers one by one.</p>
           <div class="table-filter-toolbar" role="region" aria-label="Filter campaign queue">
             <div class="table-filter-group"><label for="waCampaignZone" class="sr-only">Filter by zone</label><select id="waCampaignZone" class="table-filter-select" aria-label="Filter by zone"><option value="all">All zones</option></select></div>
             <div class="table-filter-group"><label for="waCampaignTier" class="sr-only">Filter by Waada tier</label><select id="waCampaignTier" class="table-filter-select" aria-label="Filter by Waada tier"><option value="all">All Waada tiers</option><option value="broken">Broken waada</option><option value="active">No waada</option><option value="promised">Promised waada</option></select></div>
@@ -14995,6 +14997,9 @@
             <span id="waCampaignProgress" class="table-filter-count" role="status" aria-live="polite"></span>
           </div>
           <div id="waCampaignCard" aria-live="polite"></div>
+        </section>
+        <section class="table-card wa-tab-panel" id="waTemplatesPanel" role="tabpanel" aria-labelledby="waTabTemplates" hidden><div class="table-heading"><div><p class="eyebrow">TEMPLATE STUDIO</p><h3>Edit message templates</h3></div></div>
+          <div id="waStudioCards" aria-live="polite"></div>
         </section>
       </div>
     </section>

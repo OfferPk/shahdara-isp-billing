@@ -241,3 +241,29 @@ export function buildPaymentReceivedMessage(customer, payment, templates = null,
   const list = Array.isArray(templates) ? templates : getWaTemplates();
   return renderWaTemplateFor(list, 'paymentReceived', customer, { totalDue: payment?.amount ?? payment?.totalDue ?? null }, variant);
 }
+
+/**
+ * Studio drafts: an unsaved textarea edit must survive a studio re-render
+ * (a language switch or a save rebuilds #waStudioCards from scratch). The
+ * draft map is keyed by template id + variant, so a Roman Urdu edit can
+ * never leak into the Urdu textarea (or the reverse). Pure helpers — the
+ * studio renderer in app.js calls them, and the test drives them directly
+ * (app.js boots the whole app at import time, so its renderer cannot run
+ * under node).
+ */
+export function waStudioDraftKey(id, variant) {
+  return `${id}:${variant === 'urdu' ? 'urdu' : 'roman'}`;
+}
+export function captureWaStudioDraft(drafts, id, variant, value) {
+  drafts[waStudioDraftKey(id, variant)] = value;
+  return drafts;
+}
+export function waStudioDraftBody(drafts, id, variant, savedBody) {
+  const draft = drafts[waStudioDraftKey(id, variant)];
+  return draft === undefined ? savedBody : draft;
+}
+export function clearWaStudioDrafts(drafts, id) {
+  delete drafts[waStudioDraftKey(id, 'roman')];
+  delete drafts[waStudioDraftKey(id, 'urdu')];
+  return drafts;
+}

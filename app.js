@@ -790,7 +790,7 @@ import {
   markCustomerLastReminded
 } from './reminder-queue.js?v=1.11.0';
 import { fixCollectInfo, runResolveAndCollect } from './fix-and-collect-bridge.js';
-import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor, renderCustomWaTemplate } from './whatsapp-templates.js?v=1.11.0';
+import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor, renderCustomWaTemplate, captureWaStudioDraft, waStudioDraftBody, clearWaStudioDrafts } from './whatsapp-templates.js?v=1.11.0';
 import { HANDLING_NOTE_STORE_KEY, normalizeHandlingNoteList, recordHandlingNote, removeHandlingNote, handlingNoteForCustomer, handlingNoteSectionHtml } from './handling-note.js';
 import { STANDING_INSTRUCTION_STORE_KEY, normalizeStandingInstructionList, recordStandingInstruction, removeStandingInstruction, standingInstructionForCustomer, standingInstructionSectionHtml } from './standing-instruction-note.js';
 import { SPOKEN_LANGUAGE_NOTE_STORE_KEY, normalizeSpokenLanguageNoteList, recordSpokenLanguageNote, removeSpokenLanguageNote, spokenLanguageNoteForCustomer, spokenLanguageNoteSectionHtml } from './spoken-language-note.js';
@@ -43735,25 +43735,57 @@ function renderUpstream() {
 }
 
 let waStudioLang = {};
+let waStudioDrafts = {};
+let waStudioOpen = 'billGenerated';
+let waShowTab = 'campaign';
 let waCampaign = null;
 let waCampaignSent = 0;
 const waTierLabel = tier => tier === 'broken' ? 'Broken waada' : tier === 'promised' ? 'Promised waada' : tier === 'active' ? 'No waada' : '—';
 function waStudioVariant(id) { return waStudioLang[id] || 'roman'; }
+function waSetTab(name) {
+  waShowTab = name;
+  const campaignPanel = $('#waCampaignPanel');
+  const templatesPanel = $('#waTemplatesPanel');
+  if (campaignPanel) campaignPanel.hidden = name !== 'campaign';
+  if (templatesPanel) templatesPanel.hidden = name !== 'templates';
+  const campaignTab = $('#waTabCampaign');
+  const templatesTab = $('#waTabTemplates');
+  if (campaignTab) { campaignTab.setAttribute('aria-selected', String(name === 'campaign')); campaignTab.tabIndex = name === 'campaign' ? 0 : -1; }
+  if (templatesTab) { templatesTab.setAttribute('aria-selected', String(name === 'templates')); templatesTab.tabIndex = name === 'templates' ? 0 : -1; }
+}
 function waRenderStudio() {
   const host = $('#waStudioCards');
   if (!host) return;
+  // Draft capture: a language switch or save rebuilds this host from
+  // scratch, so capture any unsaved textarea edit first or it is wiped.
+  // The variant comes from the textarea's own data-wa-variant — the
+  // language button sets waStudioLang BEFORE this re-render, so reading
+  // the current variant here would mis-key the draft to the new variant.
+  host.querySelectorAll('textarea.wa-template-text').forEach(area => {
+    captureWaStudioDraft(waStudioDrafts, area.dataset.waId, area.dataset.waVariant, area.value);
+  });
   const templates = getWaTemplates();
   host.innerHTML = templates.map(template => {
     const variant = waStudioVariant(template.id);
-    const body = variant === 'urdu' ? template.urdu : template.roman;
-    return `<article class="table-card wa-template-card"><div class="table-heading"><div><p class="eyebrow">${escapeHtml(WA_TEMPLATE_LABELS[template.id])}</p><h3>${escapeHtml(WA_TEMPLATE_LABELS[template.id])}</h3></div></div>`
+    const body = waStudioDraftBody(waStudioDrafts, template.id, variant, variant === 'urdu' ? template.urdu : template.roman);
+    const open = waStudioOpen === template.id;
+    return `<details class="profile-accordion wa-template-accordion" data-wa-accordion="${template.id}"${open ? ' open' : ''}><summary>${escapeHtml(WA_TEMPLATE_LABELS[template.id])}</summary>`
+      + `<div class="profile-accordion-body"><div class="table-heading"><div><h3>${escapeHtml(WA_TEMPLATE_LABELS[template.id])}</h3></div></div>`
       + `<p class="phase3-note">${escapeHtml(WA_TEMPLATE_DESCRIPTIONS[template.id])}</p>`
-      + `<div class="table-filter-toolbar" role="group" aria-label="Template language"><button type="button" class="secondary-button" data-wa-lang="roman" data-wa-id="${template.id}" ${variant === 'roman' ? 'disabled' : ''}>Roman Urdu</button>`
-      + `<button type="button" class="secondary-button" data-wa-lang="urdu" data-wa-id="${template.id}" ${variant === 'urdu' ? 'disabled' : ''}>اردو</button></div>`
-      + `<textarea id="waTemplateText-${template.id}" rows="4" maxlength="1000" aria-label="${escapeHtml(WA_TEMPLATE_LABELS[template.id])} text">${escapeHtml(body)}</textarea>`
+      + `<div class="ds-segmented" role="group" aria-label="Template language"><button type="button" class="ds-segmented__button" data-wa-lang="roman" data-wa-id="${template.id}" aria-selected="${variant === 'roman'}" aria-pressed="${variant === 'roman'}">Roman Urdu</button>`
+      + `<button type="button" class="ds-segmented__button" data-wa-lang="urdu" data-wa-id="${template.id}" aria-selected="${variant === 'urdu'}" aria-pressed="${variant === 'urdu'}">اردو</button></div>`
+      + `<textarea id="waTemplateText-${template.id}" class="wa-template-text" data-wa-id="${template.id}" data-wa-variant="${variant}" rows="6" maxlength="1000" aria-label="${escapeHtml(WA_TEMPLATE_LABELS[template.id])} text">${escapeHtml(body)}</textarea>`
       + `<p class="phase3-note">Placeholders: ${WA_PLACEHOLDER_KEYS.map(key => `{${key}}`).join(' ')}</p>`
-      + `<div class="form-actions"><button type="button" class="primary-button" data-wa-save="${template.id}">Save template</button></div></article>`;
+      + `<div class="form-actions"><button type="button" class="primary-button" data-wa-save="${template.id}">Save template</button></div></div></details>`;
   }).join('');
+  host.querySelectorAll('[data-wa-accordion]').forEach(card => card.addEventListener('toggle', () => {
+    if (card.open) {
+      waStudioOpen = card.dataset.waAccordion;
+      host.querySelectorAll('[data-wa-accordion]').forEach(other => { if (other !== card) other.open = false; });
+    } else if (!host.querySelector('[data-wa-accordion][open]')) {
+      waStudioOpen = null;
+    }
+  }));
   host.querySelectorAll('[data-wa-lang]').forEach(btn => btn.addEventListener('click', () => {
     waStudioLang[btn.dataset.waId] = btn.dataset.waLang;
     waRenderStudio();
@@ -43762,6 +43794,7 @@ function waRenderStudio() {
     const id = btn.dataset.waSave;
     const value = $(`#waTemplateText-${id}`)?.value ?? '';
     updateWaTemplate(localStorage, id, { [waStudioVariant(id)]: value });
+    clearWaStudioDrafts(waStudioDrafts, id);
     toast(`${WA_TEMPLATE_LABELS[id]} template saved.`);
     waRenderStudio();
   }));
@@ -43776,7 +43809,7 @@ function waCampaignTemplateFor(item) {
   return waCampaign?.templateId || 'politeReminder';
 }
 function waCampaignCardHtml() {
-  if (!waCampaign) return '<p class="empty-state">Start a campaign below to step through unpaid customers one by one.</p>';
+  if (!waCampaign) return '';
   if (waCampaign.index >= waCampaign.items.length) {
     return `<p class="empty-state">Campaign complete — ${waCampaignSent} reminder${waCampaignSent === 1 ? '' : 's'} sent.</p>`;
   }
@@ -43834,6 +43867,17 @@ function renderWaTemplates() {
   }
   waRenderStudio();
   waRenderCampaignCurrent();
+  const campaignTab = $('#waTabCampaign');
+  if (campaignTab && !campaignTab.dataset.waWired) {
+    campaignTab.dataset.waWired = 'true';
+    campaignTab.addEventListener('click', () => waSetTab('campaign'));
+  }
+  const templatesTab = $('#waTabTemplates');
+  if (templatesTab && !templatesTab.dataset.waWired) {
+    templatesTab.dataset.waWired = 'true';
+    templatesTab.addEventListener('click', () => waSetTab('templates'));
+  }
+  waSetTab(waShowTab);
   const start = $('#waCampaignStart');
   if (start && !start.dataset.waWired) {
     start.dataset.waWired = 'true';

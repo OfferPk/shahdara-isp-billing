@@ -301,11 +301,19 @@ test('status merge: the card headers no longer carry the settle badge (ordinary 
   const card = renderQuickCollectReceiptCardHtml(CARD_RECEIPT);
   assert.ok(!card.includes('Settle in Full'), 'ordinary card header must not carry the settle badge any more');
   assert.ok(!card.includes('Partial Payment'), 'ordinary card header must not carry the partial badge any more');
-  const headerStart = card.indexOf('qc-receipt-header');
-  const headerEnd = card.indexOf('</div>', headerStart);
-  const header = card.slice(headerStart, headerEnd);
-  assert.ok(!header.includes('badge-receipt-unshared') && !header.includes('badge-receipt-shared'), 'ordinary card header must not carry the shared badge (removed by the QC receipt micro-polish, 2026-11-20)');
-  assert.ok(header.includes('RCPT-12-202611-01'), 'ordinary card header must keep the receipt id');
+  // Numbering lands second (§0.4 empty-header rule): the header div is
+  // gone — the micro-polish removed the shared badge, numbering removed
+  // the ref chip.
+  assert.ok(!card.includes('qc-receipt-header'), 'ordinary card header div must be gone');
+  assert.ok(!card.includes('badge-receipt-unshared') && !card.includes('badge-receipt-shared'), 'ordinary card must not carry the shared badge (removed by the QC receipt micro-polish, 2026-11-20)');
+  // QC receipt numbering (2026-11-20) reverses QC-bottom D4(a): the
+  // receipt id no longer lives in the header — it lives in its own pill
+  // row below the header. This fixture receipt has no sequence, so the
+  // row falls back to its stored number.
+  const numberRowStart = card.indexOf('qc-receipt-number-row');
+  assert.ok(numberRowStart >= 0, 'ordinary card must carry the receipt-number pill row');
+  const numberRowEnd = card.indexOf('</div>', numberRowStart);
+  assert.ok(card.slice(numberRowStart, numberRowEnd).includes('RCPT-12-202611-01'), 'ordinary card number row shows the receipt id (fallback: no sequence on this receipt)');
   const splitSettled = renderSplitReceiptCardHtml(SPLIT_COMBINED);
   assert.ok(!splitSettled.includes('Settle in Full'), 'split card header must not carry the settle badge any more');
   const splitPartial = renderSplitReceiptCardHtml(SPLIT_PARTIAL);

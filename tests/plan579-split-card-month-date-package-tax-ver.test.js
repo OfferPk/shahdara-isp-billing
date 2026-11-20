@@ -311,8 +311,8 @@ test('plan579 G4: EN/UR parity stays 4,669/4,669 — the rows use hardcoded labe
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5203, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5203, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5204, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5204, 'UR key count moved');
 });
 
 test('plan579 G4: hex pins hold, and the taxed fully-paid card has 9 grid items (D4(a) placement)', () => {

@@ -205,8 +205,8 @@ test('G4: the collector-mode settings entry and the backup-action blocks are unt
 
 test('G5: parity holds at 4,722/4,722 with equal key sets', () => {
   // Plan 586 (D1(a)): one dead key deleted from both dicts, 4,723 − 1.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5203, 'EN keys');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5203, 'UR keys');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5204, 'EN keys');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5204, 'UR keys');
   assert.deepEqual(
     Object.keys(TRANSLATIONS.en).sort(),
     Object.keys(TRANSLATIONS.ur).sort(),

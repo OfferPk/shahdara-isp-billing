@@ -3348,6 +3348,11 @@ html, body {
   #inventoryItemForm > label:nth-of-type(2) { grid-column: 1 / -1; }
   #inventoryItemForm .form-wide { grid-column: 1 / -1 !important; }
 }
+#inventoryItemForm { align-items: end; }
+#inventoryMetricGrid[hidden] { display: none; }
+#inventoryFilterToolbar[hidden] { display: none; }
+#inventoryMovementForm label[hidden] { display: none; }
+#inventoryTabs { position: sticky; top: 78px; z-index: 5; }
 
 @media (max-width: 620px) {
   .table-pagination {

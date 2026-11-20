@@ -77,7 +77,7 @@ test('profile shows custody fields; archiving flags pending recovery until marke
   await expect(page.locator('.profile-custody-checklist')).toContainText('Media Converter / ONU');
   await expect(page.locator('#dashboardHardwareRecoveryValue')).toContainText('1 customer');
   // Modal lists the pending items; mark one recovered.
-  await page.locator('#openHardwareRecoveryModalBtn').click();
+  await page.locator('.summary-hardware-recovery .ds-card-head').click();
   await expect(page.locator('#hardwareRecoveryList')).toContainText('Test Customer 34');
   await page.locator('[data-hardware-recover="cust-sisp19:mediaConverter"]').click();
   await expect(page.locator('#hardwareRecoveryList')).not.toContainText('Media Converter / ONU');

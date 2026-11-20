@@ -144,10 +144,17 @@ function receiptShareDraftNumbers(receipt) {
   if (split && Array.isArray(split.legs)) {
     return {
       receiptNumber: '',
-      receiptNumbers: split.legs.map((leg) => text(leg?.receiptNumber)).filter(Boolean),
+      // QC receipt numbering: each leg shows its own global sequence;
+      // a leg without one falls back to its stored number, never blank.
+      // (text() takes strings only — the integer is stringified first.)
+      receiptNumbers: split.legs.map((leg) => text(leg?.receiptSequence != null ? String(leg.receiptSequence) : leg?.receiptNumber)).filter(Boolean),
     };
   }
-  return { receiptNumber: text(receipt?.receiptNumber), receiptNumbers: [] };
+  // QC receipt numbering: the draft carries the global sequence when
+  // the receipt has one; the stored number stays the fallback for
+  // legacy receipts recorded before the feature. (text() takes strings
+  // only — the integer is stringified first.)
+  return { receiptNumber: text(receipt?.receiptSequence != null ? String(receipt.receiptSequence) : receipt?.receiptNumber), receiptNumbers: [] };
 }
 
 // The sales tax recorded on the receipt's bill, in integer cents —

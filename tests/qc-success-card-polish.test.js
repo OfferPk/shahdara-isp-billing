@@ -8,8 +8,10 @@ import { receiptShareDraftFor } from '../receipt-share-draft.js';
 
 // QC SUCCESS CARD POLISH (2026-11-13, user spec 2026-11-12 ~15:46 PKT):
 // (1) "Amount Collected" is one GREEN pill with the amount inside;
-// (2) receipt numbers show as simple sequential RCPT-1, RCPT-2… on the
-// card (DISPLAY-ONLY — the stored number is unchanged);
+// (2) receipt numbers show as the one global sequence 1, 2, 3, ... in
+// their own pill row in the same style (QC receipt numbering,
+// 2026-11-20 — the stored number is unchanged; a receipt without a
+// sequence falls back to its stored number);
 // (3) customer number plain "25" (no "#"), name GOLDEN with a KING 👑;
 // (4) "Still owed" is HIDDEN entirely when fully paid;
 // (5) the account's last 4 digits are a separate small pill beside the
@@ -65,9 +67,13 @@ function baseSplit(overrides = {}) {
   };
 }
 
-// The amount pill div, or '' when the card has none.
+// The amount pill div, or '' when the card has none. The card now
+// carries TWO amount-style pills on the single card (Receipt No.
+// first, then Amount Collected), so the helper takes the LAST pill:
+// the Amount pill on the single card, the only pill (Total Received)
+// on the split card.
 function amountPillOf(html) {
-  const at = html.indexOf('qc-amount-pill');
+  const at = html.lastIndexOf('qc-amount-pill');
   if (at < 0) return '';
   const start = html.lastIndexOf('<div', at);
   const end = html.indexOf('</div>', at);
@@ -184,14 +190,29 @@ test('still owed: charges pending keeps the charged label when the figure is > 0
   assert.ok(html.includes('PKR 300'), 'charged figure must show');
 });
 
-// --- (2) Receipt number on the card: FULL stored number visible (the short form is retired on the single card; split legs keep it) ---
+// --- (2) Receipt number on the card: the global sequence in its own pill row (QC receipt numbering, 2026-11-20 — the QC-bottom D4
+// full-number chip is retired: the number is 1, 2, 3, ... now, the same
+// number the WhatsApp draft carries; the stored RCPT-/REC- numbers
+// are unchanged) ---
 
-test('receipt number: the card header shows the FULL stored number, the same number the WhatsApp preview shows', () => {
+test('receipt number: the card shows the global sequence in an Amount-Collected-style pill row', () => {
+  const html = renderQuickCollectReceiptCardHtml(baseReceipt({ receiptSequence: 7 }));
+  const rowAt = html.indexOf('qc-receipt-number-row');
+  assert.ok(rowAt >= 0, 'card must carry a receipt-number pill row');
+  const row = html.slice(html.lastIndexOf('<div', rowAt), html.indexOf('</div>', rowAt));
+  assert.ok(row.includes('Receipt No.'), 'pill row must label the number');
+  assert.ok(row.includes('>7<'), 'pill row must show the global sequence');
+  assert.ok(row.includes('qc-amount-pill'), 'pill row must reuse the Amount Collected pill classes');
+  assert.ok(!html.includes('>RCPT-12-202611-01<'), 'the long stored number must not be the visible card text');
+  assert.ok(!html.includes('data-full-receipt-number'), 'the header ref chip is gone');
+});
+
+test('receipt number: a receipt without a sequence falls back to its stored number in the pill row', () => {
   const html = renderQuickCollectReceiptCardHtml(baseReceipt());
-  assert.ok(html.includes('>RCPT-12-202611-01<'), 'header must show the full stored number RCPT-12-202611-01');
-  assert.ok(html.includes('title="RCPT-12-202611-01"'), 'full number must stay in the title');
-  assert.ok(html.includes('data-full-receipt-number="RCPT-12-202611-01"'), 'full number must stay in the data attribute');
-  assert.ok(!html.includes('>RCPT-1<'), 'the short form must not be the visible text');
+  const rowAt = html.indexOf('qc-receipt-number-row');
+  assert.ok(rowAt >= 0, 'card must carry a receipt-number pill row');
+  const row = html.slice(html.lastIndexOf('<div', rowAt), html.indexOf('</div>', rowAt));
+  assert.ok(row.includes('>RCPT-12-202611-01<'), 'legacy receipt shows its stored number, never blank');
 });
 
 test('receipt number: split legs show the short form', () => {
@@ -202,15 +223,18 @@ test('receipt number: split legs show the short form', () => {
   assert.ok(!html.includes('RCPT-12-202611-02'), 'split legs must not show the full stored number');
 });
 
-test('receipt number: the stored number is UNCHANGED — the draft still carries the full number', () => {
-  // The card is display-only: the payment's identity (search,
+test('receipt number: the stored number is UNCHANGED — the draft carries the sequence when the receipt has one, the stored number otherwise', () => {
+  // The card shows the sequence, but the payment's identity (search,
   // jump-to-receipt, reversal links, gap audit, reprints, offline
-  // queue, WhatsApp drafts) keeps the full stored number. The draft
-  // is the proof — it is built from the same receipt object, and its
-  // receiptNumber is the stored one, not the card's short form.
-  const draft = receiptShareDraftFor(baseReceipt(), 'share text');
-  assert.ok(draft, 'draft must build from the receipt');
-  assert.equal(draft.receiptNumber, 'RCPT-12-202611-01', 'draft must carry the full stored number');
+  // queue, VER) keeps the stored number. The draft is the proof — it
+  // is built from the same receipt object: with a sequence it carries
+  // the sequence, without one it carries the stored number.
+  const sequenced = receiptShareDraftFor(baseReceipt({ receiptSequence: 7 }), 'share text');
+  assert.ok(sequenced, 'draft must build from the receipt');
+  assert.equal(sequenced.receiptNumber, '7', 'draft must carry the sequence when the receipt has one');
+  const legacy = receiptShareDraftFor(baseReceipt(), 'share text');
+  assert.ok(legacy, 'draft must build from the legacy receipt');
+  assert.equal(legacy.receiptNumber, 'RCPT-12-202611-01', 'draft must carry the stored number when the receipt has no sequence');
 });
 
 // --- (5) Sender: last 4 digits as their own small pill ---
@@ -261,16 +285,19 @@ test('sender: digits pill CSS — mint palette, small, no new hex', () => {
 
 // --- Wiring + fit arithmetic basis ---
 
-test('wiring: the single card renders the FULL stored number; split legs keep the short-number helper', () => {
+test('wiring: the single card renders the global sequence in its pill row; split legs show their own sequences', () => {
   assert.ok(!quickCollectSrc.includes('shortReceiptNumber(receipt.receiptNumber)'), 'single card must not shorten the header number');
-  assert.ok(quickCollectSrc.includes('>${escapeHtml(receipt.receiptNumber)}</span>'), 'single card must render the full stored number in the chip');
+  assert.ok(quickCollectSrc.includes('qc-receipt-number-row'), 'single card must carry the receipt-number pill row');
+  assert.ok(quickCollectSrc.includes('receipt.receiptSequence'), 'single card must render the sequence in the pill row');
+  assert.ok(!quickCollectSrc.includes('data-full-receipt-number'), 'the header ref chip must be gone');
   assert.ok(quickCollectSrc.includes('paymentSenderTitle'), 'single-card file must split the sender title');
   assert.ok(quickCollectSrc.includes('paymentSenderDigits'), 'single-card file must split the sender digits');
   assert.ok(quickCollectSrc.includes('qc-amount-pill'), 'single card must carry the pill class');
   assert.ok(quickCollectSrc.includes('qc-customer-golden'), 'single card must carry the golden class');
   assert.ok(quickCollectSrc.includes('qc-sender-digits-pill'), 'single card must carry the digits pill');
   assert.ok(splitSrc.includes('shortReceiptNumber'), 'split-card file must import the helper');
-  assert.ok(splitSrc.includes('shortReceiptNumber(leg.receiptNumber)'), 'split legs must shorten their numbers');
+  assert.ok(splitSrc.includes('leg.receiptSequence'), 'split legs must show their own sequence');
+  assert.ok(splitSrc.includes('shortReceiptNumber(leg.receiptNumber)'), 'split legs without a sequence fall back to the short form');
   assert.ok(splitSrc.includes('qc-amount-pill'), 'split card must carry the pill class');
   assert.ok(splitSrc.includes('qc-customer-golden'), 'split card must carry the golden class');
   // The settled state left the card row: neither builder may reference

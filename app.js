@@ -2649,7 +2649,16 @@ function renderHisaabSection(state, referenceDate) {
     if (!firstSummary) {
       providerSummaryEl.textContent = `${t('hisaab_provider_none')} ▾`;
     } else if (firstSummary.pendingBill) {
-      providerSummaryEl.textContent = `📡 ${firstSummary.name}: ${t('hisaab_provider_pending', null, { month: displayMonthName(firstSummary.pendingBill.month), amount: firstSummary.pendingBill.amount == null ? t('hisaab_amount_unknown') : formatAmount(firstSummary.pendingBill.amount) })} ▾`;
+      // Short month + no trailing status: the summary is one line and
+      // the full template ("November 2026 bill PKR … — abhi baqi")
+      // clipped the amount. The template still carries the suffix —
+      // split it off here only; the full provider lines inside the
+      // <details> keep it. ' — ' never occurs in the short month or
+      // the formatted amount, so the split is exact; a template
+      // without the separator returns whole and the line is unchanged.
+      const pendingFull = t('hisaab_provider_pending', null, { month: shortHisaabPendingMonth(firstSummary.pendingBill.month), amount: firstSummary.pendingBill.amount == null ? t('hisaab_amount_unknown') : formatAmount(firstSummary.pendingBill.amount) });
+      const pendingShort = pendingFull.split(' — ')[0];
+      providerSummaryEl.textContent = `📡 ${firstSummary.name}: ${pendingShort} ▾`;
     } else if (firstSummary.billCount === 0) {
       providerSummaryEl.textContent = `📡 ${firstSummary.name}: ${t('hisaab_provider_no_bills')} ▾`;
     } else {
@@ -4475,6 +4484,25 @@ function displayMonthName(month) {
     if (key) return `${t(key)} ${raw.slice(0, 4)}`;
   }
   return monthName(month);
+}
+
+// Hisaab provider-summary short month: the summary is one ellipsised
+// 12px line, so the pending month renders short in EN ("Nov '26") —
+// the full "November 2026" pushed the amount past the clip (329px
+// against 232px at 360px, Inter Bold 12px). UR keeps the full month
+// name: with the trailing status dropped the UR line measures 216px
+// (219px for the longest month) against the same 232px, so there is
+// nothing to gain by abbreviating it. A malformed key falls back to
+// displayMonthName, never to an empty string.
+const HISAAB_SHORT_MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function shortHisaabPendingMonth(month) {
+  if (currentAppLanguage() === 'ur') return displayMonthName(month);
+  const raw = String(month || '');
+  const parts = raw.match(/^(\d{4})-(\d{2})$/);
+  if (!parts) return displayMonthName(month);
+  const monthIndex = Number(parts[2]) - 1;
+  if (monthIndex < 0 || monthIndex > 11) return displayMonthName(month);
+  return `${HISAAB_SHORT_MONTH_NAMES[monthIndex]} '${parts[1].slice(2)}`;
 }
 
 // Urdu tenure lines for customer cards (phase 1). tenurePresentation() stays

@@ -47,13 +47,23 @@ export function receiptNumberOfRow(row, deriveReceiptNumber) {
 }
 
 // The first transaction whose receipt number equals the typed
-// number (case and spacing ignored), or null. Voided rows are
-// searched like any other — a voided payment is still found.
+// number (case and spacing ignored), or whose global receipt sequence
+// equals the typed digits, or null. A typed sequence wins over a stored
+// number: the sequence is what the receipt card shows, so "1" finds
+// receipt 1 even when a physical receipt-book integer 1 exists
+// elsewhere. Voided rows are searched like any other — a voided
+// payment is still found.
 // The input list is never changed.
 export function findTransactionByReceiptNumber(transactions, query, { deriveReceiptNumber } = {}) {
   const wanted = normalizeReceiptNumber(query);
   if (!wanted) return null;
   if (!Array.isArray(transactions)) return null;
+  if (/^\d+$/.test(wanted)) {
+    for (const row of transactions) {
+      const seq = row && Number.isSafeInteger(row.receiptSequence) && row.receiptSequence > 0 ? String(row.receiptSequence) : '';
+      if (seq && seq === wanted) return row;
+    }
+  }
   for (const row of transactions) {
     const ref = receiptNumberOfRow(row, deriveReceiptNumber);
     if (ref && normalizeReceiptNumber(ref) === wanted) return row;

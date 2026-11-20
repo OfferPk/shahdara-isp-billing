@@ -16,7 +16,7 @@ import {
   formatReceiptPreviewAmount,
 } from '../receipt-preview.js';
 import { amountInWords } from '../amount-in-words.js';
-import { nextReceiptNumberFor } from '../next-receipt-number.js';
+import { nextReceiptSequence } from '../receipt-sequence.js';
 import { buildPaymentReceipt } from '../receipt.js';
 
 const moduleSrc = readFileSync(new URL('../receipt-preview.js', import.meta.url), 'utf8');
@@ -121,8 +121,11 @@ test('html: the area value is escaped like every other user field', () => {
 // G2 — the match proves area and tax, in cents.
 
 test('match: a taxed preview matches the taxed receipt it previews', () => {
-  const receiptNumber = nextReceiptNumberFor(taxedCustomer(), '2026-11');
-  assert.equal(receiptNumber, 'RCPT-41-202611-01');
+  // QC receipt numbering: the preview shows the next global sequence
+  // (a fresh customer previews 1); the taxed receipt's payment
+  // carries the same sequence, so the match compares sequences.
+  const receiptNumber = String(nextReceiptSequence({ customers: [taxedCustomer()] }));
+  assert.equal(receiptNumber, '1');
   const preview = receiptPreviewFor({
     customer: taxedCustomer(),
     amount: 3000,
@@ -136,9 +139,13 @@ test('match: a taxed preview matches the taxed receipt it previews', () => {
     salesTaxCents: 19500,
     split: false,
   });
-  const receipt = taxedReceipt();
+  const customer = taxedCustomer();
+  const sequencedPayment = { ...taxedPayment(), receiptSequence: 1 };
+  customer.bills[0].payments = [sequencedPayment];
+  const receipt = buildPaymentReceipt(customer, customer.bills[0], sequencedPayment);
   assert.equal(receipt.area, 'Charyaa, Side 1');
   assert.equal(receipt.salesTaxCents, 19500);
+  assert.equal(receipt.receiptSequence, 1);
   assert.equal(receiptPreviewMatchesReceipt(preview, receipt), true);
 });
 

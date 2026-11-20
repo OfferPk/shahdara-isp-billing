@@ -3,6 +3,7 @@ import { createBillPackageSnapshot, validateBillPackageSnapshot, BILL_PACKAGES }
 import { SALES_TAX_RATE_BPS, salesTaxCentsForPrice } from './package-sales-tax.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeReceiptFooter, getDefaultReceiptFooter } from './receipt-footer-studio.js';
+import { nextReceiptSequence, computeReceiptSequenceSeed } from './receipt-sequence.js';
 import { sanitizeBranchGuard, sanitizeBranchGuardStamp, classifyBranchGuardRestore, fingerprintState, computeReceiptDelta } from './branch-guard.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
 import { normalizeTid } from './wallet-reconciliation.js';
@@ -2829,7 +2830,18 @@ export function addPayment(state, customerId, month, fields, referenceDate = new
   // same construction): its pins target recordedAt, and the SISP-146
   // carry-over in correctPayment below is what keeps the original entry
   // moment verbatim across corrections.
-  const payment = { id: makeId(), ...validatePayment(fields, referenceDate, options), recordedAt: paymentRecordedAtStamp(referenceDate) };
+  // QC receipt numbering: every payment recorded through this choke
+  // point (Quick Collect, Field Mode, profile forms, advance/prepay,
+  // suspense claim, inbox — all of them land here) gets the next number
+  // of the one global receipt sequence (1, 2, 3, ...). The number is a
+  // NEW field — the stored RCPT-/REC- numbers are untouched, and a
+  // caller-passed receiptSequence is stripped by validatePayment above,
+  // so it can never be honoured. The state field is bumped here and
+  // rides the returned state (nextState spreads it below); the
+  // never-rewind floor (highest assigned + 1) heals a lost bump.
+  const receiptSequence = nextReceiptSequence(state);
+  const payment = { id: makeId(), ...validatePayment(fields, referenceDate, options), recordedAt: paymentRecordedAtStamp(referenceDate), receiptSequence };
+  state = { ...state, receiptSequenceNext: receiptSequence + 1 };
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
   if (customer.archived && !existing) throw new Error('Archived customers cannot receive a new monthly bill. Unarchive the customer first.');
@@ -3058,6 +3070,11 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   // paidBy / ticketCharges rule above). A legacy payment that never
   // carried one stays unstamped; a time is never fabricated for it.
   if (existingPayment.recordedAt) payment = { ...payment, recordedAt: existingPayment.recordedAt };
+  // QC receipt numbering: a correction restates the receipt, never its
+  // sequence number — the original number carries over verbatim (the
+  // SISP-146 recordedAt rule above). A legacy payment that never
+  // carried one stays unsequenced; a number is never fabricated for it.
+  if (existingPayment.receiptSequence !== undefined) payment = { ...payment, receiptSequence: existingPayment.receiptSequence };
   // SISP-121: a correction restates the receipt, never its split-tender
   // link — the stamp is carried over verbatim (same rule as the ticket
   // charges above), so correcting one leg can never silently unlink it
@@ -4069,6 +4086,11 @@ function listTransactionsCompute(state, { customerQuery, date, recencyDays }, re
     // the stored permanent number, sanitized the same way as the
     // payer name and capped at the same 64.
     receiptNumber: String(payment.receiptNumber ?? payment.permanentReceiptNumber ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 64),
+    // QC receipt numbering: the global sequence rides the transaction
+    // row so the Transactions list can find a transaction by its
+    // sequence and the finder can match it (same ride as Plan 392's
+    // receipt number above) — a positive integer, else null.
+    receiptSequence: Number.isSafeInteger(payment.receiptSequence) && payment.receiptSequence > 0 ? payment.receiptSequence : null,
     senderTitle: String(payment.senderTitle ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100),
     senderDigits: String(payment.senderDigits ?? '').replace(/\D/g, '').slice(-4),
     // Plan 379: the collection note rides the transaction row so the
@@ -5538,6 +5560,13 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   current.monthlyClosings.sort((a,b)=>b.month.localeCompare(a.month));
   current.customers.sort((a,b)=>a.customerNumber-b.customerNumber);
   current.nextCustomerNumber = Math.max(existingState.nextCustomerNumber ?? 1, incomingState.nextCustomerNumber, ...current.customers.map(customer=>customer.customerNumber+1));
+  // QC receipt numbering: the receipt-sequence counter is a top-level
+  // state field like nextCustomerNumber — reconcile it the same way:
+  // max(existing, incoming, seed-from-merged-payments). Without this
+  // line the merged state drops the counter (createInitialState predates
+  // it and the merge only carries named top-level fields), so a restored
+  // device would re-issue numbers its own backup had already used.
+  current.receiptSequenceNext = Math.max(existingState.receiptSequenceNext ?? 1, incomingState.receiptSequenceNext ?? 1, computeReceiptSequenceSeed(current));
   // #359: optional digital-payments settings section (see createJsonBackup).
   // Safe-merge rule, same as the ledger: adopt the backup's settings only when
   // this device has none stored yet (fresh device / never opened the dialog)

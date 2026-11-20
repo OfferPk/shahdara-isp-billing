@@ -367,6 +367,11 @@ export function buildPaymentReceipt(customer, bill, payment) {
     paidBy: transactionPayerNameOf(payment),
     receiptNumber: permanentReceiptNumber,
     permanentReceiptNumber,
+    // QC receipt numbering: the payment's global sequence rides the
+    // built receipt (null for legacy payments) so the preview/receipt
+    // match and any consumer holding the built receipt can quote it.
+    // The printed layouts keep reading receiptNumber above.
+    receiptSequence: payment.receiptSequence ?? null,
     // SISP-83: 'XXXX-XX' — stamped on every layout as "VER: XXXX-XX".
     verificationCode,
     urduNote: RECEIPT_URDU_NOTE,

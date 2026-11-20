@@ -264,11 +264,21 @@ test('plan579 G3: invalid month shows no Month row (monthName returns empty)', (
 /* ---------------- G4 — guards (6) ---------------- */
 
 test('plan579 G4: leg rows unchanged — receipt numbers, TIDs and methods still present', () => {
+  // QC receipt numbering: the taxed legs are built through the real
+  // collection path, so each carries a global sequence — the leg row
+  // shows the sequence (1, 2) where it used to show the stored number.
+  // TIDs and methods are unchanged.
   const html = renderSplitReceiptCardHtml(taxed);
-  assert.ok(html.includes('REC-2610-0001'), 'leg receipt numbers still show');
+  assert.ok(html.includes('PKR 1,000 · 1'), 'leg 1 shows its receipt sequence');
+  assert.ok(html.includes('PKR 195 · 2'), 'leg 2 shows its receipt sequence');
   assert.ok(html.includes('TID EP99887766'), 'leg TID still shows');
   assert.ok(html.includes('Cash'), 'leg 1 method still shows');
   assert.ok(html.includes('Easypaisa'), 'leg 2 method still shows');
+  // A hand-built combined without sequences falls back to the stored
+  // number in short form (shortReceiptNumber), exactly as before.
+  const bareHtml = renderSplitReceiptCardHtml(baseSplit());
+  assert.ok(bareHtml.includes('PKR 2,000 · RCPT-1'), 'a leg without a sequence still shows its stored number, short form');
+  assert.ok(bareHtml.includes('PKR 1,000 · RCPT-2'), 'leg 2 the same');
 });
 
 test('plan579 G4: fully-paid card still hides Still-owed', () => {

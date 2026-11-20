@@ -179,11 +179,12 @@ test('the other card rows are unchanged and in order around the new row', () => 
   assert.ok(html.includes('08/11/2026 · Cash'), 'Date & Method row keeps date + method (date now prints DD/MM/YYYY)');
   assert.ok(html.includes('quickCollectAreaSelect'), 'Area select stays');
   assert.ok(html.includes('PKR 1,000'), 'Still owed row keeps its figure');
-  // QC receipt-bottom polish (2026-11-19): the header shows the FULL
-  // stored number now — the short form is retired on the single card.
-  assert.ok(html.includes('>RCPT-12-202611-01<'), 'receipt id shows the full stored number in the header');
-  assert.ok(html.includes('title="RCPT-12-202611-01"'), 'full receipt id stays in the title');
-  assert.ok(html.includes('data-full-receipt-number="RCPT-12-202611-01"'), 'full receipt id stays in the data attribute');
+  // QC receipt numbering (2026-11-20): the header chip is gone — the
+  // number lives in its own pill row below the header, as the one
+  // global sequence. This receipt has no sequence (legacy fixture),
+  // so the pill row falls back to its stored number.
+  assert.ok(html.includes('>RCPT-12-202611-01<'), 'pill row falls back to the stored number for a receipt without a sequence');
+  assert.ok(!html.includes('data-full-receipt-number'), 'the header ref chip is gone');
 });
 
 test('the WhatsApp draft is untouched — the new label stays card-only', () => {

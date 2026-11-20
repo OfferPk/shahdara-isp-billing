@@ -1,6 +1,7 @@
 // Plan 527 — Next-receipt line hides while a split is on.
-// The next-receipt line (Plan 381) names the single number the
-// payment will receive. A split payment issues TWO receipt numbers,
+// The next-receipt line names the single number the payment will
+// receive — now the next global sequence (QC receipt numbering), not
+// the old RCPT number. A split payment issues TWO receipt numbers,
 // so quoting the leg-1 number as "your receipt number" would be a
 // promise the save cannot keep — the receipt preview (Plan 433)
 // already previews nothing for a split. This plan applies the same
@@ -17,11 +18,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { nextReceiptNumberLineText } from '../next-receipt-number.js';
+import { nextReceiptSequence } from '../receipt-sequence.js';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const quickCollectSrc = readFileSync(join(dir, '..', 'nav-quick-collect.js'), 'utf8');
-const moduleSrc = readFileSync(join(dir, '..', 'next-receipt-number.js'), 'utf8');
+const moduleSrc = readFileSync(join(dir, '..', 'receipt-sequence.js'), 'utf8');
 const testSrc = readFileSync(fileURLToPath(import.meta.url), 'utf8');
 
 // Generic fixtures only — clearly made-up names, never a real person.
@@ -46,11 +47,11 @@ test('gate: the next-receipt part drops from the subtitle while split is on', ()
   // — while split is on, the receipt part drops (the bill part
   // stays), so no single receipt number is ever quoted for a split.
   assert.ok(
-    quickCollectSrc.includes("const receipt = !splitToggle?.checked ? nextReceiptNumberFor(customer, month) : '';"),
+    quickCollectSrc.includes("const receipt = !splitToggle?.checked ? String(nextReceiptSequence(getState())) : '';"),
     'renderFormSubtitle drops the receipt part while split is on',
   );
   assert.ok(
-    !quickCollectSrc.includes("const receipt = nextReceiptNumberFor(customer, month);"),
+    !quickCollectSrc.includes("const receipt = nextReceiptSequence(getState());"),
     'the un-gated receipt is gone',
   );
   assert.ok(
@@ -60,10 +61,14 @@ test('gate: the next-receipt part drops from the subtitle while split is on', ()
 });
 
 test('gate: the line still names the number when split is off', () => {
-  // The figure itself is the Plan 381 pure module, untouched by
-  // this plan — the gate lives in the wiring file only.
-  const c = customer(41, [bill('2026-11', [payment('P-1', '2026-11-01', 1000), payment('P-2', '2026-11-03', 1000)])]);
-  assert.equal(nextReceiptNumberLineText(c, '2026-11'), 'Next receipt: RCPT-41-202611-03');
+  // The figure itself is the receipt-sequence pure module — the gate
+  // lives in the wiring file only. Two sequenced payments on the bill
+  // mean the next receipt is 3.
+  const c = customer(41, [bill('2026-11', [
+    { ...payment('P-1', '2026-11-01', 1000), receiptSequence: 1 },
+    { ...payment('P-2', '2026-11-03', 1000), receiptSequence: 2 },
+  ])]);
+  assert.equal(nextReceiptSequence({ customers: [c] }), 3);
 });
 
 // ---------------------------------------------------------------------------
@@ -127,13 +132,13 @@ test('wiring: the preview uses the same split condition', () => {
 test('boundary: receipt numbering is untouched — the pure module knows nothing about splits', () => {
   assert.ok(!moduleSrc.includes('split'), 'no split logic in the numbering module');
   // QC Modal Overhaul 2: the wiring imports only the number
-  // (nextReceiptNumberFor) now — the line-text helper
-  // (nextReceiptNumberLineText) is folded into the subtitle and no
-  // longer imported by the controller.
+  // (nextReceiptSequence) now — the old RCPT helpers are gone with
+  // their module.
   assert.ok(
-    quickCollectSrc.includes("import { nextReceiptNumberFor } from './next-receipt-number.js';"),
+    quickCollectSrc.includes("import { nextReceiptSequence } from './receipt-sequence.js';"),
     'module import is the number only',
   );
+  assert.ok(!quickCollectSrc.includes('nextReceiptNumberFor'), 'the old RCPT helper must not be imported');
   assert.ok(!quickCollectSrc.includes('nextReceiptNumberLineText'), 'the line-text helper must not be imported');
 });
 

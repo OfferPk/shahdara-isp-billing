@@ -17,7 +17,7 @@ import {
   formatReceiptPreviewAmount,
 } from '../receipt-preview.js';
 import { amountInWords } from '../amount-in-words.js';
-import { nextReceiptNumberFor } from '../next-receipt-number.js';
+import { nextReceiptSequence } from '../receipt-sequence.js';
 import { buildPaymentReceipt } from '../receipt.js';
 
 const moduleSrc = readFileSync(new URL('../receipt-preview.js', import.meta.url), 'utf8');
@@ -250,8 +250,12 @@ test('html: every field shows, user text is escaped, nothing when there is no pr
 });
 
 test('acceptance: the previewed receipt matches the issued receipt on the same fixture', () => {
-  const receiptNumber = nextReceiptNumberFor(preSaveCustomer(), '2026-11');
-  assert.equal(receiptNumber, 'RCPT-41-202611-01');
+  // QC receipt numbering: the preview shows the next global sequence
+  // (a fresh customer with no payments previews 1), while the issued
+  // receipt keeps its stored number. The match compares the preview
+  // against the receipt's sequence (receipt-preview.js).
+  const receiptNumber = String(nextReceiptSequence({ customers: [preSaveCustomer()] }));
+  assert.equal(receiptNumber, '1');
   const preview = receiptPreviewFor({
     customer: preSaveCustomer(),
     amount: 3000,
@@ -265,9 +269,10 @@ test('acceptance: the previewed receipt matches the issued receipt on the same f
   });
   assert.equal(preview.amountWords, 'Three thousand');
   const postSave = preSaveCustomer();
-  postSave.bills[0].payments = [savedPayment()];
-  const receipt = buildPaymentReceipt(postSave, postSave.bills[0], savedPayment());
+  postSave.bills[0].payments = [{ ...savedPayment(), receiptSequence: 1 }];
+  const receipt = buildPaymentReceipt(postSave, postSave.bills[0], postSave.bills[0].payments[0]);
   assert.equal(receipt.receiptNumber, 'RCPT-41-202611-01');
+  assert.equal(receipt.receiptSequence, 1);
   assert.equal(receipt.customerName, 'Customer One');
   assert.equal(receipt.customerId, '41');
   assert.equal(receipt.paidAmount, 3000);
@@ -408,17 +413,18 @@ test('wiring: the controller imports the receipt preview module and the next rec
   // QC Modal Overhaul 2 (Part 2.3): the six explanation lines condensed
   // into ONE muted subtitle, so nextReceiptNumberLineText is no longer
   // imported — the subtitle (renderFormSubtitle) renders the next
-  // receipt number directly from nextReceiptNumberFor, and the confirm
-  // preview still uses it too. The module's own tests still pass.
-  assert.match(wiringSrc, /import \{ nextReceiptNumberFor \} from '\.\/next-receipt-number\.js';/);
+  // receipt sequence directly from nextReceiptSequence, and the confirm
+  // preview still uses it too. The old RCPT module is deleted.
+  assert.match(wiringSrc, /import \{ nextReceiptSequence \} from '\.\/receipt-sequence\.js';/);
   assert.doesNotMatch(wiringSrc, /nextReceiptNumberLineText/);
+  assert.doesNotMatch(wiringSrc, /nextReceiptNumberFor/);
 });
 
 test('wiring: the preview builder reads the same figures the save posts with', () => {
   assert.match(wiringSrc, /function buildReceiptPreview\(\)/);
   const start = wiringSrc.indexOf('function buildReceiptPreview()');
   const slice = wiringSrc.slice(start, start + 1200);
-  assert.match(slice, /nextReceiptNumberFor\(customer, month\)/);
+  assert.match(slice, /nextReceiptSequence\(getState\(\)\)/);
   assert.match(slice, /amountInWords\(amountVal\)/);
   assert.match(slice, /dateInput\?\.value \|\| getPakistanLocalDate\(\)/);
   assert.match(slice, /split: !!splitToggle\?\.checked/);

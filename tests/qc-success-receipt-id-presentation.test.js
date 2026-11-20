@@ -74,10 +74,11 @@ const SPLIT_COMBINED = {
   status: 'PAID',
 };
 
-// The card header, from its opening tag to its closing </div>.
-function headerOf(html) {
-  const start = html.indexOf('qc-receipt-header');
-  assert.ok(start >= 0, 'card must carry a receipt header');
+// The receipt-number pill row, from its opening tag to its closing
+// </div> — the row that carries the label + the global sequence.
+function numberRowOf(html) {
+  const start = html.indexOf('qc-receipt-number-row');
+  assert.ok(start >= 0, 'card must carry a receipt-number pill row');
   const open = html.lastIndexOf('<div', start);
   const end = html.indexOf('</div>', start);
   return html.slice(open, end);
@@ -91,39 +92,42 @@ function ruleBlock(css, selectorWithBrace) {
   return css.slice(open + 1, close);
 }
 
-test('REPRO: the header carries a "Receipt No." label immediately before the FULL id', () => {
-  const header = headerOf(renderQuickCollectReceiptCardHtml(baseReceipt()));
-  assert.ok(header.includes('Receipt No.'), 'header must label the number');
-  // QC receipt-bottom polish (2026-11-19): the chip shows the FULL stored
-  // number (RCPT-12-202611-01), the same number the WhatsApp preview
-  // shows — the 2026-11-13 short form is retired here; split legs keep
-  // the short form. The full stored number stays in the title +
-  // data-full-receipt-number attributes (one hover away) and in the
-  // draft/PNG/reprint, so the operator can still copy the exact
-  // number. The stored number is unchanged — this is display-only.
-  assert.ok(header.includes('>RCPT-12-202611-01<'), 'chip must show the full stored number');
-  assert.ok(!header.includes('RCPT-12 · 202611 · 01'), 'id must never be respaced or regrouped');
-  assert.ok(header.includes(`title="${RECEIPT_ID}"`), 'full number must stay in the title');
-  assert.ok(header.includes(`data-full-receipt-number="${RECEIPT_ID}"`), 'full number must stay in the data attribute');
-  const labelAt = header.indexOf('Receipt No.');
-  const idAt = header.indexOf('>RCPT-12-202611-01<');
-  assert.ok(labelAt >= 0 && idAt > labelAt, 'label must sit immediately before the id');
+test('REPRO: the pill row carries a "Receipt No." label immediately before the sequence value', () => {
+  const row = numberRowOf(renderQuickCollectReceiptCardHtml(baseReceipt({ receiptSequence: 7 })));
+  assert.ok(row.includes('Receipt No.'), 'pill row must label the number');
+  // QC receipt numbering (2026-11-20): the header chip is gone — the
+  // number lives in its own pill row, in the
+  // amount-pill style, as the one global sequence. The full stored
+  // number stays stored (search, reprints, PNG, VER all read it); it
+  // is no longer the visible card text. Split legs show their own
+  // sequences, falling back to the short form when they have none.
+  assert.ok(row.includes('>7<'), 'pill row must show the global sequence');
+  assert.ok(!row.includes('RCPT-12-202611-01'), 'pill row must not show the long stored number');
+  assert.ok(!row.includes('RCPT-12 · 202611 · 01'), 'id must never be respaced or regrouped');
+  const labelAt = row.indexOf('Receipt No.');
+  const idAt = row.indexOf('>7<');
+  assert.ok(labelAt >= 0 && idAt > labelAt, 'label must sit immediately before the value');
   assert.ok(
-    header.includes(`>Receipt No.</span> <span class="qc-receipt-id qc-txnid-code" title="${RECEIPT_ID}" data-full-receipt-number="${RECEIPT_ID}">RCPT-12-202611-01</span>`),
-    'label and id must be adjacent spans, label first, id in the chip class',
+    row.includes(`>Receipt No.</span>\n        <strong class="qc-receipt-amount">7</strong>`),
+    'label and value must be adjacent, label first, value in the amount style',
   );
+  // Numbering lands second (§0.4 empty-header rule): the header div is
+  // gone entirely — the micro-polish removed the shared badge and
+  // numbering removed the ref chip — so there is no header left to
+  // carry the label or the number.
+  const card = renderQuickCollectReceiptCardHtml(baseReceipt({ receiptSequence: 7 }));
+  assert.ok(!card.includes('qc-receipt-header'), 'card must not carry a receipt header any more');
 });
 
-test('the label and id live inside one .qc-receipt-ref wrapper', () => {
-  const header = headerOf(renderQuickCollectReceiptCardHtml(baseReceipt()));
-  const wrapAt = header.indexOf('class="qc-receipt-ref"');
-  assert.ok(wrapAt >= 0, 'header must carry a .qc-receipt-ref wrapper');
-  assert.equal(header.match(/qc-receipt-ref/g).length, 1, 'exactly one ref wrapper in the header');
-  // Match the label SPAN, not the bare words — the header comment above
-  // the badge also mentions "Receipt No.".
-  const labelAt = header.indexOf('>Receipt No.</span>');
-  const idAt = header.indexOf('>RCPT-12-202611-01<');
-  assert.ok(wrapAt < labelAt && wrapAt < idAt, 'wrapper must open before the label and the id');
+test('the label and value live inside one .qc-receipt-number-row pill row', () => {
+  const row = numberRowOf(renderQuickCollectReceiptCardHtml(baseReceipt({ receiptSequence: 7 })));
+  assert.equal((row.match(/qc-receipt-number-row/g) || []).length, 1, 'exactly one number row on the card');
+  // Match the label SPAN, not the bare words — the card comment above
+  // the pill row also mentions the number.
+  const labelAt = row.indexOf('>Receipt No.</span>');
+  const idAt = row.indexOf('>7<');
+  assert.ok(labelAt >= 0 && idAt > labelAt, 'row must open before the label and the value, label first');
+  assert.ok(row.includes('qc-amount-pill'), 'the row must reuse the Amount Collected pill classes');
 });
 
 test('the wrapper carries margin-inline-start: auto and lays the group out in one row', () => {
@@ -153,10 +157,14 @@ test('the id chip has a dark variant rule (the id had none of its own)', () => {
   assert.ok(dark.includes('color: #f8fafc'), 'dark chip text must exist');
 });
 
-test('the receipt id is HTML-escaped — a hostile stored value cannot break the header', () => {
-  const header = headerOf(renderQuickCollectReceiptCardHtml(baseReceipt({ receiptNumber: '<script>alert(1)</script>' })));
-  assert.ok(!header.includes('<script>alert(1)</script>'), 'raw markup must never reach the header');
-  assert.ok(header.includes('&lt;script&gt;'), 'id must be escaped');
+test('the receipt number is HTML-escaped — a hostile stored value cannot break the pill row', () => {
+  // A legacy receipt without a sequence falls back to its stored
+  // number in the pill row, so the fallback value must be escaped
+  // exactly like the chip value was. (A sequence itself is an
+  // integer and can never carry markup.)
+  const row = numberRowOf(renderQuickCollectReceiptCardHtml(baseReceipt({ receiptNumber: '<script>alert(1)</script>' })));
+  assert.ok(!row.includes('<script>alert(1)</script>'), 'raw markup must never reach the pill row');
+  assert.ok(row.includes('&lt;script&gt;'), 'fallback value must be escaped');
 });
 
 test('the WhatsApp draft still reads the labelled receipt number, byte-identical', () => {

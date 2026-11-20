@@ -176,7 +176,11 @@ test('default no-chip path: date defaults to PKT today and the ONLY entry stamp 
   }, OCT_2);
   const payment = onlyPayment(nextState);
   assert.equal(payment.date, '2026-10-02');
-  assert.deepEqual(Object.keys(payment).sort(), ['amount', 'date', 'id', 'method', 'recordedAt']);
+  // QC receipt numbering stamps the sequence at creation, so it joins
+  // the payment's key list — the test's intent is unchanged: the ONLY
+  // *entry* stamp is the SISP-146 recordedAt (no enteredAt, no second
+  // stamp). The sequence is a receipt number, not an entry stamp.
+  assert.deepEqual(Object.keys(payment).sort(), ['amount', 'date', 'id', 'method', 'receiptSequence', 'recordedAt']);
 });
 
 test('validatePayment itself never stamps recordedAt (backup revalidation cannot re-stamp a stored record)', () => {

@@ -91,8 +91,8 @@ const TOAST_EN = {
 // ================= G1 — parity guard (this file's own pin) =================
 
 test('G1: parity is 5,162/5,162 in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5210, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5210, 'UR parity');
+  assert.equal(Object.keys(en).length, 5212, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5212, 'UR parity');
   const prvEn = Object.keys(en).filter((k) => k.startsWith('prv_'));
   const prvUr = Object.keys(ur).filter((k) => k.startsWith('prv_'));
   // Plan 608 adds the 240th prv_ key (prv_wr_toast_past_date).
@@ -217,7 +217,7 @@ test('G10: the no-labels default still renders raw Rs 100 (documented fallback, 
 // ================= G11 — self-guard =================
 
 test('G11: this file pins the new total and stays free of the previous and older total literals', () => {
-  assert.ok(selfSrc.includes('5210'), 'this file pins the new total 5,162');
+  assert.ok(selfSrc.includes('5212'), 'this file pins the new total 5,162');
   // The previous total's digits and the older total's digits are built,
   // never spelled, so this guard cannot trip the sweep it guards.
   assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');

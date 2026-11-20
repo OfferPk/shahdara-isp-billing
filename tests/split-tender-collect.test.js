@@ -477,8 +477,10 @@ test('SENDER: sanitization parity with the single-payment path (newline title cl
 // the legs map now carries `senderLabel` (SISP-63, from the leg's own
 // receipt) and `paidBy` (Plan 378, from the leg's own receipt) so the
 // combined surfaces can identify who paid each leg and whose account
-// sent it. The model gains exactly those two keys — nothing else —
-// and the totals/status assertions below are unchanged.
+// sent it. QC receipt numbering adds a third key, `receiptSequence`
+// (the leg's own global sequence, issued by addPayment). The model
+// gains exactly those three keys — nothing else — and the
+// totals/status assertions below are unchanged.
 test('SENDER: the combined receipt model carries the sender label and payer name (Plan 559)', () => {
   const { combinedReceipt } = run(fixture(), {
     customerId: 'a', month: MONTH, date: DATE,
@@ -489,7 +491,7 @@ test('SENDER: the combined receipt model carries the sender label and payer name
   });
   assert.deepEqual(
     Object.keys(combinedReceipt.legs[1]).sort(),
-    ['amount', 'date', 'leg', 'method', 'paidBy', 'paymentId', 'receiptNumber', 'senderLabel', 'transactionId', 'voided']
+    ['amount', 'date', 'leg', 'method', 'paidBy', 'paymentId', 'receiptNumber', 'receiptSequence', 'senderLabel', 'transactionId', 'voided']
   );
   assert.equal(combinedReceipt.legs[1].senderLabel, 'Hamza (…3310)', 'the digital leg carries its SISP-63 sender label');
   assert.equal(combinedReceipt.legs[0].senderLabel, '', 'the cash leg carries no sender');

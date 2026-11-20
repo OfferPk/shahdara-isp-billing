@@ -280,25 +280,17 @@ body.sr-screen-mode[data-screen="alerts"] #smartAlertsPanel {
   margin-bottom: 24px;
 }
 
-/* Owner Assistant screen: uncollapse billingDashboard, keep only ownerCommandCenter */
-body.sr-screen-mode[data-screen="assistant"] #billingDashboard {
-  height: auto !important;
-  min-height: 0 !important;
-  max-height: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  border: 0 !important;
-  overflow: visible !important;
-}
-body.sr-screen-mode[data-screen="assistant"] #billingDashboard > *:not(#ownerCommandCenter) {
+/* Owner Assistant screen: the panel lives in #customersView (Owner 5-part
+   fix), so keep that view visible and hide only its non-panel children —
+   the customer list, filter panel and pane footer stay out of the way.
+   The Home-dashboard collapse rule above applies on this screen like every
+   other screen; the old #billingDashboard uncollapse + child-hide rules
+   assumed the panel still lived there, so they are gone. */
+body.sr-screen-mode[data-screen="assistant"] #customersView .app-shell > *:not(#ownerCommandCenter) {
   display: none !important;
 }
 body.sr-screen-mode[data-screen="assistant"] #ownerCommandCenter {
   margin-top: 0 !important;
-}
-body.sr-screen-mode[data-screen="assistant"] #customersView,
-body.sr-screen-mode[data-screen="assistant"] .customer-pane {
-  display: none !important;
 }
 
 /* Backup & Restore screen: unhide and pull backupControls to top */

@@ -273,6 +273,10 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     if (action.click) {
       doc.querySelector(action.click)?.click();
     } else if (action.focus) {
+      // Owner Assistant restore: the panel is collapsed by default, so a
+      // tap on Ask Question after a manual collapse would focus an input
+      // inside the hidden body. Expand first; the focus below then lands.
+      if (action.focus === '#ownerCommandInput' && typeof win.expandOwnerCommandCenter === 'function') win.expandOwnerCommandCenter();
       const el = doc.querySelector(action.focus);
       if (el) {
         el.scrollIntoView({ block: 'start', behavior: 'smooth' });

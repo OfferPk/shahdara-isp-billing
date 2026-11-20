@@ -299,7 +299,11 @@ export function receiptPreviewMatchesReceipt(preview, receipt) {
   const paidCents = receiptPreviewFigureCents(receipt.paidAmount);
   if (paidCents === null || paidCents !== preview.amountCents) return false;
   if (preview.method !== text(receipt.paymentMethod)) return false;
-  if (preview.receiptNumber !== text(receipt.receiptNumber)) return false;
+  // QC receipt numbering: the preview shows the global sequence, so the
+  // match compares against the receipt's sequence when it has one —
+  // the stored number stays the fallback for legacy receipts.
+  const receiptNo = receipt.receiptSequence != null ? String(receipt.receiptSequence) : text(receipt.receiptNumber);
+  if (preview.receiptNumber !== receiptNo) return false;
   if (preview.date !== text(receipt.paymentDate)) return false;
   if (preview.billMonth !== text(receipt.servicePeriodStart).slice(0, 7)) return false;
   // Plan 580 (D1(a)/D5(a)/D6(a)): the area must agree exactly as the

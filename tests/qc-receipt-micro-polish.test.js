@@ -99,11 +99,18 @@ test('micro-polish: rendered QC card has no WhatsApp badge and keeps the full re
   assert.ok(!card.includes('WhatsApp Pending'), 'QC card must not contain the WhatsApp Pending pill');
   assert.ok(!card.includes('badge-receipt-unshared') && !card.includes('badge-receipt-shared'), 'QC card must not contain the shared-badge classes');
   assert.ok(card.includes('RCPT-12-202611-01'), 'QC card must keep the FULL receipt number (never re-shortened)');
-  const headerStart = card.indexOf('qc-receipt-header');
-  const headerEnd = card.indexOf('</div>', headerStart);
-  const header = card.slice(headerStart, headerEnd);
-  assert.ok(header.includes('RCPT-12-202611-01'), 'header must hold the receipt id');
-  assert.ok(!header.includes('WhatsApp Pending'), 'header must not carry the badge');
+  // QC receipt numbering (2026-11-20, lands second — §0.4 empty-header
+  // rule): the header div is gone — the micro-polish removed the shared
+  // badge and numbering removed the ref chip — so there is no header
+  // left to hold the id. The full number now lives in the pill row as
+  // the fallback (this fixture has no sequence).
+  assert.ok(!card.includes('qc-receipt-header'), 'QC card must not carry a receipt header any more');
+  const rowStart = card.indexOf('qc-receipt-number-row');
+  assert.ok(rowStart >= 0, 'QC card must carry a receipt-number pill row');
+  const rowEnd = card.indexOf('</div>', rowStart);
+  const row = card.slice(rowStart, rowEnd);
+  assert.ok(row.includes('RCPT-12-202611-01'), 'number row must show the full receipt number as the fallback');
+  assert.ok(!row.includes('WhatsApp Pending'), 'number row must not carry the badge');
 });
 
 test('micro-polish: badge builder + profile usage survive (QC card only loses it)', () => {

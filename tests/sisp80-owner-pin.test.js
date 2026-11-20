@@ -303,7 +303,14 @@ test('wiring: dialog markup, app.js gates, token CSS, runtime graph, PIN stays o
   assert.ok(app.includes("requireOwnerPin('payment-void')"), 'void dialog is gated');
   assert.ok(app.includes('openVoidPaymentDialogUnlocked'), 'void dialog opens only after the gate');
   assert.ok(app.includes("requireOwnerPin('expense-delete')"), 'expense deletion is gated');
-  assert.ok(app.includes("'partner-settlement'") && app.includes("'partner-shares'"), 'partner tabs are gated');
+  assert.ok(app.includes("'partner-settlement'"), 'Partners tab is gated');
+  // Expenses 3-tab polish: the per-partner tabs are gone, so the tab-click
+  // handler gates the single Partners tab on 'partner-settlement' only.
+  // 'partner-shares' stays defined in RESTRICTED_ACTIONS (dormant, no
+  // caller) so stored operator-mode configs on devices keep working —
+  // do NOT re-add a fake 'partner-shares' string to app.js.
+  assert.ok(RESTRICTED_ACTIONS.includes('partner-shares'), "'partner-shares' stays defined in RESTRICTED_ACTIONS (dormant)");
+  assert.ok(!app.includes("'partner-shares'"), 'no live caller gates on partner-shares');
 
   assert.ok(css.includes('.owner-pin-input'), 'dialog CSS present');
   const pinCss = css.slice(css.indexOf('SISP-80: Owner PIN dialog'));

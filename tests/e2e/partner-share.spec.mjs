@@ -1,9 +1,10 @@
-// Partner share tabs (Expenses view): "Nasir share" and "Aqib share".
-// Written to run in CI (the repo Playwright runner cannot run in the dev
-// VM). Seeded history is written through the app's own core helpers plus a
-// direct expenses patch, the same pattern as the analytics specs.
-// Assertions check rendered shares and self-consistent properties, and that
-// both tabs show the same figures from the same shared helper.
+// Partner share detail (Partners tab, Expenses view): one shared detail
+// for both partners, from the settlement month. Written to run in CI (the
+// repo Playwright runner cannot run in the dev VM). Seeded history is
+// written through the app's own core helpers plus a direct expenses patch,
+// the same pattern as the analytics specs. Assertions check the rendered
+// detail and self-consistent properties, and that both partners' sections
+// show the same figures from the same shared helper.
 import { test, expect } from '@playwright/test';
 
 function trackErrors(page) {
@@ -39,44 +40,40 @@ async function seedPartnerMonth(page) {
   });
 }
 
-test('Nasir and Aqib tabs show the same 50% share from one helper', async ({ page }) => {
+test('Partners tab shows both partners\' detail from one helper', async ({ page }) => {
   const errors = trackErrors(page);
   await boot(page);
   await seedPartnerMonth(page);
   await page.goto('/#/expenses');
-  await page.waitForSelector('#expenseTabNasir', { state: 'visible', timeout: 20000 });
+  await page.waitForSelector('#expenseTabPartners', { state: 'visible', timeout: 20000 });
 
-  await page.click('#expenseTabNasir');
-  await page.selectOption('#nasirShareMonth', '2026-10');
-  const nasir = page.locator('#nasirShareContent');
-  await expect(nasir).toContainText('PKR 200,000');
-  await expect(nasir).toContainText('PKR 50,000');
-  await expect(nasir).toContainText('PKR 150,000');
-  await expect(nasir).toContainText('PKR 75,000');
-  await expect(nasir).toContainText('Nayatel bill');
-  await expect(nasir).toContainText('Salary — Saad');
-
-  await page.click('#expenseTabAqib');
-  await page.selectOption('#aqibShareMonth', '2026-10');
-  const aqib = page.locator('#aqibShareContent');
-  await expect(aqib).toContainText('PKR 200,000');
-  await expect(aqib).toContainText('PKR 75,000');
+  await page.click('#expenseTabPartners');
+  await page.selectOption('#partnerSettlementMonth', '2026-10');
+  const detail = page.locator('#partnerShareDetail');
+  await expect(detail).toContainText('Nasir');
+  await expect(detail).toContainText('Aqib');
+  await expect(detail).toContainText('PKR 200,000');
+  await expect(detail).toContainText('PKR 50,000');
+  await expect(detail).toContainText('PKR 150,000');
+  await expect(detail).toContainText('PKR 75,000');
+  await expect(detail).toContainText('Nayatel bill');
+  await expect(detail).toContainText('Salary — Saad');
 
   expect(errors).toEqual([]);
 });
 
-test('partner share panels do not overflow at 390px', async ({ page }) => {
+test('partner share detail does not overflow at 390px', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const errors = trackErrors(page);
   await boot(page);
   await seedPartnerMonth(page);
   await page.goto('/#/expenses');
-  await page.waitForSelector('#expenseTabNasir', { state: 'visible', timeout: 20000 });
-  await page.click('#expenseTabNasir');
-  await page.selectOption('#nasirShareMonth', '2026-10');
-  await page.waitForSelector('#nasirShareContent .partner-share-grid', { state: 'visible', timeout: 20000 });
+  await page.waitForSelector('#expenseTabPartners', { state: 'visible', timeout: 20000 });
+  await page.click('#expenseTabPartners');
+  await page.selectOption('#partnerSettlementMonth', '2026-10');
+  await page.waitForSelector('#partnerShareDetail .partner-share-history', { state: 'visible', timeout: 20000 });
   const overflow = await page.evaluate(() => {
-    const panel = document.getElementById('nasirSharePanel');
+    const panel = document.getElementById('partnersPanel');
     return panel.scrollWidth - panel.clientWidth;
   });
   expect(overflow).toBeLessThanOrEqual(1);

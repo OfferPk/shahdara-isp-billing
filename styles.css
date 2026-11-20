@@ -930,6 +930,9 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .payroll-date-list time { color:#294d40; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
 .payroll-date-list .delete-incident { min-width:44px; min-height:40px; }
 @media(max-width:800px) { .payroll-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+/* Expenses 3-tab polish: at phone width the Saad card sits above the
+   Umair card instead of squeezing into a 2-col row. */
+@media(max-width:360px) { .payroll-metric-grid { grid-template-columns:1fr; } }
 @media(max-width:620px) { .payroll-summary .table-heading { align-items:stretch; flex-direction:column; } .payroll-month-label { min-width:0; } .payroll-date-list li { min-height:52px; } }
 
 
@@ -17249,6 +17252,23 @@ button:not([hidden]).quick-method-chip.bwb-big {
 .partner-share-history-row small{display:block;margin-top:4px;color:var(--muted);line-height:1.5;overflow-wrap:anywhere}
 @media(max-width:700px){.partner-share-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:360px){.partner-share-grid{grid-template-columns:1fr}.expense-tab-button{padding:7px 8px;font-size:11px}}
+/* Expenses 3-tab polish: the KPI grid holds exactly 2 cards — a scoped
+   2-col rule placed after every .phase3-metric-grid rule, so it wins at
+   every width including 360px. */
+.expense-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.expense-category-list{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.expense-category-list .partner-share-row strong{flex-shrink:0;font-variant-numeric:tabular-nums}
+/* Expenses 3-tab polish: the Saad payroll card is one compact metric
+   card — its (i) is a 28px informational trigger, not a primary action.
+   Matched to the Month-end 28px standard after #1553 merged (the
+   20px plan died at the rebase); the base .help-icon rule stays 40x40
+   everywhere else, and this scoped exception is pinned by name in the
+   Sharafat-96 F4 rewrite (which Month-end owns — this item extends it).
+   The counts line stays compact: the nested <strong> must not inherit
+   the 19px metric-amount size. */
+.saad-payroll-card .help-icon{width:28px;height:28px;min-height:28px;font-size:11px}
+.saad-payroll-card .saad-payroll-counts{font-size:12px}
+.saad-payroll-card .saad-payroll-counts strong{font-size:12px}
 
 /* ---------- New customers by month (customer ledger) ---------- */
 .new-customers-panel{margin:0 10px 14px;padding:14px 15px;background:#f7faf8;border:1px solid var(--line);border-radius:12px}

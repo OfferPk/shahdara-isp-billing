@@ -1,9 +1,11 @@
-// Partner share report: one shared helper drives both the "Nasir share" and
-// "Aqib share" tabs in the Expenses view. Revenue is bill collections
-// (receipts grouped by payment date); expenses are all dated recorded
-// expenses grouped by payment date, across every recorded category.
-// Profit = revenue - expenses; partner share = 50% of positive profit,
-// otherwise 0 with the loss shown. Pure computation, synthetic data only.
+// Partner share report: one shared helper drives the Partners tab detail
+// in the Expenses view (both partners' breakdowns, previous month, all
+// time and monthly history, from the settlement month). Revenue is bill
+// collections (receipts grouped by payment date); expenses are all dated
+// recorded expenses grouped by payment date, across every recorded
+// category. Profit = revenue - expenses; partner share = 50% of positive
+// profit, otherwise 0 with the loss shown. Pure computation, synthetic
+// data only.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPartnerShareReport, PARTNER_SHARE_RATE } from '../phase3.js';

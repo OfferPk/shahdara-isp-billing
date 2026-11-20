@@ -15,12 +15,15 @@
 //     secondary-button (44px) now; its handler is untouched (same
 //     customer, empty amount — genuinely distinct from Next Customer).
 //  4. The header badge showed the SHORT form (RCPT-1) while the WhatsApp
-//     preview shows the FULL stored number. The badge shows the full
-//     number now — a deliberate reversal of the pinned 2026-11-13
-//     short-form decision; split legs keep the short form. The full
-//     number is 17 chars, so badge + ref (371px) cannot fit one row at
-//     360px (292px budget): the header wraps and the ref sits on its own
-//     right-aligned line. The number is never re-shortened to fit.
+//     preview shows the FULL stored number. QC receipt numbering
+//     (2026-11-20) reverses that reversal: the number now lives in its
+//     own pill row below the header, in the amount-pill style, as the
+//     one global sequence (1, 2, 3, ...) — the same number the
+//     WhatsApp draft carries. The header keeps only the shared badge.
+//     The stored RCPT-/REC- numbers are unchanged; a receipt recorded
+//     before the feature (no sequence) falls back to its stored number
+//     in the pill row and the draft. Split legs show their own
+//     sequences, falling back to the short form when they have none.
 //
 // This file pins NO parity total and asserts NO parity (602 pattern):
 // it must contain neither the current-total bare digits nor the
@@ -148,14 +151,16 @@ test('C3 Empty amount: distinct handler + secondary-button treatment', () => {
   assert.ok(order[0] > 0 && order[1] > order[0] && order[2] > order[1], 'action order must stay same, then next, then empty');
 });
 
-// --- C4: badge shows the FULL stored number, same as the preview ---
-test('C4 badge shows the FULL stored number, identical to the WhatsApp preview', () => {
-  assert.ok(cardHtml.includes('>RCPT-83-202611-01<'), 'badge must read the full stored number');
-  assert.ok(!cardHtml.includes('>RCPT-1<'), 'the short form must not be the visible badge text');
-  const draft = receiptShareDraftFor(baseReceipt(), 'share text');
-  assert.ok(draft && draft.receiptNumber === 'RCPT-83-202611-01', 'the draft must carry the same full number');
-  assert.ok(cardHtml.includes('title="RCPT-83-202611-01"') && cardHtml.includes('data-full-receipt-number="RCPT-83-202611-01"'),
-    'title + data attribute must keep the full number');
+// --- C4: pill row shows the global sequence, same as the draft ---
+test('C4 pill row shows the global sequence, identical to the WhatsApp draft', () => {
+  const sequenced = renderQuickCollectReceiptCardHtml({ ...baseReceipt(), receiptSequence: 83 });
+  assert.ok(sequenced.includes('>83<'), 'pill row must read the global sequence');
+  assert.ok(!sequenced.includes('>RCPT-83-202611-01<'), 'the long stored number must not be the visible card text');
+  const draft = receiptShareDraftFor({ ...baseReceipt(), receiptSequence: 83 }, 'share text');
+  assert.ok(draft && draft.receiptNumber === '83', 'the draft must carry the same sequence');
+  const legacy = receiptShareDraftFor(baseReceipt(), 'share text');
+  assert.ok(legacy && legacy.receiptNumber === 'RCPT-83-202611-01', 'a receipt without a sequence keeps the stored number in the draft');
+  assert.ok(!cardHtml.includes('data-full-receipt-number'), 'the header ref chip is gone');
 });
 
 // --- Steady state ---

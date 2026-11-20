@@ -88,10 +88,11 @@ test('structure: the banner holds the heading row + the two-pill row, and the pi
   assert.ok(rowBlock.includes('min-height: 22px'), 'pills row must carry a min-height so the banner does not collapse');
 });
 
-test('structure: the card header holds only the receipt id (the shared badge is gone, the settle badge is gone entirely)', () => {
+test('structure: the card has no header div any more — the number lives in its own pill row below', () => {
   const receipt = {
     id: 'receipt-12',
     receiptNumber: 'RCPT-12-202611-01',
+    receiptSequence: 12,
     amount: 1000,
     customerName: 'Test Customer',
     customerNumber: 12,
@@ -102,14 +103,20 @@ test('structure: the card header holds only the receipt id (the shared badge is 
     newTotalDues: 0,
   };
   const html = renderQuickCollectReceiptCardHtml(receipt);
-  const headerStart = html.indexOf('qc-receipt-header');
-  assert.ok(headerStart >= 0, 'card header missing');
-  const headerEnd = html.indexOf('</div>', headerStart);
-  const header = html.slice(headerStart, headerEnd);
-  assert.ok(!header.includes('Settle in Full'), 'card header must not carry the settle badge');
-  assert.ok(!header.includes('Partial Payment'), 'card header must not carry the partial badge');
-  assert.ok(!header.includes('badge-receipt-unshared') && !header.includes('badge-receipt-shared'), 'card header must not carry the shared badge (removed by the QC receipt micro-polish, 2026-11-20)');
-  assert.ok(header.includes('RCPT-12-202611-01'), 'card header must keep the receipt id');
+  // Numbering lands second (§0.4 empty-header rule): the micro-polish
+  // removed the shared badge and numbering removed the ref chip, so the
+  // header div itself is gone — the card opens straight onto the pill row.
+  assert.ok(!html.includes('qc-receipt-header'), 'card header div must be gone (badge removed by micro-polish, ref chip by numbering)');
+  assert.ok(!html.includes('Settle in Full'), 'card must not carry the settle badge');
+  assert.ok(!html.includes('Partial Payment'), 'card must not carry the partial badge');
+  assert.ok(!html.includes('badge-receipt-unshared') && !html.includes('badge-receipt-shared'), 'card must not carry the shared badge (removed by the QC receipt micro-polish, 2026-11-20)');
+  const rowAt = html.indexOf('qc-receipt-number-row');
+  assert.ok(rowAt >= 0, 'card must carry a receipt-number pill row');
+  const row = html.slice(html.lastIndexOf('<div', rowAt), html.indexOf('</div>', rowAt));
+  assert.ok(row.includes('Receipt No.'), 'pill row must label the number');
+  assert.ok(row.includes('>12<'), 'pill row must show the global sequence');
+  assert.ok(row.includes('qc-amount-pill'), 'pill row must reuse the Amount Collected pill classes');
+  assert.ok(!row.includes('RCPT-12-202611-01'), 'pill row must show the sequence, not the stored number');
 });
 
 test('structure: the terms sit inside the receipt card (last block of the card)', () => {
@@ -344,7 +351,7 @@ test('fit budget: grid math — the fully-paid taxed card has 6 half-width items
   assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row — 5 items still fill 3 rows');
 });
 
-test('fit budget: measured totals are recorded — 1,081px at 360px (31px over the 1,050px budget), 1,109px at 320px', () => {
+test('fit budget: measured totals are recorded — 1,085px at 360px (35px over the 1,050px budget), 1,113px at 320px', () => {
   // The harness is the authority (~/workspace/shahdara-qc-receipt-modal-harness/,
   // measure-qc-360.json / measure-qc-320.json, 0 pageerrors). These
   // pins record the measured totals so a regression is caught here;
@@ -373,12 +380,27 @@ test('fit budget: measured totals are recorded — 1,081px at 360px (31px over t
   // 360px (variant A): header 44 + banner 85 + callout 115 + card
   // 468.6 + accordion 66 + actions 262.4 + step gaps/dialog padding
   // ~40 = 1,081px.
-  const MEASURED_360_PX = 1081;
-  const MEASURED_320_PX = 1109;
+  // QC receipt numbering (2026-11-20, lands second — §0.4 empty-header
+  // rule): from the micro-polish totals (1,081 @360 / 1,109 @320):
+  // the header ref chip leaves so the header unwraps (−24px), the new
+  // Receipt No. pill row adds one row (1.3rem amount x 1.5 line-height
+  // = 31.2px + 4px padding + 2px border ≈ 37px) plus one 6px card gap
+  // (+6px), and the now-empty header div itself goes with it: its
+  // padding-bottom (8px) + dashed border (1px) + one 6px card gap
+  // (−15px). Net +4px. 1,081 + 4 = 1,085 at 360px; 1,109 + 4 = 1,113
+  // at 320px. Cross-check from the QC-bottom base: −38 (micro-polish)
+  // + 19 (numbering alone) − 15 (header div) = −34: 1,119 − 34 =
+  // 1,085; 1,147 − 34 = 1,113. CORRECTION to the prep §7.3: the prep's
+  // combined 1,099/1,127 counted the header-div removal as −1 (its
+  // border only) and missed its 8px padding + 6px gap — 14px short.
+  // Variant B (loaded) was 1,114px after the micro-polish — within its
+  // ≤1,160px budget; the +4px numbering delta keeps it inside.
+  const MEASURED_360_PX = 1085;
+  const MEASURED_320_PX = 1113;
   const BUDGET_360_PX = 1050;
   const BUDGET_320_PX = 1075;
-  assert.equal(MEASURED_360_PX, 1081, 'measured 360px total must be 1,081px (QC-bottom arithmetic 1,119px minus 38px: banner −19, callout +11, card −30)');
-  assert.equal(MEASURED_320_PX, 1109, 'measured 320px total must be 1,109px (QC-bottom arithmetic 1,147px minus 38px: banner −19, callout +11, card −30)');
+  assert.equal(MEASURED_360_PX, 1085, 'measured 360px total must be 1,085px (micro-polish 1,081px plus numbering +4: header unwrap −24, pill row +37, card gap +6, header-div box −15)');
+  assert.equal(MEASURED_320_PX, 1113, 'measured 320px total must be 1,113px (micro-polish 1,109px plus numbering +4: header unwrap −24, pill row +37, card gap +6, header-div box −15)');
   assert.ok(MEASURED_360_PX > BUDGET_360_PX, `360px total ${MEASURED_360_PX}px is ${MEASURED_360_PX - BUDGET_360_PX}px OVER the ${BUDGET_360_PX}px budget — recorded here, not waived`);
   assert.ok(MEASURED_320_PX > BUDGET_320_PX, `320px total ${MEASURED_320_PX}px is ${MEASURED_320_PX - BUDGET_320_PX}px OVER the ${BUDGET_320_PX}px budget — recorded here, not waived`);
   // The overflow fix itself holds: the draft <pre> was the ONE source

@@ -5,6 +5,7 @@ import {
   buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, describePercentChange, CUSTOMER_RANKING_TYPES, TROUBLESOME_RULE,
   RECOVERY_MOHALLA_ORDER, recoveryMohallaRank, recoveryHealthTag
 } from './owner-insights.js';
+import { formatHisaabDate } from './dashboard-pnl.js';
 // Owner 5-part fix: the unified card answers the twelve fixed Pucho
 // catalogue questions through the same input, so the Pucho engine is
 // imported here too — one input, one answer area, two existing engines.
@@ -456,9 +457,9 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   function renderSmartAlerts() {
     const host=$('#smartAlertsList');if(!host)return;
     const result=buildSmartAlerts(getState(),new Date());
-    setText('#smartAlertsSummary',`Checked locally as of ${result.asOf}: ${result.alerts.length} alert(s)${result.insufficient.length?` · ${result.insufficient.length} comparison(s) need more history`:''}. No customer is contacted automatically.`);
-    const alertMarkup=result.alerts.map(row=>`<article class="smart-alert-card smart-alert-${escapeHtml(row.severity)}"><div class="smart-alert-heading"><strong>${escapeHtml(row.title)}</strong><span>${row.severity==='warning'?'Attention':'Trend'}</span></div><p>${escapeHtml(row.detail)}</p>${row.customerId?`<button class="secondary-button" type="button" data-open-smart-alert-customer="${escapeHtml(row.customerId)}">Open billing history for ${escapeHtml(row.customerName)}</button>`:''}</article>`).join('');
-    const unavailableMarkup=result.insufficient.length?`<section class="smart-alert-insufficient" aria-label="Comparisons with insufficient history"><h4>Some comparisons need more local history</h4><ul>${result.insufficient.map(row=>`<li>${escapeHtml(row.note)}</li>`).join('')}</ul></section>`:'';
+    setText('#smartAlertsSummary',`${result.alerts.length} alert${result.alerts.length===1?'':'s'} · checked ${formatHisaabDate(result.asOf)}`);
+    const alertMarkup=result.alerts.map(row=>`<article class="smart-alert-card smart-alert-${escapeHtml(row.severity)}"><div class="smart-alert-heading"><strong>${escapeHtml(row.title)}</strong><span>${row.severity==='warning'?'Attention':'Trend'}</span></div><p>${row.detailLead?`<strong>${escapeHtml(row.detailLead)}</strong> `:''}${escapeHtml(row.detail)}</p>${row.customerId?`<button class="secondary-button" type="button" data-open-smart-alert-customer="${escapeHtml(row.customerId)}">Open billing history for ${escapeHtml(row.customerName)}</button>`:''}</article>`).join('');
+    const unavailableMarkup=result.insufficient.length?`<details class="smart-alert-rule-details" aria-label="Comparisons with insufficient history"><summary>Some comparisons need more local history (${result.insufficient.length})</summary><ul>${result.insufficient.map(row=>`<li>${escapeHtml(row.note)}</li>`).join('')}</ul></details>`:'';
     const clearChecks=result.checks.filter(row=>row.status==='clear'&&row.note);
     const clearChecksMarkup=clearChecks.length?`<details class="smart-alert-rule-details"><summary>Show checks below their alert threshold (${clearChecks.length})</summary><ul>${clearChecks.map(row=>`<li>${escapeHtml(row.note)}</li>`).join('')}</ul></details>`:'';
     const clearMarkup=result.allClear?'<p class="empty-state">No alert threshold is currently met. The checks use only saved local ledger entries.</p>':'';

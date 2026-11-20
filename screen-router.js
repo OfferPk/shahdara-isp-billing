@@ -30,7 +30,11 @@ export const SCREENS = {
   reports: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Report', subtitle: 'Bills, collections and dues for the month', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
   bills: { view: 'billingReportsView', title: 'Monthly Bills', subtitle: 'Generated bills, due dates and customer billing status', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
   recovery: { view: 'billingReportsView', title: 'Dues Recovery', subtitle: 'Smart recovery triage and WhatsApp reminders', anchor: '#duesRecoveryPanel', action: { label: 'Remind Pending', click: '#bulkReminderDispatchBtn' } },
-  alerts: { view: 'billingReportsView', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel', action: { label: 'View Alerts', focus: '#smartAlertsPanel' } },
+  // Smart Alerts cleanup: the alerts screen has NO header action by design —
+  // its one 'View Alerts' button only scrolled to the panel the operator was
+  // already looking at (the panel has no input to focus), and the screen shows
+  // nothing else. The route, More menu and drawer entries reach it instead.
+  alerts: { view: 'billingReportsView', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel' },
   assistant: { view: 'ownerCommandCenter', title: 'Owner Assistant', subtitle: 'Ask about saved bills, collections, and customer balances', action: { label: 'Ask Question', focus: '#ownerCommandInput' } },
   backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
   analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', title: 'Area Analytics', subtitle: 'Areas, zones and packages', action: { label: 'Export Area CSV', click: '#exportAreaIntelCsvBtn' } },

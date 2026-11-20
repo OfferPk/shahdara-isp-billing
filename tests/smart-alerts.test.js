@@ -66,8 +66,12 @@ test('package decline uses complete saved service-month labels, not the current 
 test('collection comparison uses saved same-weekday receipt days and the documented 80% threshold',()=>{
   const collectionBill=bill('2026-10',{amount:100000,payments:[payment('2026-09-30',10000),payment('2026-09-23',12000),payment('2026-09-16',9000),payment('2026-10-07',1000)]});
   const result=buildSmartAlerts(stateOf([customer('c1','Ali',[collectionBill])]),referenceDate);
-  assert.match(alert(result,'collection-below-weekday-baseline').detail,/Today: PKR 1,000 vs PKR 10,333\.33 average across 3 receipt-bearing same-weekday/);
+  // Smart Alerts cleanup: the comparison sentence moved from .detail to
+  // .detailLead (it renders bold as the card's lead line); .detail keeps
+  // only the threshold sentence, and the footnote sentence is gone.
+  assert.match(alert(result,'collection-below-weekday-baseline').detailLead,/Today: PKR 1,000 vs PKR 10,333\.33 average across 3 receipt-bearing same-weekday/);
   assert.match(alert(result,'collection-below-weekday-baseline').detail,/below 80% of baseline/);
+  assert.doesNotMatch(alert(result,'collection-below-weekday-baseline').detail,/no daily snapshots are saved/);
 });
 
 test('manual Offline profile state is never described as a verified network outage',()=>{

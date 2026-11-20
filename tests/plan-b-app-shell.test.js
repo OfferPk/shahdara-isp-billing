@@ -91,6 +91,18 @@ test('every router screen has one header spec: back, title, subtitle, action', (
       assert.ok(inboxSrc.includes('id="easypaisaSyncBtn"'), 'easypaisa primary action lives in its toolbar');
       continue;
     }
+    // Smart Alerts cleanup: the alerts screen has NO header action by design —
+    // its one 'View Alerts' button only scrolled to the panel the operator was
+    // already looking at (the panel has no input to focus). The intent of this
+    // pin (every screen has a reachable primary action) is preserved by
+    // asserting the More-menu entry exists instead.
+    if (name === 'alerts') {
+      assert.equal(header.actionLabel, null, 'alerts has no header action');
+      assert.equal(header.actionKind, null);
+      assert.equal(header.actionTarget, null);
+      assert.ok(indexHtml.includes('data-mobile-more="alerts"'), 'alerts is reachable from the More menu');
+      continue;
+    }
     assert.ok(header.actionLabel, `${name} has a context action`);
     assert.ok(header.actionKind === 'click' || header.actionKind === 'focus', `${name} action kind`);
     assert.ok(header.actionTarget, `${name} action target`);
@@ -301,15 +313,18 @@ test('sync does nothing for a list with no parent', () => {
   assert.equal(syncShellEmptyState(doc, stubEl('ul'), shellEmptyStateFor('customerList'), true), null);
 });
 
-test('the two previously action-less screens now have context actions', () => {
+test('the previously action-less analytics screen now has a context action; alerts has none by design', () => {
   const analytics = headerSpecForScreen('analytics');
   assert.equal(analytics.actionLabel, 'Export Area CSV');
   assert.equal(analytics.actionKind, 'click');
   assert.equal(analytics.actionTarget, '#exportAreaIntelCsvBtn');
+  // Smart Alerts cleanup: the alerts screen's 'View Alerts' button only
+  // scrolled to the panel the operator was already looking at, so it was
+  // removed; the screen stays reachable from the More menu and the drawer.
   const alerts = headerSpecForScreen('alerts');
-  assert.equal(alerts.actionLabel, 'View Alerts');
-  assert.equal(alerts.actionKind, 'focus');
-  assert.equal(alerts.actionTarget, '#smartAlertsPanel');
+  assert.equal(alerts.actionLabel, null, 'alerts has no header action');
+  assert.equal(alerts.actionKind, null);
+  assert.equal(alerts.actionTarget, null);
 });
 
 test('every header action target is a selector, never a bare id', () => {
@@ -318,7 +333,10 @@ test('every header action target is a selector, never a bare id', () => {
     // Sync Sheet lives in the view's toolbar), so its target is null.
     const target = headerSpecForScreen(name).actionTarget;
     if (target === null) {
-      assert.equal(name, 'easypaisa');
+      // Payments Inbox cleanup + Smart Alerts cleanup: easypaisa and alerts
+      // have no header action (their primary actions live in the view's
+      // toolbar / the More menu), so their targets are null.
+      assert.ok(name === 'easypaisa' || name === 'alerts', name);
       continue;
     }
     assert.ok(target.startsWith('#'), name);

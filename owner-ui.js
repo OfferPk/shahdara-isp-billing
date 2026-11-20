@@ -17,6 +17,25 @@ import { t } from './nav-language.js';
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const $ = (selector, root=document) => root.querySelector(selector);
+
+// Area Analytics 6-tab bar: the active tab + sync live at module top
+// level so both the exported sync and setupOwnerCenter's wiring reach
+// them — an export cannot nest inside setupOwnerCenter. Default tab is
+// 1 · Areas; there is no URL/hash persistence in v1.
+let areaNetworkTab = 'areas';
+
+export function syncAreaNetworkTabs() {
+  if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return;
+  document.querySelectorAll('[data-area-network-tab]').forEach((el) => {
+    const tabs = String(el.getAttribute('data-area-network-tab') || '').split(/\s+/).filter(Boolean);
+    el.hidden = !tabs.includes(areaNetworkTab);
+  });
+  document.querySelectorAll('[data-area-network-tab-btn]').forEach((btn) => {
+    const active = btn.getAttribute('data-area-network-tab-btn') === areaNetworkTab;
+    btn.setAttribute('aria-pressed', String(active));
+    btn.setAttribute('aria-selected', String(active));
+  });
+}
 const nameInitials = name => String(name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
 
 export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses, renderLoans, puchoData, openCollect, openWaadaDialog, onSaveState, onToast}) {
@@ -206,10 +225,10 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     try{ result=buildAreaBreakdowns(getState(),new Date()); }catch{ host.replaceChildren(); return; }
     const money=value=>formatAmount(value);
     const rate=value=>value===null?'Not available':`${value.toFixed(1)}%`;
-    const card=row=>`<article class="area-breakdown-card"><h4>${escapeHtml(row.name)}</h4><div class="area-breakdown-metrics"><div><span>Customers with bills</span><strong>${row.customers}</strong></div><div><span>Billed</span><strong>${escapeHtml(money(row.billed))}</strong></div><div><span>Collected</span><strong>${escapeHtml(money(row.collected))}</strong></div><div><span>Outstanding</span><strong>${escapeHtml(money(row.outstanding))}</strong></div><div><span>Collection rate</span><strong>${rate(row.collectionRate)}</strong></div><div><span>Overdue bills · customers</span><strong>${row.overdueBills} · ${row.overdueCustomers}</strong></div></div></article>`;
-    const group=(title,rows,note)=>rows.length?`<section class="area-breakdown-group" aria-label="${escapeHtml(title)}"><h4>${escapeHtml(title)}</h4><div class="area-breakdown-grid">${rows.map(card).join('')}</div>${note?`<p class="chart-caption">${escapeHtml(note)}</p>`:''}</section>`:'';
+    const card=row=>{const badge=row.collectionRate===null?`${row.customers} cust`:`${row.customers} cust · ${rate(row.collectionRate)}`;return `<article class="area-breakdown-card"><div class="area-breakdown-card-head"><h4>${escapeHtml(row.name)}</h4><span class="area-breakdown-badge">${escapeHtml(badge)}</span></div><div class="area-breakdown-metrics"><div><span>Billed</span><strong>${escapeHtml(money(row.billed))}</strong></div><div><span>Collected</span><strong>${escapeHtml(money(row.collected))}</strong></div><div><span>Due</span><strong>${escapeHtml(money(row.outstanding))}</strong></div></div></article>`;};
+    const group=(title,rows,note,tab)=>rows.length?`<section class="area-breakdown-group" data-area-network-tab="${tab}" aria-label="${escapeHtml(title)}"><h4>${escapeHtml(title)}</h4><div class="area-breakdown-grid">${rows.map(card).join('')}</div>${note?`<p class="chart-caption">${escapeHtml(note)}</p>`:''}</section>`:'';
     const totals=result.totals;
-    host.innerHTML=`<div class="area-breakdown-heading"><div><p class="eyebrow">AREA · ZONE · PACKAGE BREAKDOWNS · SAVED DATA ONLY</p><h3>Area, zone &amp; package breakdowns</h3><p>Every priced bill belongs to exactly one area, one zone and one package group, so the three breakdowns reconcile to the same totals. Sorted by outstanding, highest first.</p></div></div>${result.pricedBillCount?`<div class="area-breakdown-totals" role="status"><div><span>Total billed</span><strong>${escapeHtml(money(totals.billed))}</strong></div><div><span>Total collected</span><strong>${escapeHtml(money(totals.collected))}</strong></div><div><span>Total outstanding</span><strong>${escapeHtml(money(totals.outstanding))}</strong></div><div><span>Overdue bills</span><strong>${totals.overdueBills}</strong></div></div>${group('Areas',result.areas,'Area is the customer\u2019s saved area or mohalla; customers without either appear as “Area not recorded”.')}${group('Zones',result.zones,'Zone rows show the parent area, so same-named zones in different areas stay separate. Do not add zone rows to area rows — both cover the same bills.')}${group('Packages',result.packages,'Package is the recorded package on each bill (snapshot or dated history); bills without one appear as “Package not recorded”. Customer counts per package do not sum — one customer can hold bills under several packages over time.')}<p class="chart-caption">Basis: saved priced bills up to ${escapeHtml(result.currentMonth)}; collected counts receipts recorded on those bills (a rate can exceed 100% where receipts exceed priced bills); outstanding is the allocation balance; overdue means a due date before ${escapeHtml(result.asOf)} with a positive balance. Unpriced bills are excluded (${result.unpricedBillCount} unpriced bill(s) carry no price). Saved bills of archived profiles are included as ledger history.</p>`:'<p class="empty-state">No priced bills are saved yet, so no area, zone or package breakdown is available.</p>'}`;
+    host.innerHTML=`<div class="area-breakdown-heading"><div><p class="eyebrow">AREA · ZONE · PACKAGE BREAKDOWNS · SAVED DATA ONLY</p><h3>Area, zone &amp; package breakdowns</h3><p>Every priced bill belongs to exactly one area, one zone and one package group, so the three breakdowns reconcile to the same totals. Sorted by outstanding, highest first.</p></div></div>${result.pricedBillCount?`<div class="area-breakdown-totals" role="status"><div><span>Total billed</span><strong>${escapeHtml(money(totals.billed))}</strong></div><div><span>Total collected</span><strong>${escapeHtml(money(totals.collected))}</strong></div><div><span>Total outstanding</span><strong>${escapeHtml(money(totals.outstanding))}</strong></div><div><span>Overdue bills</span><strong>${totals.overdueBills}</strong></div></div>${group('Areas',result.areas,'Area is the customer\u2019s saved area or mohalla; customers without either appear as “Area not recorded”.', 'areas')}${group('Zones',result.zones,'Zone rows show the parent area, so same-named zones in different areas stay separate. Do not add zone rows to area rows — both cover the same bills.', 'zones')}${group('Packages',result.packages,'Package is the recorded package on each bill (snapshot or dated history); bills without one appear as “Package not recorded”. Customer counts per package do not sum — one customer can hold bills under several packages over time.', 'packages')}<p class="chart-caption">Basis: saved priced bills up to ${escapeHtml(result.currentMonth)}; collected counts receipts recorded on those bills (a rate can exceed 100% where receipts exceed priced bills); outstanding is the allocation balance; overdue means a due date before ${escapeHtml(result.asOf)} with a positive balance. Unpriced bills are excluded (${result.unpricedBillCount} unpriced bill(s) carry no price). Saved bills of archived profiles are included as ledger history.</p>`:'<p class="empty-state">No priced bills are saved yet, so no area, zone or package breakdown is available.</p>'}`;
   }
   function renderRankingOptions() {
     const type=$('#rankingType');
@@ -467,7 +486,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     host.querySelectorAll('[data-open-smart-alert-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openSmartAlertCustomer)));
   }
   function refresh() {
-    renderCommand();renderClosings();renderComparison();renderBusinessHealthScore();renderIspInsights();renderAreaBreakdowns();renderRankings();renderRecovery();renderSmartAlerts();
+    renderCommand();renderClosings();renderComparison();renderBusinessHealthScore();renderIspInsights();renderAreaBreakdowns();renderRankings();renderRecovery();renderSmartAlerts();syncAreaNetworkTabs();
   }
 
   // Pucho + Profile Header Polish — the panel is collapsed by default into
@@ -636,6 +655,21 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
         $('#mobileMoreButton')?.setAttribute('aria-expanded', 'false');
       }
     });
+  }
+  // Area Analytics 6-tab bar: one-time wiring, guarded against
+  // double-wiring — the dashboard render re-runs often, but the bar is
+  // wired once. The sync itself runs on every refresh() + renderAnalytics.
+  if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+    const areaNetworkBar = document.querySelector('.area-network-tabs');
+    if (areaNetworkBar && !areaNetworkBar.dataset.areaNetworkWired) {
+      areaNetworkBar.dataset.areaNetworkWired = '1';
+      areaNetworkBar.querySelectorAll('[data-area-network-tab-btn]').forEach((btn) => btn.addEventListener('click', () => {
+        const tab = btn.getAttribute('data-area-network-tab-btn');
+        if (!tab || tab === areaNetworkTab) return;
+        areaNetworkTab = tab;
+        syncAreaNetworkTabs();
+      }));
+    }
   }
   refresh();
   return {refresh};

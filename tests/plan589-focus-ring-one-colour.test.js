@@ -339,8 +339,8 @@ test('G5a ratchet holds with the exact post-fix counts recorded', () => {
 });
 
 test('G5b parity unchanged at 4,722/4,722 — no i18n key touched', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5204);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5204);
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5210);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5210);
 });
 
 test('G5c the baseline + QC comments tell the truth about the change', () => {

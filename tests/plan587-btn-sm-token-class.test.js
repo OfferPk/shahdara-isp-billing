@@ -97,7 +97,7 @@ function distinctHex(css) {
 
 // ---------- G1 — Counts ----------
 
-test('G1: index.html carries 1,314 standalone btn-sm tags (and 96 action-btn-sm tags, which are NOT btn-sm)', () => {
+test('G1: index.html carries 1,314 standalone btn-sm tags (and 91 action-btn-sm tags, which are NOT btn-sm)', () => {
   // Spec correction: "837 times" is the number of LINES containing the
   // substring btn-sm (repro B1/S1). The class count is 1,314.
   // Inventory & Materials 2-tab cleanup: the Pending Hardware Recovery
@@ -105,12 +105,18 @@ test('G1: index.html carries 1,314 standalone btn-sm tags (and 96 action-btn-sm 
   // action-btn-sm count moves 97 → 96 and the btn-sm substring count
   // moves 1,411 → 1,410; the standalone btn-sm count (1,314) is
   // unchanged — the deleted button was action-btn-sm, not btn-sm.
+  // Area Analytics 6-tab refactor: the five redundant bottom buttons
+  // (Downtime, Upstream SLA, Splitter, Daisy-Chain, Pole Registry —
+  // all action-btn-sm) were deleted and their card heads made tappable,
+  // so the action-btn-sm count moves 96 → 91 and the btn-sm substring
+  // count moves 1,410 → 1,405; the standalone btn-sm count (1,314) is
+  // unchanged — the deleted buttons were action-btn-sm, not btn-sm.
   assert.equal(countClassToken(html, 'btn-sm'), 1314, 'standalone btn-sm class tokens in index.html');
-  assert.equal(countClassToken(html, 'action-btn-sm'), 96, 'action-btn-sm tags (a different class, own rule)');
+  assert.equal(countClassToken(html, 'action-btn-sm'), 91, 'action-btn-sm tags (a different class, own rule)');
   assert.equal(btnSmButtons.length, 1314, 'btn-sm <button> tags in index.html');
   // Substring counts are reported alongside so the two numbers never get
-  // confused again: 1,410 substring occurrences on 837 lines.
-  assert.equal((html.match(/btn-sm/g) || []).length, 1410, 'substring btn-sm occurrences in index.html');
+  // confused again: 1,405 substring occurrences on 837 lines.
+  assert.equal((html.match(/btn-sm/g) || []).length, 1405, 'substring btn-sm occurrences in index.html');
 });
 
 test('G1: the token counter itself is token-exact (btn-sm vs action-btn-sm)', () => {
@@ -305,8 +311,8 @@ test('G5: ratchet baselines hold and parity is unchanged at 4,722/4,722 (no i18n
   assert.ok(distinctHex(stylesCss) <= 616, `styles.css distinct hex must not exceed 616 (now ${distinctHex(stylesCss)})`);
   assert.ok(distinctHex(navCss) <= 164, `nav.css distinct hex must not exceed 164 (now ${distinctHex(navCss)})`);
   assert.equal(distinctHex(componentsCss), 0, 'components.css stays hex-free');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5204, 'EN keys');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5204, 'UR keys');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5210, 'EN keys');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5210, 'UR keys');
   assert.deepEqual(
     Object.keys(TRANSLATIONS.en).sort(),
     Object.keys(TRANSLATIONS.ur).sort(),

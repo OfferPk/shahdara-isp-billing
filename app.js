@@ -97,7 +97,7 @@ import { indexCustomers, resolveTransactionCustomer } from './list-rendering.js'
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue, buildMohallaAnalytics, compareMohallaAreas, sortMohallaNamesByNumberedOrder } from './owner-insights.js?v=1.11.0';
 import { setupOpsAccordions } from './ops-accordions.js?v=1.11.0';
 import { customerNameOptions, collectorNameOptions, recordIdOptions, paymentIdOptions, billIdOptions, allPaymentsWithCustomer, fillSelectOptions } from './ops-id-selects.js?v=1.11.0';
-import { setupOwnerCenter } from './owner-ui.js?v=1.11.0';
+import { setupOwnerCenter, syncAreaNetworkTabs } from './owner-ui.js?v=1.11.0';
 import {
   createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY,
   checkStoragePersistence, requestStoragePersistence,
@@ -20819,7 +20819,7 @@ function renderAnalytics() {
   renderPackageSummaryTable();
   const configuredPackages=data.packageRows.some(row=>row.packageKey!=='__package_not_set__');
   $('#packageSummaryEmpty').hidden=configuredPackages;
-  $('#networkIssuesList').innerHTML=data.incidentCount?data.networkIssues.map(row=>`<li><span>${phase3Cell(monthName(row.month))}</span><strong>${row.count} recorded incident${row.count===1?'':'s'}</strong></li>`).join(''):`<li class="empty-state">No complaint or outage records have been entered.</li>`;
+  $('#networkIssuesList').innerHTML=data.incidentCount?data.networkIssues.map(row=>`<li${row.count>0?' class="has-incidents"':''}><span>${phase3Cell(monthName(row.month))}</span><strong>${row.count} recorded incident${row.count===1?'':'s'}</strong></li>`).join(''):`<li class="empty-state">No complaint or outage records have been entered.</li>`;
   $('#analyticsEmptyNotice').textContent=data.growthCumulativeIsPartial?`${data.knownUndatedConnections} customer profiles have no connection date; cumulative growth is therefore date-known only and is not a total historical customer count.`:'Historical summaries include only recorded local bills, receipts, dates, statuses, and incidents.';
   renderOwnerDigest();
   renderReceivablesAgeing();
@@ -21156,6 +21156,7 @@ function renderAnalytics() {
   renderPaymentReminders();
   renderCashHandling();
   renderSeasonalPatterns();
+  syncAreaNetworkTabs();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active

@@ -64,8 +64,8 @@ const PAST = '2026-11-10';
 const FUTURE = '2026-11-25';
 
 test('G1: parity is 5,162/5,162 in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5204, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5204, 'UR parity');
+  assert.equal(Object.keys(en).length, 5210, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5210, 'UR parity');
 });
 
 test('G2: isWaadaDateInPast classifies past / today / future / invalid', () => {
@@ -163,7 +163,7 @@ test('G9: the collection-promise form is untouched (different store)', () => {
 });
 
 test('G10: this file pins the new total and stays free of the previous and older total literals', () => {
-  assert.ok(selfSrc.includes('5204'), 'this file pins the new total 5,162');
+  assert.ok(selfSrc.includes('5210'), 'this file pins the new total 5,162');
   // The previous total's digits and the older total's digits are built,
   // never spelled, so this guard cannot trip the sweep it guards.
   assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');

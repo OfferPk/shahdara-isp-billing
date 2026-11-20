@@ -289,7 +289,9 @@ test('neon glassy: this file asserts no parity total and carries neither parity 
   // it checked the 5,162/5,161 totals). Now current 5,187, previous 5,168.
   // Performance & Collection Analytics — guard moves one step:
   // current 5,195, previous 5,187 (the +8 keys).
-  assert.ok(!selfSrc.includes('51' + '95'), 'file contains the current parity total as a bare literal');
-  assert.ok(!selfSrc.includes('51' + '87'), 'file contains the previous parity total as a bare literal');
+  // Area Analytics 6-tab — guard moves one step:
+  // current 5,210, previous 5,204 (the +6 keys).
+  assert.ok(!selfSrc.includes('52' + '10'), 'file contains the current parity total as a bare literal');
+  assert.ok(!selfSrc.includes('52' + '04'), 'file contains the previous parity total as a bare literal');
   assert.ok(!selfSrc.includes('nav-' + 'language.js'), 'this file must not assert a parity total');
 });

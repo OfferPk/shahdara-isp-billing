@@ -94,12 +94,15 @@ const closeIntent = (b) => b.sharedClass || b.dataClose || ariaClose(b) || idClo
 //   - topDefaultersModal (Top Defaulters Modal Fix item 2, 2026-11-13):
 //     the user specified a clean neutral ✕ close for the Top Defaulters
 //     modal (the bottom green Close is removed with it).
-//   - quickCollectModal (QC Modal Overhaul 2, 2026-11-13): the glyph
-//     follows the ACTION — '✕' on the picker / form / confirm steps,
-//     '↩' KEPT on the success step (PR #1365: the success button is
-//     BACK via collectAnotherCustomer()). showStep() swaps the glyph
-//     per step, and the static markup is '✕' (the modal opens on the
-//     picker). A blanket '✕' would silently revert #1365.
+//   - quickCollectModal (QC Modal Overhaul 2, 2026-11-13; REVERSED by
+//     the QC receipt micro-polish, user instruction 2026-11-20): the
+//     glyph is '✕' on EVERY step now, and on success it is a true
+//     close via closeModal() — a NAMED REVERSAL of PR #1365 and of
+//     the QC-top D7(a) KEEP (the success button used to be BACK via
+//     collectAnotherCustomer()). The one-tap back-to-picker from the
+//     header is gone; "Next Customer" still offers it. showStep()
+//     sets ✕ unconditionally, and the static markup is '✕' (the modal
+//     opens on the picker).
 //   - pendingActionsModal (Pending Actions Center Modal Compression,
 //     2026-11-13): the user specified a standard 32x32px neutral ✕
 //     close for the Pending Actions modal (modal-scoped override

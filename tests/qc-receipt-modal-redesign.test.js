@@ -305,15 +305,12 @@ test('§8.10 hex/token map: the redesign rules use DS tokens, never hex literals
     assert.ok(!/#[0-9a-fA-F]{3,6}\b/.test(block), `${selector} must not contain a hex literal`);
     assert.ok(block.includes('var(--ds-'), `${selector} must use a --ds-* token`);
   }
-  // The pending pill is amber via DS tokens (the deliberate reversal of
-  // polish #21's user-requested red, scoped to the success state).
-  const pendingAt = stylesSrc.indexOf('var(--ds-warning-bg)');
-  assert.ok(pendingAt > 0, 'amber warning background must exist');
-  const pending = stylesSrc.slice(stylesSrc.lastIndexOf('{', pendingAt) + 1, stylesSrc.indexOf('}', pendingAt));
-  assert.ok(pending.includes('var(--ds-warning-bg)'), 'pending pill must use the warning background token');
-  assert.ok(pending.includes('var(--ds-warning)'), 'pending pill must use the warning text token');
-  assert.ok(pending.includes('var(--ds-warning-border)'), 'pending pill must use the warning border token');
-  assert.ok(!pending.includes('#dc2626') && !pending.includes('#ef4444'), 'pending pill must not be red');
+  // The pending pill is GONE with the badge (QC receipt micro-polish,
+  // 2026-11-20 — the shared badge is removed from the QC card, so the
+  // success-scoped amber rule dies with it). No --ds-warning-* rule
+  // may remain in the success-open scope; the global badge rules
+  // (profile card) are untouched and still token-based.
+  assert.ok(!stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { background: var(--ds-warning-bg);'), 'success-scoped amber rule must be gone (badge removed 2026-11-20)');
 });
 
 // i18n: the new keys exist in EN + UR together (Plan 472).

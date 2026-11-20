@@ -123,12 +123,12 @@ test('tick in box: the heading is still programmatically focused on every succes
   assert.ok(headingGets.length >= 2, 'both paths must resolve the heading by id');
 });
 
-test('tick in box: 32px circle on success', () => {
+test('tick in box: 24px circle on success', () => {
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
-  // 28 → 32px: the tick looked lost beside the two-line 18px heading.
-  // It costs 0px vertically — the row height is driven by the ~54px
-  // heading, so the 32px tick still fits inside it.
-  assert.ok(check.includes('width: 32px') && check.includes('height: 32px'), 'inline tick must be 32px on success');
+  // 32 → 24px (QC receipt micro-polish, 2026-11-20): the 32px check +
+  // 16px title wrapped to two lines at 360px; 24px + the 14px title
+  // fit one line. The 20px SVG stays inside the 24px span.
+  assert.ok(check.includes('width: 24px') && check.includes('height: 24px'), 'inline tick must be 24px on success');
   assert.ok(!check.includes('animation:'), 'the pop must not live on the size rule any more (it is trigger-gated)');
 });
 

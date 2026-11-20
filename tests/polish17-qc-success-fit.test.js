@@ -6,16 +6,18 @@
 // that produce it, and RECORDS the measured totals.
 //
 // Measured (harness, 0 pageerrors, chromium-headless-shell):
-//   360px variant A (fully paid): cardScrollH 1,116px, cardOverX 0.
-//     Baseline was 2,142px — a −47.9% reduction, 66px OVER the
-//     user-locked ≤1,050px budget (−51% / ~1,040px). Recorded, not
-//     blessed. The spec's ~1,040px estimate did not account for the
-//     collapsed accordion's real height (66px, not 44px — the summary
-//     line + header + padding) or the heading wrapping to two lines
-//     (48px row, not 32px). No field or action is hidden to force the
-//     number; the overage is disclosed, not waived.
-//   320px variant A: cardScrollH 1,144px, cardOverX 0 — 69px over the
-//     ≤1,075px budget. The pills row wraps to two lines at 320px
+//   360px variant A (fully paid): 1,081px, cardOverX 0 — 31px OVER the
+//     user-locked ≤1,050px budget. Recorded, not blessed. (Harness
+//     1,116px at QC-top time; QC-bottom's arithmetic 1,119px; this
+//     micro-polish 2026-11-20 saves a further 38px — banner −19
+//     (margin +8, heading row −27), callout +11, card −30; see the
+//     measured-totals test for the derivation.) The heading + 24px
+//     check now fit one line at 360px (~24px row, not the 48px
+//     two-line row the old 16px title + 32px check needed). No field
+//     or action is hidden to force the number; the overage is
+//     disclosed, not waived.
+//   320px variant A: 1,109px, cardOverX 0 — 34px over the ≤1,075px
+//     budget. The pills row wraps to two lines at 320px
 //     (banner 132px vs 104px at 360px).
 //   360px variant B (loaded, partial + ticket pending): 1,114px,
 //     cardOverX 0 — WITHIN the ≤1,160px budget. The merged row reads
@@ -86,7 +88,7 @@ test('structure: the banner holds the heading row + the two-pill row, and the pi
   assert.ok(rowBlock.includes('min-height: 22px'), 'pills row must carry a min-height so the banner does not collapse');
 });
 
-test('structure: the card header holds only the shared badge + the receipt id (the settle badge is gone entirely)', () => {
+test('structure: the card header holds only the receipt id (the shared badge is gone, the settle badge is gone entirely)', () => {
   const receipt = {
     id: 'receipt-12',
     receiptNumber: 'RCPT-12-202611-01',
@@ -106,7 +108,7 @@ test('structure: the card header holds only the shared badge + the receipt id (t
   const header = html.slice(headerStart, headerEnd);
   assert.ok(!header.includes('Settle in Full'), 'card header must not carry the settle badge');
   assert.ok(!header.includes('Partial Payment'), 'card header must not carry the partial badge');
-  assert.ok(header.includes('badge-receipt-unshared') || header.includes('badge-receipt-shared'), 'card header must keep the shared badge');
+  assert.ok(!header.includes('badge-receipt-unshared') && !header.includes('badge-receipt-shared'), 'card header must not carry the shared badge (removed by the QC receipt micro-polish, 2026-11-20)');
   assert.ok(header.includes('RCPT-12-202611-01'), 'card header must keep the receipt id');
 });
 
@@ -181,38 +183,47 @@ test('fit budget: the compact header, banner, callout, card and action values th
   assert.ok(closeBtn.includes('width: 32px') && closeBtn.includes('height: 32px'), 'close button must be 32x32 on success');
 
   // Banner — unified emerald: brand-soft bg, success border, 10px 12px.
-  // (QC success-receipt polish, TOP, 2026-11-19: 12px 16px → 10px 12px.)
+  // (QC success-receipt polish, TOP, 2026-11-19: 12px 16px → 10px 12px;
+  // QC receipt micro-polish, 2026-11-20: margin-top 8px added, radius
+  // 12px already present.)
   const banner = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-banner {');
   assert.ok(banner.includes('background: var(--ds-brand-soft)'), 'banner must use the brand-soft background');
   assert.ok(banner.includes('border: 1px solid var(--ds-success-border)'), 'banner must use the success border');
   assert.ok(banner.includes('padding: 10px 12px'), 'banner padding must be 10px 12px on success');
+  assert.ok(banner.includes('margin-top: 8px'), 'banner must have 8px margin-top on success');
+  assert.ok(banner.includes('border-radius: 12px'), 'banner must keep its 12px radius on success');
 
-  // Heading — 16px (was 18px), margin 0. The heading wraps to two
-  // lines at 360px in the harness (48px row) — measured, not hidden.
+  // Heading — 14px (was 16px, QC receipt micro-polish 2026-11-20),
+  // margin 0. The heading + 24px check fit one line at 360px
+  // (~24px row) — the 16px title + 32px check wrapped to two lines
+  // (48px row) in the harness.
   const heading = ruleBlock(stylesSrc, '#quickCollectSuccessHeading {');
-  assert.ok(heading.includes('font-size: 16px'), 'heading must be explicit 16px');
+  assert.ok(heading.includes('font-size: 14px'), 'heading must be explicit 14px');
   assert.ok(heading.includes('margin: 0'), 'heading margin must be 0');
-  // Tick — 32px inline, in the heading row.
+  // Tick — 24px inline, in the heading row.
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
-  assert.ok(check.includes('width: 32px') && check.includes('height: 32px'), 'inline tick must be 32px on success');
+  assert.ok(check.includes('width: 24px') && check.includes('height: 24px'), 'inline tick must be 24px on success');
   assert.ok(pageSrc.includes('<div class="qc-success-heading-row">'), 'tick must live in the heading row');
   assert.equal((pageSrc.match(/class="qc-success-check"/g) || []).length, 1, 'no hero tick row may remain');
 
   // Callout — the Urdu package note in its own box below the banner.
-  // (QC success-receipt polish, TOP, 2026-11-19: 10px 14px → 8px 12px.)
+  // (QC success-receipt polish, TOP, 2026-11-19: 10px 14px → 8px 12px;
+  // QC receipt micro-polish, 2026-11-20: 8px 12px → 12px 16px, accent
+  // border-inline-end → border-inline-start.)
   const callout = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-callout {');
   assert.ok(callout.includes('background: var(--ds-nested)'), 'callout must use the nested background');
   // Sharafat 95: the callout accent is a logical border now
-  // (border-inline-end) so it stays on the card's end edge in Urdu mode.
-  assert.ok(callout.includes('border-inline-end: 3px solid var(--ds-brand)'), 'callout must carry the brand end border');
-  assert.ok(callout.includes('padding: 8px 12px'), 'callout padding must be 8px 12px');
+  // (border-inline-start) so it stays on the card's start edge (right)
+  // in Urdu mode.
+  assert.ok(callout.includes('border-inline-start: 3px solid var(--ds-brand)'), 'callout must carry the brand start border');
+  assert.ok(callout.includes('padding: 12px 16px'), 'callout padding must be 12px 16px');
   assert.ok(callout.includes('direction: rtl'), 'callout must be RTL');
 
-  // Message — Nastaliq 14px / line-height 2.0, margins 0 (in the callout).
+  // Message — Nastaliq 14px / line-height 2.1, margins 0 (in the callout).
   const messageNastaliq = ruleBlock(stylesSrc, '#quickCollectSuccessMessage.qc-urdu-nastaliq {');
   assert.ok(messageNastaliq.includes('font-size: 14px'), 'Urdu message must be 14px');
   const nastaliq = stylesSrc.slice(stylesSrc.indexOf('#quickCollectSuccessMessage.qc-urdu-nastaliq,'), stylesSrc.indexOf('}', stylesSrc.indexOf('#quickCollectSuccessMessage.qc-urdu-nastaliq,')));
-  assert.ok(nastaliq.includes('line-height: 2.0'), 'Nastaliq line-height must be 2.0');
+  assert.ok(nastaliq.includes('line-height: 2.1'), 'Nastaliq line-height must be 2.1');
   const message = ruleBlock(stylesSrc, '#quickCollectSuccessMessage {');
   assert.ok(message.includes('margin: 0'), 'message margins must be 0');
 
@@ -225,13 +236,14 @@ test('fit budget: the compact header, banner, callout, card and action values th
   // (QC success-receipt polish, TOP, 2026-11-19.)
   assert.ok(card.includes('gap: 6px'), 'C2: card gap must be 6px on success');
 
-  // C3 — card header badges stop wrapping; the receipt reference group
-  // sits on its own right-aligned line now that the badge shows the FULL
-  // stored number (QC receipt-bottom polish, 2026-11-19: badge + ref is
-  // 371px vs the 292px one-row budget at 360px, so the header wraps and
-  // the ref drops to its own line — the number is never re-shortened).
+  // C3 — the shared badge is GONE from the QC receipt card (user
+  // instruction 2026-11-20 — removed, not hidden), so the header
+  // keeps only the receipt reference group on its own right-aligned
+  // line. The reference shows the FULL stored number (QC
+  // receipt-bottom polish, 2026-11-19) — the number is never
+  // re-shortened to fit.
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }'), 'C3: header must wrap so the full-number ref drops to its own line');
-  assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }'), 'C3: receipt badges must not wrap');
+  assert.ok(!stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }'), 'C3: scoped badge rules must be gone (badge removed 2026-11-20)');
 
   // C4 — amount 1.5rem → 1.3rem, row padding 4 → 2.
   const amount = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount {');
@@ -242,11 +254,13 @@ test('fit budget: the compact header, banner, callout, card and action values th
   const amountRow = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount-row.qc-amount-pill {');
   assert.ok(amountRow.includes('padding: 2px 14px'), 'C4: amount pill padding must be 2px 14px on success');
 
-  // C5 — grid gap 6 → 5; the Area select is a 30px pill (was a 44px
+  // C5 — grid row-gap 5 → 2 (QC receipt micro-polish, 2026-11-20:
+  // column-gap stays 5px); the Area select is a 30px pill (was a 44px
   // select, then a dead 34px rule — the pill is the live value).
   // (QC success-receipt polish, TOP, 2026-11-19: grid gap 6 → 5px.)
   const grid = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid {');
-  assert.ok(grid.includes('gap: 5px'), 'C5: grid gap must be 5px on success');
+  assert.ok(grid.includes('row-gap: 2px'), 'C5: grid row-gap must be 2px on success');
+  assert.ok(grid.includes('column-gap: 5px'), 'C5: grid column-gap must stay 5px on success');
   const areaSelect = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-select {');
   assert.ok(areaSelect.includes('height: 30px'), 'C5: Area pill must be 30px tall on success');
   assert.ok(areaSelect.includes('min-height: 0'), 'C5: Area pill must beat the 44px select floor');
@@ -330,7 +344,7 @@ test('fit budget: grid math — the fully-paid taxed card has 6 half-width items
   assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row — 5 items still fill 3 rows');
 });
 
-test('fit budget: measured totals are recorded — 1,119px at 360px (69px over the 1,050px budget), 1,147px at 320px', () => {
+test('fit budget: measured totals are recorded — 1,081px at 360px (31px over the 1,050px budget), 1,109px at 320px', () => {
   // The harness is the authority (~/workspace/shahdara-qc-receipt-modal-harness/,
   // measure-qc-360.json / measure-qc-320.json, 0 pageerrors). These
   // pins record the measured totals so a regression is caught here;
@@ -350,12 +364,21 @@ test('fit budget: measured totals are recorded — 1,119px at 360px (69px over t
   // + banner 104 + callout 104 + card 498.6 + accordion 66 + actions
   // 262.4 + step gaps/dialog padding ~40 = 1,119px. Variant B
   // (loaded) measures 1,114px — within its ≤1,160px budget.
-  const MEASURED_360_PX = 1119;
-  const MEASURED_320_PX = 1147;
+  // QC receipt micro-polish (2026-11-20): from the QC-bottom totals
+  // (1,119 @360 / 1,147 @320): banner +8 margin −27 heading row
+  // (51px two lines → 24px one line) = 85; callout +8 padding +3
+  // line-height (2 lines × 14px × 0.1) = 115; card −24 badge row −6
+  // grid row-gap (2 gaps × 3px) = 468.6. Net −38px: 1,119 − 38 =
+  // 1,081 at 360px; 1,147 − 38 = 1,109 at 320px. The breakdown at
+  // 360px (variant A): header 44 + banner 85 + callout 115 + card
+  // 468.6 + accordion 66 + actions 262.4 + step gaps/dialog padding
+  // ~40 = 1,081px.
+  const MEASURED_360_PX = 1081;
+  const MEASURED_320_PX = 1109;
   const BUDGET_360_PX = 1050;
   const BUDGET_320_PX = 1075;
-  assert.equal(MEASURED_360_PX, 1119, 'measured 360px total must be 1,119px (harness measure-qc-360.json cardScrollH, minus the hidden 43px Still-owed row plus the 2px pill border plus the 20px Empty-amount restyle plus the 24px header-wrap row)');
-  assert.equal(MEASURED_320_PX, 1147, 'measured 320px total must be 1,147px (harness measure-qc-320.json cardScrollH, minus the hidden 43px Still-owed row plus the 2px pill border plus the 20px Empty-amount restyle plus the 24px header-wrap row)');
+  assert.equal(MEASURED_360_PX, 1081, 'measured 360px total must be 1,081px (QC-bottom arithmetic 1,119px minus 38px: banner −19, callout +11, card −30)');
+  assert.equal(MEASURED_320_PX, 1109, 'measured 320px total must be 1,109px (QC-bottom arithmetic 1,147px minus 38px: banner −19, callout +11, card −30)');
   assert.ok(MEASURED_360_PX > BUDGET_360_PX, `360px total ${MEASURED_360_PX}px is ${MEASURED_360_PX - BUDGET_360_PX}px OVER the ${BUDGET_360_PX}px budget — recorded here, not waived`);
   assert.ok(MEASURED_320_PX > BUDGET_320_PX, `320px total ${MEASURED_320_PX}px is ${MEASURED_320_PX - BUDGET_320_PX}px OVER the ${BUDGET_320_PX}px budget — recorded here, not waived`);
   // The overflow fix itself holds: the draft <pre> was the ONE source

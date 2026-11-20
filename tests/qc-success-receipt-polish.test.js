@@ -12,6 +12,9 @@
 //     shows the FULL 17-char number, badge + ref is 371px vs the 292px
 //     budget, so the header wraps again and the ref sits on its own
 //     right-aligned line (C2 below pins the wrap, not the one-row fit).
+//     QC receipt micro-polish (2026-11-20) removes the badge from the
+//     QC card entirely (user instruction) — the header is ref-only now
+//     (C2 below pins the ref-only wrap).
 //  3. The Change button sat centred and unstyled under the phone. It is
 //     now a left-aligned emerald underlined inline link (token
 //     --qc-emerald-text, zero new hex); hook + handler untouched.
@@ -20,10 +23,14 @@
 //     inline h3, check vertical-align middle); the package line reads
 //     'PKR 800/mo' (pkg_auto_set_note value-only, both dicts); vertical
 //     padding is cut to a measured ~88px saving.
-//  4(d) KEEP ↩: the glyph matches the action (back to the customer
-//     picker, the user-reported 2026-11-12 fix, PR #1365, pinned by
-//     qc-success-back-to-picker). Swapping to ✕ without changing the
-//     action would lie about what the button does.
+//  4(d) REVERSED by the QC receipt micro-polish (user instruction
+//     2026-11-20): the header button is ✕ on EVERY step now, and on
+//     success it is a true close (NAMED REVERSAL of PR #1365 and of
+//     the QC-top D7(a) KEEP). Glyph AND action both change — a
+//     glyph-only swap would lie about what the button does. The
+//     one-tap back-to-picker from the header is gone; "Next Customer"
+//     still offers it. Pinned by qc-success-back-to-picker (rewritten
+//     wholesale for the reversal).
 //  4(c) REWORDED acceptance: the measured saving is >= 80px; the
 //     remaining ~142px overage at 360x800 is disclosed, not hidden —
 //     literal "fits without scrolling" is NOT achievable by padding
@@ -101,21 +108,21 @@ test('C1 English fallback notice is explicitly LTR (JS dir=ltr), callout stays R
   assert.ok(has(callout, /direction:\s*rtl/), 'the callout must keep direction: rtl (Urdu package message needs it)');
 });
 
-// --- C2: badge + Receipt No. at 360px — the ref wraps to its own line ---
-// (QC receipt-bottom polish, 2026-11-19: the badge shows the FULL stored
-// number, so badge + ref can no longer fit one row — the header wraps and
-// the ref sits on its own right-aligned line. The TOP one-row fit is
-// retired, not re-shortened: the number is 17 chars, never the short form.)
-test('C2 badge + full Receipt No. wrap cleanly at 360px (badge row 1, ref on its own right-aligned line)', () => {
+// --- C2: ref-only header at 360px — the ref sits on its own line ---
+// (QC receipt micro-polish, 2026-11-20: the shared badge is REMOVED from
+// the QC card, so the header is ref-only. The FULL 17-char number is
+// never re-shortened: the ref wraps to its own right-aligned line.)
+test('C2 ref-only header wraps cleanly at 360px (no badge; ref on its own right-aligned line)', () => {
   const headerRule = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header');
   assert.ok(has(headerRule, /flex-wrap:\s*wrap/), 'success-open header must be flex-wrap: wrap');
-  // DejaVu upper-bound text widths: badge text 129 + svg 12, ref label 80
-  // + id 122 (17 monospace chars at the TOP model's 43px-per-6-chars rate).
-  const badgeScoped = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared');
-  const badgeGap = num(badgeScoped, 'gap') ?? 4;
-  const badgePadMatch = badgeScoped?.match(/padding:\s*[0-9.]+px\s+([0-9.]+)px/);
-  const badgePadX = badgePadMatch ? Number(badgePadMatch[1]) : 8;
-  const badgeW = 129 + 12 + badgeGap + badgePadX * 2 + 2;
+  // The four scoped badge rules are gone with the badge; the base rules
+  // stay for the profile card.
+  assert.ok(!styles.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }'), 'scoped badge nowrap rule must be gone');
+  assert.ok(!styles.includes('#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-shared { white-space: nowrap; }'), 'scoped shared nowrap rule must be gone');
+  assert.ok(!styles.includes('#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { white-space: nowrap; padding: 2px 6px; gap: 2px; }'), 'scoped unshared shave rule must be gone');
+  assert.ok(!styles.includes('#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { background: var(--ds-warning-bg);'), 'scoped amber rule must be gone');
+  // DejaVu upper-bound text widths: ref label 80 + id 122 (17 monospace
+  // chars at the TOP model's 43px-per-6-chars rate).
   const refRule = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-ref');
   const refGap = num(refRule, 'gap') ?? 6;
   const chipRule = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header .qc-txnid-code');
@@ -124,10 +131,6 @@ test('C2 badge + full Receipt No. wrap cleanly at 360px (badge row 1, ref on its
   const refW = 80 + refGap + 122 + chipPadX * 2;
   const cardPad = num(ruleBody('#quickCollectModal.qc-success-open .qc-receipt-card'), 'padding') ?? 10;
   const cardInner360 = 316 - cardPad * 2;
-  assert.ok(badgeW + refW > cardInner360 - 8,
-    `badge (${badgeW}) + ref (${refW}) = ${badgeW + refW} must EXCEED inner ${cardInner360} — that is why the header wraps`);
-  assert.ok(badgeW <= cardInner360 - 8,
-    `badge (${badgeW}) must fit row 1 alone inside inner ${cardInner360}`);
   assert.ok(refW <= cardInner360 - 8,
     `ref (${refW}) must fit its own line inside inner ${cardInner360}`);
   // The right-alignment lives in the BASE .qc-receipt-ref rule (the
@@ -188,24 +191,34 @@ test('C6 vertical padding reduced (banner/callout/card/step/actions), measured s
   const stepGap = num(stepRule, 'gap') ?? 8;
   const actionsGap = num(actionsRule, 'gap') ?? 8;
   const actionsMt = num(actionsRule, 'margin-top') ?? 8;
-  assert.ok(bannerV <= 10 && calloutV <= 8 && cardP <= 8 && cardGap <= 6 && stepGap <= 6 && actionsGap <= 6,
+  // QC receipt micro-polish (2026-11-20): the callout vertical padding
+  // is 12px now (py-3 px-4 translated — the accent box gets air for
+  // Nastaliq), so the callout bound moves 8 → 12. The padding-only
+  // model loses 8px here; the full total still falls 38px (fit test:
+  // 1,119 → 1,081px) because the heading row goes back to one line
+  // (−27px) and the badge row leaves with the badge (−24px).
+  assert.ok(bannerV <= 10 && calloutV <= 12 && cardP <= 8 && cardGap <= 6 && stepGap <= 6 && actionsGap <= 6,
     `bannerV=${bannerV} calloutV=${calloutV} cardP=${cardP} cardGap=${cardGap} stepGap=${stepGap} actionsGap=${actionsGap}`);
   // Saved px vs the base values (banner 12, callout 10, card 10, gaps 8/8/8).
   const saved = (12 - bannerV) * 2 + (10 - calloutV) * 2 + (10 - cardP) * 2
     + (8 - cardGap) * 4 + (8 - stepGap) * 6 + (8 - actionsGap) * 5 + (8 - actionsMt);
-  // Package one line saves ~20px. The header one-row saving (~24px) is
-  // GONE: the QC receipt-bottom polish shows the FULL 17-char number, so
-  // the header wraps again and the row comes back (see C2 above).
+  // Package one line saves ~20px. The header one-row saving (~24px)
+  // is BACK: the micro-polish shrinks the heading to 14px and the
+  // check to 24px, so the heading row is one line again — but this
+  // padding-only model does not count it; the fit test's 1,081px
+  // total captures it (and the −24px badge row).
   const savedTotal = saved + 20;
   assert.ok(savedTotal >= 56, `measured saving ~${savedTotal}px must be >= 56px`);
 });
 
-// --- Steady state: ↩ kept (glyph matches the back-to-picker action) ---
-test('S3 header button swap intact (↩ on success = back, ✕ elsewhere = close)', () => {
-  assert.ok(qcJs.includes("closeBtn.textContent = stepName === 'success' ? '↩' : '✕'"),
-    'the success step must keep ↩ (PR #1365 back-to-picker fix)');
-  assert.ok(/if \(stepSuccess && !stepSuccess\.hidden\) \{\s*collectAnotherCustomer\(\);/.test(qcJs),
-    'the success close button must still go back to the picker');
+// --- Steady state: ✕ on every step (PR #1365 reversed) ---
+test('S3 header button is ✕ on every step (true close, PR #1365 reversed)', () => {
+  assert.ok(qcJs.includes("closeBtn.textContent = '✕';"),
+    'showStep must set ✕ unconditionally — the ↩ swap is gone (QC receipt micro-polish, user instruction 2026-11-20)');
+  assert.ok(!qcJs.includes("stepName === 'success' ? '↩'"),
+    'no ↩ ternary may remain in showStep');
+  assert.ok(qcJs.includes("closeBtn?.addEventListener('click', closeModal);"),
+    'the header button must call closeModal directly on every step (true close)');
 });
 
 // --- Steady state: Urdu package message still RTL + Nastaliq ---

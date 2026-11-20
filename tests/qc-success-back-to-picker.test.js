@@ -1,27 +1,22 @@
-// QC back button fix — the header back arrow (↩, top right) on the
-// Quick Collect success card ("Payment Recorded Successfully") must
-// return to the previous payment screen — the customer picker — so
-// the next customer's payment can be taken right away.
+// QC receipt micro-polish — the header button (✕, top right) on the
+// Quick Collect success card ("Payment Recorded Successfully") is a
+// TRUE CLOSE now.
 //
-// User-reported live bug 2026-11-12 (Roman Urdu + phone screenshot):
-// tapping ↩ on the success card took the operator to HOME, and the
-// payment screen had to be found and reopened for every next
-// customer. Root cause: the header button is wired as a modal CLOSE
-// for every step (closeModal), and closing the sheet makes the
-// collect route leave() history.back() to the screen underneath —
-// Home when Quick Collect was opened from Home / the bottom bar.
-//
-// Fix: on the success step only, ↩ runs the same full reset as the
-// "Next Customer" button (collectAnotherCustomer): undo timers and
-// reversal undo are dropped, the picker step shows again, the search
-// is cleared and the active customer/receipt are reset — the modal
-// stays OPEN on the picker. Every other step keeps the close
-// behaviour (Done, Escape, backdrop and the phone Back button are
-// untouched). The split-tender save lands on this same success step
-// (the second showStep('success') site), so it is covered by the
-// same step check; a flow with no meaningful previous payment
-// screen does not exist here — every success card is reached from
-// this modal's picker.
+// NAMED REVERSAL of PR #1365 and of the QC-top D7(a) KEEP decision
+// (user instruction 2026-11-20). PR #1365 fixed a user-reported live
+// bug (2026-11-12): tapping the header button on the success card
+// took the operator to HOME, and the payment screen had to be found
+// and reopened for every next customer — so the header button became
+// ↩, running the same full reset as "Next Customer"
+// (collectAnotherCustomer) back to the picker. The user now
+// explicitly asks for ✕: the header button closes the modal on every
+// step including success. A glyph-only swap (✕ that goes back) would
+// be dishonest UI, so glyph AND action both change. The one-tap
+// back-to-picker from the header is gone; the "Next Customer" button
+// still offers it. Done, Escape, backdrop and the phone Back button
+// are untouched. The split-tender save lands on this same success
+// step (the second showStep('success') site), so it is covered by
+// the same close behaviour.
 //
 // Harness: the QC success-card phone-row controller harness (mock
 // DOM + a real payment through submit + confirm). Pattern-fake data
@@ -174,76 +169,77 @@ async function saveToSuccess({ controller, getEl, getState }) {
   assert.equal(getEl('quickCollectModal').open, true, 'precondition: modal open on success');
 }
 
-test('REPRO: on the success card, the header back arrow returns to the picker — the modal stays open', async () => {
+test('REPRO: on the success card, the header ✕ CLOSES the modal (PR #1365 reversed)', async () => {
   await withController(fixtureState(), async (h) => {
     await saveToSuccess(h);
     await h.getEl('closeQuickCollectModalBtn').click();
-    assert.equal(h.getEl('quickCollectModal').open, true, 'the modal must STAY OPEN — closing it drops the operator on Home');
-    assert.equal(h.getEl('quickCollectStepPick').hidden, false, 'the picker step shows again — the next customer can be picked right away');
-    assert.equal(h.getEl('quickCollectStepSuccess').hidden, true, 'the success step is left behind');
-    assert.equal(h.getEl('quickCollectSearchInput').value, '', 'the picker search is cleared for the next customer');
+    assert.equal(h.getEl('quickCollectModal').open, false, 'the modal must CLOSE — ✕ is a true close on success now, not back-to-picker');
   });
 });
 
-test('on the success card, the header back arrow announces itself as back to the customer list', async () => {
+test('on the success card, the header ✕ announces itself as a close', async () => {
   await withController(fixtureState(), async (h) => {
     await saveToSuccess(h);
     assert.equal(
       h.getEl('closeQuickCollectModalBtn').getAttribute('aria-label'),
-      'Back to customer list',
-      'on success the arrow must say where it goes — it no longer closes the sheet',
+      'Close quick collect modal',
+      'on success the button must say it closes — the back-to-picker label is gone',
+    );
+    assert.equal(
+      h.getEl('closeQuickCollectModalBtn').textContent,
+      '✕',
+      'on success the button must show ✕, never ↩',
     );
   });
 });
 
-test('on the picker step, the header back arrow still closes the sheet (unchanged)', async () => {
+test('on the picker step, the header ✕ still closes the sheet (unchanged)', async () => {
   await withController(fixtureState(), async (h) => {
     h.controller.open();
     assert.equal(h.getEl('quickCollectStepPick').hidden, false, 'precondition: picker showing');
     assert.equal(h.getEl('quickCollectModal').open, true, 'precondition: modal open');
     await h.getEl('closeQuickCollectModalBtn').click();
-    assert.equal(h.getEl('quickCollectModal').open, false, 'on the picker the arrow still closes the sheet');
+    assert.equal(h.getEl('quickCollectModal').open, false, 'on the picker the ✕ still closes the sheet');
   });
 });
 
-test('on the form step, the header back arrow still closes the sheet (unchanged)', async () => {
+test('on the form step, the header ✕ still closes the sheet (unchanged)', async () => {
   await withController(fixtureState(), async (h) => {
     h.controller.open('seed-001');
     assert.equal(h.getEl('quickCollectStepForm').hidden, false, 'precondition: form showing');
     await h.getEl('closeQuickCollectModalBtn').click();
-    assert.equal(h.getEl('quickCollectModal').open, false, 'on the form the arrow still closes the sheet');
+    assert.equal(h.getEl('quickCollectModal').open, false, 'on the form the ✕ still closes the sheet');
   });
 });
 
-test('wiring source: the close-button handler branches on the success step, and the Done button still closes', () => {
+test('wiring source: the close-button handler calls closeModal directly, and the Done button still closes', () => {
   const setupStart = quickCollectSrc.indexOf('export function setupQuickCollectModal');
   const setupSrc = quickCollectSrc.slice(setupStart);
   const closeAt = setupSrc.indexOf("closeBtn?.addEventListener('click'");
   assert.ok(closeAt >= 0, 'close-button wiring exists');
-  const handler = setupSrc.slice(closeAt, closeAt + 600);
-  assert.ok(handler.includes('quickCollectStepSuccess') || handler.includes('stepSuccess'), 'the handler must read the success step before deciding');
-  assert.ok(handler.includes('collectAnotherCustomer'), 'on success the arrow must run the same reset as Next Customer');
-  assert.ok(handler.includes('closeModal'), 'off success the arrow must still close the modal');
+  const handler = setupSrc.slice(closeAt, closeAt + 200);
+  assert.ok(handler.includes("closeBtn?.addEventListener('click', closeModal);"), 'the header button must call closeModal directly (no success branch)');
+  assert.ok(!handler.includes('collectAnotherCustomer'), 'the header button must no longer run the back-to-picker reset');
+  assert.ok(!handler.includes('stepSuccess'), 'the header handler must no longer branch on the success step');
   const doneAt = setupSrc.indexOf("doneCloseBtn?.addEventListener('click', closeModal)");
-  assert.ok(doneAt >= 0, 'Done still closes the sheet — only the header arrow changes, and only on success');
-  // The header button keeps its close wording in the markup (the
-  // label is swapped at runtime by the step change, exactly like the
-  // picker's own "Back to Picker" button already says).
+  assert.ok(doneAt >= 0, 'Done still closes the sheet — only the header button changed, and only on success');
+  // The header button keeps its close wording in the markup.
   const btnAt = pageSrc.indexOf('id="closeQuickCollectModalBtn"');
-  assert.ok(btnAt >= 0, 'header back button exists in the markup');
+  assert.ok(btnAt >= 0, 'header close button exists in the markup');
   assert.ok(pageSrc.slice(btnAt, btnAt + 200).includes('aria-label="Close quick collect modal"'), 'markup keeps the close label as the default');
-  // QC Modal Overhaul 2: the static markup is '✕' (the modal opens
-  // on the picker, a close step) — the '↩' appears only on the
-  // success step, swapped in by showStep(). A static '↩' would
-  // promise a back action the picker step does not perform.
+  // QC receipt micro-polish: the static markup is '✕' (the modal opens
+  // on the picker, a close step) — and showStep now keeps it '✕' on
+  // every step, including success. No '↩' swap remains anywhere.
   assert.ok(pageSrc.slice(btnAt, btnAt + 200).includes('✕'), 'header button is ✕ in the static markup (picker step closes)');
   const showStepAt = quickCollectSrc.indexOf('function showStep');
   assert.ok(showStepAt >= 0, 'showStep exists');
   const showStepBlock = quickCollectSrc.slice(showStepAt, showStepAt + 2000);
-  assert.ok(showStepBlock.includes("closeBtn.textContent = stepName === 'success' ? '↩' : '✕'"), 'showStep must swap the glyph per step — ↩ on success, ✕ elsewhere');
+  assert.ok(showStepBlock.includes("closeBtn.textContent = '✕';"), 'showStep must set ✕ unconditionally on every step');
+  assert.ok(showStepBlock.includes("closeBtn.setAttribute('aria-label', 'Close quick collect modal');"), 'showStep must set the close label unconditionally');
+  assert.ok(!showStepBlock.includes("stepName === 'success' ? '↩'"), 'showStep must no longer swap in ↩ on success');
 });
 
-test('wiring source: both save paths land on this same success step, so one step check covers them', () => {
+test('wiring source: both save paths land on this same success step, so one close behaviour covers them', () => {
   const showSuccess = (quickCollectSrc.match(/showStep\('success'\)/g) || []).length;
-  assert.equal(showSuccess, 2, 'exactly two save paths reach the success step (ordinary + split tender) — both share the card and the header arrow');
+  assert.equal(showSuccess, 2, 'exactly two save paths reach the success step (ordinary + split tender) — both share the card and the header close button');
 });

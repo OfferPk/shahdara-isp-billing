@@ -205,8 +205,7 @@ import { contributorSnapshotFor, subContributorsOf } from './shared-router-contr
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
 import {
   isReceiptShared,
-  markReceiptShared,
-  renderReceiptSharedBadgeHtml
+  markReceiptShared
 } from './nav-quick-profile.js';
 // Plan 5 (Plan 1-100): every field receipt created here starts with a
 // delivery entry in status 'generated'; dispatch still goes through
@@ -2476,8 +2475,6 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
   // reads October. monthName returns '' for a missing/invalid month,
   // so the row renders only for a valid bill month.
   const billMonthName = monthName(receipt.month);
-  const shared = isReceiptShared(receipt.id);
-  const sharedBadge = renderReceiptSharedBadgeHtml(Boolean(shared?.shared), shared);
   // SISP-43: ticket charges settled by this receipt, one row per ticket.
   const ticketChargeRows = (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []).map(line => `
         <div class="qc-receipt-item full-width">
@@ -2505,18 +2502,17 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
              card header — and the QC receipt-modal overhaul removed it
              entirely (the merged Still-owed row + the still-owes pill
              state the settled/partial state now) — so the header keeps
-             only the shared badge + the receipt reference. The reference
+             only the receipt reference. The reference
              is a labelled chip ("Receipt No." + the id in the
              Transaction ID row's .qc-txnid-code): the card was the only
              receipt surface showing the number with no label at all.
              QC receipt-bottom polish: the chip shows the FULL stored
              number (RCPT-83-202611-01), the same number the WhatsApp
              preview shows — the short form from the earlier card polish
-             is retired here; split legs keep the short form. The full
-             number is 17 chars, so badge + ref no longer fit one row at
-             360px — the header wraps and the ref sits on its own
+             is retired here; split legs keep the short form. The shared
+             badge is gone (user instruction — removed, not
+             hidden), so the header is ref-only on its own
              right-aligned line. -->
-        ${sharedBadge}
         <span class="qc-receipt-ref"><span class="qc-receipt-label">Receipt No.</span> <span class="qc-receipt-id qc-txnid-code" title="${escapeHtml(receipt.receiptNumber)}" data-full-receipt-number="${escapeHtml(receipt.receiptNumber)}">${escapeHtml(receipt.receiptNumber)}</span></span>
       </div>
 
@@ -4300,24 +4296,17 @@ export function setupQuickCollectModal({
     // Polish 17: the success-only compact + eyebrow rules hang off this
     // class on the modal (the header sits outside the step div).
     if (modal) modal.classList.toggle('qc-success-open', stepName === 'success');
-    // QC back-button fix (user-reported live bug 2026-11-12): the
-    // header ↩ is BACK on the success card (it returns to the picker
-    // so the next customer's payment can be taken right away) and
-    // CLOSE everywhere else — say so, so the button never promises
-    // a close it will not perform.
+    // QC receipt micro-polish (user instruction 2026-11-20): the header
+    // button is ✕ on EVERY step, and on success it is a true close —
+    // a NAMED REVERSAL of PR #1365 and of the QC-top D7(a) KEEP
+    // decision. The one-tap back-to-picker from the header is gone;
+    // the "Next Customer" button still offers it. The close-button
+    // audit carries this button as its fourth documented exception.
     if (closeBtn && typeof closeBtn.setAttribute === 'function') {
-      closeBtn.setAttribute('aria-label', stepName === 'success' ? 'Back to customer list' : 'Close quick collect modal');
+      closeBtn.setAttribute('aria-label', 'Close quick collect modal');
     }
-    // QC Modal Overhaul 2: the glyph follows the ACTION, not the step
-    // name — '✕' closes (picker / form / confirm / one-screen), '↩'
-    // goes BACK on the success card (collectAnotherCustomer resets
-    // to the picker, PR #1365). A blanket '✕' would silently revert
-    // #1365; the success step keeps its back arrow. The static
-    // markup is '✕' (the modal opens on the picker), and the
-    // close-button audit carries this button as its fourth
-    // documented exception.
     if (closeBtn && typeof closeBtn.textContent !== 'undefined') {
-      closeBtn.textContent = stepName === 'success' ? '↩' : '✕';
+      closeBtn.textContent = '✕';
     }
     // Polish 21 (Req 7): the tick animation must visibly play on EVERY
     // showing. The base rules carry no animation (it would run once at
@@ -8413,23 +8402,13 @@ export function setupQuickCollectModal({
 
   // Done button
   doneCloseBtn?.addEventListener('click', closeModal);
-  // QC back-button fix (user-reported live bug 2026-11-12): on the
-  // success card the header ↩ is BACK, not close — it runs the same
-  // full reset as the "Next Customer" button (collectAnotherCustomer),
-  // so the picker shows again and the next customer's payment can be
-  // taken right away. Closing the sheet here dropped the operator on
-  // the screen underneath (Home when Quick Collect was opened from
-  // Home / the bottom bar), and the payment screen had to be found
-  // and reopened for every next customer. Every other step keeps the
-  // close behaviour; Done, Escape, backdrop and phone Back are
-  // untouched.
-  closeBtn?.addEventListener('click', () => {
-    if (stepSuccess && !stepSuccess.hidden) {
-      collectAnotherCustomer();
-      return;
-    }
-    closeModal();
-  });
+  // QC receipt micro-polish (user instruction 2026-11-20): the header
+  // ✕ is a true CLOSE on every step including success — a NAMED
+  // REVERSAL of PR #1365 (the header ↩ used to run the same full reset
+  // as the "Next Customer" button). The one-tap back-to-picker from
+  // the header is gone; "Next Customer" still offers it. Done,
+  // Escape, backdrop and phone Back are untouched.
+  closeBtn?.addEventListener('click', closeModal);
 
   // Link to full transactions view
   goToTransactionsBtn?.addEventListener('click', () => {

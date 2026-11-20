@@ -253,8 +253,8 @@ test('Plan 559 PIN: the legs map keeps its existing fields; a hand-built combine
   const { combinedReceipt } = run(settledFixture(), settledSpec);
   assert.deepEqual(
     Object.keys(combinedReceipt.legs[0]).sort(),
-    ['amount', 'date', 'leg', 'method', 'paidBy', 'paymentId', 'receiptNumber', 'senderLabel', 'transactionId', 'voided'],
-    'the legs map gains exactly senderLabel + paidBy, nothing else'
+    ['amount', 'date', 'leg', 'method', 'paidBy', 'paymentId', 'receiptNumber', 'receiptSequence', 'senderLabel', 'transactionId', 'voided'],
+    'the legs map gains exactly senderLabel + paidBy + receiptSequence, nothing else'
   );
   // A hand-built combined object without either new field (the Plan
   // 557 pin shape) renders exactly as before — no sender/payer lines.

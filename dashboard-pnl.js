@@ -151,6 +151,7 @@ export function calculatePnlAnalytics(state = {}, {
     const netProfit = Number((income - expensesTotal).toFixed(2));
 
     const incomeCount = matchingPayments.length;
+    const payerCount = new Set(matchingPayments.map((p) => p.customer.id)).size;
     const expenseCount = matchingExpenses.length;
 
     let profitMargin = 0;
@@ -188,6 +189,7 @@ export function calculatePnlAnalytics(state = {}, {
       profitMargin,
       expenseRatio,
       incomeCount,
+      payerCount,
       expenseCount,
       isProfitable: netProfit > 0,
       status,
@@ -317,7 +319,7 @@ export function calculatePnlAnalytics(state = {}, {
  * @param {Date} [options.referenceDate=new Date()] — accepted for symmetry
  *   with calculatePnlAnalytics; the lifetime is windowless, so it is unused.
  * @returns {{income:number, expenses:number, profit:number, margin:number,
- *   incomeCount:number, expenseCount:number, earliest:string|null, hasRecords:boolean}}
+ *   incomeCount:number, payerCount:number, expenseCount:number, earliest:string|null, hasRecords:boolean}}
  */
 export function calculateLifetimePnl(state = {}, { referenceDate = new Date() } = {}) {
   // The lifetime has no window: referenceDate is accepted only so the
@@ -355,6 +357,7 @@ export function calculateLifetimePnl(state = {}, { referenceDate = new Date() } 
     profit,
     margin,
     incomeCount: payments.length,
+    payerCount: new Set(payments.map((p) => p.customer.id)).size,
     expenseCount: expenses.length,
     earliest: ledgerEarliest,
     hasRecords: (income > 0 || expensesTotal > 0)
@@ -381,6 +384,100 @@ export function calculateLifetimePnl(state = {}, { referenceDate = new Date() } 
  * @param {Object} [labels] — `{ year, monthOne, monthMany, day }`
  * @returns {string}
  */
+/** Business start: Eid-ul-Fitr 2025 (31 Mar 2025). Single named constant --
+ * the user has not confirmed it yet; if the real start date differs, change
+ * this ONE line and the counter, the duration text and the days milestones
+ * all follow. Eid-2024 (10 Apr 2024) would give 954 days at 20 Nov 2026;
+ * the user's own "500+" estimate only fits the 2025 date (599 days). */
+export const BUSINESS_START_DATE = '2025-03-31';
+
+/**
+ * Calendar days from `start` ('YYYY-MM-DD') to `today` ('YYYY-MM-DD') --
+ * plain UTC day difference, NOT Mon-Fri working days (working days would
+ * be ~428 at 20 Nov 2026; the user's "500+" only fits calendar days).
+ * Returns null for a bad date or when today is before the start.
+ */
+export function countBusinessDays(start, today) {
+  const parse = (value) => {
+    if (typeof value !== 'string') return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) return null;
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+    if (Number.isNaN(date.getTime())) return null;
+    return date;
+  };
+  const startDate = parse(start);
+  const todayDate = parse(today);
+  if (startDate === null || todayDate === null) return null;
+  const days = Math.round((todayDate.getTime() - startDate.getTime()) / 86400000);
+  return days < 0 ? null : days;
+}
+
+/**
+ * Live billing averages for one period (month or lifetime). Denominators:
+ * avg bill divides by DISTINCT PAYING customers (the user counts payers);
+ * per-customer expense divides by the ACTIVE ROSTER (the user said
+ * "harr customer py brabar" -- equally across customers); profit is
+ * avg bill minus per-customer expense (mixed bases -- the labels say so).
+ * Missing denominators give null, never 0 (a 0 would lie: it would read
+ * as "free" instead of "unknown"). Amounts are plain numbers; the caller
+ * formats them with formatPKR.
+ */
+export function calculateHisaabAverages({ income, expenses, payerCount, activeCustomerCount }) {
+  const avgBill = typeof payerCount === 'number' && payerCount > 0
+    ? income / payerCount : null;
+  const expensePerCustomer = typeof activeCustomerCount === 'number' && activeCustomerCount > 0
+    ? expenses / activeCustomerCount : null;
+  const profitPerCustomer = avgBill !== null && expensePerCustomer !== null
+    ? avgBill - expensePerCustomer : null;
+  return { avgBill, expensePerCustomer, profitPerCustomer };
+}
+
+/**
+ * Achievement ladder -- ONE table, not scattered ifs. Each milestone has a
+ * metric (days in business / lifetime profit / active customers), a
+ * threshold and a display label. A milestone triggers when its metric is
+ * >= its threshold (NOT ===: the app may not be opened on the exact day --
+ * the 1000-day toast must still fire on day 1000 if day 999 was missed).
+ * The days-1000 rung is special: its threshold is 999 (the user wants the
+ * toast WHEN the counter reads 999) while its label is 1000 (the message
+ * says "1000 days"). 999 days after 31 Mar 2025 is Sat 25 Dec 2027;
+ * 1000 days is Sun 26 Dec 2027.
+ */
+export const ACHIEVEMENT_MILESTONES = [
+  { id: 'days-100', metric: 'days', threshold: 100, label: 100 },
+  { id: 'days-365', metric: 'days', threshold: 365, label: 365 },
+  { id: 'days-500', metric: 'days', threshold: 500, label: 500 },
+  { id: 'days-730', metric: 'days', threshold: 730, label: 730 },
+  { id: 'days-1000', metric: 'days', threshold: 999, label: 1000 },
+  { id: 'profit-100000', metric: 'lifetimeProfit', threshold: 100000, label: 100000 },
+  { id: 'profit-500000', metric: 'lifetimeProfit', threshold: 500000, label: 500000 },
+  { id: 'profit-1000000', metric: 'lifetimeProfit', threshold: 1000000, label: 1000000 },
+  { id: 'profit-2000000', metric: 'lifetimeProfit', threshold: 2000000, label: 2000000 },
+  { id: 'customers-100', metric: 'activeCustomers', threshold: 100, label: 100 },
+  { id: 'customers-150', metric: 'activeCustomers', threshold: 150, label: 150 },
+  { id: 'customers-200', metric: 'activeCustomers', threshold: 200, label: 200 },
+  { id: 'customers-250', metric: 'activeCustomers', threshold: 250, label: 250 },
+  { id: 'customers-500', metric: 'activeCustomers', threshold: 500, label: 500 },
+];
+
+/**
+ * Pure: which milestones in the table are crossed by `metrics` and not yet
+ * in `achieved` (an array of milestone ids). No toast, no storage, no DOM --
+ * the caller (app.js) owns persistence and the toast calls, so this is
+ * trivially testable and re-runnable with the same input.
+ */
+export function checkAchievements(metrics, achieved) {
+  const done = new Set(Array.isArray(achieved) ? achieved : []);
+  const out = [];
+  for (const milestone of ACHIEVEMENT_MILESTONES) {
+    if (done.has(milestone.id)) continue;
+    const value = metrics[milestone.metric];
+    if (typeof value === 'number' && Number.isFinite(value) && value >= milestone.threshold) out.push(milestone.id);
+  }
+  return out;
+}
+
 export function formatHisaabDuration(since, today, labels = {}) {
   const { year, monthOne, monthMany, day } = {
     year: '{n} saal', monthOne: '{n} mahina', monthMany: '{n} mahine', day: '{n} din',

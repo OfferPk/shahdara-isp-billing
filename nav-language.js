@@ -5186,6 +5186,14 @@ export const TRANSLATIONS = {
     hisaab_duration_month_one: '{n} mahina',
     hisaab_duration_month_many: '{n} mahine',
     hisaab_duration_day: '{n} din',
+  hisaab_business_days: 'Business: {n} din — {date} se',
+  hisaab_avg_bill: 'Avg bill {amount} · {count} payers',
+  hisaab_expense_per_customer: 'Kharch {amount} / customer',
+  hisaab_profit_per_customer: 'Munafa {amount} / customer',
+  ach_days_1000: '🎉🎊 Congrats! Your business has 1000 days.',
+  ach_days: '🎉 Congrats! Your business has {n} days.',
+  ach_profit: '🎉 Congratulations! You made {amount} profit.',
+  ach_customers: '🎉 Congrats! You have {count} customers.',
 
     // Plan 601 — the preview/tool sections speak the operator's language.
     // One prv_ family (D3); EN values are byte-identical to the strings
@@ -10532,6 +10540,14 @@ export const TRANSLATIONS = {
     hisaab_duration_month_one: '{n} مہینہ',
     hisaab_duration_month_many: '{n} مہینے',
     hisaab_duration_day: '{n} دن',
+  hisaab_business_days: 'کاروبار: {n} دن — {date} سے',
+  hisaab_avg_bill: 'اوسط بل {amount} · {count} ادا کنندگان',
+  hisaab_expense_per_customer: 'خرچ {amount} فی گاہک',
+  hisaab_profit_per_customer: 'منافع {amount} فی گاہک',
+  ach_days_1000: '🎉🎊 مبارک ہو! آپ کا کاروبار 1000 دن کا ہو گیا ہے۔',
+  ach_days: '🎉 مبارک ہو! آپ کے کاروبار کے {n} دن مکمل ہو گئے۔',
+  ach_profit: '🎉 مبارک ہو! آپ نے {amount} منافع کمایا۔',
+  ach_customers: '🎉 مبارک ہو! آپ کے {count} گاہک ہو گئے ہیں۔',
 
     // Plan 601 — preview/tool sections (prv_ family).
     prv_fb_heading: 'پہلے بل کا پیش نظارہ',

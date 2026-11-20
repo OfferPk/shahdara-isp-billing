@@ -238,8 +238,8 @@ test('hisaab G5: "Kharch dekhein" is bound once, with a guard flag, to the ledge
   const hisaabKeyDefs = (navJs.match(/^    hisaab_[a-z_]+:/gm) || []).length;
   assert.equal(hisaabKeyDefs, 60, '30 hisaab_* keys × 2 dicts');
   assert.ok(navJs.includes("exp_upstream_synced_hint: 'This expense is synced from the Upstream tab."), 'the D2(b) refusal hint key exists');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5195, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5195, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5203, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5203, 'UR key count moved');
 });
 
 /* ---------------- G6 — H5 i18n + parity + munafa (D1(a)–D10(a)) ---------------- */
@@ -257,6 +257,8 @@ const HISAAB_KEYS = [
   'hisaab_provider_unknown_many', 'hisaab_provider_none', 'hisaab_honesty',
   'hisaab_duration_year', 'hisaab_duration_month_one',
   'hisaab_duration_month_many', 'hisaab_duration_day',
+  'hisaab_business_days', 'hisaab_avg_bill',
+  'hisaab_expense_per_customer', 'hisaab_profit_per_customer',
 ];
 
 test('hisaab G6a: all 30 hisaab_* keys + exp_upstream_synced_hint exist in both dicts; parity is 5,162/5,162', () => {
@@ -266,8 +268,8 @@ test('hisaab G6a: all 30 hisaab_* keys + exp_upstream_synced_hint exist in both 
   }
   assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.en, 'EN has the D2(b) refusal hint');
   assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.ur, 'UR has the D2(b) refusal hint');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5195, 'EN parity 5,161');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5195, 'UR parity 5,161');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5203, 'EN parity 5,161');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5203, 'UR parity 5,161');
   // UR sentences end with ۔, fragments do not (591 bar).
   for (const key of ['hisaab_month_empty', 'hisaab_lifetime_empty', 'hisaab_provider_none', 'hisaab_honesty']) {
     assert.ok(TRANSLATIONS.ur[key].endsWith('۔'), `UR ${key} ends with ۔`);
@@ -408,14 +410,14 @@ test('hisaab G6e: munafa colour + wiring pins — brand-500/danger pass 4.5:1 in
   const secMatch = indexHtml.match(/<section[^>]*id="hisaabSection"[\s\S]*?<\/section>/);
   assert.ok(secMatch, 'the Hisaab section exists');
   const sec = secMatch[0];
-  // The 13 static keys are data-i18n'd; the 17 param keys are NOT
+  // The 13 static keys are data-i18n'd; the 21 param keys are NOT
   // (they render through t() in renderHisaabSection — D10).
   const STATIC_KEYS = ['hisaab_section_title', 'hisaab_section_subtitle', 'hisaab_toggle_month', 'hisaab_label_income', 'hisaab_label_expenses', 'hisaab_label_profit', 'hisaab_label_paid', 'hisaab_section_lifetime', 'hisaab_month_empty', 'hisaab_lifetime_empty', 'hisaab_open_pnl', 'hisaab_show_expenses', 'hisaab_honesty'];
   for (const key of STATIC_KEYS) {
     assert.ok(sec.includes(`data-i18n="${key}"`), `the section keys ${key}`);
   }
   const PARAM_KEYS = HISAAB_KEYS.filter((k) => !STATIC_KEYS.includes(k));
-  assert.equal(PARAM_KEYS.length, 17, '30 keys − 13 statics = 17 param keys');
+  assert.equal(PARAM_KEYS.length, 21, '34 keys − 13 statics = 21 param keys');
   for (const key of PARAM_KEYS) {
     assert.ok(!sec.includes(`data-i18n="${key}"`), `param key ${key} is never a data-i18n attribute`);
   }

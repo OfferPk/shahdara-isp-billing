@@ -416,7 +416,7 @@ textarea { line-height: 1.5; }
    the Top Defaulters actions drawer); the summary renders as a
    primary button, not a disclosure triangle. */
 .registry-create-details { margin: 8px 0; }
-.registry-create-details > summary { display: inline-block; list-style: none; cursor: pointer; }
+.registry-create-details > summary { display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; list-style: none; cursor: pointer; }
 .registry-create-details > summary::-webkit-details-marker { display: none; }
 .sortable-th {
   cursor: pointer;
@@ -674,6 +674,7 @@ main, .app-shell, .customer-pane, .detail-pane, .customer-meta, .profile-grid,
 .roll-forward-table th, .roll-forward-table td {
   white-space: nowrap; word-break: normal; overflow-wrap: normal;
 }
+.roll-forward-table th, .roll-forward-table td { padding: 7px 10px; }
 .roll-forward-table thead th:first-child,
 .roll-forward-table tbody td:first-child {
   position: sticky; inset-inline-start: 0; z-index: 1;
@@ -689,6 +690,10 @@ main, .app-shell, .customer-pane, .detail-pane, .customer-meta, .profile-grid,
 @media(max-width:620px){
   .roll-forward-equation { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* Month-end close polish: the KPI label sits above its value — the
+ * scoped flex column stacks the two spans. The base .ds-stat-box
+ * block (DS-0) stays untouched. */
+.roll-forward-equation .ds-stat-box { display: flex; flex-direction: column; gap: 4px; }
 
 /* Area Analytics polish: the pre-close sweep's raw <ul><li> bullets
  * become structured white cards. The screen badge is a static label
@@ -1529,6 +1534,12 @@ is only ~300px wide. */
 .help-icon{list-style:none;display:grid;place-items:center;width:40px;height:40px;border:1px solid #a9bdb3;border-radius:50%;background:#fff;color:#254f40;font:800 13px/1 'DM Sans',sans-serif;cursor:pointer;touch-action:manipulation}
 .help-icon::-webkit-details-marker{display:none}
 .help-icon:focus-visible,.profile-tab-button:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
+/* Month-end close polish: the standalone registry (i) buttons shrink
+ * to 28px next to their heading (enquiry/deposit/loan). The global
+ * .help-icon stays 40px — dashboard, profile and customers tips
+ * are untouched. */
+.analytics-panel .help-icon { width: 28px; height: 28px; min-height: 28px; font-size: 11px; }
+.registry-heading-row { display: flex; align-items: center; gap: 8px; }
 .help-tip-content{position:absolute;top:calc(100% + 8px);inset-inline-end:0;z-index:9;width:min(300px,calc(100vw - 32px));max-height:min(60vh,360px);overflow:auto;padding:11px 13px;border:1px solid #174b3b;border-radius:10px;background:#173e32;color:#fff;box-shadow:0 12px 28px #102b2240;font:500 12px/1.55 'DM Sans',sans-serif}
 .help-tip:not([open])>.help-tip-content{display:none}
 .help-tip[open]>.help-tip-content{display:block}

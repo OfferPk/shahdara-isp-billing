@@ -23465,6 +23465,16 @@ function renderMonthClose() {
   if (closeBtn) closeBtn.disabled = !record || record.status === 'closed';
   const reopenBtn = $('#monthCloseReopenBtn');
   if (reopenBtn) reopenBtn.disabled = !record || record.status !== 'closed';
+  // Month-end close polish: the secondary step buttons only ever act
+  // on an existing record — with no record they hide instead of
+  // toasting. Tick stays visible; Close/Reopen keep their disabled
+  // pattern above.
+  const waiveBtn = $('#monthCloseWaiveBtn');
+  if (waiveBtn) waiveBtn.hidden = !record;
+  const untickBtn = $('#monthCloseUntickBtn');
+  if (untickBtn) untickBtn.hidden = !record;
+  const removeBtn = $('#monthCloseRemoveBtn');
+  if (removeBtn) removeBtn.hidden = !record;
   if (!monthCloseBound) {
     monthCloseBound = true;
     $('#monthCloseMonth')?.addEventListener('change', () => renderMonthClose());
@@ -23838,9 +23848,14 @@ function renderMonthSnapshots() {
     const existing = findSnapshot(list, month);
     bodyEl.innerHTML = existing
       ? snapshotHtml(existing)
-      : '<p style="font-size: 12px;">No snapshot stored for this month yet. Close the month on the Plan 67 checklist first, then take its snapshot — it freezes once and is never rewritten.</p>';
+      : '<p style="font-size: 12px;">No snapshot stored for this month yet. Close the month on the Month-end close checklist first, then take its snapshot — it freezes once and is never rewritten.</p>';
     if (summaryEl) summaryEl.textContent = existing ? snapshotSummaryText(existing) : '';
   }
+  // Month-end close polish: 'Remove snapshot' only ever deletes a
+  // stored snapshot — with none stored it hides instead of toasting.
+  // Mirrors the remove handler's own picked-month logic below.
+  const removeBtn = $('#monthSnapshotRemoveBtn');
+  if (removeBtn) removeBtn.hidden = !findSnapshot(list, picked || month);
   if (!monthSnapshotsBound) {
     monthSnapshotsBound = true;
     $('#monthSnapshotMonth')?.addEventListener('change', () => renderMonthSnapshots());
@@ -24488,6 +24503,19 @@ function renderJobCost() {
   if (!bodyEl) return;
   const customers = state.customers ?? [];
   const entries = loadJobCost();
+  // Month-end close polish: at 0 sheets the section collapses to its
+  // summary line + the '+ Add Job Cost Sheet' disclosure — Export,
+  // filters and the mutation rows hide. TOTAL entries, not the
+  // filtered view, so clearing a filter can never strand the operator.
+  const hasJobs = entries.length > 0;
+  const jobCostExportBtn = $('#jobCostExportBtn');
+  if (jobCostExportBtn) jobCostExportBtn.style.display = hasJobs ? '' : 'none';
+  const jobCostFilterRow = $('#jobCostFilterRow');
+  if (jobCostFilterRow) jobCostFilterRow.style.display = hasJobs ? 'flex' : 'none';
+  const jobCostMutationRow = $('#jobCostMutationRow');
+  if (jobCostMutationRow) jobCostMutationRow.style.display = hasJobs ? 'flex' : 'none';
+  const jobCostActionsRow = $('#jobCostActionsRow');
+  if (jobCostActionsRow) jobCostActionsRow.style.display = hasJobs ? '' : 'none';
   const shown = jobsFiltered(entries, {
     status: $('#jobCostFilterStatus')?.value ?? '',
     mohalla: $('#jobCostFilterMohalla')?.value ?? '',

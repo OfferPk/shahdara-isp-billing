@@ -1,6 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
 import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal, calculateCpeAssetMetrics, setupCpeAssetModal, calculatePowerBackupMetrics, setupPowerBackupModal, calculateRouteDensityMetrics, setupRouteDensityModal } from './dashboard.js';
-import { queueTelecomCharts } from './lazy-telecom.js';
 import { canonicalMohalla } from './phase3.js';
 import { calculateDuesAgingBreakdown, setupDuesAgingModal, renderDuesAgingSvg } from './dashboard-dues-aging.js';
 
@@ -2324,17 +2323,11 @@ export function renderFiberDistributionSvg(metrics) {
     `;
   }).join('');
 
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
+  // Telemetry Lab: the title + stats row left the SVG (fixed x-coords
+  // collided on narrow screens) and is an HTML flex bar above the chart.
+  return `<div class="chart-top-bar"><span class="chart-top-bar-title">Markaz-e-Taqseem-e-Fiber (FDH)</span><span class="chart-metric-sub">Total Ports: <strong>${metrics.totalDeployedPorts}</strong> \u00b7 Dark Headroom: <strong style="color:#047857">${metrics.totalSparePorts}</strong> \u00b7 Saturation: <strong style="color:${statusColor}">${metrics.overallSaturationPercent}%</strong></span></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
-    <g transform="translate(${leftPad}, 20)">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
-        Markaz-e-Taqseem-e-Fiber (FDH)
-      </text>
-      <text x="${plotWidth + rightPad - 10}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
-        Total Ports: <tspan font-weight="700" fill="var(--ink, #182e2a)">${metrics.totalDeployedPorts}</tspan> · Dark Headroom: <tspan font-weight="700" fill="#047857">${metrics.totalSparePorts}</tspan> · Saturation: <tspan font-weight="700" fill="${statusColor}">${metrics.overallSaturationPercent}%</tspan>
-      </text>
-    </g>
 
     ${rowsSvg}
 
@@ -2705,17 +2698,11 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
   const topArea = pipelineData.topDelinquentAreas[0];
   const topAreaText = topArea ? `${escapeXml(topArea.areaName)} (${formatPKR(topArea.totalOverdue)})` : 'None';
 
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
+  // Telemetry Lab: the title + stats row left the SVG (fixed x-coords
+  // collided on narrow screens) and is an HTML flex bar above the chart.
+  return `<div class="chart-top-bar"><span class="chart-top-bar-title">Khata Wusooli &amp; Aging Pipeline</span><span class="chart-metric-sub">Delinquent: <strong>${pipelineData.totalDelinquentAccounts}</strong> \u00b7 Overdue: <strong style="color:#dc2626">${formatPKR(pipelineData.totalDelinquentDues)}</strong> \u00b7 Net Exp: <strong style="color:#047857">${formatPKR(pipelineData.totalExpectedRecovery)}</strong></span></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
-    <g transform="translate(${leftPad}, 20)">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
-        Khata Wusooli &amp; Aging Pipeline
-      </text>
-      <text x="${plotWidth + rightPad - 10}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
-        Delinquent: <tspan font-weight="700" fill="var(--ink, #182e2a)">${pipelineData.totalDelinquentAccounts}</tspan> · Overdue: <tspan font-weight="700" fill="#dc2626">${formatPKR(pipelineData.totalDelinquentDues)}</tspan> · Net Exp: <tspan font-weight="700" fill="#047857">${formatPKR(pipelineData.totalExpectedRecovery)}</tspan>
-      </text>
-    </g>
 
     ${rowsSvg}
 
@@ -3371,10 +3358,10 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   setupDashboardChartsTabs();
   syncDashboardChartsTabs();
 
-  // SISP-9: heavy telecom charts + diagnostics modals load lazily (separate
-  // chunk, only when the charts region becomes visible) — core charts above
-  // already rendered, so first paint never waits for telecom code.
-  queueTelecomCharts(state, referenceDate, options);
+  // Telemetry Lab: the heavy telecom charts + diagnostics modals now load
+  // lazily from renderAnalytics (app.js) when the Lab panel opens — the
+  // core charts above already rendered, so first paint never waits for
+  // telecom code.
 
   setupDashboardChartsEvents(state, referenceDate);
 }

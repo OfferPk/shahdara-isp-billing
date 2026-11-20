@@ -7888,13 +7888,17 @@ test('calculateIptvMulticastMetrics evaluates multicast channels, viewership, an
 test('renderIptvMulticastSvg renders valid SVG for compact and modal displays', () => {
   const metrics = calculateIptvMulticastMetrics({});
 
-  // Compact
+  // Compact — Telemetry Lab: the fixed-x KPI <g> left the SVG, so the
+  // compact output is an HTML metric strip + the SVG (the local name
+  // stays 'compactSvg'; the strip labels are title-case in HTML now).
   const compactSvg = renderIptvMulticastSvg(metrics, { compact: true });
   assert.ok(compactSvg.includes('<svg'));
   assert.ok(compactSvg.includes('iptv-svg'));
-  assert.ok(compactSvg.includes('AVG ZAPPING TIME'));
-  assert.ok(compactSvg.includes('CONCURRENT VIEWERS'));
-  assert.ok(compactSvg.includes('STREAM BITRATE'));
+  assert.ok(compactSvg.includes('chart-metric-strip'), 'compact output carries the HTML metric strip');
+  assert.ok(compactSvg.includes('Avg Zapping Time'));
+  assert.ok(compactSvg.includes('Concurrent Viewers'));
+  assert.ok(compactSvg.includes('Stream Bitrate'));
+  assert.ok(!compactSvg.includes('AVG ZAPPING TIME'), 'the SVG KPI <text> labels are gone');
   assert.ok(compactSvg.includes('</svg>'));
 
   // Detailed

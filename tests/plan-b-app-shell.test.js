@@ -341,7 +341,7 @@ test('every header action target is a selector, never a bare id', () => {
     }
     assert.ok(target.startsWith('#'), name);
   }
-  assert.equal(Object.keys(SCREENS).length, 15);
+  assert.equal(Object.keys(SCREENS).length, 16); // Telemetry Lab adds the 16th screen ('diagnostics-lab')
 });
 
 test('the language-change listener reuses the header spec instead of a second copy', () => {

@@ -368,18 +368,21 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
   assert.ok(voiceLabel && !voiceLabel[0].includes('data-i18n'), 'voice-language label must not carry data-i18n (it wraps the select)');
 });
 
-test('phase 2 wiring: all 67 chart titles and business subtitles 3-18 are wired; engineering subtitles 19-67 are not', () => {
+test('phase 2 wiring: Home holds 21 chart titles (business subtitles 3-18 wired, engineering 19-21 not); the Lab holds 46', () => {
   const home = indexSrc.slice(indexSrc.indexOf('id="billingDashboard"'), indexSrc.indexOf('id="homeProviderCostDetails"'));
   const titles = [...home.matchAll(/<h4 class="chart-title"([^>]*)>/g)];
-  // Home Dashboard overhaul: 69 -> 67 — "Monthly Collection vs
-  // Target" left with the deleted gauge section, and "Disconnection
-  // & Reconnection Worklists" moved to the Collect tab (outside
-  // this Home slice). The business subtitles shrink from 20 to 18
-  // with the two removed titles.
-  assert.equal(titles.length, 67, `expected 67 chart titles, got ${titles.length}`);
+  // Telemetry Lab: the 46 telecom diagnostics moved out of the Home
+  // charts grid into the Lab panel, so Home holds 21 titles (was 67) —
+  // the 18 business + 3 engineering subtitle split is unchanged, only
+  // the count. (Home Dashboard overhaul: 69 -> 67 — "Monthly Collection
+  // vs Target" left with the deleted gauge section, and "Disconnection
+  // & Reconnection Worklists" moved to the Collect tab, outside this
+  // Home slice; the business subtitles shrank from 20 to 18 with the
+  // two removed titles.)
+  assert.equal(titles.length, 21, `expected 21 chart titles, got ${titles.length}`);
   for (const [, attrs] of titles) assert.ok(attrs.includes('data-i18n="dash_'), `chart title must carry data-i18n, got <h4${attrs}>`);
   const subs = [...home.matchAll(/<p class="chart-subtitle"([^>]*)>/g)];
-  assert.equal(subs.length, 67, `expected 67 chart subtitles, got ${subs.length}`);
+  assert.equal(subs.length, 21, `expected 21 chart subtitles, got ${subs.length}`);
   subs.forEach(([, attrs], i) => {
     const n = i + 1;
     if (n <= 18) {
@@ -388,6 +391,17 @@ test('phase 2 wiring: all 67 chart titles and business subtitles 3-18 are wired;
       assert.ok(!attrs.includes('data-i18n'), `engineering subtitle #${n} must NOT carry data-i18n yet (charts phase)`);
     }
   });
+  // The Lab holds the other 46: every title keeps its dash_chart_NN_title
+  // key, and all 46 subtitles stay unwired engineering (measured on the
+  // moved markup — titles wired, subtitles unwired).
+  const labAt = indexSrc.indexOf('id="diagnosticsLabCollapsible"');
+  const lab = indexSrc.slice(labAt, indexSrc.indexOf('</details>', labAt));
+  const labTitles = [...lab.matchAll(/<h4 class="chart-title"([^>]*)>/g)];
+  assert.equal(labTitles.length, 46, `expected 46 Lab chart titles, got ${labTitles.length}`);
+  for (const [, attrs] of labTitles) assert.ok(attrs.includes('data-i18n="dash_'), `Lab chart title must carry data-i18n, got <h4${attrs}>`);
+  const labSubs = [...lab.matchAll(/<p class="chart-subtitle"([^>]*)>/g)];
+  assert.equal(labSubs.length, 46, `expected 46 Lab chart subtitles, got ${labSubs.length}`);
+  for (const [, attrs] of labSubs) assert.ok(!attrs.includes('data-i18n'), 'Lab subtitle must NOT carry data-i18n yet (charts phase)');
 });
 
 test('phase 2 wiring: no dash_ data-i18n lives inside a dialog', () => {

@@ -112,6 +112,7 @@ import { verifyBackup, describeRestoreChanges } from './backup-verification.js?v
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
 import { calculateDashboardKpis, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast, buildPonCapacityReport, renderPonCapacityRows } from './dashboard.js?v=1.11.0';
+import { queueTelecomCharts } from './lazy-telecom.js';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupSpeedDialScrollHide, wireDsIcons, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, setupSwUpdatePrompt, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
 import { dsIcon } from './ds-icons.js';
 
@@ -20826,6 +20827,28 @@ function renderAnalytics() {
   renderAlertsInbox();
   renderCollectorPerformance();
   renderCashflowSnapshot();
+  // Telemetry Lab: the 46 diagnostics cards now live in
+  // #diagnosticsLabCollapsible, not on Home — queue their lazy render
+  // when the Lab is open, and re-render on first open (Sharafat 22 pattern).
+  // The options mirror the renderDashboardCharts call: the telecom modals
+  // keep their customer-filter + toast callbacks (that call passed no
+  // onFilterArea either, so the modals already run without one).
+  const labSection = $('#diagnosticsLabCollapsible');
+  if (labSection && !labSection.dataset.wired) {
+    labSection.dataset.wired = 'true';
+    labSection.addEventListener('toggle', () => { if (labSection.open) renderAnalytics(); });
+  }
+  if (labSection && labSection.open) queueTelecomCharts(state, new Date(), {
+    onFilterCustomer: (customerName) => {
+      switchView('customers');
+      const searchInput = $('#customerSearch');
+      if (searchInput) {
+        searchInput.value = customerName;
+        searchInput.dispatchEvent(new Event('input'));
+      }
+    },
+    onToast: (msg) => { toast(msg); }
+  });
   renderPreDueReminders();
   renderEscalationLadder();
   renderPaymentConfirmation();

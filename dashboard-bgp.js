@@ -377,6 +377,10 @@ export function renderBgpRoutingConvergenceSvg(metrics, options = {}) {
     const invalidWidth = 220 - validWidth;
 
     return `
+      <div class="chart-top-bar">
+        <span class="chart-top-bar-title">${p.name.length > 34 ? p.name.slice(0, 32) + '...' : p.name}</span>
+        <span class="chart-top-bar-pill" style="color:${statusColor};">${p.healthTier.toUpperCase()}</span>
+      </div>
       <svg viewBox="0 0 ${width} ${height}" class="splicer-svg bgp-svg" role="img" aria-label="BGP Peering and Flap Damping Overview" xmlns="http://www.w3.org/2000/svg">
         <style>
           .bgp-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -392,8 +396,6 @@ export function renderBgpRoutingConvergenceSvg(metrics, options = {}) {
 
         <!-- Header / Selected Peer Summary -->
         <circle cx="20" cy="22" r="6" fill="${statusColor}" />
-        <text x="32" y="26" class="bgp-text bgp-title">${p.name.length > 34 ? p.name.slice(0, 32) + '...' : p.name}</text>
-        <text x="${width - 16}" y="26" text-anchor="end" class="bgp-text" font-size="11px" font-weight="700" fill="${statusColor}">${p.healthTier.toUpperCase()}</text>
 
         <!-- KPI Columns -->
         <g transform="translate(16, 42)">

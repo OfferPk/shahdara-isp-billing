@@ -386,6 +386,10 @@ export function renderDwdmBudgetSvg(metrics, options = {}) {
     const ny = 95 - 65 * Math.sin(rad);
 
     return `
+      <div class="chart-top-bar">
+        <span class="chart-top-bar-title">Ch ${ch.channelNumber} (${ch.bitrateGbps}G)</span>
+        <span class="chart-top-bar-pill" style="color:${b.healthTier === 'OPTIMAL' ? '#10b981' : '#ef4444'};background:${b.healthTier === 'OPTIMAL' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'};">${b.healthTier} (${ch.primaryArea})</span>
+      </div>
       <svg class="dwdm-compact-svg" viewBox="0 0 340 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DWDM Optical Channel Transponder OSNR Budget Gauge">
         <defs>
           <linearGradient id="dwdmGaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -418,8 +422,6 @@ export function renderDwdmBudgetSvg(metrics, options = {}) {
           <text x="0" y="86" font-size="14px" font-weight="700" fill="var(--text-color, #0f172a)">Ch ${ch.channelNumber} (${ch.bitrateGbps}G)</text>
           <text x="0" y="100" font-size="9px" fill="#64748b">${ch.wavelengthNm}nm · ${ch.modulation}</text>
 
-          <rect x="0" y="112" width="130" height="20" rx="4" fill="${b.healthTier === 'OPTIMAL' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'}" />
-          <text x="65" y="126" text-anchor="middle" font-size="9px" font-weight="700" fill="${b.healthTier === 'OPTIMAL' ? '#10b981' : '#ef4444'}">${b.healthTier} (${ch.primaryArea})</text>
         </g>
 
         <!-- Bottom Waterfall Spectrum Representation -->

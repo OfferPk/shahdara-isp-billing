@@ -30,7 +30,10 @@
 // chunk lands in dist/ and in the service worker precache list.
 const realImporter = () => import('./telecom-charts.js');
 
-const CHARTS_REGION_SELECTOR = '.dashboard-charts-region';
+// Telemetry Lab: the 46 telecom diagnostics moved out of the Home charts
+// region into the collapsed Lab panel at the top of #analyticsView, so the
+// lazy trigger watches the Lab grid instead of the Home grid.
+const CHARTS_REGION_SELECTOR = '.diagnostics-lab-region';
 
 let telecomPromise = null;
 let telecomLoaded = false;

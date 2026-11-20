@@ -680,6 +680,11 @@ export function renderOtdrTraceSvg(otdrData, options = {}) {
   }
 
   return `
+      <div class="chart-top-bar">
+        <span class="chart-top-bar-title">${escapeXml(route.name)}</span>
+        <span class="chart-metric-sub">${otdrData.wavelength} nm | Rate: ${route.attenuationRateDbPerKm} dB/km | Loss: ${route.totalLossDb} dB</span>
+        <span class="chart-top-bar-pill" style="color:${statusBadgeColor};">${statusBadgeText}</span>
+      </div>
     <svg class="chart-svg otdr-trace-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="OTDR Fiber Fault Locator Trace">
       <defs>
         <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
@@ -692,23 +697,6 @@ export function renderOtdrTraceSvg(otdrData, options = {}) {
       <!-- Background Chart Canvas -->
       <rect width="${width}" height="${height}" rx="12" fill="var(--surface, #ffffff)" stroke="var(--line, #e2ece7)" stroke-width="1" />
 
-      <!-- Chart Header -->
-      <text x="${leftPad}" y="22" font-family="'Manrope', system-ui, sans-serif" font-size="12" font-weight="800" fill="var(--ink, #182e2a)">
-        ${escapeXml(route.name)}
-      </text>
-      <text x="${leftPad + 270}" y="22" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">
-        ${otdrData.wavelength} nm | Rate: ${route.attenuationRateDbPerKm} dB/km | Loss: ${route.totalLossDb} dB
-      </text>
-
-      <!-- Status Pill -->
-      <g transform="translate(${width - rightPad - 130}, 10)">
-        <rect width="130" height="18" rx="9" fill="${statusBadgeColor}" opacity="0.15" />
-        <rect width="130" height="18" rx="9" fill="none" stroke="${statusBadgeColor}" stroke-width="1" />
-        <circle cx="10" cy="9" r="4" fill="${statusBadgeColor}" />
-        <text x="20" y="13" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="800" fill="${statusBadgeColor}">
-          ${statusBadgeText}
-        </text>
-      </g>
 
       <!-- Grid Lines -->
       ${yGridSvg}

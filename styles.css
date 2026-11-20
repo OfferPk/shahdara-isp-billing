@@ -18108,3 +18108,9 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
   align-items: center;
   justify-content: center;
 }
+
+/* Home Budget compact empty state: .table-card is display:grid and
+   .table-filter-toolbar is display:flex, both of which beat the UA
+   [hidden]{display:none} rule — without this override the 0-entry hides
+   in renderHomeBudget would change nothing. */
+.table-card[hidden], .table-filter-toolbar[hidden]{display:none!important}

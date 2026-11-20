@@ -283,6 +283,12 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
       if (action.focus === '#ownerCommandInput' && typeof win.expandOwnerCommandCenter === 'function') win.expandOwnerCommandCenter();
       const el = doc.querySelector(action.focus);
       if (el) {
+        // A focus target can sit inside a closed <details> (e.g. a form
+        // collapsed behind a create summary). Focusing it then does nothing,
+        // so open every enclosing closed details first — generic, not tied
+        // to any one screen.
+        let closedDetails = el.closest('details:not([open])');
+        while (closedDetails) { closedDetails.open = true; closedDetails = el.closest('details:not([open])'); }
         el.scrollIntoView({ block: 'start', behavior: 'smooth' });
         const input = (typeof el.matches === 'function' && el.matches('input, select, textarea'))
           ? el

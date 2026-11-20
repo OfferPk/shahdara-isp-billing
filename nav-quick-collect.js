@@ -2783,11 +2783,23 @@ export function setupQuickCollectModal({
   const excessPurposeNote = excessCashPurposeSelect?.parentElement && typeof excessCashPurposeSelect.parentElement.querySelector === 'function'
     ? excessCashPurposeSelect.parentElement.querySelector('.qc-excess-purpose-note')
     : null;
-  // Plan 397: the large-cash approval fields (null when the host page
-  // predates them) — the operator-set threshold for cash that needs
-  // the owner's approval, and the approver's initials or name.
-  const largeCashThresholdInput = document.getElementById('quickCollectLargeCashThreshold');
+  // Plan 397: the large-cash approver field (null when the host page
+  // predates it) — the owner's initials or name for a cash payment
+  // above the standing threshold. QC month-note: the threshold itself
+  // is the module default now — the per-payment threshold input is
+  // gone, so there is no threshold lookup here.
   const largeCashApproverInput = document.getElementById('quickCollectLargeCashApprover');
+  // QC month-note: the conditional field groups (null when the host
+  // page predates them) — payer name + relationship show only for
+  // another payer; the advance target only while Advance is ticked;
+  // the approver only while a cash payment above the threshold needs
+  // one; the excess purpose only while it can apply (see
+  // renderMonthNoteConditionals).
+  const crossPayerNameField = document.getElementById('quickCollectCrossPayerNameField');
+  const crossRelationshipField = document.getElementById('quickCollectCrossRelationshipField');
+  const advanceTargetField = document.getElementById('quickCollectAdvanceTargetField');
+  const largeCashApproverField = document.getElementById('quickCollectLargeCashApproverField');
+  const excessCashField = document.getElementById('quickCollectExcessCashField');
   // Plan 547: the More Options <details> (null when the host page
   // predates it) — the approver field lives inside it, so a focus on
   // the approver must open the details first.
@@ -3105,6 +3117,30 @@ export function setupQuickCollectModal({
     // express.
     if (excessCashPurposeSelect) excessCashPurposeSelect.disabled = !overpaymentChoiceBox.hidden;
     if (excessPurposeNote) excessPurposeNote.hidden = overpaymentChoiceBox.hidden;
+  }
+  // QC month-note: the optional section shows only the fields that
+  // apply right now. Hidden groups keep their DOM values (nothing is
+  // cleared on hide — the profile form's §3.3 pattern); the submit
+  // and core's validator drop the values that do not apply, except
+  // the cross-payment note, which the submit gates on the payer pick
+  // itself (see the crossPaymentVal line below). The excess purpose
+  // hides only while a positive amount within the dues is typed and
+  // nothing is picked yet — an empty amount keeps the pre-pick
+  // window Plan 529 preserves, and a picked purpose always stays
+  // visible, so 'Change to return' stays reachable.
+  function renderMonthNoteConditionals() {
+    const payerOther = (crossPayerSelect?.value || '') !== '';
+    if (crossPayerNameField) crossPayerNameField.hidden = !payerOther;
+    if (crossRelationshipField) crossRelationshipField.hidden = !payerOther;
+    if (advanceTargetField) advanceTargetField.hidden = !advanceCheckbox?.checked;
+    const leg1Cents = Math.round(Number(amountInput?.value || 0) * 100);
+    const tenderCents = leg1Cents + (splitToggle?.checked ? Math.round(Number(splitAmountInput?.value || 0) * 100) : 0);
+    const methodVal = methodSelect?.value || 'Cash';
+    const needsApproval = requiresLargeCashApproval(isCashPaymentMethod(methodVal), leg1Cents, LARGE_CASH_DEFAULT_THRESHOLD_CENTS);
+    if (largeCashApproverField) largeCashApproverField.hidden = !needsApproval;
+    const payableCents = Math.round(Number(activeDefaults?.payableTotal ?? 0) * 100);
+    const excessPurposePicked = (excessCashPurposeSelect?.value || '') !== '';
+    if (excessCashField) excessCashField.hidden = tenderCents > 0 && tenderCents <= payableCents && !excessPurposePicked;
   }
   // Plan 387: the underpayment warning is shown only while the
   // amount currently typed is a positive number strictly below the
@@ -3717,6 +3753,9 @@ export function setupQuickCollectModal({
     // Quick Collect polish (2026-11-17, D2): a method change re-checks
     // the direct-save CTA (the duplicate-TID gate reads the method).
     syncDirectSaveButton();
+    // QC month-note: a method change re-plans the approver row (cash
+    // only) and the cash-change box beside it.
+    renderMonthNoteConditionals();
   });
 
   // Plan 438: the Other button reveals the full method list for
@@ -3881,6 +3920,15 @@ export function setupQuickCollectModal({
   // Quick Collect polish (2026-11-17, D2): ticking Advance hides the
   // direct-save CTA (an advance is not a standard collection).
   advanceCheckbox?.addEventListener('change', () => syncDirectSaveButton());
+  // QC month-note: the optional section re-plans whenever anything its
+  // conditions read changes — payer pick, Advance tick, amount,
+  // method, or split. No splitToggle listener is added here: the
+  // Plan 527 pin keeps exactly five split change listeners, and the
+  // split leg is covered through updateSplitVisibility below.
+  crossPayerSelect?.addEventListener('change', () => renderMonthNoteConditionals());
+  advanceCheckbox?.addEventListener('change', () => renderMonthNoteConditionals());
+  amountInput?.addEventListener('input', () => renderMonthNoteConditionals());
+  splitAmountInput?.addEventListener('input', () => renderMonthNoteConditionals());
 
   // SISP-126: the Remainder Waada row tracks the amount live (typing, and
   // the payment date / Advance toggle, which move the chip dates and the
@@ -3929,6 +3977,9 @@ export function setupQuickCollectModal({
     // with the current leg figures. No new split change listener is
     // added here: the five-listener pin (Plan 527) stays exactly 5.
     renderSplitTotal();
+    // QC month-note: the split moves the tendered total, so the
+    // excess-purpose row re-plans with it.
+    renderMonthNoteConditionals();
     // Sharafat 1: toggling the split re-plans the waiver box — the
     // gate is the combined total while split is on, leg 1 alone
     // when it is off. Same rule as the total above: no new split
@@ -5102,6 +5153,9 @@ export function setupQuickCollectModal({
       // Plan 386: the form opens with the choice already offered for
       // the suggested amount when it exceeds the dues.
       renderOverpaymentChoice();
+      // QC month-note: the form opens with only the fields that apply
+      // for the suggested amount and the default payer pick.
+      renderMonthNoteConditionals();
       // Plan 387: the form opens with the warning already shown for
       // the suggested amount when it falls short of the dues.
       renderUnderpaymentWarning();
@@ -5177,11 +5231,10 @@ export function setupQuickCollectModal({
       // like the payer fields — a purpose picked for one customer
       // never carries over to the next.
       if (excessCashPurposeSelect) excessCashPurposeSelect.value = '';
-      // Plan 397: the threshold starts at the standing default and the
-      // approver starts blank on every open, like the payer fields —
-      // an approval given for one customer never carries over to the
-      // next.
-      if (largeCashThresholdInput) largeCashThresholdInput.value = String(LARGE_CASH_DEFAULT_THRESHOLD_CENTS / 100);
+      // Plan 397: the approver starts blank on every open, like the
+      // payer fields — an approval given for one customer never
+      // carries over to the next. (QC month-note: the threshold input
+      // is gone — the threshold is the module default, reset nowhere.)
       if (largeCashApproverInput) largeCashApproverInput.value = '';
       // Plan 398: the category tag starts at the default (collection)
       // on every open, like the payer fields — a tag picked for one
@@ -7366,12 +7419,16 @@ export function setupQuickCollectModal({
       // relationship in plain words. The typed name wins; else the
       // picked payer customer's name is used. A note with no payer
       // name is no note at all, even when a relationship was typed.
+      // QC month-note: the note records only while another payer is
+      // picked — the name and relationship fields hide under 'Account
+      // holder paid', so a stale typed name left in a hidden field
+      // must never record a cross-payment on its own.
       const crossPayerIdVal = crossPayerSelect?.value || '';
       const crossPayerNameVal = crossPayerNameInput?.value || '';
       const crossRelationshipVal = crossRelationshipInput?.value || '';
       const crossPayerCustomer = crossPayerIdVal ? (state.customers || []).find((entry) => entry && entry.id === crossPayerIdVal) : null;
       const crossPayerName = (crossPayerNameVal || '').trim() || (crossPayerCustomer ? (crossPayerCustomer.name || crossPayerCustomer.customerName || '') : '');
-      const crossPaymentVal = crossPayerName ? { payerName: crossPayerName, payerCustomerId: crossPayerIdVal || undefined, relationship: (crossRelationshipVal || '').trim() || undefined } : undefined;
+      const crossPaymentVal = crossPayerIdVal && crossPayerName ? { payerName: crossPayerName, payerCustomerId: crossPayerIdVal || undefined, relationship: (crossRelationshipVal || '').trim() || undefined } : undefined;
 
       const isDig = isDigitalPaymentMethod(methodVal);
       const txnIdVal = (transactionIdInput?.value || '').trim();
@@ -7508,7 +7565,10 @@ export function setupQuickCollectModal({
       // confirm summary, so the operator is sent back to the
       // approver field instead of confirming figures that cannot
       // post; core's validator re-checks it before anything records.
-      const largeCashThresholdCents = Math.round((Number(largeCashThresholdInput?.value) || 0) * 100);
+      // QC month-note: the threshold is the standing module default
+      // now — the per-payment threshold input is gone, so the submit
+      // reads the default instead of a form value.
+      const largeCashThresholdCents = LARGE_CASH_DEFAULT_THRESHOLD_CENTS;
       const largeCashApprover = (largeCashApproverInput?.value || '').trim();
       if (requiresLargeCashApproval(isCashPaymentMethod(methodVal), Math.round(amountVal * 100), largeCashThresholdCents) && !largeCashApprover) {
         if (typeof onToast === 'function') onToast(t('qc_toast_large_cash_approval'), { type: 'error' });

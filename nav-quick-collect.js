@@ -4524,6 +4524,11 @@ export function setupQuickCollectModal({
       senderDigits: senderDigitsInput ? String(senderDigitsInput.value || '') : '',
       overrideReason: overrideReasonInput ? String(overrideReasonInput.value || '') : '',
       paidBy: paidByInput ? String(paidByInput.value || '') : '',
+      // Plan 621: the collector rides the concession capture with the
+      // payer and the note — the reopen below resets the form, so
+      // without this a collector typed before Apply/Remove would be
+      // wiped while the note survives.
+      collectedBy: collectedByInput ? String(collectedByInput.value || '') : '',
       urduNote: urduNoteInput ? String(urduNoteInput.value || '') : '',
       splitOn: !!splitToggle?.checked,
       splitAmount: splitAmountInput ? String(splitAmountInput.value || '') : '',
@@ -4560,6 +4565,7 @@ export function setupQuickCollectModal({
     if (senderDigitsInput) senderDigitsInput.value = entries.senderDigits || '';
     if (overrideReasonInput) overrideReasonInput.value = entries.overrideReason || '';
     if (paidByInput) paidByInput.value = entries.paidBy || '';
+    if (collectedByInput) collectedByInput.value = entries.collectedBy || '';
     if (urduNoteInput) urduNoteInput.value = entries.urduNote || '';
     // Split second: values in first, then one visibility pass, so
     // the total and the flag render with the restored leg in place.
@@ -5230,6 +5236,19 @@ export function setupQuickCollectModal({
       // on every open, like the payer fields — a tag picked for one
       // customer never carries over to the next.
       if (categoryTagSelect) categoryTagSelect.value = 'collection';
+      // Plan 621: the collection-note fields start empty on every
+      // fresh open, like the payer fields — a note typed for one
+      // customer never carries over to the next. A package-change
+      // reopen (amountOverride) is a mid-payment re-render, not a
+      // fresh open: its notes stay until Plan 623 formalizes the
+      // capture, exactly like the concession reopen's capture/restore
+      // below. (Collected-at is auto-stamped at save, and Collected
+      // in mohalla has no field on this form since the D13 polish —
+      // only Collected-by and the Urdu note exist here to reset.)
+      if (!options || options.amountOverride === undefined || options.amountOverride === null) {
+        if (collectedByInput) collectedByInput.value = '';
+        if (urduNoteInput) urduNoteInput.value = '';
+      }
 
       // Populate billing month select — the visible label is the
       // human month ("November 2026", via monthLabel, already used

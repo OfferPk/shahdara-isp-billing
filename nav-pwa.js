@@ -769,6 +769,12 @@ export function setupSwUpdatePrompt({
   // answers must not be re-asked on every signal).
   let resolvedHashVersion = '';
   let statusAskedFor = null;
+  // Update popup twice: the prompt must appear ONCE per page session.
+  // The per-version gate lets a second deploy (a different build-hash
+  // identity) through in the same session, so a second Note card would
+  // stack above the first. Closure state, not module state — a fresh
+  // page load gets a fresh flag and prompts for the newer deploy.
+  let promptShownThisSession = false;
   // Plan G: a caller may pass its own busy check; otherwise the default
   // document check above applies. A boolean is accepted for tests.
   const isBusyFn = typeof isBusy === 'function' ? isBusy : () => defaultSwUpdateBusyCheck(win);
@@ -873,9 +879,18 @@ export function setupSwUpdatePrompt({
       deferredVersion = version;
       return false;
     }
+    // Update popup twice: one prompt per page session. A second deploy
+    // in the same session carries a different build-hash identity, so
+    // the per-version gate above lets it through — block the second
+    // SHOW only. The status-ask/defer flow above still runs, and the
+    // newer version is never written to the shown record, so it
+    // prompts on the next page load. Placed after the busy check so a
+    // deferred prompt is never consumed by the flag.
+    if (promptShownThisSession) return false;
     deferredVersion = '';
     pendingVersion = version;
     markSwUpdatePromptShown(storage, version);
+    promptShownThisSession = true;
     const message = t('sw_update_ready', null, {});
     try { announceToScreenReader(message); } catch { /* announcement is best-effort */ }
     onToast(message, {

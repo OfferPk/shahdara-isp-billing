@@ -200,7 +200,7 @@ import { overpaymentExtraCents } from './overpayment-choice.js';
 import { requiresLargeCashApproval, LARGE_CASH_DEFAULT_THRESHOLD_CENTS } from './large-cash-approval.js';
 import { underpaymentWarning, underpaymentWarningLineText } from './underpayment-warning.js';
 import { openSuspensionFor, suspendedWarningLineText } from './suspended-warning.js';
-import { formatWhatsAppUrl, validatePakistanPhone } from './form-validation.js';
+import { formatWhatsAppUrl, paymentSaveErrorMessage, validatePakistanPhone } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
 import {
@@ -8062,8 +8062,14 @@ export function setupQuickCollectModal({
       }, 60);
 
     } catch (err) {
+      // Plan 618: mirror Polish #16 Req 1b — a TypeError thrown after the
+      // payment was saved must not surface as a raw engine error ("Cannot
+      // read properties…"), so route it through paymentSaveErrorMessage
+      // and title the toast 'Payment not saved', exactly as the profile
+      // payment form does (app.js:13836/:13956). Other errors keep their
+      // own message, as the guard passes them through.
       if (typeof onToast === 'function') {
-        onToast(err.message, { type: 'error' });
+        onToast(paymentSaveErrorMessage(err), { type: 'error', title: 'Payment not saved' });
       }
     } finally {
       // Plan 437: the save has settled (posted, refused, or thrown) —

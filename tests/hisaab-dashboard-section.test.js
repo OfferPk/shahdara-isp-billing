@@ -238,8 +238,8 @@ test('hisaab G5: "Kharch dekhein" is bound once, with a guard flag, to the ledge
   const hisaabKeyDefs = (navJs.match(/^    hisaab_[a-z_]+:/gm) || []).length;
   assert.equal(hisaabKeyDefs, 60, '30 hisaab_* keys × 2 dicts');
   assert.ok(navJs.includes("exp_upstream_synced_hint: 'This expense is synced from the Upstream tab."), 'the D2(b) refusal hint key exists');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5217, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5217, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5221, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5221, 'UR key count moved');
 });
 
 /* ---------------- G6 — H5 i18n + parity + munafa (D1(a)–D10(a)) ---------------- */
@@ -261,15 +261,15 @@ const HISAAB_KEYS = [
   'hisaab_expense_per_customer', 'hisaab_profit_per_customer',
 ];
 
-test('hisaab G6a: all 30 hisaab_* keys + exp_upstream_synced_hint exist in both dicts; parity is 5,217/5,217', () => {
+test('hisaab G6a: all 30 hisaab_* keys + exp_upstream_synced_hint exist in both dicts; parity is 5,221/5,221', () => {
   for (const key of HISAAB_KEYS) {
     assert.ok(key in TRANSLATIONS.en, `EN has ${key}`);
     assert.ok(key in TRANSLATIONS.ur, `UR has ${key}`);
   }
   assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.en, 'EN has the D2(b) refusal hint');
   assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.ur, 'UR has the D2(b) refusal hint');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5217, 'EN parity 5,217');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5217, 'UR parity 5,217');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5221, 'EN parity 5,221');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5221, 'UR parity 5,221');
   // UR sentences end with ۔, fragments do not (591 bar).
   for (const key of ['hisaab_month_empty', 'hisaab_lifetime_empty', 'hisaab_provider_none', 'hisaab_honesty']) {
     assert.ok(TRANSLATIONS.ur[key].endsWith('۔'), `UR ${key} ends with ۔`);

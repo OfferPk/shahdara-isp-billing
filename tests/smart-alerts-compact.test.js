@@ -30,8 +30,14 @@ test('alerts screen has no header action: the View Alerts button only scrolled t
   assert.ok(index.includes('data-mobile-more="alerts"'));
 });
 
-test('panel has no duplicate heading: the router header is the only Smart Alerts heading', () => {
-  assert.equal(index.includes('smartAlertsHeading'), false);
+test('panel heading: the Status tab gives Smart Alerts a visible heading reusing drawer_alerts', () => {
+  // Reports Tab REVERSAL of the #1557 removal: the panel now sits in the
+  // Status tab, where every other panel has a visible heading, so it
+  // gets one too — reusing the existing drawer_alerts key, no new key.
+  // The router header stays the screen title; the panel heading is the
+  // in-tab label, the same pattern as the duesRecoveryHeading.
+  assert.ok(index.includes('id="smartAlertsHeading"'), 'panel heading exists');
+  assert.ok(index.includes('<h3 id="smartAlertsHeading" data-i18n="drawer_alerts">Smart Alerts</h3>'), 'heading reuses drawer_alerts');
   assert.ok(index.includes('<section id="smartAlertsPanel" class="owner-report-panel" aria-labelledby="smartAlertsSummary">'));
   assert.equal(index.includes('LOCAL-ONLY · RULE-BASED'), false);
   assert.equal(index.includes('Derived on this device'), false);

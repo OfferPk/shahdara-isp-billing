@@ -7152,6 +7152,16 @@
     </section>
     <section id="billingReportsView" class="billing-reports-view" aria-labelledby="billingReportsHeading" hidden>
       <div class="report-pane">
+        <nav class="reports-tabs" role="tablist" aria-label="Report sections">
+          <button id="reportsTabStatusBtn" class="report-filter-button reports-tab" type="button" role="tab" aria-controls="reportsTabStatus" aria-pressed="true"><span data-i18n="bill_tab_status">Status</span></button>
+          <button id="reportsTabRegisterBtn" class="report-filter-button reports-tab" type="button" role="tab" aria-controls="reportsTabRegister" aria-pressed="false"><span data-i18n="bill_tab_register">Register</span></button>
+          <button id="reportsTabCompareBtn" class="report-filter-button reports-tab" type="button" role="tab" aria-controls="reportsTabCompare" aria-pressed="false"><span data-i18n="bill_tab_compare">Compare</span></button>
+          <button id="reportsTabClosingBtn" class="report-filter-button reports-tab" type="button" role="tab" aria-controls="reportsTabClosing" aria-pressed="false"><span data-i18n="bill_tab_closing">Closing</span></button>
+        </nav>
+        <div id="reportsTabStatus" class="reports-tab-panel" role="tabpanel" aria-labelledby="reportsTabStatusBtn"></div>
+        <div id="reportsTabRegister" class="reports-tab-panel" role="tabpanel" aria-labelledby="reportsTabRegisterBtn" hidden></div>
+        <div id="reportsTabCompare" class="reports-tab-panel" role="tabpanel" aria-labelledby="reportsTabCompareBtn" hidden></div>
+        <div id="reportsTabClosing" class="reports-tab-panel" role="tabpanel" aria-labelledby="reportsTabClosingBtn" hidden></div>
         <div class="report-heading"><div><p class="eyebrow" data-i18n="bill_heading_eyebrow">LOCAL CUSTOMER REPORT</p><h2 id="billingReportsHeading" data-i18n="bill_heading_title">Monthly payment status</h2><p class="transactions-subtitle" data-i18n="bill_heading_sub">Amounts and receipts are based on saved records only.</p></div><label class="report-month-label" for="reportMonth"><span data-i18n="bill_month_label">Billing month</span><select id="reportMonth"></select></label></div>
         <div id="billsActionsBar" class="bills-actions-bar" role="group" aria-label="Monthly bills actions" data-i18n-aria-label="bill_actions_aria">
           <button id="generateBillsBtn" class="primary-button bills-action-generate" type="button" data-i18n="bill_generate">Generate this month's bills</button>
@@ -7174,7 +7184,7 @@
           <label class="report-filter-archived" style="align-self:center"><input type="checkbox" id="reportIncludeArchived"> <span data-i18n="bill_row_archived">Archived</span></label>
         </div>
         <div class="report-search-bar">
-          <input id="reportCustomerSearch" type="search" placeholder="Search customer in this month's report by name, # or area..." data-i18n-placeholder="bill_search_placeholder">
+          <input id="reportCustomerSearch" type="search" placeholder="Search customer..." data-i18n-placeholder="bill_search_placeholder">
           <label class="report-sort-label" for="reportSortSelect"><span data-i18n="bill_sort_label">Sort report</span>
             <select id="reportSortSelect" aria-label="Sort monthly report" data-i18n-aria-label="bill_sort_aria">
               <option value="number-asc" selected data-i18n="bill_sort_number_asc">Customer # (1 → 99)</option>
@@ -7226,7 +7236,7 @@
         <p class="report-not-set-note" data-i18n="bill_notset_note">Rows with no generated or manually recorded bill amount are accurately shown as Not set; All includes them. Pending means a saved bill has no payment or applied credit. Partial means a real bill has some amount received/credited but still has a balance. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</p>
         <!-- Polish #11: sales-tax dashboard host — filled by renderSalesTaxDashboard in app.js. -->
         <section class="owner-report-panel" id="stxTaxDashboard" aria-labelledby="stxTaxHeading"></section>
-                <section class="owner-report-panel billing-register-panel" aria-labelledby="billingRegisterHeading">
+                <section id="billingRegisterSection" class="owner-report-panel billing-register-panel" aria-labelledby="billingRegisterHeading">
           <div class="table-heading"><div><p class="eyebrow">INVOICE RECORD</p><h3 id="billingRegisterHeading" data-i18n="bill_reg_title">Billing Register</h3></div><p class="chart-caption" data-i18n="bill_reg_sub">Invoice-style record of the bills in the selected period. The CSV download exports exactly the rows shown below.</p></div>
           <div class="billing-register-controls">
             <label class="report-month-label"><span data-i18n="bill_reg_period_label">Period</span><select id="billingRegisterPeriod">
@@ -7253,16 +7263,16 @@
           <ul id="billingRegisterList" class="billing-register-list" data-i18n-aria-label="bill_reg_title" aria-label="Billing Register"></ul>
           <p id="billingRegisterEmpty" class="transactions-empty" hidden data-i18n="bill_reg_empty">No bills match this period and status.</p>
         </section>
-        <section class="owner-report-panel" aria-labelledby="monthlyClosingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL MONTH CLOSE</p><h3 id="monthlyClosingHeading">Saved monthly closings</h3></div><p class="chart-caption">Created once when the app first opens in the next PKT calendar month. Status counts are manual values captured at the saved time, not monitored month-end status.</p></div><div id="savedMonthlyClosings" class="saved-closing-list" aria-live="polite"></div></section>
-        <section class="owner-report-panel" aria-labelledby="monthComparisonHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL BUSINESS COMPARISON</p><h3 id="monthComparisonHeading">Compare two months</h3></div></div><div class="owner-filter-grid"><label for="compareMonthA">Earlier / first month<select id="compareMonthA"></select></label><label for="compareMonthB">Later / second month<select id="compareMonthB"></select></label></div><details class="calculation-rules"><summary data-i18n="compare_calc_rules">ℹ️ Calculation Rules</summary><p id="monthComparisonBasis" class="chart-caption" role="status" aria-live="polite"></p></details><div id="monthComparisonMetrics" class="comparison-metric-grid" aria-live="polite"></div><div id="monthComparisonChart" class="comparison-bars" aria-label="Mobile month comparison chart"></div><div class="comparison-package-wrap"><h4>Package distribution</h4><ul id="monthPackageComparison" class="comparison-package-list"></ul></div><form id="performanceExplainForm" class="performance-explain-form"><label for="performanceMetric">Explain change in<select id="performanceMetric"><option value="billedAmount">Billed revenue</option><option value="collection">Cash collection</option><option value="outstanding">Outstanding</option><option value="expenses">Expenses</option><option value="profit">Cash profit</option></select></label><button class="secondary-button" type="submit">Explain this change</button></form><div id="performanceExplanation" class="performance-explanation" role="status" aria-live="polite"></div></section>
-        <section class="owner-report-panel" aria-labelledby="customerRankingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL CUSTOMER RANKINGS</p><h3 id="customerRankingHeading">Customer rankings</h3></div></div><div class="owner-filter-grid"><label for="rankingType">Ranking<select id="rankingType"></select></label><label for="rankingMonth">Month<select id="rankingMonth"></select></label><label for="rankingArea">Area / mohalla<select id="rankingArea"><option value="all">All recorded areas</option></select></label><label for="rankingPackage">Package<select id="rankingPackage"><option value="all">All recorded packages</option></select></label><label for="rankingStatus">Manual status<select id="rankingStatus"><option value="all">All statuses</option><option value="active">Active</option><option value="offline">Offline</option><option value="not-set">Not set</option><option value="archived">Archived</option></select></label></div><div id="customerRankingResults" class="owner-result-list" aria-live="polite"></div></section>
-        <section id="duesRecoveryPanel" class="owner-report-panel" aria-labelledby="duesRecoveryHeading"><div class="table-heading" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><p class="eyebrow">NO AUTOMATIC CONTACT</p><h3 id="duesRecoveryHeading">Smart dues recovery &amp; WhatsApp drafts</h3><p class="chart-caption">Balances and priority use the local ledger. A link opens a draft only; review and send yourself.</p></div><button id="openWorklistsFromDuesBtn" class="secondary-button btn-sm" type="button" style="margin-top: 4px;" aria-haspopup="dialog">📋 Disconnect / Reconnect Worklists</button></div><div id="recoverySummaryBar" class="recovery-summary-bar" role="status" aria-live="polite"></div><div class="recovery-filter-row"><label class="recovery-search"><span class="sr-only">Search recovery list</span><input id="recoverySearchInput" type="search" placeholder="Search name, #ID or phone" autocomplete="off"></label><label class="recovery-mohalla"><span class="sr-only">Filter by mohalla</span><select id="recoveryMohallaFilter" aria-label="Filter by mohalla"></select></label><div id="recoveryPriorityPills" class="recovery-priority-pills" role="group" aria-label="Filter by priority"><button type="button" data-recovery-priority="all" aria-pressed="true">All</button><button type="button" data-recovery-priority="High Priority" aria-pressed="false">High</button><button type="button" data-recovery-priority="Medium Priority" aria-pressed="false">Medium</button><button type="button" data-recovery-priority="Low Priority" aria-pressed="false">Low</button><button type="button" data-recovery-priority="waada" aria-pressed="false">Waada Due</button></div></div><details class="calculation-rules"><summary data-i18n="recovery_calc_rules">ℹ️ How priority is calculated</summary><p id="recoveryFormula" class="chart-caption"></p></details><div id="duesRecoveryGroups" class="recovery-groups" aria-live="polite"></div></section><section id="smartAlertsPanel" class="owner-report-panel" aria-labelledby="smartAlertsSummary"><p id="smartAlertsSummary" class="chart-caption" role="status" aria-live="polite"></p><div id="smartAlertsList" class="smart-alert-list" aria-live="polite"></div></section>
+        <section id="savedClosingsSection" class="owner-report-panel" aria-labelledby="monthlyClosingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL MONTH CLOSE</p><h3 id="monthlyClosingHeading">Saved monthly closings</h3></div><p class="chart-caption">Created once when the app first opens in the next PKT calendar month. Status counts are manual values captured at the saved time, not monitored month-end status.</p></div><div id="savedMonthlyClosings" class="saved-closing-list" aria-live="polite"></div></section>
+        <section id="monthComparisonSection" class="owner-report-panel" aria-labelledby="monthComparisonHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL BUSINESS COMPARISON</p><h3 id="monthComparisonHeading">Compare two months</h3></div></div><div class="owner-filter-grid"><label for="compareMonthA">Earlier / first month<select id="compareMonthA"></select></label><label for="compareMonthB">Later / second month<select id="compareMonthB"></select></label></div><details class="calculation-rules"><summary data-i18n="compare_calc_rules">ℹ️ Calculation Rules</summary><p id="monthComparisonBasis" class="chart-caption" role="status" aria-live="polite"></p></details><div id="monthComparisonMetrics" class="comparison-metric-grid" aria-live="polite"></div><div id="monthComparisonChart" class="comparison-bars" aria-label="Mobile month comparison chart"></div><div class="comparison-package-wrap"><h4>Package distribution</h4><ul id="monthPackageComparison" class="comparison-package-list"></ul></div><form id="performanceExplainForm" class="performance-explain-form"><label for="performanceMetric">Explain change in<select id="performanceMetric"><option value="billedAmount">Billed revenue</option><option value="collection">Cash collection</option><option value="outstanding">Outstanding</option><option value="expenses">Expenses</option><option value="profit">Cash profit</option></select></label><button class="secondary-button" type="submit">Explain this change</button></form><div id="performanceExplanation" class="performance-explanation" role="status" aria-live="polite"></div></section>
+        <section id="customerRankingsSection" class="owner-report-panel" aria-labelledby="customerRankingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL CUSTOMER RANKINGS</p><h3 id="customerRankingHeading">Customer rankings</h3></div></div><div class="owner-filter-grid"><label for="rankingType">Ranking<select id="rankingType"></select></label><label for="rankingMonth">Month<select id="rankingMonth"></select></label><label for="rankingArea">Area / mohalla<select id="rankingArea"><option value="all">All recorded areas</option></select></label><label for="rankingPackage">Package<select id="rankingPackage"><option value="all">All recorded packages</option></select></label><label for="rankingStatus">Manual status<select id="rankingStatus"><option value="all">All statuses</option><option value="active">Active</option><option value="offline">Offline</option><option value="not-set">Not set</option><option value="archived">Archived</option></select></label></div><div id="customerRankingResults" class="owner-result-list" aria-live="polite"></div></section>
+        <section id="duesRecoveryPanel" class="owner-report-panel" aria-labelledby="duesRecoveryHeading"><div class="table-heading" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><p class="eyebrow">NO AUTOMATIC CONTACT</p><h3 id="duesRecoveryHeading">Smart dues recovery &amp; WhatsApp drafts</h3><p class="chart-caption">Balances and priority use the local ledger. A link opens a draft only; review and send yourself.</p></div><button id="openWorklistsFromDuesBtn" class="secondary-button btn-sm" type="button" style="margin-top: 4px;" aria-haspopup="dialog">📋 Disconnect / Reconnect Worklists</button></div><div id="recoverySummaryBar" class="recovery-summary-bar" role="status" aria-live="polite"></div><div class="recovery-filter-row"><label class="recovery-search"><span class="sr-only">Search recovery list</span><input id="recoverySearchInput" type="search" placeholder="Search name, #ID or phone" autocomplete="off"></label><label class="recovery-mohalla"><span class="sr-only">Filter by mohalla</span><select id="recoveryMohallaFilter" aria-label="Filter by mohalla"></select></label><div id="recoveryPriorityPills" class="recovery-priority-pills" role="group" aria-label="Filter by priority"><button type="button" data-recovery-priority="all" aria-pressed="true">All</button><button type="button" data-recovery-priority="High Priority" aria-pressed="false">High</button><button type="button" data-recovery-priority="Medium Priority" aria-pressed="false">Medium</button><button type="button" data-recovery-priority="Low Priority" aria-pressed="false">Low</button><button type="button" data-recovery-priority="waada" aria-pressed="false">Waada Due</button></div></div><details class="calculation-rules"><summary data-i18n="recovery_calc_rules">ℹ️ How priority is calculated</summary><p id="recoveryFormula" class="chart-caption"></p></details><div id="duesRecoveryGroups" class="recovery-groups" aria-live="polite"></div></section><section id="smartAlertsPanel" class="owner-report-panel" aria-labelledby="smartAlertsSummary"><h3 id="smartAlertsHeading" data-i18n="drawer_alerts">Smart Alerts</h3><p id="smartAlertsSummary" class="chart-caption" role="status" aria-live="polite"></p><div id="smartAlertsList" class="smart-alert-list" aria-live="polite"></div></section>
         <!-- Home Dashboard overhaul: Daily Roznamcha + Daily Register
              & Closing merged into ONE card here in Reports (the two
              grid cards showed the same day from two angles). All ids
              are preserved, so the guarded dashboard writers and the
              modal openers follow. -->
-        <article class="summary-card summary-daily-closing ds-stat ds-stat--brand">
+        <article id="dailyRoznamchaSection" class="summary-card summary-daily-closing ds-stat ds-stat--brand">
           <span class="ds-stat__icon" aria-hidden="true">🧮</span>
           <div class="daily-closing-header">
             <p class="summary-label" data-i18n="dash_card_closing">Daily Roznamcha &amp; Closing</p>
@@ -7284,7 +7294,7 @@
         </article>
         <!-- Home Dashboard overhaul: Owner Khata Closing moved here
              from Home. -->
-        <article class="summary-card summary-owner-khata ds-stat ds-stat--brand">
+        <article id="ownerKhataSection" class="summary-card summary-owner-khata ds-stat ds-stat--brand">
           <p class="summary-label" data-i18n="dash_card_khata">📕 Owner Khata Closing</p>
           <strong id="dashboardOwnerKhataValue" class="summary-value">No activity</strong>
           <p id="dashboardOwnerKhataPeriod" class="summary-period">Monthly income, expenses, shares &amp; outages</p>
@@ -7366,8 +7376,8 @@
             <p class="mmx-note" data-i18n="mmx_note">Net Profit follows the P&amp;L screen (cash received in the month − expenses). Collected follows the billing engine (share of the month’s bills settled). Churned counts customers still archived whose archive date falls in that month.</p>
           </div>
         </section>
-        <section class="analytics-panel" aria-labelledby="annualSummaryHeading"><div class="table-heading"><div><p class="eyebrow">YEAR VIEW</p><h3 id="annualSummaryHeading">Annual owner summary</h3><p class="chart-caption">Read-only year view from the twelve monthly figures — money from frozen snapshots, customers from churn summaries.</p></div><div><button id="annualSummaryExportBtn" class="secondary-button btn-sm" type="button">📥 Export annual CSV</button></div></div><div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;"><label style="font-size: 12px;">Year <input id="annualSummaryYear" type="number" min="2000" max="2999" style="width: 90px;"></label></div><div id="annualSummaryBody"></div></section>
-        <article class="dashboard-chart-card chart-card-target">
+        <section id="annualOwnerSummarySection" class="analytics-panel" aria-labelledby="annualSummaryHeading"><div class="table-heading"><div><p class="eyebrow">YEAR VIEW</p><h3 id="annualSummaryHeading">Annual owner summary</h3><p class="chart-caption">Read-only year view from the twelve monthly figures — money from frozen snapshots, customers from churn summaries.</p></div><div><button id="annualSummaryExportBtn" class="secondary-button btn-sm" type="button">📥 Export annual CSV</button></div></div><div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;"><label style="font-size: 12px;">Year <input id="annualSummaryYear" type="number" min="2000" max="2999" style="width: 90px;"></label></div><div id="annualSummaryBody"></div></section>
+        <article id="targetGaugeSection" class="dashboard-chart-card chart-card-target">
           <div class="chart-card-header chart-card-header-flex">
             <div>
               <h4 class="chart-title" data-i18n="dash_target_title">Monthly Collection vs Target</h4>
@@ -7377,7 +7387,7 @@
           </div>
           <div id="dashboardTargetChart" class="chart-svg-container" role="img" aria-label="Monthly collection vs target radial gauge" data-i18n-aria-label="dash_target_gauge_aria"></div>
         </article>
-        <section class="collection-velocity-section" aria-labelledby="collectionVelocityHeading" data-i18n-aria-label="dash_velocity_aria">
+        <section id="collectionVelocitySection" class="collection-velocity-section" aria-labelledby="collectionVelocityHeading" data-i18n-aria-label="dash_velocity_aria">
           <div class="collection-velocity-card">
             <div class="collection-velocity-header">
               <h3 id="collectionVelocityHeading" class="collection-velocity-title" data-i18n="vel_title">📈 Collection Velocity</h3>
@@ -7392,7 +7402,7 @@
              compact pill shows instead (toggled by renderDashboard
              from the five audit counts). -->
         <p id="auditsClearPill" class="audits-clear-pill" data-i18n="audits_clear_pill" hidden>✅ All 5 Audits Clear</p>
-        <section class="upsell-section" aria-labelledby="upsellHeading">
+        <section id="packageUpgradeSection" class="upsell-section" aria-labelledby="upsellHeading">
           <div class="upsell-card">
             <div class="upsell-header">
               <h3 id="upsellHeading" class="upsell-title" data-i18n="upsell_title">🚀 Package Upgrade Suggestions</h3>
@@ -7402,7 +7412,7 @@
             <ul id="upsellList" class="upsell-list" aria-label="Package upgrade candidates"></ul>
           </div>
         </section>
-        <section class="fuel-efficiency-section" aria-labelledby="fuelEfficiencyHeading">
+        <section id="fuelCostSection" class="fuel-efficiency-section" aria-labelledby="fuelEfficiencyHeading">
           <div class="fuel-efficiency-card">
             <div class="fuel-efficiency-header">
               <h3 id="fuelEfficiencyHeading" class="fuel-efficiency-title" data-i18n="fuel_title">⛽ Fuel Cost per Field Job</h3>
@@ -7413,7 +7423,7 @@
             <div id="fuelEfficiencyBody"></div>
           </div>
         </section>
-        <section class="winback-section" aria-labelledby="winbackHeading">
+        <section id="winBackSection" class="winback-section" aria-labelledby="winbackHeading">
           <div class="winback-card">
             <div class="winback-header">
               <h3 id="winbackHeading" class="winback-title" data-i18n="winback_title">📥 Disconnect Reasons & Win-Back</h3>
@@ -7424,7 +7434,7 @@
             <ul id="winbackList" class="winback-list" aria-label="Win-back offer queue"></ul>
           </div>
         </section>
-        <section class="upsell-section loyalty-section" aria-labelledby="loyaltyHeading">
+        <section id="atRiskLoyalSection" class="upsell-section loyalty-section" aria-labelledby="loyaltyHeading">
           <div class="upsell-card">
             <div class="upsell-header">
               <h3 id="loyaltyHeading" class="upsell-title" data-i18n="loyalty_title">⚠️ At-Risk Loyal Customers</h3>
@@ -7435,7 +7445,7 @@
             <ul id="loyaltyAtRiskList" class="upsell-list" aria-label="Loyal customers at risk"></ul>
           </div>
         </section>
-        <section class="revleak-section" aria-labelledby="revenueLeakHeading">
+        <section id="revenueLeakSection" class="revleak-section" aria-labelledby="revenueLeakHeading">
           <div class="revleak-card">
             <div class="revleak-header">
               <h3 id="revenueLeakHeading" class="revleak-title" data-i18n="revleak_title">🚨 Revenue Leak Audit</h3>
@@ -7446,7 +7456,7 @@
             <ul id="revenueLeakList" class="revleak-list" aria-label="Revenue leak audit"></ul>
           </div>
         </section>
-        <section class="hwaudit-section" aria-labelledby="hwauditHeading">
+        <section id="hardwareAuditSection" class="hwaudit-section" aria-labelledby="hwauditHeading">
           <div class="hwaudit-card">
             <div class="hwaudit-header">
               <h3 id="hwauditHeading" class="hwaudit-title" data-i18n="hwaudit_title">🔦 Hardware / Optical Bottleneck Audit</h3>

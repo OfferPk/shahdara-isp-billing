@@ -201,12 +201,17 @@ test('overhaul keys exist in EN and UR, with Urdu script in the Urdu values', ()
 
 test('overhaul structure: the recovery panel renders first on the recovery screen, with summary bar and filter row', () => {
   // The queue renders first at the top of the Collect screen because
-  // the recovery screen isolates it: every other .report-pane child
-  // is hidden (the #287 isolation), so DOM order among the hidden
-  // siblings cannot push it down. The panel itself moved up from
-  // last in the pane to before Smart Alerts.
+  // the recovery screen isolates it: every other panel is hidden (the
+  // #287 isolation), so DOM order among the hidden siblings cannot push
+  // it down. The panel itself moved up from last in the pane to before
+  // Smart Alerts. Reports Tab: the panels moved into tab wrappers, so
+  // the isolation keys off the wrappers now, not .report-pane children —
+  // the tab bar, the non-Status panels and every non-panel sibling
+  // inside Status hide, leaving only the recovery panel visible.
   assert.ok(index.indexOf('id="duesRecoveryPanel"') < index.indexOf('id="smartAlertsPanel"'), 'recovery precedes smart alerts');
-  assert.ok(styles.includes('#billingReportsView[data-report-screen="recovery"] .report-pane > :not(#duesRecoveryPanel)'), 'the recovery screen hides every other report-pane child');
+  assert.ok(styles.includes('#billingReportsView[data-report-screen="recovery"] .reports-tabs'), 'the recovery screen hides the tab bar');
+  assert.ok(styles.includes('#billingReportsView[data-report-screen="recovery"] .reports-tab-panel:not(#reportsTabStatus)'), 'the recovery screen hides the non-Status panels');
+  assert.ok(styles.includes('#billingReportsView[data-report-screen="recovery"] #reportsTabStatus > :not(#duesRecoveryPanel)'), 'the recovery screen hides every other Status sibling');
   for (const id of ['recoverySummaryBar', 'recoverySearchInput', 'recoveryMohallaFilter', 'recoveryPriorityPills', 'duesRecoveryGroups']) {
     assert.ok(index.includes(`id="${id}"`), `${id} is present`);
   }

@@ -53,9 +53,9 @@ test('G1: the four new tab-label keys exist in both dicts; parity is the new tot
     assert.equal(TRANSLATIONS.en[key], value, `${key} EN label`);
     assert.equal(TRANSLATIONS.ur[key], expectedUr[key], `${key} UR label`);
   }
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5217, 'EN parity');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5217, 'UR parity');
-  assert.ok(selfSrc.includes('5217'), 'this file pins the new total');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5221, 'EN parity');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5221, 'UR parity');
+  assert.ok(selfSrc.includes('5221'), 'this file pins the new total');
 });
 
 test('4-tab bar: five numbered buttons in order, right after the view opens', () => {

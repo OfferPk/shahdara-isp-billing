@@ -2191,6 +2191,7 @@ let dashboardPlaceRestored = false;
 // dialog builds from the live ledger). Nothing here writes to the
 // ledger; the estimator stays a pure calculator.
 let areaModuleTab = 'progress';
+let reportsTab = 'status';
 let areaModuleChip = 'pending';
 let areaModuleExpanded = false;
 let areaModuleBarsSummary = null;
@@ -2437,6 +2438,64 @@ function setupAreaAnalyticsModule() {
     jumpSelect.value = '';
   });
 }
+
+// Reports Tab: 4 sub-tabs (Status / Register / Compare / Closing). Copied
+// from the area module tabs (setupAreaAnalyticsModule / syncAreaModuleChrome
+// above): one state var, panels HIDDEN (never skipped, so badges, inputs
+// and counts keep live data), aria-pressed synced. Panels regroup by JS at
+// the first monthly render — the 400-line region is not hand-restructured.
+// New DOM code follows the file's document-guard convention: every
+// document accessor is guarded, so node --test mocks that provide only
+// getElementById never crash on it.
+function setupReportsTabs() {
+  const viewEl = $('#billingReportsView');
+  if (!viewEl || viewEl.dataset.reportsTabsWired) return;
+  viewEl.dataset.reportsTabsWired = '1';
+  const tabPanels = {
+    status: ['.report-heading', '#billsActionsBar', '.report-filters', '.report-search-bar', '#monthlyReportSummaryBar', '#monthlyReportCount', '.mohalla-analytics', '#reportAreaFilterChip', '#monthlyReportList', '#monthlyReportPagination', '#monthlyReportEmpty', '.report-not-set-note', '#duesRecoveryPanel', '#smartAlertsPanel', '#targetGaugeSection', 'h3[data-i18n="ops_section_billing"]', '.summary-billing-cycle', '.summary-complaint-register', '.summary-field-tickets', '.summary-monthly-complaint-report', '.summary-group-billing', 'h3[data-i18n="ops_section_workers"]', '.summary-saad-visits', '.summary-lineman-scorecard'],
+    register: ['#stxTaxDashboard', '#billingRegisterSection'],
+    compare: ['#monthComparisonSection', '#customerRankingsSection', '#multiMonthMatrixSection', '#annualOwnerSummarySection', '#collectionVelocitySection', '#packageUpgradeSection', '#fuelCostSection', '#winBackSection', '#atRiskLoyalSection', '#revenueLeakSection', '#hardwareAuditSection'],
+    closing: ['#savedClosingsSection', '#dailyRoznamchaSection', '#ownerKhataSection', '#newCustomersSection', '#monthCompareSection', '#printSummarySection'],
+  };
+  for (const [tab, selectors] of Object.entries(tabPanels)) {
+    const panel = document.getElementById(`reportsTab${tab[0].toUpperCase()}${tab.slice(1)}`);
+    if (!panel) continue;
+    for (const selector of selectors) {
+      const el = viewEl.querySelector(selector);
+      if (el) panel.appendChild(el);
+    }
+  }
+  viewEl.querySelectorAll('.reports-tab').forEach((tabBtn) => tabBtn.addEventListener('click', () => {
+    const panelId = tabBtn.getAttribute('aria-controls');
+    const tab = panelId === 'reportsTabStatus' ? 'status' : panelId === 'reportsTabRegister' ? 'register' : panelId === 'reportsTabCompare' ? 'compare' : 'closing';
+    if (tab === reportsTab) return;
+    reportsTab = tab;
+    syncReportsTabs();
+  }));
+  syncReportsTabs();
+}
+function syncReportsTabs() {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+  document.querySelectorAll('.reports-tab').forEach((tabBtn) => {
+    const panelId = tabBtn.getAttribute('aria-controls');
+    const tab = panelId === 'reportsTabStatus' ? 'status' : panelId === 'reportsTabRegister' ? 'register' : panelId === 'reportsTabCompare' ? 'compare' : 'closing';
+    tabBtn.setAttribute('aria-pressed', tab === reportsTab ? 'true' : 'false');
+  });
+  for (const [tab, panelId] of [['status', 'reportsTabStatus'], ['register', 'reportsTabRegister'], ['compare', 'reportsTabCompare'], ['closing', 'reportsTabClosing']]) {
+    const panel = document.getElementById(panelId);
+    if (panel) panel.hidden = tab !== reportsTab;
+  }
+}
+function setReportsTab(tab) {
+  if (!['status', 'register', 'compare', 'closing'].includes(tab)) return;
+  reportsTab = tab;
+  syncReportsTabs();
+}
+
+// The bills / recovery / alerts routes force the Status tab through this
+// global (same pattern as window.setAnalyticsTab for the Lab route).
+if (typeof window !== 'undefined') window.setReportsTab = (tab) => setReportsTab(tab);
+
 // Area Analytics 4-tab: the 342 sections of #analyticsView live behind
 // five tabs — Areas (Tab 1, charts + the 6-tab unit, never collapsed),
 // Billing (Tab 2), Audit (Tab 3), Ops (Tab 4) and the Telemetry Lab
@@ -3705,6 +3764,8 @@ function renderDashboard() {
     const valueEl = $('#dashboardOwnerKhataValue');
     const periodEl = $('#dashboardOwnerKhataPeriod');
     if (valueEl) valueEl.textContent = khata.receiptCount === 0 && khata.expenseCount === 0 ? t('dash_khata_empty') : t('dash_khata_profit', null, { amount: formatAmount(khata.profit) });
+    // Reports Tab: a negative net profit paints rose, not the shared emerald.
+    if (valueEl) valueEl.classList.toggle('summary-value--negative', khata.profit < 0);
     if (periodEl) periodEl.textContent = t('dash_khata_period', null, { month: displayMonthName(khataMonth), collected: formatAmount(khata.collected), arrears: formatAmount(khata.pendingArrears) });
     ownerKhataSummaryEl.innerHTML = khata.receiptCount === 0 && khata.expenseCount === 0 && khata.totalComplaints === 0
       ? ''
@@ -7942,6 +8003,7 @@ function getMonthlyReportScreenRows() {
 }
 
 function renderMonthlyReport() {
+  setupReportsTabs();
   const month = selectedBillingMonth;
   // Sharafat 39: the rows on screen come from the shared helper — the
   // monthly CSV export uses the same rows. Totals below follow the
@@ -8054,7 +8116,12 @@ function renderMonthlyReport() {
     const creditCell = hasCredit ? `<div class="report-cell report-credit-cell"><span class="report-cell-label">${t('bill_row_credit')}</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div>` : '';
     const needsAction = row.status === 'pending' || row.status === 'partial';
     const actionsCell = needsAction ? `<div class="report-row-actions"><button type="button" class="secondary-button btn-sm" data-report-collect="${escapeHtml(row.customerId)}">${escapeHtml(t('bill_row_collect'))}</button><button type="button" class="secondary-button btn-sm" data-report-remind="${escapeHtml(row.customerId)}" data-remind-balance="${row.balanceDue ?? 0}" data-remind-due="${escapeHtml(row.dueDate ?? '')}">${escapeHtml(t('bill_row_remind'))}</button></div>` : '';
-    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ` · ${t('bill_row_archived')}` : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-tags"><span class="report-tag">${t('bill_row_service')}: ${serviceLabel}</span><span class="report-tag">${t('bill_row_package')}: ${escapeHtml(speed)}</span><span class="report-tag">${t('bill_row_provider')}: ${escapeHtml(provider)}</span></span></div>${monthlySaleCell}<div class="report-cell"><span class="report-cell-label">${escapeHtml(t('bill_row_month_bill', null, { month: displayMonthName(row.month) }))}</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_due_date')}</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_received')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_balance')}</span><span class="report-cell-value">${escapeHtml(due)}</span></div>${creditCell}<div class="report-cell report-status-cell"><span class="report-cell-label">${t('bill_row_status')}</span><span class="report-status report-status-${row.status}">${billStatusLabel(row.status)}</span></div>${actionsCell}</li>`;
+    // Reports Tab: pills whose value is bill_not_set are not rendered
+    // (Service and ISP/provider only — the Package pill stays even when
+    // the package is not set, so the card never loses its package identity).
+    const serviceTag = serviceLabel === t('bill_not_set') ? '' : `<span class="report-tag">${t('bill_row_service')}: ${serviceLabel}</span>`;
+    const providerTag = provider === t('bill_not_set') ? '' : `<span class="report-tag">${t('bill_row_provider')}: ${escapeHtml(provider)}</span>`;
+    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ` · ${t('bill_row_archived')}` : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-tags">${serviceTag}<span class="report-tag">${t('bill_row_package')}: ${escapeHtml(speed)}</span>${providerTag}</span></div>${monthlySaleCell}<div class="report-cell"><span class="report-cell-label">${escapeHtml(t('bill_row_month_bill', null, { month: displayMonthName(row.month) }))}</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_due_date')}</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_received')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_balance')}</span><span class="report-cell-value">${escapeHtml(due)}</span></div>${creditCell}<div class="report-cell report-status-cell"><span class="report-cell-label">${t('bill_row_status')}</span><span class="report-status report-status-${row.status}">${billStatusLabel(row.status)}</span></div>${actionsCell}</li>`;
   }).join('');
   document.querySelectorAll('[data-report-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.reportFilter === selectedReportFilter ? 'true' : 'false'));
   // Sharafat 45: keep the Archived checkbox in sync with the module state

@@ -268,6 +268,12 @@ textarea { line-height: 1.5; }
   letter-spacing: -.02em;
   overflow-wrap: anywhere;
 }
+/* Reports Tab: negative net profit in Owner Khata Closing paints rose
+   instead of the shared emerald. Scoped class, toggled by the writer in
+   app.js; positive profit keeps the emerald .summary-value above. */
+.summary-value--negative {
+  color: var(--qc-rose-strong-text);
+}
 .summary-period, .phase3-metric small {
   color: #586e65;
   font-size: 12px;
@@ -321,6 +327,16 @@ textarea { line-height: 1.5; }
   padding: 2px 1px 6px;
 }
 .report-filters .report-filter-button { flex: 0 0 auto; }
+/* Reports Tab: the Archived label is a flex item of .report-filters, so
+   it used to shrink to its longest word and wrap under the checkbox.
+   Inline-flex + nowrap keeps box and label on one row. */
+.report-filter-archived {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
 .view-nav { gap: 8px; scrollbar-width: thin; }
 .view-nav-button { padding: 0 14px; font-size: 13px; }
 .global-search-main { padding: 14px; }
@@ -568,6 +584,17 @@ textarea { line-height: 1.5; }
   .report-customer { grid-column: 1 / -1; }
   .report-cell-label { font-size: 12px; }
   .report-cell-value { font-size: 13px; }
+  /* Reports Tab: the base rule right-aligns the even cells (desktop
+     table look). In the 2-column phone grid that reads as misaligned,
+     so the monthly cards left-align every value. Same specificity as
+     the base rule, later in the file, scoped to .monthly-report-list
+     (monthly cards + sales-tax rows); .register-row is untouched. */
+  .monthly-report-list .report-row > .report-cell:nth-of-type(2) .report-cell-value,
+  .monthly-report-list .report-row > .report-cell:nth-of-type(3) .report-cell-value,
+  .monthly-report-list .report-row > .report-cell:nth-of-type(5) .report-cell-value,
+  .monthly-report-list .report-row > .report-cell:nth-of-type(6) .report-cell-value {
+    text-align: left;
+  }
   .payment-row { align-items: flex-start; flex-wrap: wrap; }
   .payment-row .payment-main { flex-basis: calc(100% - 20px); }
   .payment-row .payment-actions { width: 100%; justify-content: flex-end; }
@@ -920,6 +947,7 @@ button:disabled, button[aria-disabled="true"],
      top:58px and comes later in this file, so a plain .profile-tabs
      here would lose the cascade at 360px. */
   .profile-tabs.profile-tabs { top: 56px; }
+  .reports-tabs.reports-tabs { top: 56px; }
   .brand-mark { width: 30px; height: 30px; flex: 0 0 30px; }
   .brand-copy { min-width: 0; overflow: hidden; }
   .brand-copy h1 { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
@@ -1586,6 +1614,13 @@ is only ~300px wide. */
 .current-bill-stat>strong.is-due{color:var(--ds-danger)}
 .current-bill-stat>strong.is-settled{color:var(--ds-success)}
 .profile-tabs{display:flex;gap:4px;overflow-x:auto;margin:15px 0 12px;padding:4px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-tabs-bg);scrollbar-width:none;position:sticky;top:78px;z-index:2;backdrop-filter:blur(12px)}
+/* Reports Tab: 4 sub-tabs (Status / Register / Compare / Closing). Same
+   sticky bar as .profile-tabs above — top follows the topbar height at
+   every breakpoint (78px desktop, 58px <=620px, 56px <=380px), z-index 2
+   keeps it below the topbar (z-index 50). */
+.reports-tabs{display:flex;gap:4px;overflow-x:auto;margin:15px 0 12px;padding:4px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-tabs-bg);scrollbar-width:none;position:sticky;top:78px;z-index:2;backdrop-filter:blur(12px)}
+.reports-tab{flex:1 0 auto;min-height:44px;border:1px solid transparent;border-radius:9px;background:transparent;color:#34584a;padding:7px 12px;font:700 12px/1.2 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;touch-action:manipulation}
+.reports-tab[aria-pressed="true"]{background:var(--ds-tab-active-bg);color:var(--ds-tab-active-text);border-color:var(--ds-line)}
 .profile-tabs::-webkit-scrollbar{display:none}
 .profile-tab-button{flex:1 0 auto;min-height:44px;border:1px solid transparent;border-radius:9px;background:transparent;color:#34584a;padding:7px 12px;font:700 12px/1.2 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;touch-action:manipulation}
 /* DS-0: equal-flex segmented control (the base rule above keeps its
@@ -1895,7 +1930,7 @@ stat cells become pills. */
 .profile-tab-button{min-height:44px}
 .profile-tab-button:focus-visible,.profile-action-group button:focus-visible,.back-button:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
 @media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}}
-@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr) auto;gap:13px;align-items:flex-start}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:11px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:190px;flex-flow:column;align-items:flex-end;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{min-height:48px}.profile-action-group #archiveCustomerButton{grid-column:1/-1}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:6px}.current-bill-stat{min-height:56px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.profile-tab-button{min-height:44px;padding:7px 6px}}
+@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr) auto;gap:13px;align-items:flex-start}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:11px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:190px;flex-flow:column;align-items:flex-end;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{min-height:48px}.profile-action-group #archiveCustomerButton{grid-column:1/-1}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:6px}.current-bill-stat{min-height:56px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.reports-tabs{top:58px}.profile-tab-button{min-height:44px;padding:7px 6px}}
 /* Sharafat 100 (D3/D6): at ≤620px all four profile tabs must fit inside
    the profile card at 360px with counts (measured +95px EN / +45px UR
    overflow — Baqaya sat off-screen until the tab row was swiped). The
@@ -17107,14 +17142,21 @@ button:not([hidden]).quick-method-chip.bwb-big {
 /* Issue 287: Bills / Monthly Report / Dues Recovery / Smart Alerts are separate
    screens over one shared view. The router sets data-report-screen on
    #billingReportsView; only that screen's sections are shown. Nothing is
-   removed from the DOM, so every handler keeps working. */
-#billingReportsView[data-report-screen="alerts"] .report-pane > :not(#smartAlertsPanel),
-#billingReportsView[data-report-screen="recovery"] .report-pane > :not(#duesRecoveryPanel) {
-  display: none !important;
-}
-#billingReportsView[data-report-screen="bills"] .report-pane > section.owner-report-panel,
-#billingReportsView[data-report-screen="reports"] .report-pane > #smartAlertsPanel,
-#billingReportsView[data-report-screen="reports"] .report-pane > #duesRecoveryPanel {
+   removed from the DOM, so every handler keeps working. Reports Tab: the
+   panels live inside the tab wrappers, so these rules key off the wrappers
+   (the tab bar, the non-Status panels, and the non-panel siblings inside
+   Status) — never off .report-pane children. The reports screen shows
+   everything behind the four tabs, so it needs no rule here. */
+#billingReportsView[data-report-screen="recovery"] .reports-tabs,
+#billingReportsView[data-report-screen="recovery"] .reports-tab-panel:not(#reportsTabStatus),
+#billingReportsView[data-report-screen="recovery"] #reportsTabStatus > :not(#duesRecoveryPanel),
+#billingReportsView[data-report-screen="alerts"] .reports-tabs,
+#billingReportsView[data-report-screen="alerts"] .reports-tab-panel:not(#reportsTabStatus),
+#billingReportsView[data-report-screen="alerts"] #reportsTabStatus > :not(#smartAlertsPanel),
+#billingReportsView[data-report-screen="bills"] .reports-tabs,
+#billingReportsView[data-report-screen="bills"] .reports-tab-panel:not(#reportsTabStatus),
+#billingReportsView[data-report-screen="bills"] #reportsTabStatus > #duesRecoveryPanel,
+#billingReportsView[data-report-screen="bills"] #reportsTabStatus > #smartAlertsPanel {
   display: none !important;
 }
 .bills-actions-bar {

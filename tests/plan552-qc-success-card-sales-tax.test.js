@@ -214,26 +214,29 @@ test('Plan 552 fit budget: the tax row costs ~39px; a fully-paid taxed receipt c
   assert.ok(partialTaxedTotalPx > 700, 'the partial taxed total is 10px OVER the 700px gate — recorded here, to be confirmed by the phone screenshot');
 });
 
-test('Plan 552: the Month row renders on the taxed card; the grid stays at 3 rows (the Still-owed row is hidden when fully paid)', () => {
+test('Plan 552: the Month row renders on the taxed card as a pill row; the grid keeps only the tax row (the Still-owed row is hidden when fully paid)', () => {
   // Month-name fix: the taxed fixture already carries month '2026-11',
   // so the card now renders a Month / November row between Date &
   // Method and Area. QC Success Card Polish (2026-11-13): the taxed
   // fixture is fully paid, so it hides the Still-owed row instead of
-  // reading "Fully paid" — the grid is Customer, Mobile, Date &
-  // Method, Month, Area, Next due date = 6 half-width items in 3
-  // rows (was 7 / 4); without the Month row it is 5 items, still 3
-  // rows — the Month row no longer adds a fourth row (43px), it fills
-  // the row the hidden Still-owed row vacated. The 681 baseline
-  // predates the phone row; the polish17 fit test owns the live total,
-  // and re-baselining this test's arithmetic is a separate small item,
-  // not folded in here.
+  // reading "Fully paid". QC success rows pill (user, 2026-11-21):
+  // the six detail rows (Customer, Mobile, Date & Method, Month,
+  // Area, Next due date) left the two-column grid and became
+  // full-width pill rows — the grid keeps only the full-width charge
+  // rows (the tax row here), so the half-width count is 0 and there
+  // is no "3 rows" to stay at. The 681 baseline predates the phone
+  // row; the polish17 fit test owns the live total, and re-baselining
+  // this test's arithmetic is a separate small item, not folded in here.
   const html = renderQuickCollectReceiptCardHtml(taxedReceipt());
   const at = html.indexOf('>Month<');
   assert.ok(at >= 0, 'taxed card must carry the Month row');
   assert.ok(html.includes('>November<'), 'Month row must read November');
-  const rowStart = html.lastIndexOf('<div class="qc-receipt-item', at);
+  // The Month row is a pill row now, not a half-width grid item — the
+  // old "no full-width tag" check is replaced by a pill-row check.
+  const rowStart = html.lastIndexOf('<div', at);
   const rowTag = html.slice(rowStart, html.indexOf('>', rowStart) + 1);
-  assert.ok(!rowTag.includes('full-width'), 'Month row must be a half-width grid item');
+  assert.ok(rowTag.includes('qc-amount-pill'), 'Month row must be a pill row');
+  assert.ok(rowTag.includes('qc-receipt-detail-row'), 'Month row must carry the compact detail-row class');
   assert.ok(html.indexOf('Date &amp; Method') < at, 'Month row must sit after Date & Method');
   assert.ok(at < html.indexOf('Area / Location'), 'Month row must sit before Area / Location');
   // (The phone row carries a data-qc-receipt-phone attribute, so the
@@ -246,7 +249,7 @@ test('Plan 552: the Month row renders on the taxed card; the grid stays at 3 row
   };
   const noMonth = taxedReceipt();
   delete noMonth.month;
-  assert.equal(halfWidth(html), 6, 'six half-width items with the Month row (Still-owed row hidden when fully paid)');
-  assert.equal(Math.ceil(halfWidth(html) / 2), 3, '3 half-width rows with the Month row');
-  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row — the Month row fills the vacated row, cost 0px');
+  assert.equal(halfWidth(html), 0, 'zero half-width items — the six detail rows are pill rows now (Still-owed row hidden when fully paid)');
+  assert.equal(Math.ceil(halfWidth(html) / 2), 0, '0 half-width rows with the Month row');
+  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 0, '0 half-width rows without the Month row — 5 pill rows, no grid rows');
 });

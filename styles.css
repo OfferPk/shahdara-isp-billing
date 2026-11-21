@@ -9686,6 +9686,44 @@ button:not([hidden]).qc-date-chip {
   color: var(--qc-emerald-text);
   font-weight: 700;
 }
+/* QC success rows pill (user, 2026-11-21): the six detail rows reuse
+   the Amount Collected pill and read slightly more compact — 0.875rem
+   values (the hero rows stay 1.3rem). A long customer name wraps
+   inside its row instead of overflowing: the value is a flex item, so
+   it needs min-width: 0 to shrink, and overflow-wrap so one long token
+   breaks. Read-only values right-align (the wrapped lines hug the
+   right edge, like the Amount pill); the editing phone value keeps
+   its default alignment so the input is untouched. The six pills sit
+   in a tighter 2px-gap wrapper — the card's own 6px gap would add
+   30px across six rows. No new hex. */
+.qc-receipt-amount-row.qc-amount-pill.qc-receipt-detail-row .qc-meta-val {
+  font-size: 0.875rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.qc-receipt-amount-row.qc-amount-pill.qc-receipt-detail-row strong.qc-meta-val {
+  text-align: right;
+}
+/* The Area select sizes to its longest option (~185px) — without a
+   cap it squeezes the "Area / Location" label into two lines. The
+   label never wraps (nowrap) and the select's wrapper shrinks to the
+   room left (min-width: 0), with the select itself capped at the
+   wrapper's width — the selected area is short, so nothing visible
+   clips, and the dropdown list still shows the full options. */
+.qc-receipt-amount-row.qc-amount-pill.qc-receipt-detail-row .qc-receipt-label {
+  white-space: nowrap;
+}
+.qc-receipt-amount-row.qc-amount-pill.qc-receipt-detail-row .qc-area-pill {
+  min-width: 0;
+}
+.qc-receipt-amount-row.qc-amount-pill.qc-receipt-detail-row .qc-area-select {
+  max-width: 100%;
+}
+.qc-receipt-detail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .qc-customer-golden {
   color: #704600;
 }
@@ -9959,10 +9997,14 @@ button:not([hidden]).qc-date-chip {
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-ref { gap: 4px; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header .qc-txnid-code { padding: 2px 4px; }
 
-/* QC success-receipt polish (TOP): Change sits left under the phone as an
-   emerald underlined inline action link. Hook + handler untouched; the
-   Sharafat 96 44px floor still governs the tap target. */
-#quickCollectModal.qc-success-open .qc-receipt-item [data-qc-edit-phone] { align-self: flex-start; text-align: left; color: var(--qc-emerald-text); text-decoration: underline; text-underline-offset: 2px; padding: 2px 0; }
+/* QC success rows pill (user, 2026-11-21): Change sits INLINE next to
+   the phone number inside the Mobile Number pill row — it used to sit
+   left under the phone in the grid item, and that layout is gone by
+   the user's spec, so the flex-start / left-align declarations go
+   with it. Still an emerald underlined inline action link. Hook +
+   handler untouched; the Sharafat 96 44px floor still governs the
+   tap target. */
+#quickCollectModal.qc-success-open .qc-receipt-detail-row [data-qc-edit-phone] { color: var(--qc-emerald-text); text-decoration: underline; text-underline-offset: 2px; padding: 2px 0; }
 
 /* C4: amount 1.5rem → 1.3rem (still the largest figure on the card),
    amount row padding 4 → 2px. QC Success Card Polish (2026-11-13):

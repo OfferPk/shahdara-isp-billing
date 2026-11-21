@@ -28,13 +28,13 @@ export const SCREENS = {
   customers: { view: 'customersView', tab: 'showCustomersButton', title: 'Customers', subtitle: 'Search, add and open customer ledgers', action: { label: '+ Add Customer', click: '#addCustomerButton' }, filters: { selector: '.customer-filter-panel', mobileOnly: false } },
   transactions: { view: 'transactionsView', tab: 'showTransactionsButton', title: 'Transactions', subtitle: 'Every saved payment, newest first', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
   reports: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Report', subtitle: 'Bills, collections and dues for the month', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
-  bills: { view: 'billingReportsView', title: 'Monthly Bills', subtitle: 'Generated bills, due dates and customer billing status', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
-  recovery: { view: 'billingReportsView', title: 'Dues Recovery', subtitle: 'Smart recovery triage and WhatsApp reminders', anchor: '#duesRecoveryPanel', action: { label: 'Remind Pending', click: '#bulkReminderDispatchBtn' } },
+  bills: { view: 'billingReportsView', reportsTab: 'status', title: 'Monthly Bills', subtitle: 'Generated bills, due dates and customer billing status', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
+  recovery: { view: 'billingReportsView', reportsTab: 'status', title: 'Dues Recovery', subtitle: 'Smart recovery triage and WhatsApp reminders', anchor: '#duesRecoveryPanel', action: { label: 'Remind Pending', click: '#bulkReminderDispatchBtn' } },
   // Smart Alerts cleanup: the alerts screen has NO header action by design —
   // its one 'View Alerts' button only scrolled to the panel the operator was
   // already looking at (the panel has no input to focus), and the screen shows
   // nothing else. The route, More menu and drawer entries reach it instead.
-  alerts: { view: 'billingReportsView', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel' },
+  alerts: { view: 'billingReportsView', reportsTab: 'status', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel' },
   assistant: { view: 'ownerCommandCenter', title: 'Owner Assistant', subtitle: 'Ask about saved bills, collections, and customer balances', action: { label: 'Ask Question', focus: '#ownerCommandInput' } },
   backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
   analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', analyticsTab: 'areas', title: 'Area Analytics', subtitle: 'Areas, zones and packages', action: { label: 'Export Area CSV', click: '#exportAreaIntelCsvBtn' } },
@@ -506,6 +506,14 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     const screenSpec = SCREENS[screen];
     if (screenSpec && screenSpec.analyticsTab && typeof win.setAnalyticsTab === 'function') {
       win.setAnalyticsTab(screenSpec.analyticsTab);
+    }
+    // Reports Tab: the bills / recovery / alerts routes force the Status
+    // tab through the app's window.setReportsTab global (same pattern as
+    // the analyticsTab block above), so the route lands on the tab its
+    // content lives in. Forcing Status alone is not enough — the
+    // wrapper-aware Issue-287 rules in styles.css do the hiding.
+    if (screenSpec && screenSpec.reportsTab && typeof win.setReportsTab === 'function') {
+      win.setReportsTab(screenSpec.reportsTab);
     }
     current = screen;
     body.dataset.screen = screen;

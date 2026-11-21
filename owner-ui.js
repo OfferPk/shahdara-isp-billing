@@ -38,13 +38,16 @@ export function syncAreaNetworkTabs() {
 }
 const nameInitials = name => String(name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
 
+// Reports Tab: compact 'Oct 2026' labels for the narrow compare selects;
+// the full month name ('October 2026') truncates to 'October 202' at 360px.
+export const shortMonthLabel = month => { const [year, num] = String(month ?? '').split('-'); const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; return `${names[Number(num) - 1] ?? ''} ${year}`; };
+// Reports Tab: even shorter 'Oct '26' labels for the comparison bar chart,
+// whose label column is 75px at <=620px ('November 2026' is 88.7px and clips).
+export function shortBarMonthLabel(month) { const [mon, year] = shortMonthLabel(month).split(' '); return `${mon} '${String(year).slice(2)}`; }
 export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses, renderLoans, puchoData, openCollect, openWaadaDialog, onSaveState, onToast}) {
   let lastQuery = '';
   const months = () => monthsForHistory();
   const setText = (selector, value) => { const node=$(selector); if (node) node.textContent=String(value ?? ''); };
-  // Compact 'Oct 2026' labels for the narrow compare selects; the full
-  // month name ('October 2026') truncates to 'October 202' at 360px.
-  const shortMonthLabel = month => { const [year, num] = String(month ?? '').split('-'); const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; return `${names[Number(num) - 1] ?? ''} ${year}`; };
   const ensureMonthOptions = (selector, preferred, short = false) => {
     const node=$(selector); if (!node) return;
     const before=node.value;
@@ -186,7 +189,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
       }).join('');
       const chartKeys=['billedAmount','collection','outstanding','expenses','cashProfit'];
       const max=Math.max(1,...chartKeys.flatMap(key=>[comparison.monthA[key]??0,comparison.monthB[key]??0]));
-      chart.innerHTML=chartKeys.map(key=>{const first=comparison.monthA[key]??0,second=comparison.monthB[key]??0;return `<div class="comparison-bar-row"><span>${compareLabels[key]}</span><div class="comparison-bar-pair"><div><small>${escapeHtml(monthName(a))}</small><span class="comparison-bar comparison-bar-a" style="width:${Math.max(0,Math.min(100,Math.abs(first)/max*100))}%"></span><strong>${escapeHtml(formatAmount(first))}</strong></div><div><small>${escapeHtml(monthName(b))}</small><span class="comparison-bar comparison-bar-b" style="width:${Math.max(0,Math.min(100,Math.abs(second)/max*100))}%"></span><strong>${escapeHtml(formatAmount(second))}</strong></div></div></div>`;}).join('');
+      chart.innerHTML=chartKeys.map(key=>{const first=comparison.monthA[key]??0,second=comparison.monthB[key]??0;return `<div class="comparison-bar-row"><span>${compareLabels[key]}</span><div class="comparison-bar-pair"><div><small>${escapeHtml(shortBarMonthLabel(a))}</small><span class="comparison-bar comparison-bar-a" style="width:${Math.max(0,Math.min(100,Math.abs(first)/max*100))}%"></span><strong>${escapeHtml(formatAmount(first))}</strong></div><div><small>${escapeHtml(shortBarMonthLabel(b))}</small><span class="comparison-bar comparison-bar-b" style="width:${Math.max(0,Math.min(100,Math.abs(second)/max*100))}%"></span><strong>${escapeHtml(formatAmount(second))}</strong></div></div></div>`;}).join('');
       packages.innerHTML=comparison.packageChanges.length?comparison.packageChanges.map(row=>`<li><span>${escapeHtml(row.name)}</span><strong>${row.from} → ${row.to}</strong><small>${row.change>0?'+':''}${row.change} customers · ${escapeHtml(describePercentChange({...row, absoluteChange:row.change},'count'))}</small></li>`).join(''):'<li>No saved package distribution for these months.</li>';
     } catch(error) { metrics.innerHTML=`<p class="empty-state">${escapeHtml(error.message)}</p>`;chart.replaceChildren();packages.replaceChildren(); }
     setText('#performanceExplanation','Select a measure and choose “Explain this change” to see its recorded contributors.');

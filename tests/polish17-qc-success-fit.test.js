@@ -312,11 +312,14 @@ test('fit budget: the compact header, banner, callout, card and action values th
   assert.ok(lineRule.includes('text-overflow: ellipsis'), 'summary line must truncate with an ellipsis');
   assert.ok(lineRule.includes('white-space: nowrap'), 'summary line must be a single line');
 
-  // Actions — primary 48px solid brand; output grid 3-col; next row
+  // Actions — primary 48px WhatsApp gradient; output grid 3-col; next row
   // 2-col; empty-amount secondary button; Done full-width ghost.
   const primary = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-wa-btn {');
   assert.ok(primary.includes('min-height: 48px'), 'primary must be 48px');
-  assert.ok(primary.includes('background: var(--ds-brand)'), 'primary must be the solid brand');
+  // QC receipt buttons tint (2026-11-21): the user asked for the authentic
+  // WhatsApp green gradient, so the primary is no longer the solid brand.
+  assert.ok(primary.includes('linear-gradient(90deg, #25d366, #128c7e)'), 'primary must paint the WhatsApp gradient');
+  assert.ok(!primary.includes('background: var(--ds-brand)'), 'primary must no longer be the solid brand');
   assert.ok(stylesSrc.includes('.qc-output-grid'), 'output grid must exist');
   assert.ok(stylesSrc.includes('.qc-next-row'), 'next-action row must exist');
   const empty = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-empty-amount-btn {');

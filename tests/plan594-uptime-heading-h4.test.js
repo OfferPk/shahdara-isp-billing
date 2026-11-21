@@ -144,7 +144,10 @@ test('Plan 594: the demoted heading line is byte-identical to the base line exce
 test('Plan 594: the heading sits on the same line number — no line shift, no panel move', () => {
   const sectionNo = indexLines.findIndex((l) => l.includes('<section class="incident-section uptime-section"')) + 1;
   assert.equal(sectionNo, 6630, 'the section still opens at :6630');
-  assert.ok(appSrc.includes("info:['.customer-meta','.uptime-section']"), 'the mount still puts the section second in Info');
+  // Plan 617: the share-draft host joins the info group FIRST, so the
+  // uptime section is now third in Info, not second — its panel is
+  // unchanged (still Info), only its position within the group moved.
+  assert.ok(appSrc.includes("info:['#stxProfileShareDraft','.customer-meta','.uptime-section']"), 'the mount still puts the section in Info, third after the draft and the view');
   assert.ok(appSrc.includes("complaints:['.incident-section:not(.uptime-section)']"), 'the Complaints mount still excludes the uptime section');
 });
 
@@ -220,8 +223,11 @@ test('Plan 594: upt_heading exists in both tables and parity does not move', () 
   assert.ok(!selfSrc.includes('47' + '66'), 'this file must stay free of the old-count literal');
 });
 
-test('Plan 594: the mount groups are unchanged', () => {
-  assert.ok(appSrc.includes("info:['.customer-meta','.uptime-section']"), 'Info still mounts .customer-meta then .uptime-section');
+test('Plan 594: the mount groups are unchanged except the Plan 617 draft move', () => {
+  // Plan 617: the share-draft host joins the info group FIRST — Info
+  // now mounts the draft, then .customer-meta, then .uptime-section.
+  // The Complaints group is untouched.
+  assert.ok(appSrc.includes("info:['#stxProfileShareDraft','.customer-meta','.uptime-section']"), 'Info mounts the draft first, then .customer-meta, then .uptime-section');
   assert.ok(appSrc.includes("complaints:['.incident-section:not(.uptime-section)']"), 'Complaints still excludes the uptime section via :not()');
 });
 

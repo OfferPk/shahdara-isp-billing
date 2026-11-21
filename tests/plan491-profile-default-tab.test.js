@@ -84,7 +84,9 @@ test('Plan 491: the tab mechanism is untouched — map, mounts, bindings, keys',
     'billing mount group kept');
   assert.ok(appJs.includes("baqaya:['#manualBaqayaSection']"),
     'baqaya mount group owns the Manual Baqaya section');
-  assert.ok(appJs.includes("info:['.customer-meta'"),
+  // Plan 617: the share-draft host joins the info group FIRST, ahead of
+  // .customer-meta — the profile view and edit form still live there.
+  assert.ok(appJs.includes("info:['#stxProfileShareDraft','.customer-meta','.uptime-section']"),
     'info mount group kept — the profile view and edit form live there');
   assert.ok(appJs.includes("complaints:['.incident-section:not(.uptime-section)']"),
     'complaints mount group kept');

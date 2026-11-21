@@ -471,6 +471,10 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
     if (customer.archived) continue;
 
     let totalDuesCents = 0;
+    // QC DUE-badge emoji (user, 2026-11-21): the gross billed amount of
+    // the OPEN bills only — the denominator the DUE badge ratios
+    // totalDues against. A settled month never dilutes it.
+    let totalBilledCents = 0;
     let earliestUnpaidMonth = null;
     let currentMonthBalanceCents = 0;
     const bills = [...(customer.bills ?? [])].sort((a, b) => a.month.localeCompare(b.month));
@@ -480,6 +484,7 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
       const balance = summary?.balanceDueCents;
       if (typeof balance === 'number' && balance > 0) {
         totalDuesCents += balance;
+        totalBilledCents += summary?.billAmountCents ?? 0;
         if (!earliestUnpaidMonth) {
           earliestUnpaidMonth = bill.month;
         }
@@ -559,6 +564,10 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
       address: customer.address || '',
       serviceStatus: customer.serviceStatus || 'not-set',
       totalDues,
+      // QC DUE-badge emoji: the open-bills total, in rupees like the
+      // other entry figures — the badge's denominator. Missing on
+      // hand-built fixtures; the renderer falls back to ⏰ then.
+      totalBilled: totalBilledCents / 100,
       billDues: Math.max(0, totalDuesCents / 100),
       manualBaqayaDue: manualBaqayaDueCents / 100,
       targetMonth,
@@ -2180,6 +2189,19 @@ function qcCardAreaDisplay(area) {
   return value && value !== 'Unassigned' ? value : 'Not recorded';
 }
 
+// QC DUE-badge emoji (user, 2026-11-21): the DUE pill picks its emoji
+// from how much of the bill is still remaining — ⏰ at 100% (or when no
+// total is known), ⏳ while more than a fifth is left, 🤏 once 80%+ is
+// paid. Integer cents, per the Plan 543 money rule, so float dust can
+// never flip the 20% boundary (remainingCents * 5 <= totalCents).
+function dueBadgeEmoji(remainingRupees, totalBilledRupees) {
+  const remainingCents = Math.round((remainingRupees ?? 0) * 100);
+  const totalCents = Math.round((totalBilledRupees ?? 0) * 100);
+  if (totalCents <= 0 || remainingCents >= totalCents) return '⏰';
+  if (remainingCents * 5 <= totalCents) return '🤏';
+  return '⏳';
+}
+
 export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null, sameNameBadges = null, mohallaFilter = '', priorityById = null) {
   if (!customers || customers.length === 0) {
     // Plan 542: when a mohalla filter is what emptied the list, name
@@ -2261,7 +2283,7 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
       ? `${qcCardAreaDisplay(c.area)} • ${packageName}`
       : qcCardAreaDisplay(c.area);
     const dueLabel = hasDues
-      ? `<strong class="qc-due-val">PKR ${c.totalDues.toLocaleString('en-PK')}</strong><span class="qc-due-tag">DUE</span>`
+      ? `<strong class="qc-due-val">PKR ${c.totalDues.toLocaleString('en-PK')}</strong><span class="qc-due-tag">${dueBadgeEmoji(c.totalDues, c.totalBilled)} DUE</span>`
       : `<strong class="qc-due-val qc-val-settled">PKR 0</strong><span class="qc-settled-tag">SETTLED</span>`;
     // QC-3: the proposed customer card — the dues figure once, as
     // the bold "PKR X DUE" badge, and Call / Location / Collect

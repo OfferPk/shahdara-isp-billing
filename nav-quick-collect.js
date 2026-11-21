@@ -3595,6 +3595,18 @@ export function setupQuickCollectModal({
     if (digitalFieldsContainer) {
       digitalFieldsContainer.hidden = !isDig;
     }
+    // Plan 625: leaving digital clears the reference, sender and
+    // override — the fields only hid before, so a stale wallet TID
+    // survived the switch and the submit read it unconditionally
+    // (core.js stores the reference whenever one is present). The
+    // screenshot is NOT cleared: it sits in the same container but
+    // is a separate proof with its own lifecycle.
+    if (!isDig) {
+      if (transactionIdInput) transactionIdInput.value = '';
+      if (senderNameInput) senderNameInput.value = '';
+      if (senderDigitsInput) senderDigitsInput.value = '';
+      if (overrideReasonInput) overrideReasonInput.value = '';
+    }
     if (isDig && ownerPaymentInfo) {
       const settings = getDigitalPaymentsSettings();
       if (hasConfiguredDigitalPayments(settings)) {
@@ -3992,6 +4004,21 @@ export function setupQuickCollectModal({
     // the direct-save CTA (a split is not a standard collection).
     // Piggybacked here — no new split change listener is added.
     syncDirectSaveButton();
+    // Plan 625: a leg-2 method switch away from digital clears the
+    // leg-2 reference, sender and override — the fields only hid
+    // before, so a stale wallet TID survived the switch and the
+    // split submit read it unconditionally. Narrow trigger: the
+    // leg-2 METHOD switch only — toggling the split off keeps the
+    // same-session leg-2 values (the split submit never runs while
+    // off). Placed at the end of the function, after
+    // renderSplitTotal(), so the Plan 533 wiring slice (first 600
+    // chars) still contains that call.
+    if (on && !leg2Digital) {
+      if (splitTransactionIdInput) splitTransactionIdInput.value = '';
+      if (splitSenderNameInput) splitSenderNameInput.value = '';
+      if (splitSenderDigitsInput) splitSenderDigitsInput.value = '';
+      if (splitOverrideReasonInput) splitOverrideReasonInput.value = '';
+    }
   }
   splitToggle?.addEventListener('change', updateSplitVisibility);
   // Sharafat 1: splitting the payment no longer hides the choice —
@@ -5836,6 +5863,12 @@ export function setupQuickCollectModal({
     // today — if the TID switch then shows the form step, its chips
     // must already agree with the date (Plan 543).
     syncDateChips();
+    // Plan 625: the one-screen submit is a programmatic method
+    // switch — without this the digital fields keep a stale TID
+    // from the form step and it rides onto the Cash payment. Placed
+    // after syncDateChips() so the Plan 544 wiring slice (first
+    // 2500 chars of this function) still contains that call.
+    updateDigitalVisibility(draft.method);
     // QC Modal Overhaul 2: the re-date is today, so the picker stays
     // hidden on the form step too.
     syncDateInputVisibility();

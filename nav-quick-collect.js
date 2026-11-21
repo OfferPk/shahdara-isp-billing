@@ -28,6 +28,7 @@ import {
   autoPackageFromPayment,
   autoPackageRollbackOf,
   rollbackAutoPackage,
+  manualBaqayaEntriesWithRemaining,
   manualBaqayaOutstandingCents,
   planManualBaqayaSettlement,
   paymentSenderLabel,
@@ -3035,8 +3036,11 @@ export function setupQuickCollectModal({
   // right months before anything is saved. Read-only: rendering
   // settles nothing and changes no record. The balances come from
   // the live allocation state, so a concession applied to a bill is
-  // already in the figures; a ticked late-fee waiver is not — the
-  // waiver lands on the bill only at save time.
+  // already in the figures. Plan 626: the pending charges and a
+  // ticked late-fee waiver are in the figures too — the charges are
+  // planned with the save's own planners against the save's
+  // remainder, and the waiver drops the fee from the target bill's
+  // preview balance, exactly as the save waives it before recording.
   function renderSettlementPreview() {
     if (!settlementPreviewBox) return;
     let html = '';
@@ -3053,8 +3057,79 @@ export function setupQuickCollectModal({
             month: bill.month,
             balanceDueCents: allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? 0,
           }));
+        // Plan 626: the save's charge remainder — the typed amount
+        // minus EVERY open bill balance, fee included. The waiver
+        // has not landed yet at this point (the save plans charges
+        // before it waives), so these pre-waiver balances are the
+        // right base; the walk below uses the waived balances.
+        // Never the walk's leftover: the two differ when unpaid
+        // bills pre-date the target month, and the walk's leftover
+        // would preview charge settlement the record will not have.
+        const preDuesCents = bills.reduce((sum, bill) => sum + Math.max(0, bill.balanceDueCents), 0);
+        let chargeBudgetCents = Math.max(0, amountCents - preDuesCents);
+        const isAdvance = advanceCheckbox?.checked === true;
+        const charges = [];
+        if (!isAdvance) {
+          // Baqaya first, FIFO, part-settling the last entry the
+          // money reaches — the same planner the save uses. The
+          // planner's lines ride the entries with a remaining
+          // balance, in order, so the i-th line's full remaining
+          // balance is the i-th such entry's.
+          const baqayaPlan = planManualBaqayaSettlement(customer, chargeBudgetCents);
+          const baqayaEntries = manualBaqayaEntriesWithRemaining(customer)
+            .filter((entry) => entry.remainingCents > 0);
+          baqayaPlan.lines.forEach((line, index) => {
+            const entry = baqayaEntries[index];
+            charges.push({
+              label: `Manual baqaya (${line.entryId})`,
+              amountCents: Math.round(line.amount * 100),
+              balanceCents: entry ? entry.remainingCents : Math.round(line.amount * 100),
+            });
+          });
+          chargeBudgetCents -= baqayaPlan.totalCents;
+        }
+        // Ticket charges next, whole charges only, oldest first —
+        // the same planner the save uses, from the ticket list the
+        // save reads. Addon fees last, whole fees only, oldest
+        // first, from what the ticket plan left of the remainder.
+        const tickets = loadTickets();
+        if (Array.isArray(tickets)) {
+          const ticketPlan = planTicketChargeSettlement(tickets, customer.id, chargeBudgetCents);
+          for (const line of ticketPlan.lines) {
+            const cents = Math.round(line.amount * 100);
+            charges.push({ label: `Ticket charge (${line.ticketId})`, amountCents: cents, balanceCents: cents });
+          }
+          const ticketSettledCents = ticketPlan.lines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
+          const addonPlan = planAddonChargeSettlement(customer, Math.max(0, chargeBudgetCents - ticketSettledCents));
+          for (const line of addonPlan.lines) {
+            const cents = Math.round(line.amount * 100);
+            charges.push({ label: `Speed boost (${line.boostId})`, amountCents: cents, balanceCents: cents });
+          }
+        }
+        // Plan 626: a ticked waiver drops the fee from the target
+        // bill's preview balance. The plan is the same one the
+        // waiver box computes (target bill + live summary + the
+        // combined tender) — no new waiver maths — and it only
+        // applies while the plan is eligible, exactly as the save
+        // refuses a waived payment that fails the gate. An advance
+        // collection can never carry a waiver, so the fee stays.
+        if (waiverTicked && !isAdvance) {
+          const targetBill = customer.bills?.find((b) => b.month === month);
+          const summary = allocations.forMonth(customer.id, month);
+          const paymentAmountCents = Math.round((Number(amountInput?.value || 0) + (splitToggle?.checked ? Number(splitAmountInput?.value || 0) : 0)) * 100);
+          const waiverPlan = planLateFeeWaiver({
+            bill: targetBill,
+            balanceDueCents: summary?.balanceDueCents,
+            lateFeeCents: summary?.lateFeeCents,
+            paymentAmountCents,
+          });
+          if (waiverPlan.eligible) {
+            const target = bills.find((b) => b.month === month);
+            if (target) target.balanceDueCents = Math.max(0, waiverPlan.principalDueCents);
+          }
+        }
         const advanceTarget = advanceCheckbox?.checked ? (advanceTargetSelect?.value || '') : '';
-        const preview = settlementPreview({ bills, targetMonth: month, amountCents, advanceTargetMonth: advanceTarget });
+        const preview = settlementPreview({ bills, targetMonth: month, amountCents, advanceTargetMonth: advanceTarget, charges });
         html = settlementPreviewMarkup(preview, advanceTarget);
       }
     }
@@ -4821,6 +4896,13 @@ export function setupQuickCollectModal({
           // form. The replacement is the same control, re-created.
           const replacement = waiverBox.querySelector('[data-qc-waive-late-fee]');
           if (replacement && !replacement.disabled) replacement.focus();
+          // Plan 626: the tick sets the amount programmatically (no
+          // input event), so the settlement preview never re-renders
+          // on the tick — refresh it here, the same call the chip /
+          // keypad / loose-change handlers make after setting the
+          // amount. (Candidate 5 owns the overpayment choice /
+          // underpayment warning / waada refreshes on the same tick.)
+          renderSettlementPreview();
         });
       } else {
         waiverBox.innerHTML = `

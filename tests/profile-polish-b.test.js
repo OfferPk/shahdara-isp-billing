@@ -210,7 +210,10 @@ test('Polish B (12): the merged details bar shows the live title, the show-missi
 
 test('Polish B (13): the four Info-tab buttons each carry their own colour class, in the same order', () => {
   const html = profileQuickActionsRowHtml('CUST-1', {});
-  assert.ok(html.includes('class="secondary-button pqa-btn pqa-btn-payment"'), 'Record payment carries its colour class');
+  // Plan 615: recording a payment is the profile's job, so its button
+  // is the row's only primary-button (the colour class stays — the
+  // scoped override in styles.css makes the primary green win).
+  assert.ok(html.includes('class="primary-button pqa-btn pqa-btn-payment"'), 'Record payment carries its colour class');
   assert.ok(html.includes('class="secondary-button pqa-btn pqa-btn-fault"'), 'New fault note carries its colour class');
   assert.ok(html.includes('class="secondary-button pqa-btn pqa-btn-message"'), 'Message draft carries its colour class');
   assert.ok(html.includes('class="secondary-button pqa-btn pqa-btn-balance"'), 'Balance view carries its colour class');

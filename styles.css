@@ -1899,6 +1899,15 @@ palette. */
 .pqa-btn-fault{background:#fee2e2;color:#b91c1c;border-color:#dc9478}
 .pqa-btn-message{background:#e5efff;color:#174b87;border-color:#adc9f1}
 .pqa-btn-balance{background:#fef3c7;color:#704600;border-color:#e7c77e}
+/* Plan 615: the payment button is the row's only primary-button, but
+.pqa-btn-payment comes ~1900 lines after .primary-button at the same
+specificity, so it would keep winning the cascade and the button would
+stay pale green. This scoped override (two classes) beats both, so the
+payment button is VISUALLY primary too. Tokens only, no new hex. The
+:hover variant matters: without it the base override would beat
+.primary-button:hover on order and hover would never darken. */
+.pqa-btn-payment.primary-button{background:var(--green);color:#fff;border-color:var(--green)}
+.pqa-btn-payment.primary-button:hover{background:var(--green-dark);color:#fff;border-color:var(--green-dark)}
 /* Profile Polish B (14) — the at-a-glance strip's four figures (Dues,
 Package, Last payment, Next due) render as pills, one colour each from
 the pill palette. The strip container keeps its inline style; only the

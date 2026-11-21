@@ -67,7 +67,15 @@ export function profileQuickActionsRowHtml(customerId, labels = {}) {
   // tell them apart at a glance. Order and targets never change.
   const buttons = PROFILE_QUICK_ACTIONS.map(action => {
     const label = cleanProfileQuickActionsText(labels[action.key]) || defaultProfileQuickActionLabel(action.key);
-    return `<button type="button" class="secondary-button pqa-btn pqa-btn-${action.key}" id="${action.buttonId}" data-quick-action="${action.key}">${escapeProfileQuickActionsHtml(label)}</button>`;
+    // Plan 615: recording a payment is the profile's job, so its button
+    // is the row's only primary-button. Wiring is by button id, never by
+    // class, so the weight change cannot break it. The pqa-btn-payment
+    // colour class stays: the scoped override in styles.css makes the
+    // primary green win the cascade (a bare class swap would be a
+    // visual no-op — .pqa-btn-payment comes later at the same
+    // specificity and would keep the pale green).
+    const weight = action.key === 'payment' ? 'primary-button' : 'secondary-button';
+    return `<button type="button" class="${weight} pqa-btn pqa-btn-${action.key}" id="${action.buttonId}" data-quick-action="${action.key}">${escapeProfileQuickActionsHtml(label)}</button>`;
   }).join('');
   return `<div class="profile-quick-actions" id="pqaRow" role="group" aria-label="${escapeProfileQuickActionsHtml(heading)}" data-customer-id="${escapeProfileQuickActionsHtml(id)}">${buttons}</div>`;
 }

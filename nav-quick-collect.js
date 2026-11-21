@@ -201,7 +201,7 @@ import { overpaymentExtraCents } from './overpayment-choice.js';
 import { requiresLargeCashApproval, LARGE_CASH_DEFAULT_THRESHOLD_CENTS } from './large-cash-approval.js';
 import { underpaymentWarning, underpaymentWarningLineText } from './underpayment-warning.js';
 import { openSuspensionFor, suspendedWarningLineText } from './suspended-warning.js';
-import { formatWhatsAppUrl, paymentSaveErrorMessage, validatePakistanPhone } from './form-validation.js';
+import { formatWhatsAppUrl, paymentSaveErrorMessage, validatePakistanPhone, wirePaymentFieldGuidance } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
 import {
@@ -2931,6 +2931,15 @@ export function setupQuickCollectModal({
   const cashChangeBox = typeof document !== 'undefined' ? document.getElementById('quickCollectCashChangeBox') : null;
   const cashReceivedInput = typeof document !== 'undefined' ? document.getElementById('quickCollectCashReceivedInput') : null;
   const cashChangeLine = typeof document !== 'undefined' ? document.getElementById('quickCollectCashChangeLine') : null;
+
+  // Plan 627: mirror Polish #16's smart field guidance onto this
+  // form — the same live hints the profile payment form shows when a
+  // value looks wrong for its field (digits-only name, digits-only
+  // sender name, letters in the last-4-digits). The four inputs carry
+  // the helper's field names in the markup; the helper binds by
+  // [name="..."], inserts one `.field-help` line under each field,
+  // and refreshes on input + blur. A hint never blocks a save.
+  wirePaymentFieldGuidance(paymentForm);
 
   // Plan 377: the words always match the digits currently typed —
   // typing, a chip tap, a concession, or a pre-fill — so an extra

@@ -252,6 +252,22 @@
   --qc-indigo-text: #4338ca;
   --qc-purple-bg: #f5f3ff;
   --qc-purple-text: #6d28d9;
+  /* Customers stat cards (2026-11-21): soft semantic tints for the
+     roster pill bar. --roster-sky-900 has no passing substitute
+     (--qc-low-text fails 4.5:1 at 3.84:1) and there is no teal token
+     in the repo. The --roster-*-active tokens are theme-stable solid
+     backgrounds for the pressed count pills — white text must clear
+     4.5:1 in both themes, so they hold the same value in the dark
+     blocks below. --roster-slate-800 reuses an existing dark hex
+     (0 new distinct hex). */
+  --roster-sky-900: #0c4a6e;
+  --roster-teal-50: #f0fdfa;
+  --roster-teal-200: #99f6e4;
+  --roster-teal-800: #115e59;
+  --roster-slate-800: #1e293b;
+  --roster-all-active: #065f46;
+  --roster-waada-active: #6d28d9;
+  --roster-kist-active: #115e59;
   /* Top Defaulters chart risk colours (2026-11-13 polish): --td-risk-*
      names keep the TD chart independent of QC internals. The moderate
      pair replaces the green gradient the spec flags as misleading for
@@ -370,6 +386,19 @@
   --qc-indigo-text: #d5e2ff;
   --qc-purple-bg: #1d352e;
   --qc-purple-text: #d5e2ff;
+  /* Customers stat cards (2026-11-21): dark values for the --roster-*
+     tokens reuse existing dark hexes (0 new distinct hex). The
+     --roster-*-active tokens and --roster-slate-800 hold their light
+     values here too — the pressed count pills are solid-800
+     backgrounds with white text in both themes. */
+  --roster-sky-900: #d5e2ff;
+  --roster-teal-50: #16362d;
+  --roster-teal-200: #2d4a40;
+  --roster-teal-800: #86dcbb;
+  --roster-slate-800: #1e293b;
+  --roster-all-active: #065f46;
+  --roster-waada-active: #6d28d9;
+  --roster-kist-active: #115e59;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -474,5 +503,15 @@
     --qc-indigo-text: #d5e2ff;
     --qc-purple-bg: #1d352e;
     --qc-purple-text: #d5e2ff;
+    /* Customers stat cards (2026-11-21): same --roster-* dark values
+       as the [data-theme="dark"] block above. */
+    --roster-sky-900: #d5e2ff;
+    --roster-teal-50: #16362d;
+    --roster-teal-200: #2d4a40;
+    --roster-teal-800: #86dcbb;
+    --roster-slate-800: #1e293b;
+    --roster-all-active: #065f46;
+    --roster-waada-active: #6d28d9;
+    --roster-kist-active: #115e59;
   }
 }

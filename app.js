@@ -4904,9 +4904,15 @@ function renderRosterPillBar(summary) {
     const pressed = customerRosterPill === def.id ? 'true' : 'false';
     const ariaLabel = `${label}: ${pill.count}${totalText ? ` · ${totalText}` : ''}`;
     if (ROSTER_REVENUE_PILL_IDS.includes(def.id)) {
-      return `<button class="roster-pill" type="button" data-roster-pill="${def.id}" aria-pressed="${pressed}" aria-label="${escapeHtml(ariaLabel)}"><span class="roster-pill-line1">${dot}${icon}<span class="roster-pill-label">${escapeHtml(label)}</span></span><span class="roster-pill-line2"><span class="roster-pill-count">${pill.count}</span>${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</span></button>`;
+      // Customers stat cards (2026-11-21): the count separates from
+      // the PKR figure — the count badge sits in line 1 (top-right of
+      // the card) and line 2 carries the bold total alone.
+      return `<button class="roster-pill" type="button" data-roster-pill="${def.id}" aria-pressed="${pressed}" aria-label="${escapeHtml(ariaLabel)}"><span class="roster-pill-line1">${dot}${icon}<span class="roster-pill-label">${escapeHtml(label)}</span><span class="roster-pill-count">${pill.count}</span></span><span class="roster-pill-line2">${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</span></button>`;
     }
-    return `<button class="roster-pill" type="button" data-roster-pill="${def.id}" aria-pressed="${pressed}" aria-label="${escapeHtml(ariaLabel)}">${dot}${icon}<span class="roster-pill-label">${escapeHtml(label)}</span><span class="roster-pill-count">${pill.count}</span>${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</button>`;
+    // Customers stat cards (2026-11-21): a 0-count status pill is
+    // muted (roster-pill--zero) unless selected — count pills only.
+    const zeroClass = pill.count === 0 ? ' roster-pill--zero' : '';
+    return `<button class="roster-pill${zeroClass}" type="button" data-roster-pill="${def.id}" aria-pressed="${pressed}" aria-label="${escapeHtml(ariaLabel)}">${dot}${icon}<span class="roster-pill-label">${escapeHtml(label)}</span><span class="roster-pill-count">${pill.count}</span>${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</button>`;
   };
   const byId = (id) => ROSTER_PILL_DEFS.find((def) => def.id === id);
   bar.innerHTML = `<div class="roster-pill-grid">${ROSTER_REVENUE_PILL_IDS.map((id) => pillHtml(byId(id))).join('')}</div><div class="roster-pill-row">${ROSTER_COUNT_PILL_IDS.map((id) => pillHtml(byId(id))).join('')}</div>`;

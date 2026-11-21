@@ -1801,8 +1801,24 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
    * facing the recomputed amount; a still-zero-dues customer (FREE /
    * paused) stays on the advance sheet by the totalDues rule.
    */
+  // Plan 620: restore the advance sheet's typed amount after a
+  // package-change re-render (polish #13's rule, advance-sheet shape).
+  // The advance input has no prefill by design, so any non-empty
+  // figure is the operator's own and survives; an empty field stays
+  // empty. The captured value is written back only when the advance
+  // sheet is showing again — when the change routes to the collect
+  // sheet there is no advance input to restore.
+  function restoreAdvanceAmount(captured) {
+    if (!captured) return;
+    const input = panelEl?.querySelector('#fieldModeAdvanceAmount');
+    if (input) input.value = captured;
+  }
+
   function changePackage() {
     if (busy || packageChangeBusy || !selectedId) return;
+    // Plan 620: capture the advance sheet's typed amount BEFORE the
+    // closing render() rebuilds the sheet and its input empty.
+    const advanceAmountBeforeChange = panelEl?.querySelector('#fieldModeAdvanceAmount')?.value ?? '';
     const select = panelEl?.querySelector('#fieldModePackageSelect');
     if (!select?.value) return;
     const state = typeof getState === 'function' ? getState() : null;
@@ -1844,6 +1860,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           if (typeof onSaveState === 'function') onSaveState(beforeState);
           panelMode = 'collect';
           render();
+          // Plan 620: the Undo re-render rebuilds the sheet too —
+          // restore the same pre-change figure.
+          restoreAdvanceAmount(advanceAmountBeforeChange);
         }
       });
     } catch (err) {
@@ -1852,6 +1871,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       packageChangeBusy = false;
     }
     render();
+    restoreAdvanceAmount(advanceAmountBeforeChange);
   }
 
   // SISP-138: Mark-contacted — the lineman records that he already

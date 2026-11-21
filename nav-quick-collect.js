@@ -6026,6 +6026,12 @@ export function setupQuickCollectModal({
     duplicateBypassedForTxnKey = null;
     duplicateBypassedForLeg2TxnKey = null;
     duplicatePaymentBypassedKey = null;
+    // Plan 622: closing disarms the confirm key with the rest of the
+    // save — every dismiss path (x, Done, go-to-transactions, add-phone
+    // shortcut, focus-trap Escape, native close incl. backdrop/Bulk
+    // Collect takeover/route sync) funnels through here, so an armed
+    // confirm can never stay lit into the next opening.
+    saveConfirmationArmedKey = null;
     // Plan 437: closing abandons any in-flight save — the guard can
     // never stay armed into the next opening.
     saveGuardHeldForDialog = false;

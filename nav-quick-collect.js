@@ -4893,8 +4893,23 @@ export function setupQuickCollectModal({
           // typed 2,500 is never silently replaced by the new prefill.
           const amountBeforeChange = amountInput ? amountInput.value : '';
           const suggestedBeforeChange = activeDefaults ? activeDefaults.suggestedAmount : null;
+          // Plan 623: the reopen below also resets the method, date,
+          // reference, sender, notes, split leg 2 and screenshot —
+          // capture them the same way Plan 538 does for the
+          // concession Apply/Remove reopen, so the whole form
+          // survives the package change, not just the amount.
+          const entriesBeforePackageChange = captureConcessionFormEntries();
           if (typeof onSaveState === 'function') onSaveState(result.nextState);
           openCustomerCollectionForm(customerId, packageChangeAmountOptions(amountBeforeChange, suggestedBeforeChange, result.balanceDue));
+          // Plan 623: restore the captured entries — the reopen above
+          // reset them. The amount is NOT in the captured entries, so
+          // polish #13's amount rule is untouched by construction.
+          restoreConcessionFormEntries(entriesBeforePackageChange);
+          // Plan 377/432: the reopen sets the amount programmatically
+          // (no input event), so the words and the change refresh
+          // explicitly — same as the concession Apply path.
+          renderAmountWordsLine();
+          renderCashChange();
           if (typeof onToast === 'function') {
             const message = !result.billSkipped && result.bill
               ? t('qcpkg_done', null, {
@@ -4919,6 +4934,13 @@ export function setupQuickCollectModal({
                 // reopen itself wrote, so the pre-change capture from
                 // the apply tap is what decides — not a fresh capture.
                 openCustomerCollectionForm(customerId, packageChangeAmountOptions(amountBeforeChange, suggestedBeforeChange, null));
+                // Plan 623: Undo restores the same entries the Apply
+                // tap captured — the reopen above reset them, exactly
+                // like the Apply path. The captured entries live in
+                // the Apply closure, same as amountBeforeChange.
+                restoreConcessionFormEntries(entriesBeforePackageChange);
+                renderAmountWordsLine();
+                renderCashChange();
               }
             });
           }

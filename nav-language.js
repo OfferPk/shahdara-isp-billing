@@ -5002,14 +5002,17 @@ export const TRANSLATIONS = {
     // labels, three html fallbacks, three text sentences, the unavailable
     // line, the aria-label and the /month suffix through these keys.
     // 'Not set' reuses prof_not_set; the Urdu sentences end with '۔'.
-    phs_dues: 'Dues',
+    // Plan 614: phs_dues / phs_no_amount_due / phs_no_amount_due_text say
+    // the figure covers ALL months ('Total dues') — the bare 'Dues' read
+    // like the current month's net due beside it. Values only; keys stay.
+    phs_dues: 'Total dues',
     phs_package: 'Package',
     phs_last_payment: 'Last payment',
     phs_next_due: 'Next due',
-    phs_no_amount_due: 'No amount due',
+    phs_no_amount_due: 'No total dues',
     phs_no_payment_yet: 'No payment yet',
     phs_not_recorded: 'Not recorded',
-    phs_no_amount_due_text: 'No amount due.',
+    phs_no_amount_due_text: 'No total dues.',
     phs_no_payment_yet_text: 'No payment yet.',
     phs_next_due_not_recorded: 'Next due date not recorded.',
     phs_unavailable: 'Profile header strip unavailable.',
@@ -10385,14 +10388,15 @@ export const TRANSLATIONS = {
     // Plan 591 (D1(a)/D5(a)/D6(a)/D7(a)) — پروفائل ہیڈر پٹی کے لیبل اور
     // فال بیک (profile-header-strip.js)۔ 'Not set' کیلئے prof_not_set
     // استعمال ہوتا ہے؛ اردو جملے '۔' پر ختم ہوتے ہیں۔
-    phs_dues: 'بقایا',
+    // Plan 614: 'کل بقایا' (total dues) — same scope wording as EN; keys stay.
+    phs_dues: 'کل بقایا',
     phs_package: 'پیکج',
     phs_last_payment: 'آخری ادائیگی',
     phs_next_due: 'اگلی ادائیگی',
-    phs_no_amount_due: 'کوئی رقم باقی نہیں',
+    phs_no_amount_due: 'کوئی کل بقایا نہیں',
     phs_no_payment_yet: 'ابھی تک کوئی ادائیگی نہیں',
     phs_not_recorded: 'ریکارڈ نہیں',
-    phs_no_amount_due_text: 'کوئی رقم باقی نہیں۔',
+    phs_no_amount_due_text: 'کوئی کل بقایا نہیں۔',
     phs_no_payment_yet_text: 'ابھی تک کوئی ادائیگی نہیں۔',
     phs_next_due_not_recorded: 'اگلی ادائیگی کی تاریخ ریکارڈ نہیں۔',
     phs_unavailable: 'پروفائل ہیڈر پٹی دستیاب نہیں۔',

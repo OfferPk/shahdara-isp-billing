@@ -140,7 +140,8 @@ test('profile view polish: utility labels concise, no duplicate speaker emoji, 1
 });
 
 // (7) Strip zero case: a zero balance reads soft emerald (modifier
-// class + 'No amount due'), a positive balance stays red; the strip
+// class + 'No total dues' — Plan 614 aligned the fallback with the
+// scoped 'Total dues' label), a positive balance stays red; the strip
 // is a 2-column grid and the pills are 12px cards, not stadium ovals.
 test('profile view polish: zero dues read soft emerald, positive dues stay red, strip is a 2-col grid of 12px cards', () => {
   const base = {
@@ -150,7 +151,8 @@ test('profile view polish: zero dues read soft emerald, positive dues stay red, 
   };
   const zeroHtml = profileHeaderStripHtml(buildProfileHeaderStrip(base));
   assert.ok(zeroHtml.includes('phs-pill-dues-zero'), 'the zero-dues pill carries the modifier class');
-  assert.ok(zeroHtml.includes('No amount due'), 'the zero-dues text is unchanged');
+  // Plan 614: the zero-dues text moved with the rename ('No total dues').
+  assert.ok(zeroHtml.includes('No total dues'), 'the zero-dues text follows the Plan 614 rename');
   const owedHtml = profileHeaderStripHtml(buildProfileHeaderStrip({ ...base, outstanding: 3000 }));
   assert.ok(!owedHtml.includes('phs-pill-dues-zero'), 'a positive balance takes no zero modifier');
   assert.ok(owedHtml.includes('PKR 3000'), 'the owed figure is unchanged');

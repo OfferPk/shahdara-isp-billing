@@ -267,15 +267,18 @@ test('G2c: no new hex anywhere the ratchets watch', () => {
 // ================= G3 — The labels in both languages =================
 
 test('G3a: all 13 phs_* keys exist in EN and UR, defined once per dict', () => {
+  // Plan 614: the dues label says the figure covers ALL months — 'Total
+  // dues' / 'No total dues', not the bare 'Dues' that read like the current
+  // month's net due. Values only; the keys and the count do not move.
   const expected = {
-    phs_dues: 'Dues',
+    phs_dues: 'Total dues',
     phs_package: 'Package',
     phs_last_payment: 'Last payment',
     phs_next_due: 'Next due',
-    phs_no_amount_due: 'No amount due',
+    phs_no_amount_due: 'No total dues',
     phs_no_payment_yet: 'No payment yet',
     phs_not_recorded: 'Not recorded',
-    phs_no_amount_due_text: 'No amount due.',
+    phs_no_amount_due_text: 'No total dues.',
     phs_no_payment_yet_text: 'No payment yet.',
     phs_next_due_not_recorded: 'Next due date not recorded.',
     phs_unavailable: 'Profile header strip unavailable.',
@@ -304,18 +307,20 @@ test('G3b: the live strip renders its labels and fallbacks in Urdu', () => {
   const strip = baseStrip();
   const html = profileHeaderStripHtml(strip, undefined, urLabels());
   // All four labels in Urdu, none of the English labels left.
-  for (const label of ['بقایا', 'پیکج', 'آخری ادائیگی', 'اگلی ادائیگی']) {
+  // Plan 614: the Urdu dues label is 'کل بقایا' (total dues), not 'بقایا'.
+  for (const label of ['کل بقایا', 'پیکج', 'آخری ادائیگی', 'اگلی ادائیگی']) {
     assert.ok(html.includes(label), `Urdu strip must show ${label}`);
   }
-  for (const label of ['>Dues<', '>Package<', '>Last payment<', '>Next due<']) {
+  for (const label of ['>Total dues<', '>Package<', '>Last payment<', '>Next due<']) {
     assert.ok(!html.includes(label), `Urdu strip must not show English ${label}`);
   }
   assert.ok(html.includes('aria-label="گاہک کا خلاصہ ایک نظر میں"'), 'aria-label renders in Urdu');
   assert.ok(html.includes('/ماہ'), 'the /month suffix renders as /ماہ');
   assert.ok(!html.includes('/month'), 'the Latin /month must not survive in Urdu mode');
   // The fallbacks, one strip each.
+  // Plan 614: the Urdu zero fallback is 'کوئی کل بقایا نہیں'.
   const zero = profileHeaderStripHtml(baseStrip({ outstanding: 0 }), undefined, urLabels());
-  assert.ok(zero.includes('کوئی رقم باقی نہیں'), 'zero dues reads in Urdu');
+  assert.ok(zero.includes('کوئی کل بقایا نہیں'), 'zero dues reads in Urdu');
   const noPay = profileHeaderStripHtml(baseStrip({ lastPayment: null }), undefined, urLabels());
   assert.ok(noPay.includes('ابھی تک کوئی ادائیگی نہیں'), 'no payment yet reads in Urdu');
   const noDue = profileHeaderStripHtml(baseStrip({ nextDueDate: null }), undefined, urLabels());
@@ -328,13 +333,15 @@ test('G3b: the live strip renders its labels and fallbacks in Urdu', () => {
 test('G3c: with no labels passed, the strip renders the exact English of today', () => {
   // The default-English guard: plan351/plan502 call with no labels arg,
   // so every string they pin must read exactly as it did on the base.
+  // Plan 614: the defaults moved with the rename — 'Total dues' /
+  // 'No total dues' — so this guard pins the new defaults, not the old ones.
   const strip = baseStrip();
   const html = profileHeaderStripHtml(strip);
-  assert.ok(html.includes('>Dues<') && html.includes('>Package<'));
+  assert.ok(html.includes('>Total dues<') && html.includes('>Package<'));
   assert.ok(html.includes('>Last payment<') && html.includes('>Next due<'));
   assert.ok(html.includes('aria-label="Customer at a glance"'));
   assert.ok(html.includes('/month') && !html.includes('/ماہ'));
-  assert.ok(profileHeaderStripHtml(baseStrip({ outstanding: 0 })).includes('No amount due'));
+  assert.ok(profileHeaderStripHtml(baseStrip({ outstanding: 0 })).includes('No total dues'));
   assert.ok(profileHeaderStripHtml(baseStrip({ lastPayment: null })).includes('No payment yet'));
   assert.ok(profileHeaderStripHtml(baseStrip({ nextDueDate: null })).includes('Not recorded'));
   assert.ok(profileHeaderStripHtml(baseStrip({ packageLabel: '', packagePrice: null })).includes('Not set'));
@@ -346,11 +353,14 @@ test('G3c: with no labels passed, the strip renders the exact English of today',
 test('G3d: the text function renders its sentences in Urdu (D6(a))', () => {
   const strip = baseStrip();
   const text = profileHeaderStripText(strip, undefined, urLabels());
-  assert.ok(text.includes('بقایا PKR 3000۔'), 'populated dues sentence uses the Urdu label and ۔');
+  // Plan 614: the Urdu dues sentence carries the full 'کل بقایا' label
+  // (the old 'بقایا …' substring would still match inside it — pin the full label).
+  assert.ok(text.includes('کل بقایا PKR 3000۔'), 'populated dues sentence uses the Urdu label and ۔');
   assert.ok(text.includes('پیکج 5 Mbps — 200 GB (PKR 2000/ماہ)۔'), 'package sentence uses the Urdu label and /ماہ');
   assert.ok(text.includes('آخری ادائیگی PKR 2000 on 2026-10-19۔'), 'last-payment sentence uses the Urdu label');
   assert.ok(text.includes('اگلی ادائیگی 2026-11-05۔'), 'next-due sentence uses the Urdu label');
-  assert.equal(profileHeaderStripText(baseStrip({ outstanding: 0 }), undefined, urLabels()), 'کوئی رقم باقی نہیں۔ پیکج 5 Mbps — 200 GB (PKR 2000/ماہ)۔ آخری ادائیگی PKR 2000 on 2026-10-19۔ اگلی ادائیگی 2026-11-05۔');
+  // Plan 614: the zero-dues sentence is 'کوئی کل بقایا نہیں۔' now.
+  assert.equal(profileHeaderStripText(baseStrip({ outstanding: 0 }), undefined, urLabels()), 'کوئی کل بقایا نہیں۔ پیکج 5 Mbps — 200 GB (PKR 2000/ماہ)۔ آخری ادائیگی PKR 2000 on 2026-10-19۔ اگلی ادائیگی 2026-11-05۔');
   assert.equal(profileHeaderStripText(baseStrip({ lastPayment: null }), undefined, urLabels()).includes('ابھی تک کوئی ادائیگی نہیں۔'), true);
   assert.equal(profileHeaderStripText(baseStrip({ nextDueDate: null }), undefined, urLabels()).includes('اگلی ادائیگی کی تاریخ ریکارڈ نہیں۔'), true);
   assert.equal(profileHeaderStripText(null, undefined, urLabels()), 'پروفائل ہیڈر پٹی دستیاب نہیں۔');
@@ -361,7 +371,9 @@ test('G3d: the text function renders its sentences in Urdu (D6(a))', () => {
   }
   // No-labels call: the exact English sentences plan351 pins.
   assert.equal(profileHeaderStripText(null), 'Profile header strip unavailable.');
-  assert.match(profileHeaderStripText(strip), /No amount due\.|Dues PKR 3000\./);
+  // Plan 614: pin the full scoped wording, not the old substring that
+  // would still match inside 'Total dues PKR 3000.'.
+  assert.match(profileHeaderStripText(strip), /No total dues\.|Total dues PKR 3000\./);
   // DISCLOSED, not blessed: the populated last-payment sentence keeps
   // the English word 'on' between amount and date — no key covers it,
   // and the text function has no production caller (repro A14), so its

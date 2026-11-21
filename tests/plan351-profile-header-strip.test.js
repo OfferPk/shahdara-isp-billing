@@ -62,9 +62,11 @@ test('outstanding accepts digit strings and whole-number figures', () => {
 });
 
 test('zero dues read as no amount due in text and html', () => {
+  // Plan 614: the zero fallback is aligned with the scoped label —
+  // 'No total dues', because the figure covers ALL months.
   const strip = buildProfileHeaderStrip(baseStrip({ outstanding: 0 }));
-  assert.match(profileHeaderStripText(strip), /No amount due\./);
-  assert.match(profileHeaderStripHtml(strip), /No amount due/);
+  assert.match(profileHeaderStripText(strip), /No total dues\./);
+  assert.match(profileHeaderStripHtml(strip), /No total dues/);
   assert.doesNotMatch(profileHeaderStripText(strip), /Dues PKR/);
 });
 
@@ -157,7 +159,8 @@ test('strict dates: leap years and month lengths are honoured', () => {
 test('text carries all four figures on the same fixture', () => {
   const strip = buildProfileHeaderStrip(baseStrip());
   const textOut = profileHeaderStripText(strip);
-  assert.match(textOut, /Dues PKR 3000\./);
+  // Plan 614: the dues sentence carries the scoped 'Total dues' label.
+  assert.match(textOut, /Total dues PKR 3000\./);
   assert.match(textOut, /Package 5 Mbps — 200 GB \(PKR 2000\/month\)\./);
   assert.match(textOut, /Last payment PKR 2000 on 2026-10-19\./);
   assert.match(textOut, /Next due 2026-11-05\./);
@@ -166,7 +169,8 @@ test('text carries all four figures on the same fixture', () => {
 test('a custom amount formatter is honoured in text and html', () => {
   const strip = buildProfileHeaderStrip(baseStrip());
   const format = (value) => `Rs ${value}`;
-  assert.match(profileHeaderStripText(strip, format), /Dues Rs 3000\./);
+  // Plan 614: the dues sentence carries the scoped 'Total dues' label.
+  assert.match(profileHeaderStripText(strip, format), /Total dues Rs 3000\./);
   assert.match(profileHeaderStripHtml(strip, format), /Rs 3000/);
   assert.match(profileHeaderStripHtml(strip, format), /Rs 2000\/month/);
 });
@@ -174,7 +178,8 @@ test('a custom amount formatter is honoured in text and html', () => {
 test('html carries the four figures under the phs strip id', () => {
   const html = profileHeaderStripHtml(buildProfileHeaderStrip(baseStrip()));
   assert.match(html, /id="phsStrip"/);
-  assert.match(html, /Dues/);
+  // Plan 614: the html label is the scoped 'Total dues'.
+  assert.match(html, /Total dues/);
   assert.match(html, /PKR 3000/);
   assert.match(html, /5 Mbps — 200 GB/);
   assert.match(html, /PKR 2000\/month/);

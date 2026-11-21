@@ -8811,6 +8811,14 @@ html, body {
   border-radius: 4px;
   background: #fef3c7;
   color: #92400e;
+  /* QC DUE-badge emoji (user, 2026-11-21): the badge carries an emoji
+     prefix now, so it is inline-flex with a 4px gap and never wraps —
+     the app equivalent of `inline-flex items-center gap-1
+     whitespace-nowrap`. Sizes, colours and radius unchanged. */
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .qc-settled-tag {

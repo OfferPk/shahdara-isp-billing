@@ -27518,14 +27518,14 @@
 
               <div class="qc-field-group">
                 <label for="quickCollectPaidByInput" class="qc-label">Paid By / Note (Optional)</label>
-                <input id="quickCollectPaidByInput" type="text" maxlength="100" placeholder="e.g. Self, Brother, Shop Cashier" class="qc-input">
+                <input id="quickCollectPaidByInput" name="paidBy" type="text" maxlength="100" placeholder="e.g. Self, Brother, Shop Cashier" class="qc-input">
               </div>
             </div>
             <!-- Plan 379: the collection note — who collected the payment. Quick Collect polish (2026-11-17, D13): the 'Collected at' + 'Collected in mohalla' fields were removed from this form, so entry-time place/mohalla recording goes; the profile twin still carries them. -->
             <div class="qc-form-row" style="margin-top:8px;">
               <div class="qc-field-group">
                 <label for="quickCollectCollectedByInput" class="qc-label">Collected by (optional)</label>
-                <input id="quickCollectCollectedByInput" type="text" maxlength="100" placeholder="e.g. Collector One" class="qc-input">
+                <input id="quickCollectCollectedByInput" name="collectedBy" type="text" maxlength="100" placeholder="e.g. Collector One" class="qc-input">
               </div>
             </div>
             <!-- Plan 389: the Urdu-script note — one optional note on the transaction, written in Urdu script and shown exactly as written. -->
@@ -27720,7 +27720,7 @@
 
             <div class="qc-field-group">
               <label for="quickCollectSenderNameInput" class="qc-label" data-i18n="spay_sender_name_label">Sender Name (as on wallet)</label>
-              <input id="quickCollectSenderNameInput"
+              <input id="quickCollectSenderNameInput" name="senderTitle"
                      type="text"
                      maxlength="100"
                      data-i18n-placeholder="spay_sender_name_ph"
@@ -27730,7 +27730,7 @@
 
             <div class="qc-field-group">
               <label for="quickCollectSenderDigitsInput" class="qc-label" data-i18n="spay_sender_digits_label">Sender Account Last 4 Digits</label>
-              <input id="quickCollectSenderDigitsInput"
+              <input id="quickCollectSenderDigitsInput" name="senderDigits"
                      type="text"
                      inputmode="numeric"
                      maxlength="4"

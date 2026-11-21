@@ -69,8 +69,11 @@ test('Plan 492: the danger zone RETURNS at the Info-tab bottom — Delete lives 
 // appends it after the section-move loop, so the mount group still
 // claims no zone (its info group still ends with the uptime section).
 test('Plan 492: mountCustomerProfileContent still mounts no danger zone — renderCustomerProfileView appends it after the move loop (Profile View Polish)', () => {
+  // Plan 617: the share-draft host joins the info group FIRST — the
+  // group still ends with the uptime section and still claims no
+  // danger zone.
   assert.ok(
-    app.includes("info:['.customer-meta','.uptime-section']"),
+    app.includes("info:['#stxProfileShareDraft','.customer-meta','.uptime-section']"),
     'info group ends with the uptime section — no danger zone claimed',
   );
   assert.ok(!app.includes("'.profile-danger-zone'"), 'no mount group claims the danger zone anywhere');

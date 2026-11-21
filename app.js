@@ -1788,9 +1788,15 @@ const PROFILE_SECTION_TAB = { financial: 'billing' };
 function mountCustomerProfileContent() {
   const mounts = $('#profileContentMounts');
   if (!mounts) return;
+  // Plan 617: the receipt share-draft host (#stxProfileShareDraft) is a
+  // customer action for a just-recorded payment, and the profile opens
+  // on Info — so the draft joins the info group FIRST (visible the
+  // moment the profile opens), not the billing group where it sat
+  // hidden behind the Billing tab. The host is hidden when empty, so
+  // an empty host at the top costs nothing visually.
   const groups = {
-    billing:['#customerReceiptSummary','#stxProfileShareDraft','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
-    info:['.customer-meta','.uptime-section'],
+    billing:['#customerReceiptSummary','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
+    info:['#stxProfileShareDraft','.customer-meta','.uptime-section'],
     complaints:['.incident-section:not(.uptime-section)'],
     baqaya:['#manualBaqayaSection']
   };

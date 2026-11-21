@@ -389,8 +389,14 @@ test('wiring: the clear lives in the two render functions and the call-site coun
   // renderCashChange site goes with it — 13 becomes 12. The chip
   // handler refreshes the change on every fill, so no fill path
   // loses the refresh.
-  assert.equal((src.match(/renderCashChange\(\)/g) || []).length, 12,
-    'renderCashChange call sites unchanged (11 sites + definition)');
+  // Plan 623: the package-change reopen adds two renderCashChange
+  // sites — the Apply reopen and its Undo reopen both refresh the
+  // amount-dependent lines after restoring the entries, mirroring
+  // the concession Apply path. The clears themselves still live
+  // only in the two render functions above, so the count moves by
+  // exactly two and nothing else changes.
+  assert.equal((src.match(/renderCashChange\(\)/g) || []).length, 14,
+    'renderCashChange call sites unchanged (13 sites + definition)');
   // QC Modal Overhaul 2: same −1 as above — the deleted dues-buttons
   // handler also refreshed the overpayment choice on a fill, and the
   // chip handler covers it now.

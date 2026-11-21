@@ -193,7 +193,11 @@ test('§8.7 draft accordion: collapsed by default, copy is the exact dispatch te
 test('§8.8 actions: primary, output grid, next row, Done, byte-identical sent text', () => {
   const primary = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-wa-btn {');
   assert.ok(primary.includes('min-height: 48px'), 'primary must be 48px');
-  assert.ok(primary.includes('background: var(--ds-brand)'), 'primary must be the solid brand');
+  // QC receipt buttons tint (2026-11-21): the user asked for the authentic
+  // WhatsApp green gradient, so the primary is no longer the solid brand —
+  // the 48px, the ::before glyph and the rest of this test are unchanged.
+  assert.ok(primary.includes('linear-gradient(90deg, #25d366, #128c7e)'), 'primary must paint the WhatsApp gradient');
+  assert.ok(!primary.includes('background: var(--ds-brand)'), 'primary must no longer be the solid brand');
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-wa-btn::before'), 'primary must carry the WhatsApp glyph as ::before');
   const before = stylesSrc.slice(stylesSrc.indexOf('#quickCollectModal.qc-success-open .qc-wa-btn::before'), stylesSrc.indexOf('}', stylesSrc.indexOf('#quickCollectModal.qc-success-open .qc-wa-btn::before')));
   assert.ok(before.includes('data:image/svg+xml'), 'WhatsApp glyph must be a data-URI SVG');
@@ -302,6 +306,17 @@ test('§8.10 hex/token map: the redesign rules use DS tokens, never hex literals
   ];
   for (const selector of touched) {
     const block = ruleBlock(stylesSrc, selector);
+    // QC receipt buttons tint (2026-11-21): the WA block is the ONE
+    // exception — it carries the user's specified #25d366 / #128c7e
+    // literals (lowercase; both already occur in styles.css, so the 608
+    // distinct-hex count does not move). It is exempt from both the
+    // no-hex check and the --ds-* check below; the other three blocks
+    // stay token-only.
+    if (selector === '#quickCollectModal.qc-success-open .qc-wa-btn {') {
+      assert.ok(/#25d366/.test(block) && /#128c7e/.test(block), 'WA block must carry the user-specified gradient hexes');
+      assert.ok(!/#25D366|#128C7E/.test(block), 'WA gradient hexes must be lowercase (the ratchet is case-sensitive)');
+      continue;
+    }
     assert.ok(!/#[0-9a-fA-F]{3,6}\b/.test(block), `${selector} must not contain a hex literal`);
     assert.ok(block.includes('var(--ds-'), `${selector} must use a --ds-* token`);
   }

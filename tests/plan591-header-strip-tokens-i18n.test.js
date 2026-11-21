@@ -261,7 +261,11 @@ test('G2c: no new hex anywhere the ratchets watch', () => {
   // tokens.css gains exactly one distinct hex: the frozen --phs-label
   // value (116 → 117). tokens.css carries no exact-count pin — this
   // records the move, it does not pin a new baseline.
-  assert.equal(hexCount('tokens.css'), 117);
+  // Customers stat cards (2026-11-21): tokens 117 → 121 — four new
+  // distinct hexes for the roster pill tints (--roster-sky-900
+  // #0c4a6e, --roster-teal-50 #f0fdfa, --roster-teal-200 #99f6e4,
+  // --roster-teal-800 #115e59).
+  assert.equal(hexCount('tokens.css'), 121);
 });
 
 // ================= G3 — The labels in both languages =================

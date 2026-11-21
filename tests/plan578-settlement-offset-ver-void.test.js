@@ -254,6 +254,6 @@ test('plan578 G4: EN/UR parity stays 4,669/4,669 — no new i18n keys', () => {
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5213, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5213, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5217, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5217, 'UR key count moved');
 });

@@ -37,14 +37,17 @@ export const SCREENS = {
   alerts: { view: 'billingReportsView', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel' },
   assistant: { view: 'ownerCommandCenter', title: 'Owner Assistant', subtitle: 'Ask about saved bills, collections, and customer balances', action: { label: 'Ask Question', focus: '#ownerCommandInput' } },
   backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
-  analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', title: 'Area Analytics', subtitle: 'Areas, zones and packages', action: { label: 'Export Area CSV', click: '#exportAreaIntelCsvBtn' } },
+  analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', analyticsTab: 'areas', title: 'Area Analytics', subtitle: 'Areas, zones and packages', action: { label: 'Export Area CSV', click: '#exportAreaIntelCsvBtn' } },
   // Telemetry Lab: the 46 enterprise telecom diagnostics live in a
   // collapsed <details> at the top of #analyticsView, not on their own
   // view — so this route has NO tab (adding one would make TAB_TO_SCREEN
   // send the Analytics view-tab here) and the header action focuses the
   // Lab summary; the generic loop in apply() opens the enclosing closed
-  // <details> before scrolling.
-  'diagnostics-lab': { view: 'analyticsView', title: 'Network Diagnostics Lab', subtitle: 'Carrier diagnostics: OTDR, DWDM, BGP, splicer and more', anchor: '#diagnosticsLabCollapsible', action: { label: 'Open Lab', focus: '#diagnosticsLabSummary' } },
+  // <details> before scrolling. Area Analytics 4-tab: the Lab is Tab 5
+  // of the analytics view, so the route carries analyticsTab 'lab' and
+  // apply() activates it through window.setAnalyticsTab — without this
+  // the route would land on Tab 1 with the Lab hidden inside Tab 5.
+  'diagnostics-lab': { view: 'analyticsView', title: 'Network Diagnostics Lab', subtitle: 'Carrier diagnostics: OTDR, DWDM, BGP, splicer and more', anchor: '#diagnosticsLabCollapsible', analyticsTab: 'lab', action: { label: 'Open Lab', focus: '#diagnosticsLabSummary' } },
   inventory: { view: 'inventoryView', tab: 'showInventoryButton', title: 'Inventory', subtitle: 'Stock items and movements', action: { label: '+ Add Item', click: '#inventoryItemCreateSummary' } },
   expenses: { view: 'expensesView', tab: 'showExpensesButton', title: 'Expenses', subtitle: 'Business expenses and payroll', action: { label: '+ Add Expense', focus: '#expenseForm' } },
   homeBudget: { view: 'homeBudgetView', tab: 'showHomeBudgetButton', title: 'Home Budget', subtitle: 'Personal household expenses, kept apart from business money', action: { label: '+ Add Home Expense', focus: '#homeBudgetDate' } },
@@ -495,6 +498,15 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
       doc.getElementById('customersView')?.setAttribute('hidden', '');
     }
     syncViewState(screen);
+    // Area Analytics 4-tab: a route that names an analytics tab (the
+    // analytics route names Tab 1, the diagnostics-lab route Tab 5)
+    // activates it through the app's window.setAnalyticsTab global, so
+    // the route lands on the tab its content lives in. The tab choice
+    // persists in the app, so a later render keeps it.
+    const screenSpec = SCREENS[screen];
+    if (screenSpec && screenSpec.analyticsTab && typeof win.setAnalyticsTab === 'function') {
+      win.setAnalyticsTab(screenSpec.analyticsTab);
+    }
     current = screen;
     body.dataset.screen = screen;
     header.dataset.screen = screen;

@@ -2437,6 +2437,229 @@ function setupAreaAnalyticsModule() {
     jumpSelect.value = '';
   });
 }
+// Area Analytics 4-tab: the 342 sections of #analyticsView live behind
+// five tabs — Areas (Tab 1, charts + the 6-tab unit, never collapsed),
+// Billing (Tab 2), Audit (Tab 3), Ops (Tab 4) and the Telemetry Lab
+// (Tab 5). The mechanism copies the area module (analyticsTab var,
+// hidden toggling, one-time JS regrouping at view open): the tab bar and
+// the per-section data-analytics-tab attributes are static HTML, the
+// five .analytics-tab-panel divs are built here and the sections move
+// into them. The 4-tab show/hide operates on the PANELS only — never
+// set hidden on an element carrying data-area-network-tab except
+// through syncAreaNetworkTabs(), which keeps owning the 6-tab unit.
+let analyticsTab = 'areas';
+let analyticsTabsGrouped = false;
+let analyticsBadgeObserver = null;
+const ANALYTICS_TAB_PANELS = {
+  areas: 'analyticsTabPanelAreas',
+  billing: 'analyticsTabPanelBilling',
+  audit: 'analyticsTabPanelAudit',
+  ops: 'analyticsTabPanelOps',
+  lab: 'analyticsTabPanelLab',
+};
+
+function syncAnalyticsTabs() {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+  const view = document.getElementById('analyticsView');
+  if (!view) return;
+  view.querySelectorAll('[data-analytics-tab-btn]').forEach((btn) => {
+    const tab = btn.getAttribute('data-analytics-tab-btn');
+    const active = tab === analyticsTab;
+    btn.setAttribute('aria-pressed', String(active));
+    btn.setAttribute('aria-selected', String(active));
+    const panel = document.getElementById(ANALYTICS_TAB_PANELS[tab] || '');
+    if (panel) panel.hidden = !active;
+  });
+}
+
+function setAnalyticsTab(tab) {
+  if (!Object.prototype.hasOwnProperty.call(ANALYTICS_TAB_PANELS, tab)) return;
+  analyticsTab = tab;
+  syncAnalyticsTabs();
+}
+
+// The #/diagnostics-lab route activates Tab 5 through this global (same
+// pattern as window.expandOwnerCommandCenter for the router).
+if (typeof window !== 'undefined') window.setAnalyticsTab = (tab) => setAnalyticsTab(tab);
+
+// Which panel a pane child belongs to: its own data-analytics-tab, the
+// tab of the first tagged section inside a category <details>, the Lab
+// details, or Areas for everything else (header, charts, the 6-tab
+// bar + cluster, the empty notice, the ops header).
+function analyticsTabForNode(node) {
+  if (!node || node.nodeType !== 1) return 'areas';
+  if (node.id === 'diagnosticsLabCollapsible') return 'lab';
+  const tab = node.getAttribute('data-analytics-tab');
+  if (tab === '2') return 'billing';
+  if (tab === '3') return 'audit';
+  if (tab === '4') return 'ops';
+  const inner = node.querySelector ? node.querySelector('[data-analytics-tab]') : null;
+  if (inner) return analyticsTabForNode(inner);
+  return 'areas';
+}
+
+function analyticsCardTitle(section) {
+  const h3 = section.querySelector('h3');
+  if (h3 && h3.textContent.trim()) return h3.textContent.trim();
+  const label = section.getAttribute('aria-label');
+  if (label) return label;
+  const labelledby = section.getAttribute('aria-labelledby');
+  if (labelledby) {
+    const el = document.getElementById(labelledby);
+    if (el && el.textContent.trim()) return el.textContent.trim();
+  }
+  return 'Section';
+}
+
+function analyticsCardSubtitle(section) {
+  const caption = section.querySelector('.chart-caption');
+  return caption ? caption.textContent.trim() : '';
+}
+
+// One collapsed 1-line card per tool: title + subtitle + live badge +
+// the section's own (i). The (i) is REUSED, never duplicated: the
+// section's audit-explainer (audit sections) or help-tip moves into the
+// summary row; only a section with neither gets a new help-tip built
+// from its caption paragraph (the original caption stays in the body).
+function buildAnalyticsCardSummary(section) {
+  if (section.querySelector(':scope > .analytics-card-summary')) return;
+  const summary = document.createElement('div');
+  summary.className = 'analytics-card-summary';
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'analytics-card-toggle';
+  toggle.setAttribute('aria-expanded', section.getAttribute('data-analytics-card') === 'open' ? 'true' : 'false');
+  const titles = document.createElement('span');
+  titles.className = 'analytics-card-titles';
+  const titleEl = document.createElement('span');
+  titleEl.className = 'analytics-card-title';
+  titleEl.textContent = analyticsCardTitle(section);
+  titles.appendChild(titleEl);
+  const subtitle = analyticsCardSubtitle(section);
+  if (subtitle) {
+    const sub = document.createElement('span');
+    sub.className = 'analytics-card-subtitle';
+    sub.textContent = subtitle;
+    titles.appendChild(sub);
+  }
+  const chevron = document.createElement('span');
+  chevron.className = 'analytics-card-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.textContent = '▾';
+  toggle.appendChild(titles);
+  toggle.appendChild(chevron);
+  toggle.addEventListener('click', () => {
+    const open = section.getAttribute('data-analytics-card') !== 'open';
+    document.querySelectorAll('#analyticsView [data-analytics-card="open"]').forEach((other) => {
+      if (other === section) return;
+      other.setAttribute('data-analytics-card', 'collapsed');
+      const otherToggle = other.querySelector(':scope > .analytics-card-summary > .analytics-card-toggle');
+      if (otherToggle) otherToggle.setAttribute('aria-expanded', 'false');
+    });
+    section.setAttribute('data-analytics-card', open ? 'open' : 'collapsed');
+    toggle.setAttribute('aria-expanded', String(open));
+  });
+  summary.appendChild(toggle);
+  const badge = section.querySelector(':scope > .analytics-card-badge');
+  if (badge) summary.appendChild(badge);
+  let tip = section.querySelector('.audit-explainer') || section.querySelector('.help-tip');
+  if (!tip && subtitle) {
+    tip = document.createElement('details');
+    tip.className = 'help-tip';
+    const icon = document.createElement('summary');
+    icon.className = 'help-icon';
+    icon.setAttribute('aria-label', 'About this section');
+    icon.textContent = 'i';
+    const content = document.createElement('span');
+    content.className = 'help-tip-content';
+    content.setAttribute('role', 'tooltip');
+    content.textContent = subtitle;
+    tip.appendChild(icon);
+    tip.appendChild(content);
+  }
+  if (tip) summary.appendChild(tip);
+  section.insertBefore(summary, section.firstChild);
+}
+
+// The live badge is a verbatim copy of the section's own *Summary
+// element — the same computed data, never parsed text. Sections without
+// one keep an empty (hidden) badge.
+function syncAnalyticsCardBadge(section) {
+  const badge = section.querySelector(':scope > .analytics-card-summary > .analytics-card-badge')
+    || section.querySelector(':scope > .analytics-card-badge');
+  if (!badge) return;
+  const summaryEl = section.querySelector('[id$="Summary"]');
+  const text = summaryEl ? summaryEl.textContent.trim() : '';
+  if (badge.textContent !== text) badge.textContent = text;
+}
+
+function syncAnalyticsCardBadges() {
+  if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return;
+  document.querySelectorAll('#analyticsView [data-analytics-card]').forEach((section) => syncAnalyticsCardBadge(section));
+}
+
+// One MutationObserver on #analyticsView keeps the badges live as the
+// renders rewrite the *Summary elements; the text guard in
+// syncAnalyticsCardBadge stops the observer re-firing on its own writes.
+function watchAnalyticsCardBadges() {
+  if (analyticsBadgeObserver) return;
+  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return;
+  const view = document.getElementById('analyticsView');
+  if (!view) return;
+  analyticsBadgeObserver = new MutationObserver((mutations) => {
+    const sections = new Set();
+    for (const mutation of mutations) {
+      const target = mutation.target.nodeType === 3 ? mutation.target.parentElement : mutation.target;
+      const section = target && target.closest ? target.closest('[data-analytics-card]') : null;
+      if (section) sections.add(section);
+    }
+    sections.forEach((section) => syncAnalyticsCardBadge(section));
+  });
+  analyticsBadgeObserver.observe(view, { subtree: true, characterData: true, childList: true });
+}
+
+function setupAnalyticsTabs() {
+  if (analyticsTabsGrouped) return;
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+  const view = document.getElementById('analyticsView');
+  const pane = view && view.querySelector('.phase3-pane');
+  if (!view || !pane) return;
+  analyticsTabsGrouped = true;
+  const panels = {};
+  for (const [tab, id] of Object.entries(ANALYTICS_TAB_PANELS)) {
+    const panel = document.createElement('div');
+    panel.id = id;
+    panel.className = 'analytics-tab-panel';
+    panel.setAttribute('role', 'tabpanel');
+    pane.appendChild(panel);
+    panels[tab] = panel;
+  }
+  for (const child of Array.from(pane.children)) {
+    if (child.classList.contains('analytics-tab-panel')) continue;
+    panels[analyticsTabForNode(child)].appendChild(child);
+  }
+  // The static hidden on the tagged sections was only for the first
+  // paint: the panels own visibility now, so the sections show whenever
+  // their panel does (the category accordions still gate their own).
+  view.querySelectorAll('[data-analytics-tab]').forEach((section) => {
+    section.removeAttribute('hidden');
+    buildAnalyticsCardSummary(section);
+  });
+  view.querySelectorAll('[data-analytics-tab-btn]').forEach((btn) => btn.addEventListener('click', () => {
+    setAnalyticsTab(btn.getAttribute('data-analytics-tab-btn'));
+  }));
+  const linkBtn = view.querySelector('#analyticsAreaModuleLinkBtn');
+  if (linkBtn && !linkBtn.dataset.analyticsLinkWired) {
+    linkBtn.dataset.analyticsLinkWired = '1';
+    linkBtn.addEventListener('click', () => {
+      switchView('transactions');
+      document.getElementById('areaAnalyticsModule')?.scrollIntoView({ block: 'start' });
+    });
+  }
+  watchAnalyticsCardBadges();
+  syncAnalyticsTabs();
+  syncAnalyticsCardBadges();
+}
 // Hisaab H3 (D1(a)–D9(a)): fills the Hisaab dashboard section — this
 // month's row from the P&L engine, the lifetime row from the new pure
 // derivation, one line per active upstream provider, the seed honesty
@@ -21180,6 +21403,9 @@ function renderAnalytics() {
   renderCashHandling();
   renderSeasonalPatterns();
   syncAreaNetworkTabs();
+  setupAnalyticsTabs();
+  syncAnalyticsTabs();
+  syncAnalyticsCardBadges();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -27264,7 +27490,7 @@ function renderPartPaymentAllocations() {
   }
   const pickEl = $('#partPaymentPick');
   if (pickEl && document.activeElement !== pickEl) {
-    pickEl.innerHTML = records.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.id)} — ${escapeHtml(r.customerName || r.customer)}</option>`).join('')
+    pickEl.innerHTML = records.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.customerName || r.customer)} · ${escapeHtml(r.date)}</option>`).join('')
       || '<option value="">No part-payments yet</option>';
   }
   const dateInput = $('#partPaymentDate');
@@ -27275,8 +27501,18 @@ function renderPartPaymentAllocations() {
     const instalments = currentCustomer ? normalizeAllocationInstalmentList(partPaymentInstalments(currentCustomer.id)) : [];
     const currentId = currentBillEl?.value ?? '';
     const order = defaultAllocationOrder(bills, instalments, currentId);
+    // The written rule shows the same labels partPaymentHtml already
+    // uses — Bill <month> for bills, Arrears instalment <dueDate> for
+    // instalments — never the raw allocation UUIDs (the ids stay data:
+    // defaultAllocationOrder and the CSV keep them).
+    const orderLabels = order.map((id) => {
+      const bill = bills.find((x) => x.id === id);
+      if (bill) return `Bill ${bill.month ?? ''}`;
+      const instalment = instalments.find((x) => x.id === id);
+      return instalment ? `Arrears instalment ${instalment.dueDate ?? 'undated'}` : id;
+    });
     ruleEl.textContent = order.length > 0
-      ? `Written rule for this customer: ${order.join(' → ')} (oldest bill first, then current bill, then arrears instalments).`
+      ? `Written rule for this customer: ${orderLabels.join(' → ')} (oldest bill first, then current bill, then arrears instalments).`
       : 'Written rule: oldest outstanding bill first, then the current bill, then any arrears-plan instalment. Pick a customer to see their order.';
   }
   const filterCustomer = filterEl?.value ?? '';
@@ -27753,7 +27989,7 @@ function renderBillExceptions() {
   const pickEl = $('#billExceptionPick');
   if (pickEl) {
     const current = pickEl.value;
-    pickEl.innerHTML = open.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(names[item.customerId] || item.customerId)} · ${escapeHtml(item.billId)} · ${escapeHtml(item.month)} · ${escapeHtml(item.reasonLabel)}</option>`).join('');
+    pickEl.innerHTML = open.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(names[item.customerId] || item.customerId)} · ${escapeHtml(item.month)} · ${escapeHtml(item.reasonLabel)}</option>`).join('');
     if (current) pickEl.value = current;
   }
   const filterCustomer = customerEl?.value ?? '';

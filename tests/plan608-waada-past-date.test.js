@@ -20,7 +20,7 @@
 // writer). The Pending Actions "Schedule Promise" form (#promiseDateInput)
 // writes collection promises, a different store — out of scope (G9).
 //
-// This file asserts the new parity total (5,213) and is the 35th pinning
+// This file asserts the new parity total (5,217) and is the 35th pinning
 // file. It must contain NEITHER the previous total's bare digits nor
 // the older total's (plan591 G5a sweep) — the self-guard below builds
 // them from split literals, plan596/plan601 pattern (guard previous +
@@ -63,9 +63,9 @@ const TODAY = '2026-11-19';
 const PAST = '2026-11-10';
 const FUTURE = '2026-11-25';
 
-test('G1: parity is 5,213/5,213 in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5213, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5213, 'UR parity');
+test('G1: parity is 5,217/5,217 in both dicts', () => {
+  assert.equal(Object.keys(en).length, 5217, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5217, 'UR parity');
 });
 
 test('G2: isWaadaDateInPast classifies past / today / future / invalid', () => {
@@ -163,7 +163,7 @@ test('G9: the collection-promise form is untouched (different store)', () => {
 });
 
 test('G10: this file pins the new total and stays free of the previous and older total literals', () => {
-  assert.ok(selfSrc.includes('5213'), 'this file pins the new total 5,213');
+  assert.ok(selfSrc.includes('5217'), 'this file pins the new total 5,217');
   // The previous total's digits and the older total's digits are built,
   // never spelled, so this guard cannot trip the sweep it guards.
   assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');

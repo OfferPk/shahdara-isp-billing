@@ -143,14 +143,17 @@ export function buildProfileHeaderStrip({
 // re-wording the data. The text sentences get their own keys because
 // Urdu sentences end with '۔', not '.' (trap T8).
 const DEFAULT_PHS_LABELS = {
-  dues: 'Dues',
+  // Plan 614: the strip figure is the ALL-MONTHS total (all bills + manual
+  // baqaya), so the label says so — 'Total dues', not the bare 'Dues' that
+  // reads like the current month's net due beside it. Fallbacks aligned.
+  dues: 'Total dues',
   package: 'Package',
   lastPayment: 'Last payment',
   nextDue: 'Next due',
-  noAmountDue: 'No amount due',
+  noAmountDue: 'No total dues',
   noPaymentYet: 'No payment yet',
   notRecorded: 'Not recorded',
-  noAmountDueText: 'No amount due.',
+  noAmountDueText: 'No total dues.',
   noPaymentYetText: 'No payment yet.',
   nextDueNotRecorded: 'Next due date not recorded.',
   unavailable: 'Profile header strip unavailable.',

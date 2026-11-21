@@ -7886,13 +7886,18 @@ export function setupQuickCollectModal({
             successHeading?.focus();
           }, 60);
         } catch (splitErr) {
+          // Plan 619: mirror Polish #16 Req 1b — a TypeError (e.g. in a
+          // post-save render step, after the split IS recorded) must not
+          // surface as a raw engine error, so route it through
+          // paymentSaveErrorMessage. Other errors keep their precise
+          // message, or the split fallback below.
           try {
             if (auditSnapshot === null || auditSnapshot === undefined) localStorage.removeItem(QUICK_COLLECT_AUDIT_KEY);
             else localStorage.setItem(QUICK_COLLECT_AUDIT_KEY, auditSnapshot);
             if (methodSnapshot === null || methodSnapshot === undefined) localStorage.removeItem(QUICK_COLLECT_STORAGE_KEY);
             else localStorage.setItem(QUICK_COLLECT_STORAGE_KEY, methodSnapshot);
           } catch { /* ignore storage issues */ }
-          if (typeof onToast === 'function') onToast(splitErr.message || t('split_not_saved_toast'), { type: 'error' });
+          if (typeof onToast === 'function') onToast(paymentSaveErrorMessage(splitErr) || t('split_not_saved_toast'), { type: 'error' });
         }
         return;
       }

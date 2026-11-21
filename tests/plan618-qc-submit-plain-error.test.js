@@ -14,14 +14,16 @@
 //
 // THE SPEC IS WRONG ABOUT THE ANCHORS: nav-quick-collect.js:5700-5703
 // is one-screen keypad code, not the submit catch. The real catch is
-// :8064-8068, the ONLY `catch (err)` inside the submit handler span
-// (:7320-8079). The spec's split-tender :5503 is method-pills sync; the
-// real split catch is :7888-7896 and is Plan 619 — out of scope here.
+// :8069-8073, the ONLY `catch (err)` inside the submit handler span
+// (:7320-8084). The spec's split-tender :5503 is method-pills sync; the
+// real split catch is :7888-7901 and is Plan 619 — it now routes through
+// the guard too (see S1 below).
 //
-// WHAT CANNOT CHANGE: the split-tender catch, the other err.message
-// passthroughs (concession, package, reopen, area, second-connection),
-// the interpolated-message toasts, the save path, or the success step.
-// A TypeError thrown BEFORE the save also gets the generic "may already
+// WHAT CANNOT CHANGE: the other err.message passthroughs (concession,
+// package, reopen, area, second-connection), the interpolated-message
+// toasts, the save path, or the success step. (The split-tender catch
+// is Plan 619's — it routes through the guard now, not the raw message;
+// see S1.) A TypeError thrown BEFORE the save also gets the generic "may already
 // be recorded" message — the exact trade-off Polish #16 already accepted
 // in the profile form; a pre/post-save distinction is out of scope.
 //
@@ -41,7 +43,7 @@ const nav = read('nav-language.js');
 
 // The QC submit handler: paymentForm submit listener at :7320; its outer
 // try starts :7346 and its outer catch is the ONLY `catch (err)` inside
-// the handler span (:8064-8068). The split-tender catch inside the same
+// the handler span (:8069-8073). The split-tender catch inside the same
 // handler is `catch (splitErr)` (:7888) — a different variable.
 const handlerStart = qc.indexOf("paymentForm?.addEventListener('submit'");
 assert.ok(handlerStart >= 0, 'QC submit listener exists');
@@ -67,9 +69,12 @@ test('C3: the submit catch carries the "Payment not saved" title (as in app.js:1
     `submit catch body is: ${catchBody.trim()} — expected the profile-form title`);
 });
 
-test('S1: the split-tender catch is untouched (Plan 619, out of scope)', () => {
-  assert.ok(qc.includes("onToast(splitErr.message || t('split_not_saved_toast'), { type: 'error' })"),
-    'split-tender catch must keep its current shape');
+test('S1: the split-tender catch routes through the guard (Plan 619)', () => {
+  // Plan 619 re-scope (was: "split-tender catch is untouched"): the split
+  // catch now mirrors Polish #16 Req 1b — a TypeError becomes the generic
+  // message via paymentSaveErrorMessage, with the split fallback kept.
+  assert.ok(qc.includes("onToast(paymentSaveErrorMessage(splitErr) || t('split_not_saved_toast'), { type: 'error' })"),
+    'split-tender catch must route through the guard with the fallback kept');
 });
 
 test('S2: the other err.message passthroughs are untouched', () => {

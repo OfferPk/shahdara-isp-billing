@@ -260,7 +260,7 @@ test('pills: revenue grid + count row split, icons at 16px, no emoji', () => {
   assert.ok(fn.includes('dsIcon(def.dsIcon, 16)'), 'pill icons must render at 16px via dsIcon');
   assert.ok(fn.includes('roster-pill-dot--paid'), 'paid must get the green status dot');
   assert.ok(fn.includes('<span class="roster-pill-line1">'), 'revenue cards must have a line-1 (icon + label)');
-  assert.ok(fn.includes('<span class="roster-pill-line2">'), 'revenue cards must have a line-2 (count · total)');
+  assert.ok(fn.includes('<span class="roster-pill-line2">'), 'revenue cards must have a line-2 (total only — the count badge moved to line 1, Customers stat cards 2026-11-21)');
   const defsSrc = read('roster-quick-filters.js');
   assert.ok(!/[⚠️🤝🟢💎⏸️📦]/.test(defsSrc), 'no 3D emoji in the pill definitions');
   assert.ok(!/[⚠️🤝🟢💎⏸️📦]/.test(fn), 'no 3D emoji in the pill render');
@@ -281,7 +281,11 @@ test('pills: 2×2 grid of two-line cards, 32px count pills, half the height', ()
   assert.ok(paidDot.includes('background: var(--color-paid)'), 'paid dot must use the paid token');
   // Height budget (harness baseline: old bar 372px at 360px):
   // grid 2 rows × 44px + 8px gap + row 1 row × 32px + bar padding 16px
-  // = 144px worst case (row wraps to 2 rows: 184px) — under half (186px).
+  // = 144px — the count row no longer wraps (Customers stat cards
+  // 2026-11-21: single scrollable row), so the old worst case of
+  // 184px (row wrapping to 2 rows) no longer applies. The hardcoded
+  // `worst` arithmetic below still passes (184 ≤ 186) and is kept as
+  // the conservative bound.
   const worst = 2 * 44 + 8 + 2 * 32 + 8 + 16;
   assert.ok(worst <= 186, `worst-case pill height ${worst}px must fit in half the old 372px`);
   // At phone widths each group takes the full bar width.

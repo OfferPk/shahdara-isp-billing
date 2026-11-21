@@ -190,7 +190,12 @@ test('B1: dark mode gives the WhatsApp button a dark teal (reusing the existing 
 
 test('B2: hex ratchets unchanged (test exact method: comment-stripped, case-sensitive)', () => {
   assert.equal(distinctHex(styles).size, 608, `styles.css distinct hex: ${distinctHex(styles).size}, expected 608`);
-  assert.equal(distinctHex(tokens).size, 117, `tokens.css distinct hex: ${distinctHex(tokens).size}, expected 117`);
+  // Customers stat cards (2026-11-21): tokens 117 → 121 — four new
+  // distinct hexes for the roster pill tints (--roster-sky-900
+  // #0c4a6e, --roster-teal-50 #f0fdfa, --roster-teal-200 #99f6e4,
+  // --roster-teal-800 #115e59); the other new --roster-* tokens reuse
+  // values already in the file, so the count moves by exactly 4.
+  assert.equal(distinctHex(tokens).size, 121, `tokens.css distinct hex: ${distinctHex(tokens).size}, expected 121`);
   assert.equal(distinctHex(dark).size, 19, `dark-contrast.css distinct hex: ${distinctHex(dark).size}, expected 19`);
   assert.equal(distinctHex(read('components.css')).size, 0, 'components.css must stay hex-free');
 });

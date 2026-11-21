@@ -6700,8 +6700,15 @@ export function setupQuickCollectModal({
       // date and the same target month — one visit, one method, one
       // day — and carries the second connection's name, so the
       // payment and its receipt say which connection they belong
-      // to. It carries no separate transaction reference: the
-      // reference (if any) stays on the first payment only.
+      // to. Plan 624: it also carries the first payment's
+      // transaction reference — one visit, one transfer — so the
+      // second payment's own record shows the TID (or the override
+      // reason) and the sender, and the strict digital rule refuses
+      // a digital second payment with neither. The refusal message
+      // is the engine one, not the first-connection form message;
+      // through the current modal it cannot fire (the single submit
+      // already passed the form check, so a digital first payment
+      // always carries a TID or an override reason).
       const { nextState, receipt } = executeQuickCollection(postSaveState, {
         customerId: activeCustomerId,
         month: firstReceipt.month,
@@ -6709,6 +6716,11 @@ export function setupQuickCollectModal({
         date: firstReceipt.date,
         method: firstReceipt.method,
         connection: step.secondConnection,
+        transactionId: firstReceipt.transactionId || undefined,
+        referenceOverrideReason: firstReceipt.referenceOverrideReason || undefined,
+        senderTitle: firstReceipt.senderTitle || undefined,
+        senderDigits: firstReceipt.senderDigits || undefined,
+        strictDigitalReference: true,
         tickets: loadTickets(),
       });
       secondConnectionRecorded = true;

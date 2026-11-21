@@ -180,13 +180,13 @@ describe('Plan 596: empty profile note sections collapse', () => {
   });
 
   test('G13 parity moves to the new total in both languages', () => {
-    assert.equal(Object.keys(TRANSLATIONS.en).length, 5213, 'EN parity 5,213');
-    assert.equal(Object.keys(TRANSLATIONS.ur).length, 5213, 'UR parity 5,213');
+    assert.equal(Object.keys(TRANSLATIONS.en).length, 5217, 'EN parity 5,217');
+    assert.equal(Object.keys(TRANSLATIONS.ur).length, 5217, 'UR parity 5,217');
   });
 
   test('G14 this file pins the new total and stays free of the previous total digits', () => {
     const selfSrc = read('tests/plan596-note-sections-collapse.test.js');
-    assert.ok(selfSrc.includes('5213'), 'this file pins the new total');
+    assert.ok(selfSrc.includes('5217'), 'this file pins the new total');
     // The previous total's digits are built, never spelled, so this guard
     // cannot trip the sweep it guards.
     assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');

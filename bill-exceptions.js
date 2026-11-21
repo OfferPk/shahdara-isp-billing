@@ -324,7 +324,7 @@ export function billExceptionHtml(exception, clearance = null) {
   const clearedLine = clearance
     ? `<br><span>Cleared (${BILL_EXCEPTION_CLEAR_METHOD_LABELS[clearance.method] ?? clearance.method}, ${escapeHtml(clearance.date)}): ${escapeHtml(clearance.note)}</span>`
     : '';
-  return `<p><strong>${escapeHtml(exception.customerName || exception.customerId)}</strong> · bill ${escapeHtml(exception.billId)} · ${escapeHtml(exception.month)} · <strong>${escapeHtml(exception.reasonLabel || exception.reason)}</strong><br><span>${escapeHtml(exception.detail || '')}</span>${clearedLine}</p>`;
+  return `<p><strong>${escapeHtml(exception.customerName || exception.customerId)}</strong> · ${escapeHtml(exception.month)} · <strong>${escapeHtml(exception.reasonLabel || exception.reason)}</strong><br><span>${escapeHtml(exception.detail || '')}</span>${clearedLine}</p>`;
 }
 
 export function billExceptionCsv(exceptions, clearances = []) {

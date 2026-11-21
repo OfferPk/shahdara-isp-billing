@@ -18172,3 +18172,29 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
 .chart-metric-label{font:600 11px/1.4 system-ui,sans-serif;color:var(--muted,#64748b);text-transform:uppercase;}
 .chart-metric-value{font:700 14px/1.4 system-ui,sans-serif;color:var(--ink,#182e2a);}
 .chart-metric-sub{font:400 11px/1.4 system-ui,sans-serif;color:var(--muted,#64748b);}
+
+/* Area Analytics 4-tab: the sticky tab bar below the topbar, the tab
+ * panels (same grid as .phase3-pane), and the 1-line collapsed tool
+ * cards. The bar copies .profile-tabs: sticky, top 78px, z-index 2,
+ * so it stays below the topbar (z-index 50) while the operator scrolls
+ * the 300+ tools. A collapsed card shows only its summary row; the
+ * panel owns visibility, never the card sections themselves. */
+.analytics-tab-bar{position:sticky;top:78px;z-index:2;display:flex;gap:4px;overflow-x:auto;padding:4px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-tabs-bg);backdrop-filter:blur(12px)}
+.analytics-tab-bar .profile-tab-button{flex:1 1 0;font-size:var(--text-tab);display:flex;align-items:center;justify-content:center;min-width:0}
+.analytics-tab-panel{display:grid;gap:16px;min-width:0}
+.analytics-link-card{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-card)}
+.analytics-link-card .chart-caption{margin:0}
+.analytics-card-summary{display:flex;align-items:center;gap:8px;min-height:44px}
+.analytics-card-toggle{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;padding:0;border:0;background:transparent;cursor:pointer;text-align:left;color:inherit;font:inherit}
+.analytics-card-titles{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:2px}
+.analytics-card-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.analytics-card-subtitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--muted)}
+.analytics-card-chevron{flex:none;font-size:14px;line-height:1;transition:transform .15s ease}
+.analytics-card-toggle[aria-expanded="true"] .analytics-card-chevron{transform:rotate(180deg)}
+.analytics-card-badge{flex:none;display:inline-flex;align-items:center;min-height:24px;max-width:160px;padding:2px 8px;border-radius:999px;background:var(--ds-brand-soft);color:var(--ds-brand);font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.analytics-card-badge:empty{display:none}
+[data-analytics-card="collapsed"]>:not(.analytics-card-summary){display:none!important}
+/* The (i) tooltip moves into the card summary row: the help-tip keeps its
+ * own dropdown, the audit explainer's caption drops down below the row. */
+.analytics-card-summary .audit-explainer{position:relative;margin:0}
+.analytics-card-summary .audit-explainer .chart-caption{position:absolute;top:calc(100% + 4px);right:0;z-index:3;width:min(320px,80vw);margin:0;padding:8px 10px;border:1px solid var(--ds-line);border-radius:8px;background:var(--ds-card);box-shadow:0 2px 7px rgba(15,83,56,0.14)}

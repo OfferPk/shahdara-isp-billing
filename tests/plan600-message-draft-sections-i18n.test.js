@@ -114,8 +114,8 @@ const sends3 = [...sends2, { customerId: 'c1', sentAt: '2026-11-06T10:00:00.000Z
 // ================= G1 — parity guard (this file's own pin) =================
 
 test('G1: parity is the new total in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5213, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5213, 'UR parity');
+  assert.equal(Object.keys(en).length, 5217, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5217, 'UR parity');
 });
 
 // ================= G2 — the dft_ family is complete and clean =================

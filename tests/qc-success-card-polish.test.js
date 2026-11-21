@@ -68,11 +68,19 @@ function baseSplit(overrides = {}) {
 }
 
 // The amount pill div, or '' when the card has none. The card now
-// carries TWO amount-style pills on the single card (Receipt No.
-// first, then Amount Collected), so the helper takes the LAST pill:
-// the Amount pill on the single card, the only pill (Total Received)
-// on the split card.
+// carries EIGHT amount-style pills on the single card (Receipt No.,
+// Amount Collected, then the six detail rows), so the helper can no
+// longer take the LAST pill — that is Next due date now. It finds the
+// Amount pill by its label; the split card has no 'Amount Collected'
+// label, so it keeps the last-pill rule (its only pill is the Total
+// Received pill).
 function amountPillOf(html) {
+  const labelAt = html.indexOf('Amount Collected');
+  if (labelAt >= 0) {
+    const start = html.lastIndexOf('<div', labelAt);
+    const end = html.indexOf('</div>', labelAt);
+    return html.slice(start, end);
+  }
   const at = html.lastIndexOf('qc-amount-pill');
   if (at < 0) return '';
   const start = html.lastIndexOf('<div', at);
@@ -306,18 +314,21 @@ test('wiring: the single card renders the global sequence in its pill row; split
   assert.ok(!splitSrc.includes('SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT'), 'split-card file must not reference the Fully paid text');
 });
 
-test('fit basis: a fully-paid TAXED card has 6 half-width items in 3 rows', () => {
+test('fit basis: a fully-paid TAXED card has 0 half-width items — the six detail rows are pill rows', () => {
   // The hidden Still-owed row gives back one 43px grid row; the pill
   // border adds 2px to the amount row. The plan552 + polish17 fit
   // tests pin the derived totals; this test pins the structure they
-  // derive from: Customer, Mobile, Date & Method, Month, Area,
-  // Next due = 6 half-width items → 3 rows (was 7 items / 4 rows).
+  // derive from. QC success rows pill (user, 2026-11-21): Customer,
+  // Mobile, Date & Method, Month, Area, Next due = 6 pill rows now,
+  // 0 half-width items (was 6 items / 3 rows).
   const html = renderQuickCollectReceiptCardHtml(baseReceipt({ salesTaxCents: 4300 }));
   // Same counting as the plan552/polish17 fit tests: every
   // .qc-receipt-item minus the full-width ones (the tax row here).
   const all = (html.match(/<div class="qc-receipt-item/g) || []).length;
   const full = (html.match(/<div class="qc-receipt-item full-width/g) || []).length;
   const halfWidth = all - full;
-  assert.equal(halfWidth, 6, 'fully-paid taxed card must have 6 half-width items');
-  assert.equal(Math.ceil(halfWidth / 2), 3, 'fully-paid taxed card must lay out in 3 grid rows');
+  assert.equal(halfWidth, 0, 'fully-paid taxed card must have 0 half-width items');
+  assert.equal(Math.ceil(halfWidth / 2), 0, 'fully-paid taxed card must lay out in 0 grid rows');
+  const pills = (html.match(/qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row/g) || []).length;
+  assert.equal(pills, 6, 'fully-paid taxed card must have 6 detail pill rows');
 });

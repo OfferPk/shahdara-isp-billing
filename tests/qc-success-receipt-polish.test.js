@@ -16,8 +16,11 @@
 //     QC card entirely (user instruction) — the header is ref-only now
 //     (C2 below pins the ref-only wrap).
 //  3. The Change button sat centred and unstyled under the phone. It is
-//     now a left-aligned emerald underlined inline link (token
-//     --qc-emerald-text, zero new hex); hook + handler untouched.
+//     now an emerald underlined inline link (token
+//     --qc-emerald-text, zero new hex); hook + handler untouched. QC
+//     success rows pill (user, 2026-11-21): it sits INLINE next to
+//     the phone number inside the Mobile Number pill row — the old
+//     left-aligned-under-the-phone layout is gone by the user's spec.
 //  4. The checkmark floated at the far right because the wrapping h3's
 //     flex box filled the row. The row is inline flow now (block row,
 //     inline h3, check vertical-align middle); the package line reads
@@ -139,15 +142,26 @@ test('C2 ref-only header wraps cleanly at 360px (no badge; ref on its own right-
   assert.ok(has(baseRefRule, /margin-inline-start:\s*auto/), 'the ref must sit right-aligned on its own line');
 });
 
-// --- C3: Change is a left-aligned emerald link under the phone ---
-test('C3 Change button left-aligned under the phone + emerald underline link style', () => {
-  const changeRule = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-item [data-qc-edit-phone]');
+// --- C3: Change is an emerald link inline next to the phone ---
+test('C3 Change button inline next to the phone + emerald underline link style', () => {
+  // QC success rows pill (user, 2026-11-21): Change moved INLINE next
+  // to the phone number inside the Mobile Number pill row — the old
+  // "left-aligned under the phone" layout is gone by the user's spec,
+  // so the flex-start / left-align declarations go with it. The
+  // emerald underlined link style stays.
+  const changeRule = ruleBody('#quickCollectModal.qc-success-open .qc-receipt-detail-row [data-qc-edit-phone]');
   assert.ok(changeRule !== null, 'scoped Change rule must exist');
-  assert.ok(has(changeRule, /align-self:\s*flex-start/) || has(changeRule, /text-align:\s*left/),
-    'Change must sit left (align-self: flex-start or text-align: left)');
+  assert.ok(!has(changeRule, /align-self:\s*flex-start/) && !has(changeRule, /text-align:\s*left/),
+    'Change must not carry the under-phone left-align declarations any more');
   assert.ok(has(changeRule, /color:\s*var\(--qc-emerald-text\)/), 'Change must use the emerald token');
   assert.ok(has(changeRule, /text-decoration:\s*underline/), 'Change must be underlined');
   assert.ok(cardHtml.includes('data-qc-edit-phone'), 'the Change hook must still render on the card');
+  // Inline: the button sits inside the phone value strong, right after
+  // the number — not on its own line.
+  const phoneAt = cardHtml.indexOf('03012345678');
+  const btnAt = cardHtml.indexOf('data-qc-edit-phone');
+  assert.ok(phoneAt >= 0 && btnAt > phoneAt, 'Change must come after the number');
+  assert.ok(btnAt < cardHtml.indexOf('</strong>', btnAt), 'Change must sit inside the phone value');
   assert.ok(qcJs.includes("closest?.('[data-qc-add-phone], [data-qc-edit-phone]')"),
     'the Change delegation to the inline editor must be intact');
 });

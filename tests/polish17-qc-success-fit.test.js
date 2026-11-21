@@ -325,13 +325,13 @@ test('fit budget: the compact header, banner, callout, card and action values th
   assert.ok(pageSrc.includes('secondary-button qc-empty-amount-btn'), 'empty-amount button must carry the secondary-button treatment');
 });
 
-test('fit budget: grid math — the fully-paid taxed card has 6 half-width items in 3 rows', () => {
+test('fit budget: grid math — the fully-paid taxed card has 0 half-width items; the six detail rows are pill rows', () => {
   // QC Success Card Polish (2026-11-13): the fully-paid card hides
-  // the Still-owed row, so the shape is Customer, Mobile, Date &
-  // Method, Month, Area, Next due date = 6 half-width items in 3
-  // rows (was 7 / 4); the tax row is full-width. The Month row no
-  // longer adds a fourth row — it fills the row the hidden Still-owed
-  // row vacated.
+  // the Still-owed row. QC success rows pill (user, 2026-11-21):
+  // the six detail rows (Customer, Mobile, Date & Method, Month,
+  // Area, Next due date) left the two-column grid and became
+  // full-width pill rows — the grid keeps only the full-width tax
+  // row, so the half-width count is 0 with or without the Month row.
   const html = renderQuickCollectReceiptCardHtml({
     id: 'receipt-12', receiptNumber: 'RCPT-12-202611-01', amount: 1195,
     customerName: 'Test Customer', customerNumber: 12, date: '2026-11-08',
@@ -343,15 +343,17 @@ test('fit budget: grid math — the fully-paid taxed card has 6 half-width items
     const full = (h.match(/<div class="qc-receipt-item full-width/g) || []).length;
     return all - full;
   };
-  assert.equal(halfWidth(html), 6, 'six half-width items with the Month row (Still-owed row hidden when fully paid)');
-  assert.equal(Math.ceil(halfWidth(html) / 2), 3, '3 half-width rows with the Month row');
+  assert.equal(halfWidth(html), 0, 'zero half-width items with the Month row (Still-owed row hidden when fully paid)');
+  assert.equal(Math.ceil(halfWidth(html) / 2), 0, '0 half-width rows with the Month row');
   const noMonth = { id: 'receipt-12', receiptNumber: 'RCPT-12-202611-01', amount: 1195,
     customerName: 'Test Customer', customerNumber: 12, date: '2026-11-08',
     method: 'Cash', area: 'Sodaa', payableRemaining: 0, newTotalDues: 0, salesTaxCents: 19500 };
-  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row — 5 items still fill 3 rows');
+  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 0, '0 half-width rows without the Month row — 5 pill rows, no grid rows');
+  const pills = (html.match(/qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row/g) || []).length;
+  assert.equal(pills, 6, 'six detail pill rows with the Month row');
 });
 
-test('fit budget: measured totals are recorded — 1,085px at 360px (35px over the 1,050px budget), 1,113px at 320px', () => {
+test('fit budget: measured totals are recorded — 1,107px at 360px (57px over the 1,050px budget), 1,116px at 320px', () => {
   // The harness is the authority (~/workspace/shahdara-qc-receipt-modal-harness/,
   // measure-qc-360.json / measure-qc-320.json, 0 pageerrors). These
   // pins record the measured totals so a regression is caught here;
@@ -395,12 +397,35 @@ test('fit budget: measured totals are recorded — 1,085px at 360px (35px over t
   // border only) and missed its 8px padding + 6px gap — 14px short.
   // Variant B (loaded) was 1,114px after the micro-polish — within its
   // ≤1,160px budget; the +4px numbering delta keeps it inside.
-  const MEASURED_360_PX = 1085;
-  const MEASURED_320_PX = 1113;
+  // QC success rows pill (user, 2026-11-21): from the numbering
+  // totals (1,085 @360 / 1,113 @320). MEASURED, not arithmetic: the
+  // polish17 fixture card was rendered from the base renderer and
+  // from the new renderer in headless Chromium (playwright
+  // chromium_headless_shell, real styles.css + tokens.css, the
+  // #quickCollectModal.qc-success-open scoping, card 316px wide at
+  // 360px / 276px at 320px) and the card heights compared. Base card
+  // 505.8px → new card 528.0px at 360px (delta +22.2px); base 525.5px
+  // → new 528.0px at 320px (delta +2.5px — the base grid wraps more
+  // at 320px, the pill rows barely do). Detail rows at 360px:
+  // Customer 27, Mobile 27, Date & Method 27, Month 27, Area 36,
+  // Next due 48 (the fixture's fallback "Next due date not recorded"
+  // wraps to two lines; a real date reads one line, 27px). The Area
+  // row is 36px only after the label-nowrap + select-cap fix — before
+  // it the select's longest-option width squeezed the label into two
+  // lines (46.8px). New totals: 1,085 + 22.2 = 1,107.2 → 1,107 at
+  // 360px; 1,113 + 2.5 = 1,115.5 → 1,116 at 320px. The fixture has
+  // no customerId, so no Change button renders; with a customer and
+  // a real due date the card measures 530px at 360px (Mobile row
+  // 50px with the 44px Change button, Next due 27px) — within 2px of
+  // the fixture card, so these totals stay representative. The 44px
+  // Change-button floor (Sharafat 96) was measured and deliberately
+  // NOT overridden: it would save only 4px.
+  const MEASURED_360_PX = 1107;
+  const MEASURED_320_PX = 1116;
   const BUDGET_360_PX = 1050;
   const BUDGET_320_PX = 1075;
-  assert.equal(MEASURED_360_PX, 1085, 'measured 360px total must be 1,085px (micro-polish 1,081px plus numbering +4: header unwrap −24, pill row +37, card gap +6, header-div box −15)');
-  assert.equal(MEASURED_320_PX, 1113, 'measured 320px total must be 1,113px (micro-polish 1,109px plus numbering +4: header unwrap −24, pill row +37, card gap +6, header-div box −15)');
+  assert.equal(MEASURED_360_PX, 1107, 'measured 360px total must be 1,107px (numbering 1,085px plus rows-pill +22.2 measured in headless Chromium)');
+  assert.equal(MEASURED_320_PX, 1116, 'measured 320px total must be 1,116px (numbering 1,113px plus rows-pill +2.5 measured in headless Chromium)');
   assert.ok(MEASURED_360_PX > BUDGET_360_PX, `360px total ${MEASURED_360_PX}px is ${MEASURED_360_PX - BUDGET_360_PX}px OVER the ${BUDGET_360_PX}px budget — recorded here, not waived`);
   assert.ok(MEASURED_320_PX > BUDGET_320_PX, `320px total ${MEASURED_320_PX}px is ${MEASURED_320_PX - BUDGET_320_PX}px OVER the ${BUDGET_320_PX}px budget — recorded here, not waived`);
   // The overflow fix itself holds: the draft <pre> was the ONE source

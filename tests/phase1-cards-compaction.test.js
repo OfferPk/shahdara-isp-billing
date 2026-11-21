@@ -629,7 +629,7 @@ test('p1 G5f: 688 — a frozen-stamp signal asks the waiting worker (SW_GET_STAT
   assert.equal(storage.getItem(SW_UPDATE_SHOWN_KEY), null, 'nothing is marked shown on the deferred path');
 });
 
-test('p1 G5g: 688 — the SW_STATUS reply re-considers with the hash identity and shows once per deploy', () => {
+test('p1 G5g: 688 — the SW_STATUS reply re-considers with the hash identity; a second deploy prompts on the NEXT load, not in this session', () => {
   const worker = createMockWorker(FROZEN_URL);
   const registration = createMockRegistration({ waiting: worker });
   const serviceWorker = createMockServiceWorker({ registration });
@@ -651,9 +651,15 @@ test('p1 G5g: 688 — the SW_STATUS reply re-considers with the hash identity an
   // The same deploy never prompts twice.
   serviceWorker.dispatchMessage({ type: 'SW_STATUS', cache: 'shahdara-isp-billing-v37-a1b2c3d4e5' });
   assert.equal(recorder.calls.length, 1, 'the same deploy never prompts twice');
-  // The next deploy prompts again (a new hash is a new identity).
+  // Update popup twice (user, 2026-11-21 — "1 baar aana chahiye"):
+  // the prompt appears ONCE per page session, even when a second
+  // deploy lands while the app is open. The old assertion here
+  // ('the next deploy prompts again') encoded Plan 688's per-version
+  // rule, which the user replaced with once-per-session: the second
+  // deploy shows no second card, and its hash never enters the shown
+  // record, so it prompts on the next page load instead.
   serviceWorker.dispatchMessage({ type: 'SW_STATUS', cache: 'shahdara-isp-billing-v37-f6e5d4c3b2' });
-  assert.equal(recorder.calls.length, 2, 'the next deploy prompts again');
+  assert.equal(recorder.calls.length, 1, 'the next deploy in the same session does not prompt again');
 });
 
 test('p1 G5h: 688 — a non-frozen scriptURL version is used as-is (existing behaviour, pinned)', () => {

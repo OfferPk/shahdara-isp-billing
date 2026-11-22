@@ -328,14 +328,25 @@
   margin: 0;
 }
 
+/* Fiber Hubs mobile redesign: the container used to be a ROW flex built
+   for a single SVG child, but the Fiber + Delinquency renderers return
+   TWO top-level siblings (top-bar div + svg). The row flex-basis
+   overflowed and justify-content:center split the overflow LEFT and
+   RIGHT, clipping the title and hub labels on phones. Stacking the
+   children in a column cures both panels at once — SHARED with the
+   Recovery Pipeline PR (identical lines; whichever PR merges first owns
+   this rule and the other drops the duplicate hunk at rebase). */
 .chart-svg-container {
   width: 100%;
   margin: auto 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
   min-height: 190px;
 }
+
+.chart-svg-container .chart-top-bar { width: 100%; }
 
 .chart-svg {
   display: block;

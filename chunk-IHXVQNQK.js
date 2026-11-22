@@ -469,8 +469,8 @@ ${Ta}`}function xp(){return Ta.replace(/\D/g,"")}function WC(){let e=xp();return
         ${x}
       </div>
     `}).join("")}function Cy(e,t=ua(ca)){let n=new Set,o=[{value:"",label:"Unassigned"}],r=(c,u)=>{let m=String(c??"").trim().toLowerCase();!m||n.has(m)||(n.add(m),o.push({value:String(c).trim(),label:u}))},a=String(e??"").trim(),s=a&&a.toLowerCase()!=="unassigned"&&a.toLowerCase()!=="not recorded"?qt(a):null;s&&r(s.stored,s.label);for(let c of Array.isArray(t)?t:[]){let u=qt(c);u&&r(u.stored,u.label)}let l=(s?s.stored:"").toLowerCase();return`<span class="qc-area-pill"><select id="quickCollectAreaSelect" class="qc-input qc-area-select" data-qc-area-select aria-label="Area / Location">${o.map(c=>`<option value="${j(c.value)}"${c.value.toLowerCase()===l?" selected":""}>${j(c.label)}</option>`).join("")}</select><span class="qc-area-chevron" aria-hidden="true">${ko("ChevronDown",14)}</span></span>`}function CN(e,{whatsappPhone:t,nextDueDateText:n,editingPhone:o=!1,phoneEditValue:r="",phoneEditError:a=""}={}){let s=Ms(e),i=Lc(e),l=s>0&&i?si:ai,c=e.senderTitle??xm(e),u=e.senderDigits??_m(e),m=c||e.senderLabel||"",p=String(t||"").trim()||String(e.phone||"").trim(),f=o?`
-        <div class="qc-receipt-item" data-qc-receipt-phone>
-          <span class="qc-meta-label">Mobile Number</span>
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row" data-qc-receipt-phone>
+          <span class="qc-receipt-label">Mobile Number</span>
           <span class="qc-meta-val">
             <input class="qc-input qc-phone-input" data-qc-phone-input type="tel" inputmode="tel" maxlength="40" value="${j(r)}" placeholder="03012345678" aria-label="Mobile number" />
             ${a?`<span class="qc-phone-error" data-qc-phone-error role="alert">${j(a)}</span>`:""}
@@ -480,9 +480,9 @@ ${Ta}`}function xp(){return Ta.replace(/\D/g,"")}function WC(){let e=xp();return
             </span>
           </span>
         </div>`:`
-        <div class="qc-receipt-item" data-qc-receipt-phone>
-          <span class="qc-meta-label">Mobile Number</span>
-          ${p?`<strong class="qc-meta-val qc-phone-saved">${j(p)}</strong>${e.customerId?'<button type="button" class="text-button" data-qc-edit-phone>Change</button>':""}`:`<strong class="qc-meta-val">Not saved</strong>${e.customerId?'<button type="button" class="secondary-button" data-qc-add-phone>Add number</button>':""}`}
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row" data-qc-receipt-phone>
+          <span class="qc-receipt-label">Mobile Number</span>
+          ${p?`<strong class="qc-meta-val qc-phone-saved">${j(p)}${e.customerId?' <button type="button" class="text-button" data-qc-edit-phone>Change</button>':""}</strong>`:`<strong class="qc-meta-val">Not saved${e.customerId?' <button type="button" class="secondary-button" data-qc-add-phone>Add number</button>':""}</strong>`}
         </div>`,y=Os(e.month),b=(Array.isArray(e.ticketCharges)?e.ticketCharges:[]).map($=>`
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Murammat / Material Charge (${j($.ticketId)})</span>
@@ -518,30 +518,46 @@ ${Ta}`}function xp(){return Ta.replace(/\D/g,"")}function WC(){let e=xp();return
         <strong class="qc-receipt-amount">PKR ${Be(e.amount)}</strong>
       </div>
 
-      <div class="qc-receipt-grid">
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Customer</span>
+      <!-- QC success rows pill (user spec): the six detail rows leave
+           the two-column grid and become full-width pill rows in the
+           hero pill style \u2014 same soft rounded pill, slightly more
+           compact (0.875rem values; the hero rows stay 1.3rem). Name
+           and phone each get their own full-width row; the area
+           select stays inline inside its pill row. The other grid
+           rows stay in the grid. (No row labels, dates, or amounts
+           in this comment: the tests find rows by their label text,
+           and a literal here would shadow the real row.) -->
+      <div class="qc-receipt-detail-rows">
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Customer</span>
           <strong class="qc-meta-val qc-customer-golden">\u{1F451} ${j(e.customerName)} ${j(String(e.customerNumber))}</strong>
         </div>
         ${f}
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Date &amp; Method</span>
+          <strong class="qc-meta-val">${j(Zr(e.date))} \xB7 ${j(e.method)}</strong>
+        </div>
+        ${y?`
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Month</span>
+          <strong class="qc-meta-val">${j(y)}</strong>
+        </div>`:""}
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Area / Location</span>
+          ${Cy(e.area)}
+        </div>
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Next due date</span>
+          <strong class="qc-meta-val">${j(n||ii)}</strong>
+        </div>
+      </div>
+
+      <div class="qc-receipt-grid">
         ${e.connection?`
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Connection</span>
           <strong class="qc-meta-val">${j(e.connection)}</strong>
         </div>`:""}
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Date &amp; Method</span>
-          <strong class="qc-meta-val">${j(Zr(e.date))} \xB7 ${j(e.method)}</strong>
-        </div>
-        ${y?`
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Month</span>
-          <strong class="qc-meta-val">${j(y)}</strong>
-        </div>`:""}
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Area / Location</span>
-          ${Cy(e.area)}
-        </div>
         ${b}
         ${Hi(e)?`
         <div class="qc-receipt-item full-width">
@@ -586,10 +602,6 @@ ${Ta}`}function xp(){return Ta.replace(/\D/g,"")}function WC(){let e=xp();return
           <span class="qc-meta-label">${j(l)}</span>
           <strong class="qc-meta-val has-balance">PKR ${Be(s)}</strong>
         </div>`:""}
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Next due date</span>
-          <strong class="qc-meta-val">${j(n||ii)}</strong>
-        </div>
         ${e.referenceOverrideReason?`
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Ref Note / Override</span>

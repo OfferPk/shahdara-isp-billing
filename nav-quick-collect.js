@@ -5566,6 +5566,21 @@ export function setupQuickCollectModal({
         amountInput?.select();
       }, 50);
 
+      // Collect button (user, 2026-11-21): the direct-customer entry
+      // points (card Collect, global-search Add Payment, profile quick
+      // action, …) reach this function with the dialog closed — only
+      // openModal() shows it, and only the picker path goes through
+      // openModal. Show the dialog here so selectAndOpen actually opens
+      // the sheet; the guard keeps in-modal reopens (picker pick,
+      // concession/package-change reopen) exactly as they are.
+      if (modal && !modal.open) {
+        if (typeof modal.showModal === 'function') {
+          try { modal.showModal(); } catch { modal.setAttribute('open', ''); }
+        } else {
+          modal.setAttribute('open', '');
+        }
+      }
+
     } catch (err) {
       if (typeof onToast === 'function') onToast(err.message);
     }

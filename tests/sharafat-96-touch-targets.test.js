@@ -116,14 +116,19 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   // exception (.analytics-panel .help-icon) — the user asked for the
   // oversized standalone (i) buttons to shrink. The BASE .help-icon
   // rule stays 40x40 in its own rule (a <summary>, so the button
-  // floor never reaches it), and the 28px exception is the ONLY
-  // sub-40px .help-icon rule. Any further shrink (e.g. the More-tab
-  // 20px sections) must extend this exception by name, not pass
+  // floor never reaches it), and the 28px exception was the ONLY
+  // sub-40px .help-icon rule until the search toolbar below. Any
+  // further shrink must extend the exceptions by name, not pass
   // silently.
   // Expenses 3-tab polish (2026-11-20): the Saad payroll card is one
   // compact metric card, so its (i) is a 28px informational trigger —
   // matched to the Month-end 28px standard after #1553 merged — as a
   // second NAMED scoped exception, pinned by name below.
+  // Customers search toolbar (user, 2026-11-21): the search help is a
+  // compact 20px (i) next to the label — a third NAMED scoped
+  // exception (.customer-list-search .search-help .help-icon), pinned
+  // by name below. The base stays 40x40; the two 28px exceptions are
+  // untouched.
   const base = /\.help-icon\{([^}]*)\}/.exec(stylesNC)?.[1];
   assert.ok(base, 'base .help-icon rule present');
   assert.ok(sizes([base]).length > 0 && sizes([base]).every((v) => v >= 40),
@@ -136,9 +141,13 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   assert.ok(saad, 'scoped .saad-payroll-card .help-icon rule present');
   assert.deepEqual(sizes([saad]).sort((a, b) => a - b), [28, 28, 28],
     'scoped Saad payroll (i) is exactly 28px (Expenses 3-tab polish, matched to Month-end D5)');
+  const search = /\.customer-list-search\s+\.search-help\s+\.help-icon\s*\{([^}]*)\}/.exec(stylesNC)?.[1];
+  assert.ok(search, 'scoped .customer-list-search .search-help .help-icon rule present');
+  assert.deepEqual(sizes([search]).sort((a, b) => a - b), [20, 20, 20],
+    'scoped search (i) is exactly 20px (Customers search toolbar, user 2026-11-21)');
   const all = sizes(ruleBodies(stylesNC, '.help-icon'));
-  assert.ok(all.every((v) => v >= 40 || v === 28),
-    'a .help-icon rule other than the named 28px exception carries a sub-40px size');
+  assert.ok(all.every((v) => v >= 40 || v === 28 || v === 20),
+    'a .help-icon rule other than the named 28px / 20px exceptions carries a sub-40px size');
 });
 
 test('F5 detail-identity-action (a) is 40x40 in its own rule', () => {

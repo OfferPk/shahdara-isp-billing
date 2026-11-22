@@ -116,7 +116,10 @@ test('BULK TOOLS disclosure: closed by default, holds all five tools', () => {
   assert.ok(details, 'expected the BULK TOOLS <details>');
   const inner = details[1];
   assert.doesNotMatch(details[0].slice(0, details[0].indexOf('>') + 1), /\bopen\b/, 'disclosure is closed by default');
-  assert.match(inner, /<span class="eyebrow" data-i18n="cust_group_bulk_tools">BULK TOOLS<\/span>/, 'BULK TOOLS eyebrow on the summary');
+  // Customers search toolbar (user, 2026-11-21): the redundant BULK TOOLS
+  // eyebrow is gone — the summary reads "Bulk tools" once (the chevron is
+  // still the CSS ::after). The old assertion pinned the eyebrow span.
+  assert.doesNotMatch(inner, /<span class="eyebrow" data-i18n="cust_group_bulk_tools">BULK TOOLS<\/span>/, 'BULK TOOLS eyebrow removed');
   assert.match(inner, /<span data-i18n="cust_bulk_tools">Bulk tools<\/span>/, 'summary reads "Bulk tools"');
   for (const id of [
     'openEnrollmentWizardBtn',
@@ -179,19 +182,23 @@ test('header help button is 44px in the header context only', () => {
   assert.match(components, /\.field-mode-head \.help-info-btn \{ width: 44px; height: 44px; \}/);
 });
 
-// ---- D4: the toolbar row is the VIEW group ---------------------------
+// ---- D4: the toolbar row is one 2-column row, no VIEW label ----------
+// Customers search toolbar (user, 2026-11-21): the standalone VIEW label
+// is gone and Compact list + Filters & sort share one 2-column grid row.
+// The old test pinned the VIEW eyebrow (cust_group_view, eyebrow class,
+// flex 1 1 100% rule) and a flex toolbar — all replaced by the grid.
 
-test('toolbar: VIEW eyebrow created with the bar; jump button unchanged', () => {
-  assert.match(uiFeedbackJs, /cust_group_view/, 'setup creates the VIEW eyebrow from cust_group_view');
-  assert.match(
+test('toolbar: 2-column grid, no VIEW eyebrow; jump button unchanged', () => {
+  assert.doesNotMatch(uiFeedbackJs, /cust_group_view/, 'setup no longer creates a VIEW eyebrow');
+  assert.doesNotMatch(
     uiFeedbackJs,
     /eyebrow\.className = 'eyebrow cust-toolbar-eyebrow'/,
-    'eyebrow carries the toolbar class'
+    'no toolbar eyebrow creation'
   );
-  const rule = baseRule(uiFeedbackCss, '.cust-list-toolbar .eyebrow');
-  assert.equal(decl(rule, 'flex'), '1 1 100%');
-  assert.equal(decl(rule, 'margin'), '0');
-  // The toolbar itself is untouched: same gap, same padding.
+  assert.doesNotMatch(uiFeedbackCss, /\.cust-list-toolbar \.eyebrow/, 'no toolbar eyebrow rule left');
+  // The toolbar itself is now a grid: two equal columns, same gap and padding.
+  assert.equal(decl(baseRule(uiFeedbackCss, '.cust-list-toolbar'), 'display'), 'grid');
+  assert.equal(decl(baseRule(uiFeedbackCss, '.cust-list-toolbar'), 'grid-template-columns'), '1fr 1fr');
   assert.equal(decl(baseRule(uiFeedbackCss, '.cust-list-toolbar'), 'gap'), '8px');
   assert.equal(decl(baseRule(uiFeedbackCss, '.cust-list-toolbar'), 'padding'), '0 22px 10px');
 });
@@ -220,7 +227,11 @@ test('search help: one closed details holding both sentences verbatim', () => {
   const details = html.match(/<details class="help-tip search-help"[^>]*>([\s\S]*?)<\/details>/);
   assert.ok(details, 'expected the search-help <details>');
   assert.doesNotMatch(details[0].slice(0, details[0].indexOf('>') + 1), /\bopen\b/, 'closed by default');
-  assert.match(details[1], /<span data-i18n="cust_search_how_it_works">How search works<\/span>/, 'summary reads "How search works"');
+  // Customers search toolbar (user, 2026-11-21): the summary is icon-only
+  // now — a 20px (i) next to the label, not a full-width "How search
+  // works" row. The key survives as the summary's accessible name.
+  assert.doesNotMatch(details[1], /<span data-i18n="cust_search_how_it_works">How search works<\/span>/, 'no full-width summary text left');
+  assert.match(details[1], /<summary class="search-help-summary"[^>]*data-i18n-aria-label="cust_search_how_it_works"/, 'summary is named by the how-it-works key');
   assert.match(details[1], /<span class="help-icon" aria-hidden="true">i<\/span>/, 'the i affordance is kept');
   assert.ok(details[1].includes('data-i18n="cust_search_help"'), 'first sentence kept verbatim');
   assert.ok(details[1].includes('data-i18n="cust_search_field_help"'), 'second sentence kept verbatim');
@@ -234,10 +245,17 @@ test('search help: one closed details holding both sentences verbatim', () => {
   assert.match(baseRule(uiFeedbackCss, '.search-help:not([open]) .search-help-body'), /display:\s*none/);
 });
 
-test('search control row: field select capped, input keeps its room', () => {
+test('search control row: field select capped, input is a full-width pill', () => {
   assert.equal(decl(baseRule(components, '.customer-search-field-select'), 'max-width'), '132px');
-  assert.match(baseRule(styles, '.customer-list-search-control input'), /flex:\s*1 1 0/);
-  assert.match(baseRule(styles, '.customer-list-search-control input'), /min-width:\s*0/);
+  // Customers search toolbar (user, 2026-11-21): the input is a full-width
+  // pill in its own wrapper (icon + inline ✕), not a flex child sharing
+  // the row with the select and an external Clear button. The old test
+  // pinned flex: 1 1 0 + min-width: 0 on the input.
+  const inputRule = baseRule(styles, '.customer-list-search-control input');
+  assert.ok(/width:\s*100%/.test(inputRule), 'input is full-width');
+  assert.equal(decl(inputRule, 'border-radius'), 'var(--radius-md)');
+  assert.ok(/padding-inline-start:\s*38px/.test(inputRule), 'left padding clears the icon');
+  assert.ok(/padding-inline-end:\s*36px/.test(inputRule), 'right padding clears the inline ✕');
   // The placeholder key is unchanged, so the full text still resolves.
   assert.match(html, /data-i18n-placeholder="cust_search_placeholder"/);
 });
@@ -291,7 +309,6 @@ test('no new hex in any changed rule', () => {
     [uiFeedbackCss, '.cust-action-row'],
     [uiFeedbackCss, '.cust-bulk-tools-summary'],
     [uiFeedbackCss, '#customerPane #addCustomerButton'],
-    [uiFeedbackCss, '.cust-list-toolbar .eyebrow'],
     [uiFeedbackCss, '.search-help > summary'],
     [uiFeedbackCss, '.search-help .customer-list-search-help'],
     [styles, '.new-customers-controls'],

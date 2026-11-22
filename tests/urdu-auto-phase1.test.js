@@ -82,7 +82,7 @@ test('phase 1 dictionary: English pins are byte-identical to the pre-change stri
     cust_density_compact: '▤ Compact list',
     cust_density_detailed: '☰ Show details',
     cust_search_list_label: 'Search this list',
-    cust_search_placeholder: 'Name, phone, customer # or ID',
+    cust_search_placeholder: 'Search name, #ID, or phone...', // Customers search toolbar (user, 2026-11-21): full-width pill placeholder
     cust_search_clear: 'Clear',
     cust_th_customer: 'Customer',
     // Sharafat 27, shape (a): the Balance column is the selected month's

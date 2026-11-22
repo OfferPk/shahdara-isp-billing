@@ -14639,6 +14639,15 @@ $('#clearCustomerListSearch').addEventListener('click', () => {
   }
   $('#customerListSearch').focus();
 });
+// Customers search toolbar (user, 2026-11-21): the inline ✕ clear shows
+// only while the list box is non-empty. Its own listener, placed AFTER
+// the Clear handler above — the Sharafat 31/82 slices find
+// '#clearCustomerListSearch' by first occurrence, and that must stay the
+// handler binding, not this toggle. The click handler still runs the
+// Sharafat 31 gate; this only toggles visibility.
+$('#customerListSearch').addEventListener('input', () => {
+  $('#clearCustomerListSearch').hidden = $('#customerListSearch').value.trim() === '';
+});
 // Sharafat 31: the chip's × clears the global query exactly like
 // #clearGlobalSearch — the full four-call mirror, not just the box —
 // and returns focus to the list box.

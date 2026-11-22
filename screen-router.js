@@ -37,7 +37,7 @@ export const SCREENS = {
   alerts: { view: 'billingReportsView', reportsTab: 'status', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel' },
   assistant: { view: 'ownerCommandCenter', title: 'Owner Assistant', subtitle: 'Ask about saved bills, collections, and customer balances', action: { label: 'Ask Question', focus: '#ownerCommandInput' } },
   backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
-  analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', analyticsTab: 'areas', title: 'Area Analytics', subtitle: 'Areas, zones and packages', action: { label: 'Export Area CSV', click: '#exportAreaIntelCsvBtn' } },
+  analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', analyticsTab: 'areas', title: 'Area Analytics', subtitle: 'Areas, zones and packages', hideBack: true, action: { label: 'Export CSV', click: '#exportAreaIntelCsvBtn' } },
   // Telemetry Lab: the 46 enterprise telecom diagnostics live in a
   // collapsed <details> at the top of #analyticsView, not on their own
   // view — so this route has NO tab (adding one would make TAB_TO_SCREEN
@@ -118,7 +118,7 @@ export function headerSpecForScreen(screen) {
     screen,
     title,
     subtitle,
-    hasBack: true,
+    hasBack: !spec.hideBack,
     actionLabel,
     actionKind: !spec.action ? null : (spec.action.click ? 'click' : 'focus'),
     actionTarget: spec.action?.click || spec.action?.focus || null
@@ -253,6 +253,7 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
   const titleEl = header.querySelector('#srScreenTitle');
   const subtitleEl = header.querySelector('#srScreenSubtitle');
   const actionBtn = header.querySelector('#srPrimaryAction');
+  const backBtn = header.querySelector('.sr-back-button');
 
   // Plan B — the shell loading bar lives in index.html as the first child
   // of <main> (created here only if that markup is ever missing), and the
@@ -545,6 +546,10 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
       if (spec) {
         titleEl.textContent = spec.title;
         subtitleEl.textContent = spec.subtitle || '';
+        // Area Analytics screen polish: analytics hides its Home back
+        // button (Home is in the bottom nav) — the per-screen exception
+        // to the Plan B one-header contract; every other screen keeps it.
+        backBtn.hidden = !spec.hasBack;
         if (spec.actionLabel) {
           actionBtn.hidden = false;
           actionBtn.textContent = spec.actionLabel;

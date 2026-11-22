@@ -75,7 +75,10 @@ test('every router screen has one header spec: back, title, subtitle, action', (
     const header = headerSpecForScreen(name);
     assert.ok(header, name);
     assert.equal(header.screen, name);
-    assert.equal(header.hasBack, true, `${name} has a Home back control`);
+    // Area Analytics screen polish: analytics is the per-screen exception
+    // to the one-header contract — it hides its Home back button because
+    // Home is in the bottom nav. Every other screen keeps the back control.
+    assert.equal(header.hasBack, name !== 'analytics', `${name} has a Home back control`);
     assert.ok(header.title && header.title.length > 0, `${name} title`);
     assert.ok(header.subtitle && header.subtitle.length > 0, `${name} subtitle`);
     // Payments Inbox cleanup: the Inbox has NO header action by design —
@@ -315,7 +318,9 @@ test('sync does nothing for a list with no parent', () => {
 
 test('the previously action-less analytics screen now has a context action; alerts has none by design', () => {
   const analytics = headerSpecForScreen('analytics');
-  assert.equal(analytics.actionLabel, 'Export Area CSV');
+  // Area Analytics screen polish: the header action is the compact 'Export
+  // CSV' pill beside the title, not the full-width 'Export Area CSV'.
+  assert.equal(analytics.actionLabel, 'Export CSV');
   assert.equal(analytics.actionKind, 'click');
   assert.equal(analytics.actionTarget, '#exportAreaIntelCsvBtn');
   // Smart Alerts cleanup: the alerts screen's 'View Alerts' button only

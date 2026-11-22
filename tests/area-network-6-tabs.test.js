@@ -21,7 +21,10 @@ const TABS = ['areas', 'zones', 'packages', 'uptime', 'pon', 'poles'];
 
 test('6-tab bar: six numbered buttons in order, labelled by the six new keys', () => {
   const bar = html.match(/<nav class="profile-tabs area-network-tabs"[^>]*>([\s\S]*?)<\/nav>/);
-  assert.ok(bar, 'the sticky 6-tab bar exists');
+  // Area Analytics screen polish (insights D1): the lower 6-tab bar is
+  // static now — only the top tab bar stays sticky. Message-only re-pin;
+  // the test asserts the bar exists, not its position.
+  assert.ok(bar, 'the 6-tab bar exists');
   assert.ok(html.indexOf('area-network-tabs') < html.indexOf('areaIntelligenceHeading'), 'the bar sits before Area Intelligence');
   const btns = [...bar[1].matchAll(/data-area-network-tab-btn="([a-z]+)"/g)].map((m) => m[1]);
   assert.deepEqual(btns, TABS, 'the six buttons run 1 Areas → 6 Poles & Power');

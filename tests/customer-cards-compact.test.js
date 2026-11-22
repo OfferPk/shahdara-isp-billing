@@ -353,7 +353,8 @@ test('cards: compact styles — pill rows flex-start, action row, no deleted rul
   assert.ok(styles.includes('.customer-card-badge-strip'), 'badge-strip rule exists');
   assert.ok(styles.includes('.customer-card-pill-row'), 'pill-row rule exists');
   // Round 2 (D7/D8): the meta-pills become ONE muted text line
-  // (.customer-card-meta-line, ellipsis-truncated, 1 line always) —
+  // (.customer-card-meta-line) — Customers-tab polish: the line is a
+  // wrapping flex row now, not ellipsis-truncated to 1 line.
   // the .customer-card-meta-pill rule is deleted.
   assert.ok(styles.includes('.customer-card-meta-line'), 'muted-line rule exists');
   assert.ok(!styles.includes('.customer-card-meta-pill'), 'meta-pill rule is gone from styles.css');

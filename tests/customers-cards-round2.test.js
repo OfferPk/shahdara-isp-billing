@@ -23,7 +23,8 @@
 // - D5: ✎ moves to the health row as a 24px ✎ micro-pill.
 // - D6: the Profile icon reuses the existing IdCard (no new ds-icons
 //   entry, no ds0 pin change).
-// - D7: the muted line ellipsis-truncates, 1 line always.
+// - D7: the muted line wraps as a flex row (Customers-tab polish —
+//   the one-line ellipsis clip is gone, so Lifetime is never hidden).
 // - D8: fresh .customer-card-meta-line class (gone-list untouched;
 //   a new dark rule covers it).
 // - D9: Profile in UR = 'پروفائل'; muted-line "Ref:" prefix in UR =
@@ -476,7 +477,9 @@ test('r2 R4d: no-score pill is neutral — no band, no category class', () => {
   const html = renderCard(customer, state);
   const cls = pillClasses(html);
   assert.ok(cls !== null && !cls.includes('health-score-') && !cls.includes('health-risk') && !cls.includes('health-critical'), `no-score pill is neutral: ${cls}`);
-  assert.ok(html.includes('insufficient history'), 'no-score pill text is unchanged');
+  // Customers-tab polish: the no-score card reads the short 'Health: New'
+  // label now (the long 'insufficient history' text is gone from the card).
+  assert.ok(html.includes('Health: New'), 'no-score pill reads Health: New');
 });
 
 test('r2 R4e: 50–59 is labelled Critical and renders rose (D4 — word and colour agree)', () => {

@@ -1051,17 +1051,19 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   white-space: nowrap;
 }
 /* Unpaid Cards: the ID pill cycles colours by customer number — 1
-   black, 2 yellow, 3 green, 4 blue, 5 slate, 6 red, 7 teal,
-   8 orange, then back to black. Every colour is reused from a
-   palette already in the stylesheet (health, status, service,
-   slate) — no new hex: the §8.9 ratchet pins styles.css at 613
-   distinct hex. The class comes from
+   soft slate grey, 2 yellow, 3 green, 4 blue, 5 deeper slate
+   grey-blue, 6 red, 7 teal, 8 orange, then back to soft grey
+   (Customers-tab polish: the two dark slots, black -0 and dark
+   slate -4, were softened to pastel weight). Every colour is reused
+   from a palette already in the stylesheet (health, status, service,
+   slate) — no new hex: the ratchet pins styles.css at 608 distinct
+   hex. The class comes from
    customerIdPillClass in customer-card-style.js. */
-.customer-id-pill-0 { background: #000; color: #fff; border-color: #000; }
+.customer-id-pill-0 { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
 .customer-id-pill-1 { background: #fef3c7; color: #704600; border-color: #e7c77e; }
 .customer-id-pill-2 { background: #dcfce7; color: #145b38; border-color: #5fa876; }
 .customer-id-pill-3 { background: #e5efff; color: #174b87; border-color: #adc9f1; }
-.customer-id-pill-4 { background: #334155; color: #fff; border-color: #334155; }
+.customer-id-pill-4 { background: #e2e8f0; color: #1e293b; border-color: #94a3b8; }
 .customer-id-pill-5 { background: #fee2e2; color: #b91c1c; border-color: #dc9478; }
 .customer-id-pill-6 { background: #e7f2ec; color: #0e5b4d; border-color: #9acbad; }
 .customer-id-pill-7 { background: #fff0e8; color: #8a2b12; border-color: #dc9478; }
@@ -1169,18 +1171,21 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
    Ellipsis-truncate, 1 line always (D7 — matches the pill it
    replaces; the full ref lives in the profile). */
 .customer-card-meta-line {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 6px;
+  row-gap: 2px;
   margin-top: 5px;
   font-size: 0.78rem;
   color: #475569;
 }
 /* Phase 1: the Lifetime pill and the service status ride the meta
    line as plain text (chrome stripped — no pill padding/border/
-   background) so the line stays one muted line. The status segment
-   is a bare span, NOT .customer-service-badge: the dark-theme
+   background) so the line stays muted text (Customers-tab polish:
+   the line wraps onto a second line when long — the one-line
+   ellipsis clip is gone, so the Lifetime segment is never hidden).
+   The status segment is a bare span, NOT .customer-service-badge: the dark-theme
    !important badge backgrounds would survive any contextual strip.
    The Lifetime pill keeps its class so the Round 2 assertions that
    it renders still hold; its colour is inherited from the line
@@ -1350,6 +1355,10 @@ button:not([hidden]).customer-card-action-btn { min-height: 36px !important; }
    debug text). The build identity is the frozen APP_VERSION 1.11.0 +
    the ?v= pins (nav-pwa.js); no visible stamp remains. */
 .customer-card-action-btn svg { flex: 0 0 auto; }
+/* Customers-tab polish: the Call icon carries an emerald tint so the
+   action row reads at a glance — Collect stays the single solid-green
+   primary in the row. Token only, no new hex. */
+.customer-card-action-call svg { color: var(--green-dark); }
 .customer-card-action-collect {
   flex: 1 1 0;
   min-width: 0;
@@ -1389,14 +1398,19 @@ button:not([hidden]).customer-card-action-btn { min-height: 36px !important; }
   padding: 3px 10px;
   border: 1px solid var(--green);
   border-radius: 7px;
-  background: var(--green);
-  color: #fff;
+  background: var(--mint);
+  color: var(--green-dark);
   font-size: 11px;
   font-weight: 800;
   line-height: 1.25;
   cursor: pointer;
 }
-.customer-card-clear-dues:hover { background: var(--green-dark); }
+/* Customers-tab polish (user correction: keep Clear dues, just
+   recolour it): the card button is a soft mint secondary now, not a
+   second solid-green primary competing with Collect. The hover is a
+   border-only darken — the old dark-background hover would be
+   dark-on-dark with the new green-dark text. */
+.customer-card-clear-dues:hover { border-color: var(--green-dark); }
 .customer-card-clear-dues:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 .customer-card-clear-dues[disabled] { opacity: .6; cursor: default; }
 /* Unpaid Cards: the Recent receipts finder on the Transactions

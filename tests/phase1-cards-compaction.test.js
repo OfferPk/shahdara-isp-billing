@@ -24,9 +24,9 @@
 //   in the compact test's comment; the Outstanding row stays visible).
 // - D9: FAB stays 40px/142px + 400px threshold; hidden WHILE ACTIVELY
 //   SCROLLING, visible only after ~1s idle.
-// - D10: Test 2 fixture = no-score "Health: insufficient history"
-//   (lowercase — the real rendered text; the prep's capitalised form
-//   was wrong); assert Additional height <= 25px at 320
+// - D10: Test 2 fixture = no-score "Health: New" (was "Health:
+ //   insufficient history" before the Customers-tab polish, which
+ //   shortened the label); assert Additional height <= 25px at 320
 //   (Chromium-measured 24.2px).
 // - D11: the SINGLE customer-card token on the <li>; row rules
 //   retargeted to the REAL classes (no parallel BEM system).
@@ -399,15 +399,15 @@ test('p1 G2b: Additional stays a 24px micro-pill (min-height 24px + defeater)', 
   assert.match(rule, /font-size:\s*0\.75rem/, 'the label stays 12px (0.75rem)');
 });
 
-test('p1 G2c: the no-score fixture renders "Health: insufficient history" (D10 — the real widest text)', () => {
+test('p1 G2c: the no-score fixture renders "Health: New" (Customers-tab polish — the short label replaces "Health: insufficient history"; the D10 widest-text note is stale)', () => {
   const { state, customer } = noScoreState();
   const html = renderCard(customer, state);
   const text = plainText(html);
-  // The category word renders lowercase ("insufficient history") —
-  // the CUST_HEALTH_CATS map keys the capitalised form, so the raw
-  // category word is what the pill shows. D10's "Insufficient" was
-  // the prep's capitalisation; this is the real text.
-  assert.ok(text.includes('Health: insufficient history'), 'the no-score health text renders');
+  // The short label is the raw cust_health_cat_insufficient value
+  // ('New') — the CUST_HEALTH_CATS map keys the capitalised form, so
+  // the raw category word is what the pill shows. (Customers-tab
+  // polish: the value changed from 'insufficient history' to 'New'.)
+  assert.ok(text.includes('Health: New'), 'the no-score health text renders');
   assert.ok(!pillClasses(html)?.includes('health-risk') && !pillClasses(html)?.includes('health-critical'), 'a no-score pill carries no Risk/Critical category');
 });
 
@@ -498,12 +498,13 @@ test('p1 G4b: the heading flex keeps the name growing while the billing badge ne
   assert.match(billingRule, /flex-shrink:\s*0/, 'the "Paid · PKR 1,000/mo" badge never shrinks');
 });
 
-test('p1 G4c: the meta line still ellipsizes to one line (the Lifetime segment may hide on narrow cards — disclosed)', () => {
+test('p1 G4c: the meta line wraps as a flex row (Customers-tab polish — the user replaced the one-line ellipsis clip so the Lifetime segment is never hidden on narrow cards)', () => {
   const line = cssRule(styles, '.customer-card-meta-line');
-  assert.match(line, /display:\s*block/, 'the meta line is a block');
-  assert.match(line, /overflow:\s*hidden/, 'the meta line truncates');
-  assert.match(line, /text-overflow:\s*ellipsis/, 'the meta line ellipsizes');
-  assert.match(line, /white-space:\s*nowrap/, 'the meta line is one line always');
+  assert.match(line, /display:\s*flex/, 'the meta line is a flex row');
+  assert.match(line, /align-items:\s*center/, 'segments share one baseline');
+  assert.match(line, /flex-wrap:\s*wrap/, 'long lines wrap instead of clipping');
+  assert.doesNotMatch(line, /text-overflow:\s*ellipsis/, 'no ellipsis truncation');
+  assert.doesNotMatch(line, /white-space:\s*nowrap/, 'no forced single line');
   const strip = cssRule(styles, '.customer-card-meta-line .customer-card-lifetime-pill');
   assert.ok(strip, 'the meta-line Lifetime strip exists');
   assert.match(strip, /background:\s*transparent/, 'the Lifetime pill reads as plain text on the line');

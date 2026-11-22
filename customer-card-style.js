@@ -3,9 +3,11 @@
  * customer card, kept PURE so the roster render and the tests share
  * the same rules. No DOM, no storage, no money math.
  *
- * The ID pill cycles colours by customer number — 1 black, 2 yellow,
- * 3 green, then blue, slate, red, teal, orange, and back to black
- * (an 8-colour rotation). The health value is coloured by SCORE band
+ * The ID pill cycles colours by customer number — 1 soft slate grey,
+ * 2 yellow, 3 green, then blue, deeper slate grey-blue, red, teal,
+ * orange, and back to soft grey (an 8-colour rotation; Customers-tab
+ * polish softened the two dark slots, black and dark slate, to pastel
+ * weight). The health value is coloured by SCORE band
  * (70+ green, 40–70 yellow, below 40 red), not by the category word:
  * the category text stays exactly as buildCustomerHealthScore
  * reports it. Every colour is one of the palettes already in
@@ -19,10 +21,11 @@ export const CUSTOMER_ID_PILL_CLASS_COUNT = 8;
 /**
  * The rotation class for one customer number, or '' when the record
  * carries no usable number (the pill then keeps its default grey).
- * Customer 1 -> -0 (black), 2 -> -1 (yellow), 3 -> -2 (green),
- * 4 -> -3 (blue), 5 -> -4 (purple), 6 -> -5 (red), 7 -> -6 (teal),
- * 8 -> -7 (orange), 9 -> -0 again. A numeric string counts the
- * same as the number; 0, negatives and non-numbers get no class.
+ * Customer 1 -> -0 (soft slate grey), 2 -> -1 (yellow),
+ * 3 -> -2 (green), 4 -> -3 (blue), 5 -> -4 (deeper slate
+ * grey-blue), 6 -> -5 (red), 7 -> -6 (teal), 8 -> -7 (orange),
+ * 9 -> -0 again. A numeric string counts the same as the number;
+ * 0, negatives and non-numbers get no class.
  */
 export function customerIdPillClass(customerNumber) {
   const number = Number(customerNumber);
@@ -35,7 +38,8 @@ export function customerIdPillClass(customerNumber) {
 /**
  * The score-band class for one health score, or '' when there is no
  * score to band (null / undefined / non-numeric — the value then
- * reads "Insufficient history" with no band colour). Bands follow
+ * reads "New" with no band colour; Customers-tab polish shortened
+ * the no-score label from "Insufficient history"). Bands follow
  * the user's rule: 70+ green, 40–70 yellow, below 40 red.
  */
 export function healthScoreBandClass(score) {

@@ -3541,7 +3541,7 @@ export const DELINQUENCY_STAGES = [
     maxDays: 7,
     recoveryProbability: 0.90,
     protocol: 'Automated SMS / WhatsApp payment reminder',
-    color: '#0e5b4d'
+    color: 'var(--color-brand-600)'
   },
   {
     stageKey: 'notice',
@@ -3552,6 +3552,7 @@ export const DELINQUENCY_STAGES = [
     maxDays: 21,
     recoveryProbability: 0.70,
     protocol: 'Field collector visit & disconnection notice delivery',
+    // #0284c7 kept: no exact token — --color-info (#0270a8) would darken the Notice blue. (Delinquency mobile-fit.)
     color: '#0284c7'
   },
   {
@@ -3563,7 +3564,7 @@ export const DELINQUENCY_STAGES = [
     maxDays: 45,
     recoveryProbability: 0.45,
     protocol: 'Speed throttle / soft suspension & supervisor audit call',
-    color: '#d97706'
+    color: 'var(--td-risk-moderate-deep)'
   },
   {
     stageKey: 'severe',
@@ -3574,6 +3575,7 @@ export const DELINQUENCY_STAGES = [
     maxDays: Infinity,
     recoveryProbability: 0.15,
     protocol: 'Physical drop disconnection & CPE equipment recovery',
+    // #dc2626 kept: no exact token — --color-danger (#b42318) would darken the Severe red. (Delinquency mobile-fit.)
     color: '#dc2626'
   }
 ];

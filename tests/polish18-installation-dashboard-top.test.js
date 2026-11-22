@@ -245,10 +245,12 @@ test('css: the installation tile has its own accent, light and dark, with no new
   assert.ok(dashboardCss.includes('.primary-action-installation .home-primary-icon'), 'installation icon accent exists');
   // The accent reuses the dashboard's own pie teal as rgb() triples plus
   // hex values already in this file, so the legacy hex ratchet must not
-  // grow: dashboard.css stays at its current 85 distinct hex colours.
+  // grow: dashboard.css stays at its current 84 distinct hex colours
+  // (85 before the Delinquency Recovery Pipeline mobile fit tokenized
+  // the #fafcfb card background away — one hex leaves, none added).
   const stripped = dashboardCss.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
-  assert.equal(distinct.size, 85, `dashboard.css must stay at 85 distinct hex colours, got ${distinct.size}`);
+  assert.equal(distinct.size, 84, `dashboard.css must stay at 84 distinct hex colours, got ${distinct.size}`);
 });
 
 test('css: the home tile grid stays four columns — the 5th tile wraps inside the same region', () => {

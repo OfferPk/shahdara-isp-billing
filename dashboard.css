@@ -502,6 +502,17 @@
   display: none !important;
 }
 
+/* Same trap for the four de-dupped Home sections: `.summary-card` and
+   `.data-loss-warning` (styles.css) set author `display: flex`, which beats
+   the UA `[hidden]` rule — without this, `hidden` alone would not hide
+   them. `#homeProviderCostDetails` needs no rule: a bare `<details>` has
+   no author display, so the UA `[hidden]` rule wins. */
+#pendingWorksSection[hidden],
+#systemHealthSection[hidden],
+#dataSafetyBanner[hidden] {
+  display: none !important;
+}
+
 /* Chart card header flex layout */
 .chart-card-header-flex {
   display: flex;

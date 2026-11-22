@@ -131,14 +131,22 @@ export function clearDashboardPlace(storage) {
  * @param {Object} viewport - The page viewport the operator scrolls
  * @param {Object|null} storage - The record store, or null when
  *   storage is unavailable
+ * @param {Function} [activateSectionTab] - Optional: called with the saved
+ *   open-section id BEFORE the section is opened, so the caller can
+ *   activate the tab that owns the section (de-dup: a saved open section
+ *   lives in exactly one charts tab — opening it while another tab is
+ *   active would open it hidden and scroll to a wrong position)
  * @returns {Object|null} The restored place, or null when there
  *   was nothing saved to restore
  */
-export function restoreDashboardPlace(doc, viewport, storage) {
+export function restoreDashboardPlace(doc, viewport, storage, activateSectionTab) {
   const place = loadDashboardPlace(storage);
   if (place && place.openSectionId) {
     const section = doc?.getElementById ? doc.getElementById(place.openSectionId) : null;
-    if (section) section.open = true;
+    if (section) {
+      if (typeof activateSectionTab === 'function') activateSectionTab(place.openSectionId);
+      section.open = true;
+    }
   }
   if (viewport && typeof viewport.scrollTo === 'function') {
     viewport.scrollTo(0, place ? place.scrollY : 0);

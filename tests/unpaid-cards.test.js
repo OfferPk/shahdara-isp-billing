@@ -43,7 +43,7 @@ test('unpaid cards: ID pill cycles colours by customer number (1 black, 2 yellow
   assert.equal(customerIdPillClass(6), 'customer-id-pill-5');
   assert.equal(customerIdPillClass(7), 'customer-id-pill-6');
   assert.equal(customerIdPillClass(8), 'customer-id-pill-7');
-  assert.equal(customerIdPillClass(9), 'customer-id-pill-0', 'rotation wraps back to black');
+  assert.equal(customerIdPillClass(9), 'customer-id-pill-0', 'rotation wraps back to soft grey (Customers-tab polish: the black slot is a soft slate grey now)');
   assert.equal(customerIdPillClass(16), 'customer-id-pill-7');
   assert.equal(customerIdPillClass(17), 'customer-id-pill-0');
   assert.equal(customerIdPillClass('25'), 'customer-id-pill-0', 'a numeric string counts the same');
@@ -65,12 +65,15 @@ test('unpaid cards: header badge reads "[#N]" — the Customer N pill is retired
 });
 
 test('unpaid cards: pill rotation classes exist in CSS with the documented colours, no new hex', () => {
+  // Customers-tab polish: the two dark slots softened to pastel weight
+  // (-0 solid black -> soft slate grey, -4 dark slate -> deeper slate
+  // grey-blue); the other six pairs are unchanged.
   const expected = [
-    ['.customer-id-pill-0', '#000', '#fff'],
+    ['.customer-id-pill-0', '#f1f5f9', '#334155'],
     ['.customer-id-pill-1', '#fef3c7', '#704600'],
     ['.customer-id-pill-2', '#dcfce7', '#145b38'],
     ['.customer-id-pill-3', '#e5efff', '#174b87'],
-    ['.customer-id-pill-4', '#334155', '#fff'],
+    ['.customer-id-pill-4', '#e2e8f0', '#1e293b'],
     ['.customer-id-pill-5', '#fee2e2', '#b91c1c'],
     ['.customer-id-pill-6', '#e7f2ec', '#0e5b4d'],
     ['.customer-id-pill-7', '#fff0e8', '#8a2b12']
@@ -134,7 +137,10 @@ test('unpaid cards: card Clear dues sits in the header pill seat, where the Due 
   assert.ok(app.includes('data-clear-dues-card="${escapeHtml(customer.id)}"'), 'button carries the customer id');
   assert.ok(app.includes('class="customer-card-clear-dues" role="button"'), 'Clear-dues is a span with the button role, in the header seat');
   assert.ok(app.includes("t('prof_action_clear_dues')"), 'button reuses the profile Clear dues label');
-  assert.match(styles, /\.customer-card-clear-dues \{[^}]*background: var\(--green\);[^}]*color: #fff;[^}]*font-weight: 800;/s, 'button is green like the profile Clear dues button');
+  // Customers-tab polish (user correction: keep Clear dues, just recolour
+  // it): the card button is a soft mint secondary now, not a second
+  // solid-green primary competing with Collect.
+  assert.match(styles, /\.customer-card-clear-dues \{[^}]*background: var\(--mint\);[^}]*color: var\(--green-dark\);[^}]*font-weight: 800;/s, 'button is a soft mint secondary, not a second solid-green primary');
   assert.ok(app.includes("list.querySelectorAll('[data-clear-dues-card]')"), 'renderCustomers wires the button');
   assert.ok(app.includes('event.stopPropagation(); clearCustomerDues(button.dataset.clearDuesCard, { button })'), 'tap stops propagation and clears for that customer');
   assert.ok(app.includes("event.key !== 'Enter' && event.key !== ' '"), 'the span also takes the keyboard half of the button contract');

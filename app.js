@@ -4698,8 +4698,10 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
   const knownAsName = knownAsNameFor(customer);
   const knownAsShortLabel = knownAsName ? t(String(customer?.fatherOrReferenceName ?? '').trim() ? 'cust_card_ref_short' : 'cust_card_alias_short') : '';
   // Phase 1 (D11/D8): the meta line now carries the whole secondary
-  // metadata in ONE ellipsis line — status • mohalla • package •
-  // Ref/AKA • Lifetime. The service badge moves off the heading (its
+  // metadata in one wrapping flex line — status • mohalla • package •
+  // Ref/AKA • Lifetime (Customers-tab polish: the Phase 1 one-line
+  // ellipsis clip is gone, so the Lifetime segment is never hidden).
+  // The service badge moves off the heading (its
   // width was the heading's hog) and rides here as a plain status
   // segment (a bare span, NOT .customer-service-badge: the dark-theme
   // !important badge backgrounds would survive any contextual strip).

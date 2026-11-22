@@ -33,10 +33,12 @@ function receipt(overrides = {}) {
 }
 
 // The Month row in rendered card HTML, or null when the card has none.
+// QC success rows pill (user, 2026-11-21): the row is a pill row now,
+// not a .qc-receipt-item — find the enclosing div, not the grid item.
 function monthRowOf(html) {
   const at = html.indexOf('>Month<');
   if (at < 0) return null;
-  const rowStart = html.lastIndexOf('<div class="qc-receipt-item', at);
+  const rowStart = html.lastIndexOf('<div', at);
   const rowEnd = html.indexOf('</div>', at);
   return html.slice(rowStart, rowEnd);
 }
@@ -79,7 +81,10 @@ test('card: a November bill shows Month / November after Date & Method', () => {
   const row = monthRowOf(html);
   assert.ok(row, 'card must carry a Month row for a 2026-11 bill');
   assert.ok(row.includes('>November<'), 'Month row must read November');
-  assert.ok(!row.includes('full-width'), 'Month row must be a half-width grid item, not a full-width row');
+  // QC success rows pill (user, 2026-11-21): the Month row is a
+  // full-width pill row now, not a half-width grid item.
+  assert.ok(row.includes('qc-amount-pill'), 'Month row must be a pill row');
+  assert.ok(row.includes('qc-receipt-detail-row'), 'Month row must carry the compact detail-row class');
   const dateMethod = html.indexOf('Date &amp; Method');
   const month = html.indexOf('>Month<');
   const area = html.indexOf('Area / Location');

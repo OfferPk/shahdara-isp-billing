@@ -989,7 +989,13 @@ export function setupTopDefaultersModal(state, {
         if (emptyState) emptyState.hidden = true;
         listEl.innerHTML = visibleAccounts.map(acc => {
           const riskBadge = acc.riskCategory === 'critical'
-            ? `<span class="badge badge-danger">Critical</span>`
+            // Top Defaulters modal cards polish (2026-11-22, prep-found
+            // latent fix): the card used 'badge badge-danger', but no
+            // standalone .badge-danger rule exists anywhere (only
+            // .safety-badge.badge-danger) — Critical rendered as
+            // unstyled text in an invisible pill. .badge-critical
+            // exists (styles.css:12379, #fee2e2 / #991b1b).
+            ? `<span class="badge badge-critical">Critical</span>`
             : acc.riskCategory === 'high'
               ? `<span class="badge badge-warning">High</span>`
               : `<span class="badge badge-info">Moderate</span>`;
@@ -1048,15 +1054,17 @@ export function setupTopDefaultersModal(state, {
           const contactPicker = `<span class="defaulter-contact-picker" data-picker-for="${escapeHtml(acc.id)}" hidden>${CONTACT_CHANNELS.map(ch => `<button type="button" class="btn-xs defaulter-contact-chip" data-cust-id="${escapeHtml(acc.id)}" data-channel="${ch}">${escapeHtml(contactChannelLabel(ch))}</button>`).join('')}</span>`;
 
           // Top Defaulters Modal Fix item 1 (2026-11-13): stacked mobile
-          // card. Top row: '#rank · #ID NAME (Mohalla)' left, bold red
+          // card. Top row: 'rank. · #ID-pill NAME (Mohalla)' left, bold red
           // due + overdue days right. Middle row: the Waada status pill
           // — only when a promise exists (no invented 'No Waada' pill).
           // The redundant 'Shahdara' city column is gone: the mohalla
           // shows only when recorded, otherwise the parens are omitted
-          // (never '(Shahdara)'). Months, last payment and risk ride
-          // in a compact meta line; the remaining badges (score,
-          // escalation, vacation, segment, shield, contact) stack
-          // below it, exactly as the table cell showed them.
+          // (never '(Shahdara)'). Months and last payment ride in a
+          // compact meta line; all status badges (risk, Waada,
+          // escalation, score, vacation, shield, contact) ride in one
+          // wrapping .defaulter-card-badges row below it (modal cards
+          // polish 2026-11-22 — the old stacked block divs made each
+          // badge its own row at 360px).
           const mohallaText = String(acc.mohalla || '').trim();
           const lastPayText = acc.lastPaymentDate
             ? `Last: ${escapeHtml(acc.lastPaymentDate)} · PKR ${acc.lastPaymentAmount}`
@@ -1065,8 +1073,8 @@ export function setupTopDefaultersModal(state, {
             <article data-cust-id="${escapeHtml(acc.id)}" class="defaulter-card ${acc.riskCategory}">
               <div class="defaulter-card-top">
                 <div class="defaulter-card-id">
-                  <span class="defaulter-card-rank">#${acc.rank}</span>
-                  <strong>#${acc.customerNumber}</strong> ${escapeHtml(acc.name)}${mohallaText ? ` <span class="defaulter-card-mohalla">(${escapeHtml(mohallaText)})</span>` : ''}
+                  <span class="defaulter-card-rank">${acc.rank}.</span>
+                  <span class="defaulter-card-id-pill">#${acc.customerNumber}</span> ${escapeHtml(acc.name)}${mohallaText ? ` <span class="defaulter-card-mohalla">(${escapeHtml(mohallaText)})</span>` : ''}
                 </div>
                 <div class="defaulter-card-due">
                   <strong>PKR ${acc.totalOutstanding.toLocaleString()}</strong>
@@ -1076,20 +1084,22 @@ export function setupTopDefaultersModal(state, {
               <div class="defaulter-card-meta">
                 <div class="defaulter-months-tags">${monthsList}</div>
                 <span class="defaulter-card-lastpay">${lastPayText}</span>
+              </div>
+              <div class="defaulter-card-badges">
                 ${riskBadge}
                 ${waadaBadge}
                 ${escalationBadge}
+                ${waadaScoreBadge}
+                ${vacationBadge}
+                ${shieldBadge}
+                ${contactBadge}
               </div>
-              ${waadaScoreBadge ? `<div class="defaulter-waada-badge">${waadaScoreBadge}</div>` : ''}
-              ${vacationBadge ? `<div class="defaulter-waada-badge">${vacationBadge}</div>` : ''}
-              ${shieldBadge ? `<div class="defaulter-waada-badge">${shieldBadge}</div>` : ''}
-              ${contactBadge ? `<div class="defaulter-contact-badge">${contactBadge}</div>` : ''}
               <div class="defaulter-card-actions">
                 <button type="button" class="defaulter-reminder-btn defaulter-reminder-polite" data-cust-id="${escapeHtml(acc.id)}" title="Open a polite WhatsApp reminder draft">
                   🟢 Polite
                 </button>
                 <button type="button" class="defaulter-reminder-btn defaulter-reminder-final" data-cust-id="${escapeHtml(acc.id)}" title="Open a final-notice WhatsApp draft">
-                  🟠 Final Notice
+                  🟠 Final
                 </button>
                 <button type="button" class="defaulter-collect-btn" data-cust-id="${escapeHtml(acc.id)}" title="Open Quick Collect for this customer">
                   💵 Collect

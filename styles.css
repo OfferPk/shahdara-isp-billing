@@ -13833,9 +13833,18 @@ dialog.help-guide-modal::backdrop {
 /* Top Defaulters polish (2026-11-13): compact the header so the Urdu
    subtitle fits on one line. The h2 needs !important + the double-class
    scope to beat the !important clamp in the ≤640px block; the subtitle
-   is a <span>, so display:block is what makes nowrap + ellipsis work. */
+   is a <span>, so display:block is what makes nowrap + ellipsis work.
+   Modal cards polish (2026-11-22): defensive border reset — no rule in
+   base or git history puts a left border on this title, so the curved
+   dark-green bracket in the user's screenshot is most likely a stale
+   cached build; the reset guarantees the title aligns with the eyebrow
+   above it either way. On-phone confirmation is still required after
+   deploy. */
 .top-defaulters-modal .billing-modal-header h2 {
   font-size: 16px !important;
+  border: 0 !important;
+  border-inline-start: 0 !important;
+  padding-inline-start: 0 !important;
 }
 
 .top-defaulters-modal .urdu-subtitle {
@@ -13889,6 +13898,18 @@ dialog.help-guide-modal::backdrop {
   gap: 10px;
 }
 
+/* Top Defaulters modal cards polish (2026-11-22): the dialog owns the
+   scroll, so the list needs bottom padding equal to the sticky footer
+   (~56px: 44px summary bar + 8px + 4px footer padding) so the last
+   card's secondary row never slides under the Actions bar at max
+   scroll. The spec suggested pb-4 (16px), but 16px does not clear the
+   footer by measurement — the padding is the measured ~56px instead.
+   No max-height/overflow-y here: the base test forbids the list owning
+   its own scroll. */
+.defaulter-list-scroll {
+  padding-bottom: 56px;
+}
+
 .defaulter-card {
   background: var(--card-bg, #ffffff);
   border: 1px solid var(--border-color, #e2e8f0);
@@ -13913,9 +13934,35 @@ dialog.help-guide-modal::backdrop {
   font-size: 0.9rem;
 }
 
+/* Top Defaulters modal cards polish (2026-11-22): rank is a small muted
+   circle/label ('1.') and the customer ID is a subtle pill ('#33'), so
+   the two '#' symbols no longer sit side-by-side. The rank is a pill
+   for 2+ digit ranks (min-width + padding). --bg-soft falls back to
+   #f1f5f3 — the exact value the Recovery Pipeline PR defines for the
+   token — so the colour is identical before and after that merge. */
 .defaulter-card-rank {
-  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-soft, #f1f5f3);
   color: var(--text-muted, #64748b);
+  font-size: var(--text-table-head);
+  font-weight: 700;
+}
+
+.defaulter-card-id-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--badge-bg, #f1f5f9);
+  color: var(--text-muted, #64748b);
+  font-size: var(--text-table-head);
+  font-weight: 700;
 }
 
 .defaulter-card-mohalla {
@@ -13946,6 +13993,27 @@ dialog.help-guide-modal::backdrop {
   flex-wrap: wrap;
   gap: 8px;
   font-size: 0.78rem;
+}
+
+/* Top Defaulters modal cards polish (2026-11-22): all status badges
+   (risk, Waada, escalation, score, vacation, shield, contact) share
+   one wrapping row instead of four separate stacked rows. Gap 6px is a
+   literal — the 4pt scale has no 6px step. Children get the compact
+   metrics (11px / 2px 8px / radius-pill); the contact badge already
+   carries those metrics in components.css, so it needs no override. */
+.defaulter-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.defaulter-card-badges .badge,
+.defaulter-card-badges .wada-badge,
+.defaulter-card-badges .escalation-badge {
+  font-size: var(--text-table-head);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
 }
 
 .defaulter-card-lastpay {
@@ -16832,18 +16900,9 @@ button:not([hidden]).quick-method-chip.bwb-big {
 .waada-pulse {
   animation: waadaPulse 1.6s ease-in-out infinite;
 }
-.defaulter-waada-badge {
-  margin-top: 4px;
-}
-.defaulter-waada-badge .wada-badge {
-  display: inline-block;
-}
 /* SISP-38: defaulter escalation badges (Grace / Final Notice / Lock Due).
    Light tints mirror the wada-badge palette; dark variants use translucent
    fills with bright text so the badge stays readable on dark surfaces. */
-.defaulter-escalation-badge {
-  margin-top: 4px;
-}
 .escalation-badge {
   display: inline-block;
   padding: 3px 8px;

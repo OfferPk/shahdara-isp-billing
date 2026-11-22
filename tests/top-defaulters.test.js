@@ -801,9 +801,13 @@ test('Card markup - stacked card renders rank, name, mohalla, red due, Waada pil
     assert.ok(html.includes('class="defaulter-card critical"'), 'critical customer renders a card');
     assert.ok(html.includes('Muhammad Tariq') && html.includes('Abdul Rehman') && html.includes('Zahid Hussain'), 'all three defaulters render cards');
 
-    // Top row: '#rank · #ID NAME (Mohalla)' left, red due + days right.
-    assert.ok(html.includes('#1'), 'rank renders');
-    assert.ok(html.includes('#1</strong> Muhammad Tariq'), 'customer number + name render');
+    // Top row: 'rank. · #ID-pill NAME (Mohalla)' left, red due + days right.
+    // Top Defaulters modal cards polish (2026-11-22): rank is a muted
+    // '1.' label and the ID is a subtle '#33' pill (re-pin of the old
+    // '#rank #ID' text run) — the values are unchanged, only the
+    // presentation, so the two '#' symbols no longer sit side-by-side.
+    assert.ok(html.includes('defaulter-card-rank">1.'), 'rank renders as a "1." label');
+    assert.ok(html.includes('#1</span> Muhammad Tariq'), 'customer number pill + name render');
     assert.ok(html.includes('(Main Bazaar)'), 'mohalla renders in parens');
     assert.ok(html.includes('PKR 6,500'), 'outstanding renders');
     assert.ok(html.includes('d overdue'), 'overdue days render');
@@ -821,9 +825,9 @@ test('Card markup - stacked card renders rank, name, mohalla, red due, Waada pil
     assert.ok(html.includes('Waada: 2099-01-05'), 'promised Waada pill renders');
     assert.ok(html.includes('Waada Expired: 2020-01-05'), 'broken Waada pill renders');
 
-    // Bottom row: Polite / Final Notice / Collect.
+    // Bottom row: Polite / Final / Collect.
     assert.ok(html.includes('defaulter-reminder-polite'), 'Polite Reminder button renders');
-    assert.ok(html.includes('defaulter-reminder-final'), 'Final Notice button renders');
+    assert.ok(html.includes('defaulter-reminder-final'), 'Final button renders');
     assert.ok(html.includes('defaulter-collect-btn'), 'Collect button renders');
     // Top Defaulters polish (2026-11-13): the Polite label is shortened
     // to '🟢 Polite' — the long label ellipsized by design at 360px (three
@@ -832,7 +836,15 @@ test('Card markup - stacked card renders rank, name, mohalla, red due, Waada pil
     // long label; the risk-segment chip was the only other source of the
     // long string and is no longer rendered on the card.
     assert.ok(html.includes('🟢 Polite'), 'Polite label renders');
-    assert.ok(html.includes('🟠 Final Notice'), 'Final Notice label renders');
+    // Top Defaulters modal cards polish (2026-11-22): the Final label is
+    // shortened to '🟠 Final' — '🟠 Final Notice' (~118px) ellipsized to
+    // 'Final ...' in the ~93px column at 360px (same Polite precedent as
+    // 2026-11-13: 'Polite Reminder' → '🟢 Polite'). The button's title
+    // and 'disconnection' draft handler are unchanged, and the SISP-38
+    // escalation badge label 'Final Notice' is a different element.
+    assert.ok(html.includes('🟠 Final'), 'Final label renders');
+    assert.ok(!/defaulter-reminder-final"[^>]*>\s*🟠 Final Notice/.test(html),
+      'long Final Notice label must be gone from the action button');
     assert.ok(html.includes('💵 Collect'), 'Collect label renders');
 
     // Secondary row: the retained Waada / Contacted / Profile.

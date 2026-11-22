@@ -47,6 +47,7 @@
 }
 .sr-primary-action:hover { filter: brightness(1.08); }
 .sr-primary-action[hidden] { display: none !important; }
+.sr-back-button[hidden] { display: none !important; }
 
 /* Plan B — one header pattern: the context action lives in its own
    actions group so back / title / actions keep one layout on every
@@ -147,6 +148,24 @@ body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expen
   .sr-title-block { grid-area: title; }
   .sr-header-actions { grid-area: action; }
   .sr-primary-action { width: 100%; }
+  /* Area Analytics screen polish: no Home back button (Home is in the
+     bottom nav), so the header is one row — title left, compact Export
+     pill right. Scoped to this screen only; every other screen keeps
+     the two-row phone header and the solid-green action. The pill reuses
+     the .secondary-button pattern (border #dce6e1, white, ink text) —
+     all three hex values already occur in this file, so no new hex. */
+  body.sr-screen-mode[data-screen="analytics"] .sr-screen-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "title action";
+  }
+  body.sr-screen-mode[data-screen="analytics"] .sr-primary-action {
+    width: auto;
+    border-radius: var(--radius-pill);
+    border: 1px solid #dce6e1;
+    background: #fff;
+    color: var(--ink, #16342b);
+    box-shadow: none;
+  }
   .sr-screen-title { font-size: 20px; }
   /* On phones the header scrolls away so it never covers content. */
   .sr-screen-header { position: static; }

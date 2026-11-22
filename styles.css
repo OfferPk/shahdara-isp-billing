@@ -107,6 +107,13 @@ body{font-family:var(--font-sans)}
 .view-nav-button:hover{border-color:#8db8a5;background:#f4faf7}.view-nav-button[aria-current=page]{background:var(--green);border-color:var(--green);color:#fff}
 .view-nav-button:focus-visible,.phase3-form button:focus-visible,.phase3-form input:focus-visible,.phase3-form select:focus-visible,.phase3-form textarea:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 .phase3-view{max-width:1320px;margin:0 auto;padding:8px 24px 28px}.phase3-pane{display:grid;gap:16px;min-width:0}.phase3-heading,.table-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.phase3-heading h2{margin:0;font:700 24px Manrope,system-ui,sans-serif;letter-spacing:-.55px}.phase3-heading h3,.table-heading h3,.chart-card h3{margin:0;color:#244a3e;font:700 16px Manrope,system-ui,sans-serif}.phase3-note,.chart-caption,.chart-card figcaption p{margin:6px 0 0;color:#5c6e66;font-size:11px;line-height:1.55}.local-only-badge{margin:3px 0 0;padding:8px 11px;border:1px solid #d6e9df;border-radius:999px;background:#f2faf6;color:#3d6d59;font-size:11px;font-weight:700;white-space:nowrap}
+/* Area Analytics screen polish: the badge + Owner Report Pack button
+   share one balanced row inside .phase3-heading (title block first,
+   actions row second). At <=700px the heading stacks, so the row sits
+   under the title instead of the button sitting alone. Row measures
+   ~326px at 360px (badge ~172 + button ~146 + 8px gap) vs 336px
+   content — if it ever overflows, tighten the gap, never the labels. */
+.phase3-heading .phase3-heading-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .phase3-metric-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.phase3-metric{min-width:0;min-height:112px;padding:14px 13px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 5px 18px rgba(22,52,43,.045);display:flex;flex-direction:column;gap:5px}.phase3-metric span{font-size:11px;font-weight:700;color:#60756c;line-height:1.4}.phase3-metric strong{color:var(--green);font:700 clamp(18px,2vw,24px)/1.2 Manrope,system-ui,sans-serif;overflow-wrap:anywhere}.phase3-metric small{margin-top:auto;color:#5c6e66;font-size:9px;line-height:1.4}.inventory-metric-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 .phase3-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.chart-card,.table-card{min-width:0;padding:16px;background:#fff;border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow)}.chart-card{margin:0}
 /* Mohalla coverage dashboard: green covered-% bars + red remaining lines (tokens only, no new hex). */
@@ -1640,6 +1647,7 @@ is only ~300px wide. */
 .reports-tab{flex:1 0 auto;min-height:44px;border:1px solid transparent;border-radius:9px;background:transparent;color:#34584a;padding:7px 12px;font:700 12px/1.2 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;touch-action:manipulation}
 .reports-tab[aria-pressed="true"]{background:var(--ds-tab-active-bg);color:var(--ds-tab-active-text);border-color:var(--ds-line)}
 .profile-tabs::-webkit-scrollbar{display:none}
+.analytics-tab-bar::-webkit-scrollbar{display:none}
 .profile-tab-button{flex:1 0 auto;min-height:44px;border:1px solid transparent;border-radius:9px;background:transparent;color:#34584a;padding:7px 12px;font:700 12px/1.2 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;touch-action:manipulation}
 /* DS-0: equal-flex segmented control (the base rule above keeps its
    #34584a text colour — no exact token exists for it, so the base rule
@@ -2476,6 +2484,11 @@ voice-armed controls and the answer-waiting dot. Token colours only. */
 .area-breakdown-card-head h4{margin:0}
 .area-breakdown-badge{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--muted,#60756c);white-space:nowrap}
 [data-area-network-tab][hidden]{display:none!important}
+/* Area Analytics screen polish (insights D1): the lower 6-tab bar is
+   static, scoped to .area-network-tabs — the bare .profile-tabs rule
+   stays sticky for the customer profile view. Two sticky bars at the
+   same top painted the lower bar over the top one. */
+.area-network-tabs{position:static}
 .area-network-tabs .profile-tab-button{flex:1 0 auto}
 .ds-card-chevron{flex:0 0 auto;color:var(--muted,#60756c);font-size:13px}
 button.ds-card-head{width:100%;text-align:start;background:transparent;border:0;padding:0;cursor:pointer;font:inherit;color:inherit}
@@ -18519,10 +18532,14 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
  * so it stays below the topbar (z-index 50) while the operator scrolls
  * the 300+ tools. A collapsed card shows only its summary row; the
  * panel owns visibility, never the card sections themselves. */
-.analytics-tab-bar{position:sticky;top:78px;z-index:2;display:flex;gap:4px;overflow-x:auto;padding:4px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-tabs-bg);backdrop-filter:blur(12px)}
-.analytics-tab-bar .profile-tab-button{flex:1 1 0;font-size:var(--text-tab);display:flex;align-items:center;justify-content:center;min-width:0}
+.analytics-tab-bar{position:sticky;top:78px;z-index:2;display:flex;gap:4px;overflow-x:auto;padding:4px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-tabs-bg);backdrop-filter:blur(12px);scrollbar-width:none}
+.analytics-tab-bar .profile-tab-button{flex:0 0 auto;font-size:var(--text-tab);display:flex;align-items:center;justify-content:center;min-width:0;padding:0 14px;border-radius:12px}
+/* Area Analytics screen polish: the topbar is 58px at <=620px
+   (styles.css:10), so the sticky tab bar sticks flush under it
+   instead of floating 20px below it. */
+@media(max-width:620px){.analytics-tab-bar{top:58px}}
 .analytics-tab-panel{display:grid;gap:16px;min-width:0}
-.analytics-link-card{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-card)}
+.analytics-link-card{display:grid;gap:4px;padding:10px 12px;padding-right:56px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-card)}
 .analytics-link-card .chart-caption{margin:0}
 .analytics-card-summary{display:flex;align-items:center;gap:8px;min-height:44px}
 .analytics-card-toggle{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;padding:0;border:0;background:transparent;cursor:pointer;text-align:left;color:inherit;font:inherit}

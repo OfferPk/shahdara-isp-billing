@@ -13669,6 +13669,10 @@ dialog.help-guide-modal::backdrop {
 .top-defaulters-modal {
   max-width: 960px;
   width: 95vw;
+  /* Top Defaulters modal polish (2026-11-22): the dialog owns the
+     scroll at phone widths, so scrolled sections (KPI grid, chart)
+     clear the ~97px sticky header instead of sliding under it. */
+  scroll-padding-top: 100px;
 }
 
 .defaulters-kpi-grid {
@@ -13814,10 +13818,16 @@ dialog.help-guide-modal::backdrop {
   flex-shrink: 0 !important;
 }
 
+/* Top Defaulters modal polish (2026-11-22): pt-4 top padding + stick
+   at top 0 — the old 2px pad with the generic top:-16px left the 36px
+   ✕ ~2px of headroom against the dialog edge, so any dvh shift cut
+   the ✕ + eyebrow. top: 0 is harmless on desktop (the generic sticky
+   rule lives only in the ≤640px block). */
 .top-defaulters-modal .billing-modal-header {
-  padding-top: 2px !important;
+  padding-top: 16px !important;
   padding-bottom: 6px !important;
   margin-bottom: 8px !important;
+  top: 0 !important;
 }
 
 /* Top Defaulters polish (2026-11-13): compact the header so the Urdu
@@ -14052,6 +14062,78 @@ dialog.help-guide-modal::backdrop {
   width: 100%;
   text-align: start;
   white-space: normal;
+}
+
+/* Top Defaulters modal polish (2026-11-22): flat Actions drawer —
+   Prelock full-width WhatsApp-green primary on top, the other seven
+   buttons in one balanced 2-column grid (Copy Briefing spans the last
+   row), Router Scripts full-width below. Drawer ≈332px fits the pinned
+   45dvh cap with no inner scrollbar. Tokens + already-present hex
+   only — no new hex. */
+.defaulters-action-groups .td-prelock-btn {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 44px;
+  background: linear-gradient(90deg, #25d366, #128c7e);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.td-actions-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  min-width: 0;
+}
+
+.td-actions-grid .secondary-button {
+  width: 100%;
+  min-height: 44px;
+  text-align: start;
+  white-space: normal;
+}
+
+.td-action-wide {
+  grid-column: 1 / -1;
+}
+
+/* Semantic tints (2026-11-22): Lock Due rose, Thermal blue, MikroTik
+   Lock rose, MikroTik Restore emerald — all --qc-* tokens, so dark
+   mode adapts automatically. The white-space: normal on the grid
+   buttons (above) beats the .lock-due-toggle nowrap rule: the old
+   nowrap pinned the label on one line in the narrow 1fr Follow-up
+   column, but in the flat grid the label wraps to 2 lines instead of
+   overflowing its column. */
+.defaulters-action-groups .td-btn-lock-due {
+  background: var(--qc-rose-bg);
+  color: var(--qc-rose-text);
+  border: 1px solid var(--qc-rose-border);
+  min-height: 44px;
+}
+
+.td-actions-grid .td-btn-thermal {
+  background: var(--qc-blue-bg);
+  color: var(--qc-blue-text);
+  border: 1px solid var(--qc-blue-border);
+  min-height: 44px;
+}
+
+.defaulters-action-group--wide .td-btn-mikrotik-lock {
+  background: var(--qc-rose-bg);
+  color: var(--qc-rose-text);
+  border: 1px solid var(--qc-rose-border);
+  min-height: 44px;
+}
+
+.defaulters-action-group--wide .td-btn-mikrotik-restore {
+  background: var(--qc-mint-bg);
+  color: var(--qc-mint-strong-text);
+  border: 1px solid var(--qc-mint-border);
+  min-height: 44px;
 }
 
 [data-theme="dark"] .defaulter-card {

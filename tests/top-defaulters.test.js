@@ -655,12 +655,14 @@ test('HTML - card list is the primary content: filters first, actions grouped an
     assert.ok(pos > detailsStart && pos < detailsEnd, `${id} must be inside the actions <details>`);
   }
 
-  // The drawer is grouped under 3 mini-labels in a compact 2-column
-  // grid: Follow-up + Print/Export side by side, Router Scripts
-  // full-width below.
-  for (const label of ['Follow-up', 'Print / Export', 'Router Scripts']) {
-    assert.ok(modalHtml.includes(`>${label}<`), `missing Actions group label "${label}"`);
-  }
+  // Top Defaulters modal polish (2026-11-22, user decision): the drawer
+  // is a FLAT grid now — the 'Follow-up' + 'Print / Export' group
+  // labels are gone (re-pin of the 2026-11-13 grouping); only the
+  // 'Router Scripts' label stays. Prelock is full-width on top, the
+  // other seven buttons share one balanced 2-column grid.
+  assert.ok(modalHtml.includes('>Router Scripts<'), 'missing Actions group label "Router Scripts"');
+  assert.ok(!modalHtml.includes('>Follow-up<'), 'Follow-up group label must be gone (flat grid)');
+  assert.ok(!modalHtml.includes('>Print / Export<'), 'Print / Export group label must be gone (flat grid)');
   assert.ok(modalHtml.includes('class="defaulters-action-groups"'), 'missing 2-column groups grid');
   assert.ok(modalHtml.includes('defaulters-action-group--wide'), 'Router Scripts group must span both columns');
   // Follow-up group order is Prelock, Hide Contacted, Lock Due.

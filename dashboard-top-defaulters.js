@@ -463,44 +463,48 @@ export function renderTopDefaultersSvg(defaulterData) {
   // title would collide with a top-right badge at this width); the legend
   // row costs 20px of height (+45 -> +65).
   const svgWidth = 380;
-  const barHeight = 22;
-  const barGap = 10;
+  // Top Defaulters modal polish (2026-11-22): stacked 2-line rows —
+  // line 1 rank + name + muted area/tenure with the amount right-aligned,
+  // line 2 a full-width 10px bar below. Row pitch 32 -> 46 so the two
+  // lines fit; the bar no longer starts at x=120, so it can no longer
+  // paint over the name's tail.
+  const barHeight = 10;
+  const rowPitch = 46;
   const startY = 105;
-  const labelWidth = 120;
-  const maxBarWidth = 160;
-  const height = Math.max(220, startY + (accounts.length * (barHeight + barGap)) + 65);
-  const legendY = startY + (accounts.length * (barHeight + barGap)) + 8;
+  const barMaxWidth = 344;
+  const height = Math.max(220, startY + (accounts.length * rowPitch) + 65);
+  const legendY = startY + (accounts.length * rowPitch) + 16;
 
   const maxDues = accounts.length ? Math.max(...accounts.map(a => a.totalOutstanding)) : 1000;
 
   const barElements = accounts.map((acc, index) => {
-    const y = startY + index * (barHeight + barGap);
-    const width = Math.max(12, Math.round((acc.totalOutstanding / maxDues) * maxBarWidth));
+    const y = startY + index * rowPitch;
+    const width = Math.max(12, Math.round((acc.totalOutstanding / maxDues) * barMaxWidth));
     const isCritical = acc.riskCategory === 'critical';
     const isHigh = acc.riskCategory === 'high';
     const barFill = isCritical ? 'url(#defaulterCritGrad)' : isHigh ? 'url(#defaulterHighGrad)' : 'url(#defaulterModGrad)';
-    // Name trimmed to 15 chars: at 12px the label column (120px from
-    // x=18) fits ~15 chars before the bar starts.
-    const safeName = escapeXml(acc.name.length > 15 ? acc.name.slice(0, 14) + '…' : acc.name);
+    // Name trimmed to 28 chars: at 12px the stacked line-1 (rank + name
+    // + muted area, amount right-aligned at x=362) fits ~28 chars before
+    // the amount starts. The old 15-char trim existed because the bar
+    // started at x=120 and painted over the name's tail.
+    const safeName = escapeXml(acc.name.length > 28 ? acc.name.slice(0, 27) + '…' : acc.name);
     const safeArea = escapeXml(acc.area || 'Shahdara');
 
     return `
       <g class="defaulter-svg-row" data-cust-id="${escapeXml(acc.id)}">
-        <!-- Rank and Name -->
-        <text x="18" y="${y + 15}" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="var(--text-color, #1e293b)">
-          #${acc.rank} ${safeName}
-        </text>
-        <text x="18" y="${y + 26}" font-family="system-ui, sans-serif" font-size="10" fill="var(--text-muted, #64748b)">
-          ${safeArea} · ${acc.unpaidMonthsCount}m
+        <!-- Rank, Name + muted area/tenure on line 1 -->
+        <text x="18" y="${y + 14}" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="var(--text-color, #1e293b)">
+          #${acc.rank} ${safeName}<tspan font-size="10" font-weight="400" fill="var(--text-muted, #64748b)">  ${safeArea} · ${acc.unpaidMonthsCount}m</tspan>
         </text>
 
-        <!-- Bar Container and Bar -->
-        <rect x="${labelWidth}" y="${y}" width="${width}" height="${barHeight}" rx="4" fill="${barFill}"/>
+        <!-- Full-width bar on line 2 -->
+        <rect x="18" y="${y + 22}" width="${width}" height="${barHeight}" rx="5" fill="${barFill}"/>
 
-        <!-- Amount Value Label -->
-        <text x="${labelWidth + width + 8}" y="${y + 15}" font-family="system-ui, sans-serif" font-size="12" font-weight="700" style="fill:${isCritical ? 'var(--td-risk-critical)' : isHigh ? 'var(--td-risk-high)' : 'var(--td-risk-moderate)'}">
-          PKR ${acc.totalOutstanding.toLocaleString()}
-        </text>
+        <!-- Amount Value Label (right-aligned, no longer glued to the bar).
+             One line: no leading/trailing whitespace inside the text
+             element, so the label's end anchor sits exactly on the
+             amount (whitespace would render as a trailing space). -->
+        <text x="362" y="${y + 14}" font-family="system-ui, sans-serif" font-size="12" font-weight="700" text-anchor="end" style="fill:${isCritical ? 'var(--td-risk-critical)' : isHigh ? 'var(--td-risk-high)' : 'var(--td-risk-moderate)'}">PKR ${acc.totalOutstanding.toLocaleString()}</text>
       </g>
     `;
   }).join('');
@@ -547,9 +551,13 @@ export function renderTopDefaultersSvg(defaulterData) {
       `}
 
       ${accounts.length ? `
-      <!-- Risk legend (one line, between the last bar and the telemetry
-           divider; the spec's "top of the chart" is the crowded title
-           row, so the legend lives here where it fits at 380 wide) -->
+      <!-- Legend divider + risk legend (one line, between the last bar
+           and the telemetry divider; the spec's "top of the chart" is
+           the crowded title row, so the legend lives here where it fits
+           at 380 wide). Modal polish 2026-11-22: the divider is the
+           mt-3 pt-2.5 border-t equivalent, and the legend sits 30px
+           below the last bar bottom (was 18px). -->
+      <line x1="20" y1="${legendY - 12}" x2="360" y2="${legendY - 12}" stroke="var(--border-color, #e2e8f0)" stroke-width="1"/>
       <g font-family="system-ui, sans-serif" font-size="10" fill="var(--text-color, #1e293b)">
         <circle cx="26" cy="${legendY - 4}" r="5" style="fill:var(--td-risk-critical)"/>
         <text x="36" y="${legendY}">Critical (3m+ / 60d+)</text>

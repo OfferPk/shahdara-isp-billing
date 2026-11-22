@@ -3084,6 +3084,43 @@ const DASHBOARD_CHARTS_TABS = {
 };
 let dashboardChartsTab = 'revenue';
 
+// De-dup (user, 2026-11-22): the four Home sections below the charts region
+// each live in exactly ONE charts tab. They are single instances in
+// index.html — not chart cards and not inside .dashboard-charts-grid — so
+// the card sync below never touched them and they rendered under every tab.
+// Tab → section id; the sections keep their DOM positions (children of
+// #billingDashboard, same order) so the Plan 583 widget reorder, the
+// hisaab list and the banner-last-child pin all hold untouched.
+// Homes: provider cost → Network (upstream provider costs, with
+// chart-card-upstream); Pending Works → Customers (customer-count
+// triggers); System Health + data-safety banner → Network (the
+// device-health pair stays together).
+const DASHBOARD_CHARTS_SECTIONS = {
+  network: ['homeProviderCostDetails', 'systemHealthSection', 'dataSafetyBanner'],
+  customers: ['pendingWorksSection'],
+  revenue: [],
+  forecast: []
+};
+
+// Returns the single home tab for a section id, or null when the id is not
+// one of the four de-dupped sections (e.g. the charts collapsible itself).
+// Exported for the scroll-restore path (dashboard-place.js caller, app.js):
+// restoring a saved open section must activate its home tab first.
+export function dashboardChartsTabForSection(sectionId) {
+  for (const [tab, ids] of Object.entries(DASHBOARD_CHARTS_SECTIONS)) {
+    if (ids.includes(sectionId)) return tab;
+  }
+  return null;
+}
+
+// Sets the active charts tab and re-syncs card + section visibility.
+// Unknown tabs are ignored (the current tab stands).
+export function setDashboardChartsTab(tab) {
+  if (!Object.prototype.hasOwnProperty.call(DASHBOARD_CHARTS_TABS, tab)) return;
+  dashboardChartsTab = tab;
+  syncDashboardChartsTabs();
+}
+
 export function syncDashboardChartsTabs() {
   // Document guard, following this file's own convention: the dashboard
   // tests stub `document` with `getElementById` only, so an unguarded
@@ -3098,6 +3135,22 @@ export function syncDashboardChartsTabs() {
     if (!tabbed) return; // telecom diagnostics cards (24-69) stay outside the tab system
     card.hidden = !activeCards.some((cls) => card.classList.contains(cls));
   });
+  // De-dup: the four Home sections below the grid get the same treatment
+  // as the cards. The scoped `[hidden]` rules in dashboard.css are
+  // LOAD-BEARING here too: `.summary-card` and `.data-loss-warning` set
+  // author `display: flex`, which beats the UA `[hidden]` rule (the
+  // <details> provider-cost section needs no rule — no author display).
+  // The getElementById guard keeps the old path for stubs that provide
+  // querySelector but not getElementById.
+  if (typeof document.getElementById === 'function') {
+    const activeSections = DASHBOARD_CHARTS_SECTIONS[dashboardChartsTab] || DASHBOARD_CHARTS_SECTIONS.revenue;
+    for (const ids of Object.values(DASHBOARD_CHARTS_SECTIONS)) {
+      for (const id of ids) {
+        const section = document.getElementById(id);
+        if (section) section.hidden = !activeSections.includes(id);
+      }
+    }
+  }
   document.querySelectorAll('#dashboardChartsTabBar .dashboard-charts-tab-button').forEach((btn) => {
     const isActive = btn.dataset.chartsTab === dashboardChartsTab;
     if (btn.setAttribute) btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
@@ -3119,6 +3172,12 @@ export function setupDashboardChartsTabs() {
 
 export function renderDashboardCharts(state, referenceDate = new Date(), options = {}) {
   if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+  // De-dup: the tab sync runs BEFORE the Sharafat-22 lazy return below —
+  // it only toggles `hidden` on existing elements (no chart work), and the
+  // four Home sections live OUTSIDE the collapsible, so they must be tabbed
+  // from first paint even while the charts <details> is still closed.
+  setupDashboardChartsTabs();
+  syncDashboardChartsTabs();
   // Sharafat 22 — lazy charts: the charts <details> is collapsed by
   // default, so skip the whole render (22 SVG builds, 6 button-group
   // syncs, 13 modal setups, telecom queue, events wiring) while it is
@@ -3373,9 +3432,6 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupRouteDensityModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
-
-  setupDashboardChartsTabs();
-  syncDashboardChartsTabs();
 
   // Telemetry Lab: the heavy telecom charts + diagnostics modals now load
   // lazily from renderAnalytics (app.js) when the Lab panel opens — the

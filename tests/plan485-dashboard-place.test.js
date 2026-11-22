@@ -209,7 +209,13 @@ test('wiring: the dashboard binds the keeping once, restores once, and offers a 
   assert.ok(app.includes("$('#dplBackToTop')?.addEventListener('click'"), 'back-to-top button is wired');
   assert.ok(app.includes('clearDashboardPlace(storageAvailable ? localStorage : null)'), 'back-to-top clears the saved place');
   assert.ok(app.includes('let dashboardPlaceRestored = false;'), 'restore runs once per page load');
-  assert.ok(app.includes('restoreDashboardPlace(document, window, storageAvailable ? localStorage : null)'), 'first dashboard render restores the saved place');
+  // De-dup: the restore call gained a 4th argument (the tab-activation
+  // callback) so a saved open section opens in its home tab — the pinned
+  // text follows the call, the intent (first render restores the place)
+  // is unchanged.
+  assert.ok(app.includes('restoreDashboardPlace(document, window, storageAvailable ? localStorage : null, (sectionId) => {'), 'first dashboard render restores the saved place');
+  assert.ok(app.includes('dashboardChartsTabForSection(sectionId)'), 'restore maps the saved section to its home tab');
+  assert.ok(app.includes('setDashboardChartsTab(homeTab)'), 'restore activates the home tab before opening the section');
 });
 
 test('i18n: the back-to-top key exists in English and Urdu, with Urdu script in the Urdu value', () => {

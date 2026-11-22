@@ -42,6 +42,7 @@ import { calculateCreditBalances, renderDashboardCreditBalances } from './dashbo
 import { calculateRefundsThisMonth, renderDashboardRefunds } from './dashboard-refunds.js?v=1.11.0';
 import { calculatePrintSummary, renderPrintSummary } from './dashboard-print-summary.js?v=1.11.0';
 import { bindDashboardPlaceKeeping, clearDashboardPlace, restoreDashboardPlace } from './dashboard-place.js?v=1.11.0';
+import { dashboardChartsTabForSection, setDashboardChartsTab } from './dashboard-charts.js?v=1.11.0';
 import { applyStoredDashboardLabels, dashboardLabelsToggleText, getDashboardLabelScript, setDashboardLabelScript } from './dashboard-urdu-labels.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
@@ -4385,7 +4386,16 @@ function renderDashboard() {
   // the top.
   if (!dashboardPlaceRestored) {
     dashboardPlaceRestored = true;
-    restoreDashboardPlace(document, window, storageAvailable ? localStorage : null);
+    // De-dup: a saved open section lives in exactly one charts tab, so the
+    // restore activates its home tab before opening it — otherwise it would
+    // open hidden (and scroll to a wrong position) when another tab is
+    // active. Unknown ids (e.g. the charts collapsible itself) activate
+    // nothing. The four backup/health actions are reachable only from
+    // their home tab after the dedup, by design.
+    restoreDashboardPlace(document, window, storageAvailable ? localStorage : null, (sectionId) => {
+      const homeTab = dashboardChartsTabForSection(sectionId);
+      if (homeTab) setDashboardChartsTab(homeTab);
+    });
   }
   // Area & Mohalla Analytics module: re-sync the chrome after
   // every render (the toggle labels reset on a language change,

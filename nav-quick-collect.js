@@ -2854,6 +2854,9 @@ export function setupQuickCollectModal({
   // Plan 376: the offered pre-fill line under the amount field (null
   // when the host page predates it).
   const prefillLine = typeof document !== 'undefined' ? document.getElementById('quickCollectPrefillLine') : null;
+  // Plan 628: the always-visible bill-month line under the amount
+  // field (null when the host page predates it).
+  const billMonthLine = typeof document !== 'undefined' ? document.getElementById('quickCollectBillMonthLine') : null;
   // Plan 377: the live amount-in-words line beside the amount field
   // (null when the host page predates it).
   const wordsLine = typeof document !== 'undefined' ? document.getElementById('quickCollectAmountWordsLine') : null;
@@ -3025,6 +3028,30 @@ export function setupQuickCollectModal({
     const billPart = `Bill ${month} (PKR ${dues.toLocaleString('en-PK')})`;
     prefillLine.textContent = receipt ? `${billPart} · Next: ${receipt}` : billPart;
     prefillLine.hidden = false;
+  }
+  // Plan 628: the form always states the bill month next to the
+  // amount — "Bill month: October 2026" — reading the save's own
+  // month expression (monthSelect value, else the defaults' target
+  // month), so shown == recorded by construction. When Advance is
+  // ticked the money is FOR the advance target month, so the line
+  // names it the way the Plan 382 confirm summary does ("Advance
+  // credit for December 2026"). Display only: it never hides and
+  // never touches the month logic or the save.
+  function renderBillMonthLine() {
+    if (!billMonthLine) return;
+    const month = monthSelect?.value || activeDefaults?.targetMonth;
+    if (!month) {
+      billMonthLine.textContent = '';
+      billMonthLine.hidden = true;
+      return;
+    }
+    if (advanceCheckbox?.checked) {
+      const target = advanceTargetSelect?.value || defaultAdvanceTargetMonth();
+      billMonthLine.textContent = `Advance credit for ${monthLabel(target)}`;
+    } else {
+      billMonthLine.textContent = `${t('qc_bill_month_label')}: ${monthLabel(month)}`;
+    }
+    billMonthLine.hidden = false;
   }
   // Plan 533: the live split total — leg 1 + leg 2 as typed, so the
   // operator checks the split against what the customer handed over
@@ -3952,6 +3979,10 @@ export function setupQuickCollectModal({
     // QC Modal Overhaul 2: the subtitle belongs to the picked month
     // too — a month switch re-numbers it before anything is saved.
     renderFormSubtitle();
+    // Plan 628: the bill-month line belongs to the picked month too —
+    // a month switch, and the Plan 539 draft restore that runs this
+    // same refresh, re-state it before anything is saved.
+    renderBillMonthLine();
     // Plan 385: the settlement preview belongs to the picked month
     // too — a month switch re-settles it before anything is saved.
     renderSettlementPreview();
@@ -4003,6 +4034,11 @@ export function setupQuickCollectModal({
   // target month moves.
   advanceCheckbox?.addEventListener('change', () => renderSettlementPreview());
   advanceTargetSelect?.addEventListener('change', () => renderSettlementPreview());
+  // Plan 628: the bill-month line follows the Advance tag too —
+  // ticking it names the advance target month instead of the bill
+  // month, and moving the target re-names it.
+  advanceCheckbox?.addEventListener('change', () => renderBillMonthLine());
+  advanceTargetSelect?.addEventListener('change', () => renderBillMonthLine());
   // Plan 386: ticking Advance hides the choice (the money is already
   // advance), and clearing it re-offers the choice when the amount
   // exceeds the dues.
@@ -5282,6 +5318,10 @@ export function setupQuickCollectModal({
       // shown for the picked customer, so the operator can tell the
       // customer which bill it settles and which number it will get.
       renderFormSubtitle(options);
+      // Plan 628: the form opens with the bill month already stated
+      // next to the amount, so the operator sees which bill the
+      // payment is for before anything is saved.
+      renderBillMonthLine();
       // Plan 385: the form opens with the settlement preview already
       // shown for the suggested amount, so the operator can tell the
       // customer which months it settles before anything is saved.
@@ -5479,6 +5519,8 @@ export function setupQuickCollectModal({
       // checked state (closing never resets it) — re-render so the
       // subtitle is visible again for the fresh sheet.
       renderFormSubtitle(options);
+      // Plan 628: re-state the bill month for the fresh sheet too.
+      renderBillMonthLine();
       currentScreenshotDataUrl = '';
       if (screenshotInput) screenshotInput.value = '';
       if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = true;

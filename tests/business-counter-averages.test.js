@@ -140,8 +140,8 @@ test('C5 milestone messages exist in EN + UR; 1000-day toast carries the party e
 });
 
 test('P1 parity total is the new total in EN + UR (+8 keys)', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5222);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5222);
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5223);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5223);
 });
 
 test('P2 the 8 new keys exist in both dicts', () => {

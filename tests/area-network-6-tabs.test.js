@@ -63,8 +63,8 @@ test('6-tab bar: six numbered buttons in order, labelled by the six new keys', (
 });
 
 test('parity: the six new keys move the suite to the new total in both dicts', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5222, 'EN parity');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5222, 'UR parity');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5223, 'EN parity');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5223, 'UR parity');
 });
 
 test('breakdown cards: one header row with a count · rate badge, then Billed | Collected | Due', () => {

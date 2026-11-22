@@ -2266,10 +2266,19 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // filter threshold shows why it sits in that filter even when
     // its scorer tier is Medium.
     const priorityTierClass = cardPriority ? `qc2-priority--${cardPriority.tier}` : '';
+    // QC modal pills polish (2026-11-22): High + ≥2k renders ONE
+    // unified pill ("🔥 High priority · ≥2k"), skipping the separate
+    // tag. Medium + ≥2k keeps separate chips (D5); the label composes
+    // from the existing keys (D6), no new i18n key.
+    const isHighAndHighBalance = Boolean(cardPriority)
+      && cardPriority.tier === 'high'
+      && qc2HasHighBalance(c.totalDues);
     const priorityBadge = cardPriority
-      ? `<span class="${cardPriority.badgeClass} qc2-badge--${cardPriority.tier}">${escapeHtml(t(cardPriority.labelKey))}</span>`
+      ? isHighAndHighBalance
+        ? `<span class="ds-chip ds-chip--danger qc2-badge--high qc-unified-priority">🔥 ${escapeHtml(t('qc2_priority_high'))} · ${escapeHtml(t('qc2_high_balance'))}</span>`
+        : `<span class="${cardPriority.badgeClass} qc2-badge--${cardPriority.tier}">${escapeHtml(t(cardPriority.labelKey))}</span>`
       : '';
-    const highBalanceTag = qc2HasHighBalance(c.totalDues)
+    const highBalanceTag = !isHighAndHighBalance && qc2HasHighBalance(c.totalDues)
       ? `<span class="qc2-high-balance-tag">${escapeHtml(t('qc2_high_balance'))}</span>`
       : '';
     // QC Modal Fix: the subtitle under the name is "Mohalla •

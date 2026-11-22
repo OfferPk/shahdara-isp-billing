@@ -8697,6 +8697,15 @@ html, body {
   gap: 6px;
   overflow-x: auto;
   padding-bottom: 2px;
+  /* QC modal pills polish (2026-11-22): the row scrolls by design
+     (the four pills total ~346-380px against a 316px row) but the
+     thick scrollbar is hidden — same pair as .qc-customer-list /
+     .profile-tabs / .recovery-priority-pills. The row still scrolls. */
+  scrollbar-width: none;
+}
+
+.qc-filter-pills::-webkit-scrollbar {
+  display: none;
 }
 
 /* QC-7: at phone widths (<= 620px) the QC filter pills stay on ONE
@@ -8741,6 +8750,35 @@ html, body {
   background: var(--ds-brand);
   color: #ffffff;
   border-color: var(--ds-brand);
+}
+
+/* QC modal pills polish (2026-11-22): per-pill active fills — a rich
+   solid tint per filter instead of the generic DS-0 Emerald, so the
+   active filter reads as its own colour. Placed AFTER the generic
+   .is-active rule (and at higher specificity) so the generic rule
+   stays intact and pinned. Parent decisions: All badge bg reuses
+   --qc-indigo-text (D1b, zero new hex — the spec's indigo-600 has no
+   token); Paid badge uses --color-emerald-dark (D2 — the spec's
+   emerald-600 #059669 has no exact token, so the established 700
+   shade is used instead; disclosed in the PR body). Dark mode: the
+   existing dark .is-active rule (DS-0 Emerald) still wins there by
+   specificity — the per-pill active fills are light-mode only. */
+.quick-collect-filter-chip.qc-filter-high.is-active {
+  background: var(--qc-rose-strong-text);
+  border-color: var(--qc-rose-strong-text);
+  color: #ffffff;
+}
+
+.quick-collect-filter-chip.qc-filter-all.is-active {
+  background: var(--qc-indigo-text);
+  border-color: var(--qc-indigo-text);
+  color: #ffffff;
+}
+
+.quick-collect-filter-chip.qc-filter-paid.is-active {
+  background: var(--color-emerald-dark);
+  border-color: var(--color-emerald-dark);
+  color: #ffffff;
 }
 
 .qc-customer-list {
@@ -10481,6 +10519,11 @@ button:not([hidden]).eds-panel-dismiss {
    stays (it still serves Field Mode). */
 #quickCollectModal .qc3-card-main {
   flex-wrap: wrap;
+  /* QC modal pills polish (2026-11-22, D7): gap 12px -> 8px so the
+     name column gets ~4px more room. Added in place to this existing
+     rule — never a second rule with this selector, because the
+     one-row test reads this block first-occurrence for flex-wrap. */
+  gap: 8px;
 }
 /* Quick Collect CSS tightening (user instruction 2026-11-13): the
    chips row — priority badge, High-balance tag and tier labels on
@@ -10546,6 +10589,25 @@ button:not([hidden]).eds-panel-dismiss {
   -webkit-box-orient: vertical;
   white-space: normal;
   overflow: hidden;
+  /* QC modal pills polish (2026-11-22, parent decision D7): the name
+     wraps BETWEEN words, never mid-word — break-word splits a word
+     only when the word itself overflows the line, and word-break:
+     normal states the never-split-mid-word behaviour explicitly.
+     (The spec's split-everywhere premise was verified wrong: no such
+     rule exists anywhere in the repo, and the exact splitter on the
+     phone is unverified — the narrow 2-line clamp column or a stale
+     cached build. This fix addresses the visible defect either way;
+     the 360px on-phone check closes the loop.) */
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/* QC modal pills polish (2026-11-22, D7): tighten the #ID badge
+   padding (4px 6px -> 3px 5px) so the name column gets ~2px more
+   room. Modal-scoped — Field Mode shares .qc-cust-num and is
+   untouched. */
+#quickCollectModal .qc-cust-num {
+  padding: 3px 5px;
 }
 
 /* QC Cash Modal Overhaul — the filter chips' focus ring goes Emerald
@@ -10943,7 +11005,13 @@ button:not([hidden]).eds-panel-dismiss {
      needs on phone fonts, where even the minimal figures wrapped. */
   justify-content: space-between;
   align-items: center;
-  gap: 4px 0;
+  /* QC modal pills polish (2026-11-22, parent decision D4 — gap-only):
+     the column gap goes 0 -> 8px, so "Today: PKR 0" and "Round: 0"
+     no longer collide into "Today: PKR 0Round: 0". The '•' separator
+     stays deleted (C5 bans its rule) and no separator element is
+     added — the gap alone separates the two lines, and the small case
+     still fits one 292px row. */
+  gap: 4px 8px;
   margin: 8px 0 0;
   padding: 2px 10px;
   border-radius: 10px;
@@ -10964,8 +11032,9 @@ button:not([hidden]).eds-panel-dismiss {
 }
 /* QC picker overflow item 5 (2026-11-19): the '•' separator ::before
    is deleted — it cost ~17px the small case needs on phone fonts.
-   The two live lines now read as one text run, "Today: PKR 800"
-   then "Round: 0", separated by the banner's own gap. */
+   The two live lines are separated by the banner's own 8px column
+   gap (QC modal pills polish, D4) — the earlier "gap" claim was wrong
+   while the gap was 0. */
 .qc-round-banner .dtp-daily-target-progress {
   display: contents;
 }
@@ -11046,6 +11115,23 @@ button:not([hidden]).eds-panel-dismiss {
   border-color: var(--qc-rose-border);
   color: var(--qc-rose-text);
 }
+
+/* QC modal pills polish (2026-11-22): All + Paid get the same soft-tint
+   treatment High already had — indigo for All, emerald for Paid.
+   Pending keeps the generic surface; its active state is already the
+   deep-emerald DS-0 fill. All border reuses --ds-border (D1b, zero new
+   hex — the spec's indigo-200 has no token). */
+.quick-collect-filter-chip.qc-filter-all {
+  background: var(--qc-indigo-bg);
+  border-color: var(--ds-border);
+  color: var(--qc-indigo-text);
+}
+
+.quick-collect-filter-chip.qc-filter-paid {
+  background: var(--qc-mint-bg);
+  border-color: var(--qc-mint-border);
+  color: var(--qc-emerald-text);
+}
 .qc-count-badge {
   display: inline-flex;
   align-items: center;
@@ -11063,6 +11149,29 @@ button:not([hidden]).eds-panel-dismiss {
 }
 .quick-collect-filter-chip.is-active .qc-count-badge {
   background: rgba(255, 255, 255, 0.25);
+}
+
+/* QC modal pills polish (2026-11-22): distinct solid count badges —
+   each badge reads as its filter's colour instead of one generic
+   slate pill, so "≥ 2k" and "3" never share a visual weight. Pending
+   keeps the generic badge. An active pill keeps the translucent-white
+   badge from the rule above (higher specificity wins when active). */
+.qc-filter-high .qc-count-badge {
+  background: var(--qc-rose-strong-text);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.qc-filter-all .qc-count-badge {
+  background: var(--qc-indigo-text);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.qc-filter-paid .qc-count-badge {
+  background: var(--color-emerald-dark);
+  color: #ffffff;
+  font-size: 11px;
 }
 
 /* (9) Header ⓘ / ↩: circular icon buttons — (i) 40×40 (Sharafat 96),
@@ -11136,6 +11245,29 @@ button:not([hidden]).eds-panel-dismiss {
   background: var(--ds-footer-bad);
   color: var(--ds-danger-strong);
 }
+
+/* QC modal pills polish (2026-11-22): the unified High + ≥2k pill —
+   one signal instead of two mismatched chips. Scoped to the modal
+   chips row at the same specificity as the shared sizing block and
+   placed after it, so its 2px 10px / 11px geometry actually wins.
+   Rose per parent decision D3 (existing --qc-rose-* tokens, zero new
+   hex); the label composes from the existing keys — sentence case
+   "High priority" (D6), so no new i18n key and parity stays
+   5,223/5,223. */
+#quickCollectModal .qc-card-chips .qc-unified-priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  border-radius: 999px;
+  background: var(--qc-rose-bg);
+  border: 1px solid var(--qc-rose-border);
+  color: var(--qc-rose-text);
+}
 .qc2-badge--medium {
   background: var(--qc-amber-soft-bg);
   color: var(--qc-amber-strong-text);
@@ -11164,6 +11296,20 @@ button:not([hidden]).eds-panel-dismiss {
   border: 1px solid var(--qc-high-border);
   border-radius: 999px;
   padding: 2px 6px;
+}
+
+/* QC modal pills polish (2026-11-22): the ≥2k-only tag gets the same
+   spec geometry as the unified pill (11px/600, 2px 10px, rose
+   --qc-rose-* tokens) — a SEPARATE scoped rule, never an edit of the
+   shared sizing block, which the one-row test pins at 24px / 2px 7px /
+   0.72rem. Medium + ≥2k keeps separate chips (parent decision D5). */
+#quickCollectModal .qc-card-chips .qc2-high-balance-tag {
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--qc-rose-bg);
+  border-color: var(--qc-rose-border);
+  color: var(--qc-rose-text);
 }
 
 /* (8) #ID badge: emerald-tint pill inline with the name. */
@@ -11611,6 +11757,38 @@ dialog.help-guide-modal::backdrop {
   background: var(--qc-rose-bg);
   border-color: var(--qc-rose-border);
   color: var(--qc-rose-text);
+}
+/* QC modal pills polish (2026-11-22): dark restatements for the All +
+   Paid tints (same tokens as the light rules — they resolve to the
+   dark surfaces automatically), mirroring the High rule above. */
+[data-theme="dark"] #quickCollectModal .quick-collect-filter-chip.qc-filter-all {
+  background: var(--qc-indigo-bg);
+  border-color: var(--ds-border);
+  color: var(--qc-indigo-text);
+}
+[data-theme="dark"] #quickCollectModal .quick-collect-filter-chip.qc-filter-paid {
+  background: var(--qc-mint-bg);
+  border-color: var(--qc-mint-border);
+  color: var(--qc-emerald-text);
+}
+/* QC modal pills polish (2026-11-22): dark-mode badge fills. The light
+   solid tokens resolve to light tints in dark mode, which would wash
+   out against white text, so the inactive badges use the dark chip
+   pattern (tint bg + tint text) instead. Scoped to inactive pills so
+   the translucent-white active badge keeps winning when a pill is
+   active. Dark rendering is unverified on-device (no Chrome on this
+   VM) — the 360px on-phone check closes the loop. */
+[data-theme="dark"] #quickCollectModal .quick-collect-filter-chip.qc-filter-high:not(.is-active) .qc-count-badge {
+  background: var(--qc-rose-bg);
+  color: var(--qc-rose-text);
+}
+[data-theme="dark"] #quickCollectModal .quick-collect-filter-chip.qc-filter-all:not(.is-active) .qc-count-badge {
+  background: var(--qc-indigo-bg);
+  color: var(--qc-indigo-text);
+}
+[data-theme="dark"] #quickCollectModal .quick-collect-filter-chip.qc-filter-paid:not(.is-active) .qc-count-badge {
+  background: var(--qc-mint-bg);
+  color: var(--qc-emerald-text);
 }
 [data-theme="dark"] #quickCollectModal .qab-amount-chip--full {
   background: var(--qc-mint-bg);

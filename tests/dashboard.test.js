@@ -4142,7 +4142,13 @@ test('renderDelinquencyPipelineSvg generates valid accessible SVG chart', () => 
   assert.ok(svg.includes('role="img"'));
   assert.ok(svg.includes('Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart'));
   assert.ok(svg.includes('Khata Wusooli &amp; Aging Pipeline'));
-  assert.ok(svg.includes('Pacing Target:'));
+  // WHY (Delinquency mobile-fit): the pacing line left the SVG for a wrapping
+  // HTML bar — a 111-char single-line SVG <text> spanned ~99% of the viewBox
+  // and clipped at 360px. The string is unchanged, only its home moved.
+  const pacingBar = svg.match(/<div class="chart-pacing-bar">([\s\S]*?)<\/div>/);
+  assert.ok(pacingBar, 'pacing bar missing from the render output');
+  assert.ok(pacingBar[1].includes('Pacing Target:'));
+  assert.ok(!/<text[^>]*>[\s\S]*?Pacing Target:[\s\S]*?<\/text>/.test(svg), 'pacing line must not remain an SVG <text>');
   assert.ok(svg.includes('Delinquent:'));
 });
 

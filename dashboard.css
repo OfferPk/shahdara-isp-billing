@@ -302,9 +302,10 @@
 }
 
 .dashboard-chart-card {
-  background: #fafcfb;
+  background: var(--surface-soft);
   border: 1px solid var(--line, #e2ece7);
   border-radius: var(--radius-md);
+  /* 14px kept: no spacing token — --space-4 (16px) would resize every chart card. */
   padding: var(--space-4) 14px 14px;
   display: flex;
   flex-direction: column;
@@ -316,7 +317,7 @@
 }
 
 .chart-title {
-  font: 700 13px/1.3 Manrope, system-ui, sans-serif;
+  font: 700 var(--text-tab)/1.3 Manrope, system-ui, sans-serif;
   color: var(--ink, #182e2a);
   margin: 0 0 3px;
 }
@@ -440,7 +441,7 @@
     gap: var(--space-3);
   }
   .dashboard-chart-card {
-    padding: var(--space-3) 10px 10px;
+    padding: var(--space-3) var(--space-2-5) var(--space-2-5);
   }
   .chart-title {
     font-size: var(--text-xs);
@@ -549,12 +550,13 @@
 
 /* Chart action button / link */
 .chart-action-link {
-  font: 700 11.5px/1.2 Manrope, system-ui, sans-serif;
+  font: 700 var(--text-table-head)/1.2 Manrope, system-ui, sans-serif;
   color: var(--green, #0e5b4d);
-  background: rgba(14, 91, 77, 0.08);
-  border: 1px solid rgba(14, 91, 77, 0.16);
+  background: color-mix(in srgb, var(--color-brand-600) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-brand-600) 16%, transparent);
+  /* 6px kept: no radius token — --radius-xs (8px) would visibly round the link more. */
   border-radius: 6px;
-  padding: 5px 10px;
+  padding: var(--space-1) var(--space-2-5);
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
@@ -562,7 +564,7 @@
 }
 
 .chart-action-link:hover {
-  background: rgba(14, 91, 77, 0.14);
+  background: color-mix(in srgb, var(--color-brand-600) 14%, transparent);
 }
 
 .chart-action-link:focus-visible {

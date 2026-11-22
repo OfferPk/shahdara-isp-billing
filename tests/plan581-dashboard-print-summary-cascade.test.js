@@ -336,10 +336,15 @@ test('blast radius: the four dialog flows are still exempt via dialog[open]', ()
 });
 
 // ---- G4 — fences ----
-test('fences: dashboard.css distinct hex stays 85 (no colour smuggled into the fix)', () => {
+test('fences: dashboard.css distinct hex stays 84 (no colour smuggled into the fix)', () => {
   const stripped = dashboardCss.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
-  assert.equal(distinct.size, 85, `dashboard.css must stay at 85 distinct hex colours, got ${distinct.size}`);
+  // 85 → 84 with the Delinquency Recovery Pipeline mobile fit: the
+  // .dashboard-chart-card background #fafcfb was tokenized to
+  // var(--surface-soft) — one distinct hex leaves, none added. The
+  // fence's intent (no colour smuggled in) is preserved; the count
+  // only decreases.
+  assert.equal(distinct.size, 84, `dashboard.css must stay at 84 distinct hex colours, got ${distinct.size}`);
 });
 
 test('fences: styles.css distinct hex stays 608 (the reminder display line adds no colour)', () => {

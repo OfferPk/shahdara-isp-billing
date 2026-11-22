@@ -2662,10 +2662,10 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
     return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Delinquency Recovery Pipeline: Clean Ledger">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
-        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
-        <path d="M-8 -2 L-2 4 L8 -6" stroke="#0e5b4d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No delinquent subscriber accounts</text>
-        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">All active customer accounts are settled with zero overdue aging receivables</text>
+        <circle cx="0" cy="-14" r="24" fill="color-mix(in srgb, var(--color-brand-600) 8%, transparent)" />
+        <path d="M-8 -2 L-2 4 L8 -6" stroke="var(--color-brand-600)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="var(--text-tab)" fill="var(--ink, #182e2a)">No delinquent subscriber accounts</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="var(--text-table-head)" fill="var(--muted, #71817c)">All active customer accounts are settled with zero overdue aging receivables</text>
       </g>
     </svg>`;
   }
@@ -2681,10 +2681,17 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
   const rowHeight = Math.floor((height - topPad - bottomPad) / Math.max(stages.length, 1));
   const barHeight = Math.min(20, Math.max(14, rowHeight - 12));
 
-  let statusColor = '#047857';
+  // Overdue/Critical red #dc2626 is kept literal in both places below
+  // (statusColor + the top-bar Overdue figure): no exact token exists —
+  // --color-danger (#b42318) would darken it. (Delinquency mobile-fit.)
+  let statusColor = 'var(--color-emerald-dark)';
   if (pipelineData.pipelineHealthStatus.includes('Critical')) statusColor = '#dc2626';
-  else if (pipelineData.pipelineHealthStatus.includes('Moderate')) statusColor = '#d97706';
+  else if (pipelineData.pipelineHealthStatus.includes('Moderate')) statusColor = 'var(--td-risk-moderate-deep)';
 
+  // Track fill keeps the literal #f1f5f3: --bg-soft must stay undefined
+  // (Plan 588 G4 pin — 55 uses carry 7 different fallbacks; defining it
+  // would recolour 50 declarations) and --surface-soft would change the
+  // dark track, so the exact value stays literal. Zero visual change.
   const rowsSvg = stages.map((s, idx) => {
     const yCenter = topPad + idx * rowHeight + rowHeight / 2;
     const barY = Math.round(yCenter - barHeight / 2);
@@ -2697,7 +2704,7 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
         ${escapeXml(s.shortLabel)}
       </text>
 
-      <rect x="${leftPad}" y="${barY}" width="${plotWidth}" height="${barHeight}" rx="4" fill="var(--bg-soft, #f1f5f3)" />
+      <rect x="${leftPad}" y="${barY}" width="${plotWidth}" height="${barHeight}" rx="4" fill="#f1f5f3" />
 
       ${s.totalOverdueAmount > 0 ? `
         <rect x="${leftPad}" y="${barY}" width="${barW}" height="${barHeight}" rx="4" fill="${s.color}" opacity="0.3" />
@@ -2715,18 +2722,15 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
 
   // Telemetry Lab: the title + stats row left the SVG (fixed x-coords
   // collided on narrow screens) and is an HTML flex bar above the chart.
-  return `<div class="chart-top-bar"><span class="chart-top-bar-title">Khata Wusooli &amp; Aging Pipeline</span><span class="chart-metric-sub">Delinquent: <strong>${pipelineData.totalDelinquentAccounts}</strong> \u00b7 Overdue: <strong style="color:#dc2626">${formatPKR(pipelineData.totalDelinquentDues)}</strong> \u00b7 Net Exp: <strong style="color:#047857">${formatPKR(pipelineData.totalExpectedRecovery)}</strong></span></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
+  // The pacing line left the SVG too (one 111-char line, ~99% of the
+  // viewBox) and is a wrapping HTML bar below the chart.
+  return `<div class="chart-top-bar"><span class="chart-top-bar-title">Khata Wusooli &amp; Aging Pipeline</span><span class="chart-metric-sub">Delinquent: <strong>${pipelineData.totalDelinquentAccounts}</strong> \u00b7 Overdue: <strong style="color:#dc2626">${formatPKR(pipelineData.totalDelinquentDues)}</strong> \u00b7 Net Exp: <strong style="color:var(--color-emerald-dark)">${formatPKR(pipelineData.totalExpectedRecovery)}</strong></span></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
 
     ${rowsSvg}
 
-    <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
-        Pacing Target: <tspan font-weight="700" fill="var(--ink, #182e2a)">${formatPKR(pipelineData.dailyPacingTarget)}/day</tspan> · Status: <tspan font-weight="700" fill="${statusColor}">${escapeXml(pipelineData.pipelineHealthStatus)}</tspan> · Highest Dues Sector: <tspan font-weight="700" fill="var(--ink, #182e2a)">${topAreaText}</tspan>
-      </text>
-    </g>
-  </svg>`;
+  </svg><div class="chart-pacing-bar">Pacing Target: <strong>${formatPKR(pipelineData.dailyPacingTarget)}/day</strong> · Status: <strong style="color:${statusColor}">${escapeXml(pipelineData.pipelineHealthStatus)}</strong> · Highest Dues Sector: <strong>${topAreaText}</strong></div>`;
 }
 
 /**

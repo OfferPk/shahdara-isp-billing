@@ -190,7 +190,11 @@ test('G3 settled: the Advance label key exists in both language tables', () => {
 
 test('G3 settled: settled cards show ➕ Advance, dues cards still show Collect', () => {
   const at = wiring.indexOf('function renderQuickCollectCustomerListHtml');
-  const tpl = wiring.slice(at, at + 9000);
+  // Window 10000, not 9000 (rebase #1610, 2026-11-23): the speed-emoji
+  // insertion added 146 chars inside this function, pushing the
+  // action-button string to offset 9012 — 12 chars past a 9000 slice.
+  // The markup is unchanged; only the arbitrary window bound moved.
+  const tpl = wiring.slice(at, at + 10000);
   assert.ok(tpl.includes("const collectLabel = hasDues ? t('qc3_collect') : t('qc3_collect_advance');"),
     'label branches on dues');
   assert.ok(tpl.includes("const collectClass = hasDues ? 'qc3-collect' : 'qc3-advance';"),
@@ -209,7 +213,8 @@ test('G3 settled: the Advance button is a distinct tonal pill, not a Collect res
 
 test('G3 settled: the Advance button still posts through the collect action', () => {
   const at = wiring.indexOf('function renderQuickCollectCustomerListHtml');
-  const tpl = wiring.slice(at, at + 9000);
+  // Same 10000 window as the G3 label test above (rebase #1610).
+  const tpl = wiring.slice(at, at + 10000);
   assert.ok(tpl.includes('class="qc3-action-btn ${collectClass}" data-qc3-action="collect"'),
     'settled button keeps data-qc3-action="collect"');
 });

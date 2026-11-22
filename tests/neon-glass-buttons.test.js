@@ -203,9 +203,23 @@ test('neon glassy: the 9 QC buttons carry the glassy classes additively', () => 
   for (const id of ['quickCollectShareImageBtn', 'quickCollectPrintReceiptBtn', 'quickCollectBluetoothPrintBtn']) {
     assert.ok(qcOk(id, 'btn-glass-secondary', 'secondary-button'), `${id} must carry btn-glass-secondary alongside secondary-button`);
   }
-  assert.equal((indexHtml.match(/class="secondary-button qc-next-btn btn-glass-secondary"/g) || []).length, 2,
-    'both .qc-next-btn buttons must carry btn-glass-secondary');
-  assert.match(indexHtml, /id="quickCollectDoneCloseBtn"[^>]*class="secondary-button qc-done-btn btn-glass-secondary"/,
+  // QC receipt buttons tint (2026-11-21): the + Same Customer button now
+  // carries the additive tint class `qc-btn-same` AFTER btn-glass-secondary
+  // (the user's spec: one semantic tint per action), so the class list is
+  // longer while the glassy classes are unchanged. The exact-string match
+  // below used to require btn-glass-secondary to be the LAST class; it now
+  // admits a trailing tint class. Intent preserved: both .qc-next-btn
+  // buttons still carry btn-glass-secondary alongside secondary-button.
+  const nextBtnTags = [...indexHtml.matchAll(/<button[^>]*class="([^"]*)"[^>]*>/g)]
+    .map((m) => m[1])
+    .filter((cls) => cls.split(/\s+/).includes('qc-next-btn'));
+  assert.equal(nextBtnTags.length, 2, 'both .qc-next-btn buttons must exist');
+  for (const cls of nextBtnTags) {
+    const parts = cls.split(/\s+/);
+    assert.ok(parts.includes('secondary-button') && parts.includes('btn-glass-secondary'),
+      'both .qc-next-btn buttons must carry btn-glass-secondary');
+  }
+  assert.match(indexHtml, /id="quickCollectDoneCloseBtn"[^>]*class="secondary-button qc-done-btn btn-glass-secondary(\s[^"]*)?"/,
     'quickCollectDoneCloseBtn must carry btn-glass-secondary');
 });
 

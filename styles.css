@@ -10552,14 +10552,18 @@ button:not([hidden]).eds-panel-dismiss {
   white-space: nowrap;
 }
 
-/* §4.5.1 — primary Send WhatsApp Receipt: solid brand green, 48px, the
-   WhatsApp glyph as a ::before (the i18n applier rewrites the button's
-   textContent, so no inner icon span can survive — the ::before is CSS,
-   not DOM). The glyph path is the receipt-terms.js:61 WhatsApp mark,
-   white-filled; Lucide has no WhatsApp brand glyph. */
+/* §4.5.1 — primary Send WhatsApp Receipt: authentic WhatsApp gradient
+   (QC receipt buttons tint, 2026-11-21 — the user's spec asks for the
+   WhatsApp green gradient, not the solid brand), 48px, the WhatsApp glyph
+   as a ::before (the i18n applier rewrites the button's textContent, so no
+   inner icon span can survive — the ::before is CSS, not DOM). The glyph
+   path is the receipt-terms.js:61 WhatsApp mark, white-filled; Lucide has
+   no WhatsApp brand glyph. Hex literals are the user's specified
+   #25d366 / #128c7e, lowercase only (both already occur in this file, so
+   the 608 distinct-hex count does not move). */
 #quickCollectModal.qc-success-open .qc-wa-btn {
-  background: var(--ds-brand);
-  border-color: var(--ds-brand);
+  background: linear-gradient(90deg, #25d366, #128c7e);
+  border-color: #128c7e;
   min-height: 48px !important;
   height: 48px;
   display: flex;
@@ -10567,7 +10571,7 @@ button:not([hidden]).eds-panel-dismiss {
   justify-content: center;
   gap: 8px;
 }
-#quickCollectModal.qc-success-open .qc-wa-btn:hover { background: var(--ds-brand); }
+#quickCollectModal.qc-success-open .qc-wa-btn:hover { background: linear-gradient(90deg, #25d366, #128c7e); }
 #quickCollectModal.qc-success-open .qc-wa-btn::before {
   content: "";
   width: 20px;
@@ -10606,6 +10610,18 @@ button:not([hidden]).eds-panel-dismiss {
 #quickCollectModal.qc-success-open .qc-output-btn [data-ds-icon] svg { display: block; }
 #quickCollectModal.qc-success-open .qc-output-btn .qc-action-label { white-space: nowrap; }
 
+/* QC receipt buttons tint (2026-11-21): the Share & Print row carries one
+   semantic tint per action instead of the shared mint glass — indigo for
+   Share Image (border reuses --qc-blue-border: the spec's indigo-200
+   #c7d2fe exists nowhere in the repo), slate for Print Slip, blue for
+   Thermal Print. Token-spelled only, no hex; no !important (dark mode's
+   .btn-glass-secondary !important rules win there, so the tints are a
+   light-mode feature). The glass hover's glow + lift still apply — these
+   rules set no box-shadow. */
+#quickCollectModal.qc-success-open .qc-output-btn.qc-btn-share { background: var(--qc-indigo-bg); border-color: var(--qc-blue-border); color: var(--qc-indigo-text); }
+#quickCollectModal.qc-success-open .qc-output-btn.qc-btn-print { background: var(--color-slate-100); border-color: var(--ds-line); color: var(--color-slate-700); }
+#quickCollectModal.qc-success-open .qc-output-btn.qc-btn-thermal { background: var(--qc-blue-bg); border-color: var(--qc-blue-border); color: var(--qc-blue-text); }
+
 /* §4.5.3 — 2-column next-action row, 44px. The labels are long for a
    half-width cell, so the font stays 12px with tight side padding; if a
    label wraps the row grows (the harness is the authority). */
@@ -10622,6 +10638,12 @@ button:not([hidden]).eds-panel-dismiss {
   line-height: 1.3;
 }
 
+/* QC receipt buttons tint (2026-11-21): + Same Customer is warm amber
+   (amber-50 bg via --qc-amber-soft-bg — NOT --qc-amber-bg, which is
+   orange-50); Next Customer keeps the mint glass, so the workflow row
+   distinguishes itself via the amber sibling. Token-spelled only. */
+#quickCollectModal.qc-success-open .qc-next-btn.qc-btn-same { background: var(--qc-amber-soft-bg); border-color: var(--ds-warning-border); color: var(--color-warning); }
+
 /* QC receipt-bottom polish (2026-11-19): the empty-amount path is a real
    secondary button now (44px via the Sharafat 96 floor), not a 24px
    underlined text link — the handler is unchanged, only the treatment. */
@@ -10634,6 +10656,13 @@ button:not([hidden]).eds-panel-dismiss {
    .secondary-button base already gives it the neutral look; this pins
    the 44px height. */
 #quickCollectModal.qc-success-open .qc-done-btn { min-height: 44px; }
+
+/* QC receipt buttons tint (2026-11-21): Done is the neutral slate tint
+   (terminal/close action, reusing the Print Slip tokens).
+   Token-spelled only. The min-height restates the base .qc-done-btn
+   44px (the tint rule is the block the tint test reads); it changes no
+   height. */
+#quickCollectModal.qc-success-open .qc-done-btn.qc-btn-done { background: var(--color-slate-100); border-color: var(--ds-line); color: var(--color-slate-700); min-height: 44px; }
 
 /* §4.4 — WhatsApp draft accordion. The FIRST-EVER CSS rules for .rsd-*
    (today there are zero) — scoped to #quickCollectModal. Collapsed by

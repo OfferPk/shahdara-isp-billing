@@ -657,13 +657,8 @@ export function setupCustomerSection(doc = document, win = window) {
       bar = doc.createElement('div');
       bar.id = 'customerListToolbar';
       bar.className = 'cust-list-toolbar';
-      // Polish #26 D4: the toolbar is the VIEW group — its eyebrow takes
-      // its own row above the two buttons.
-      const eyebrow = doc.createElement('p');
-      eyebrow.className = 'eyebrow cust-toolbar-eyebrow';
-      eyebrow.setAttribute('data-i18n', 'cust_group_view');
-      eyebrow.textContent = t('cust_group_view');
-      bar.appendChild(eyebrow);
+      // Customers search toolbar (user, 2026-11-21): the VIEW eyebrow is
+      // gone — Compact list + Filters & sort share one 2-column row.
       if (jump) { jump.insertAdjacentElement('beforebegin', bar); bar.appendChild(jump); }
       else heading.insertAdjacentElement('afterend', bar);
     }
@@ -678,9 +673,6 @@ export function setupCustomerSection(doc = document, win = window) {
     toggle.textContent = compact ? t('cust_density_detailed') : t('cust_density_compact');
     toggle.setAttribute('aria-pressed', String(!compact));
     toggle.title = compact ? t('cust_density_detailed_title') : t('cust_density_compact_title');
-    // Polish #26 D4: the VIEW eyebrow follows the language too.
-    const viewEyebrow = doc.getElementById('customerListToolbar')?.querySelector('.cust-toolbar-eyebrow');
-    if (viewEyebrow) viewEyebrow.textContent = t('cust_group_view');
   };
   toggle.addEventListener('click', () => {
     density = density === 'detailed' ? 'compact' : 'detailed';

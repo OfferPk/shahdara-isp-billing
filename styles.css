@@ -1609,6 +1609,10 @@ is only ~300px wide. */
  * .help-icon stays 40px — dashboard, profile and customers tips
  * are untouched. */
 .analytics-panel .help-icon { width: 28px; height: 28px; min-height: 28px; font-size: 11px; }
+/* Customers search toolbar (user, 2026-11-21): the search help is a
+ * compact 20px (i) next to the label — a third NAMED Sharafat 96 F4
+ * exception, alongside the two 28px ones. The base stays 40x40. */
+.customer-list-search .search-help .help-icon { width: 20px; height: 20px; min-height: 20px; font-size: 11px; }
 .registry-heading-row { display: flex; align-items: center; gap: 8px; }
 .help-tip-content{position:absolute;top:calc(100% + 8px);inset-inline-end:0;z-index:9;width:min(300px,calc(100vw - 32px));max-height:min(60vh,360px);overflow:auto;padding:11px 13px;border:1px solid #174b3b;border-radius:10px;background:#173e32;color:#fff;box-shadow:0 12px 28px #102b2240;font:500 12px/1.55 'DM Sans',sans-serif}
 .help-tip:not([open])>.help-tip-content{display:none}
@@ -1735,7 +1739,7 @@ is only ~300px wide. */
 
 
 /* Customer-list search and bottom-of-page backup tools. */
-.customer-list-search{display:grid;gap:5px;margin:0 12px 9px;padding:0 8px}.customer-list-search-label{color:#546b61;font-size:11px;font-weight:700}.customer-list-search-control{display:flex;align-items:center;gap:5px;min-width:0}.customer-list-search-control input{flex:1 1 0;min-width:0;height:40px;border:1px solid #ccd9d2;border-radius:8px;background:#fff;padding:0 9px;color:#203b31;font:500 12px 'DM Sans',sans-serif}.customer-list-search-control input:focus-visible{outline:3px solid var(--green);outline-offset:2px}.customer-list-search-control .secondary-button{min-height:40px;padding:0 9px}.customer-list-search-help{margin:0;color:#5c6e66;font-size:11px;line-height:1.4}.footer-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-width:0}.backup-footer-tools{display:flex;align-items:center;gap:8px;flex:0 0 auto}.backup-controls-toggle{display:grid;place-items:center;width:48px;height:48px;min-width:48px;min-height:48px;border:1px solid #cbded3;border-radius:10px;background:#fff;color:#245746;cursor:pointer}.backup-controls-toggle:hover{background:#f2f8f5;border-color:#8db8a5}.backup-controls-toggle:focus-visible{outline:3px solid var(--green);outline-offset:2px}.backup-controls-panel{display:flex;align-items:center;gap:7px}.backup-controls-panel[hidden]{display:none}.backup-controls-panel .backup-actions{width:auto;flex:0 1 auto}.backup-controls-panel .backup-actions .secondary-button{min-height:42px;white-space:nowrap}
+.customer-list-search{display:grid;gap:5px;margin:0 12px 9px;padding:0 8px}.customer-list-search-head{display:flex;align-items:center;gap:6px}.customer-list-search-label{color:#546b61;font-size:11px;font-weight:700}.customer-list-search-control{display:flex;align-items:center;gap:5px;min-width:0}.customer-search-box{position:relative;flex:1 1 0;min-width:0}.customer-list-search-control input{width:100%;min-width:0;height:44px;border:1px solid #ccd9d2;border-radius:var(--radius-md);background:#fff;padding-inline-start:38px;padding-inline-end:36px;color:#203b31;font:500 12px 'DM Sans',sans-serif}.customer-list-search-control input:focus-visible{outline:3px solid var(--green);outline-offset:2px}.customer-search-clear{position:absolute;inset-inline-end:4px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:28px;min-height:44px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--text-muted,#475569);font-size:14px;line-height:1;cursor:pointer}.customer-search-clear[hidden]{display:none}.customer-search-box:has(input:placeholder-shown) .customer-search-clear{display:none}.customer-list-search-control .secondary-button{min-height:40px;padding:0 9px}.customer-list-search-help{margin:0;color:#5c6e66;font-size:11px;line-height:1.4}.footer-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-width:0}.backup-footer-tools{display:flex;align-items:center;gap:8px;flex:0 0 auto}.backup-controls-toggle{display:grid;place-items:center;width:48px;height:48px;min-width:48px;min-height:48px;border:1px solid #cbded3;border-radius:10px;background:#fff;color:#245746;cursor:pointer}.backup-controls-toggle:hover{background:#f2f8f5;border-color:#8db8a5}.backup-controls-toggle:focus-visible{outline:3px solid var(--green);outline-offset:2px}.backup-controls-panel{display:flex;align-items:center;gap:7px}.backup-controls-panel[hidden]{display:none}.backup-controls-panel .backup-actions{width:auto;flex:0 1 auto}.backup-controls-panel .backup-actions .secondary-button{min-height:42px;white-space:nowrap}
 @media(max-width:800px){.footer-actions{width:100%;justify-content:space-between;gap:8px}.backup-controls-panel .backup-actions{width:auto;flex-wrap:wrap}}
 @media(max-width:620px){.customer-list-search-control input{height:44px;font-size:16px}.customer-list-search-control .secondary-button{min-height:44px}.footer-actions{align-items:flex-start;flex-direction:column;gap:6px}.backup-footer-tools{width:100%;align-items:flex-start;flex-wrap:wrap}.backup-controls-panel{flex:1 1 100%;min-width:0}.backup-controls-panel .backup-actions{display:grid;width:100%;grid-template-columns:1fr 1fr}.backup-controls-panel .backup-actions .secondary-button{min-height:46px;padding:0 7px;font-size:11px;white-space:normal}}
 
@@ -8637,6 +8641,25 @@ html, body {
   height: 18px;
 }
 
+/* Customers search toolbar (user, 2026-11-21): the search box gets the
+   same real-icon pattern as the QC picker above — a dsIcon element, not
+   a placeholder glyph (the caret-collision note above is why). */
+.customer-search-icon {
+  position: absolute;
+  inset-inline-start: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--text-muted, #475569);
+}
+.customer-search-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* QC picker overflow item 4 (scoped): only the Quick Collect search
    clears the new icon — .qc-search-input is shared with the
    collect-setup search (collect-setup.js), which has no icon and
@@ -14674,6 +14697,7 @@ dialog.help-guide-modal::backdrop {
 
 .customer-filter-area,
 .customer-sort-label,
+.customer-filter-search-field,
 .report-sort-label {
   display: inline-flex;
   align-items: center;
@@ -14685,6 +14709,7 @@ dialog.help-guide-modal::backdrop {
 
 .customer-filter-area select,
 .customer-sort-label select,
+.customer-filter-search-field select,
 .report-sort-label select,
 #transactionSortSelect {
   padding: 6px 10px;
@@ -15008,12 +15033,14 @@ dialog.help-guide-modal::backdrop {
   }
   .customer-filter-area,
   .customer-sort-label,
+  .customer-filter-search-field,
   .report-sort-label {
     width: 100%;
     justify-content: space-between;
   }
   .customer-filter-area select,
   .customer-sort-label select,
+  .customer-filter-search-field select,
   .report-sort-label select,
   #transactionSortSelect {
     width: 60%;

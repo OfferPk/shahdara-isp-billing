@@ -197,6 +197,10 @@ const BARE_GLYPH_ALLOWLIST = [
   { file: 'index.html', id: 'offlineSyncDismissBtn', why: 'dismisses the offline banner' },
   { file: 'index.html', id: 'fastCustomerSearchClearBtn', why: 'clears the customer search input' },
   { file: 'index.html', id: 'quickCollectSearchClearBtn', why: 'clears the Quick Collect search input' },
+  // Customers search toolbar (user, 2026-11-21): the ✕ on the customer-list
+  // search pill clears only that input — an inline search clear, never a
+  // dialog close (same family as the two search clears above).
+  { file: 'index.html', id: 'clearCustomerListSearch', why: 'clears the customer-list search input' },
   { file: 'customer-import.js', cls: 'ci-remove', why: 'removes one bulk-import line' },
   { file: 'nav-wdm-spectrum.js', cls: 'wdm-remove-btn', why: 'PR #453 documented channel-remove exception' },
   { file: 'qa-otdr-bidirectional-inspection.js', cls: 'event-remove-btn', why: 'removes one inspection event row' },

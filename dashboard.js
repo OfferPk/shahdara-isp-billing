@@ -2499,13 +2499,16 @@ export function setupUpstreamGatewayModal(state, { referenceDate = new Date(), o
   }
 }
 
+// Acquisition channel colours are CSS tokens where an exact token exists.
+// #3b82f6 (technician), #8b5cf6 (digital) and #06b6d4 (partnership) have no
+// exact token, so they stay as hex (no shade shift to a nearest token).
 export const ACQUISITION_CHANNELS = [
   {
     id: 'walkin',
     name: 'Direct Walk-in / Office',
     baseCac: 2800,
     grossMarginPercent: 70,
-    color: '#0e5b4d',
+    color: 'var(--color-brand-600)',
     keywords: ['walk-in', 'walk in', 'office', 'branch', 'counter', 'direct']
   },
   {
@@ -2521,7 +2524,7 @@ export const ACQUISITION_CHANNELS = [
     name: 'Customer Word-of-Mouth',
     baseCac: 2200,
     grossMarginPercent: 72,
-    color: '#10b981',
+    color: 'var(--color-emerald)',
     keywords: ['referral', 'friend', 'neighbor', 'relative', 'word', 'recommend', 'family']
   },
   {
@@ -2529,7 +2532,7 @@ export const ACQUISITION_CHANNELS = [
     name: 'Local Banner & Pamphlet',
     baseCac: 4200,
     grossMarginPercent: 65,
-    color: '#f59e0b',
+    color: 'var(--td-risk-moderate)',
     keywords: ['banner', 'pamphlet', 'flyer', 'poster', 'flex', 'chowk', 'drive', 'marketing']
   },
   {
@@ -2811,7 +2814,9 @@ export function setupAcquisitionRoiModal(state, { referenceDate = new Date(), on
     if (realizedRevEl) realizedRevEl.textContent = formatPKR(data.totalPortfolioRealizedRevenue);
     if (netRoiEl) {
       netRoiEl.textContent = `${data.portfolioNetRoiPercent > 0 ? '+' : ''}${data.portfolioNetRoiPercent}%`;
-      netRoiEl.style.color = data.portfolioNetRoiPercent >= 0 ? '#047857' : '#dc2626';
+      // ROI red stays #dc2626 (not --color-danger #b42318): the acquisition
+      // footer uses the same red, and the two must not become different shades.
+      netRoiEl.style.color = data.portfolioNetRoiPercent >= 0 ? 'var(--color-emerald-dark)' : '#dc2626';
     }
     if (avgPaybackEl) avgPaybackEl.textContent = `${data.portfolioAvgPaybackMonths} mo`;
     if (fastestEl) fastestEl.textContent = data.fastestPaybackChannel;
@@ -2833,7 +2838,7 @@ export function setupAcquisitionRoiModal(state, { referenceDate = new Date(), on
             <td>${formatPKR(ch.avgArpu)}/mo</td>
             <td><strong>${ch.paybackMonths} mo</strong></td>
             <td>${formatPKR(ch.totalRealizedRevenue)}</td>
-            <td><strong style="color:${ch.netRoiPercent >= 0 ? '#047857' : '#dc2626'}">${ch.netRoiPercent > 0 ? '+' : ''}${ch.netRoiPercent}%</strong></td>
+            <td><strong style="color:${ch.netRoiPercent >= 0 ? 'var(--color-emerald-dark)' : '#dc2626'}">${ch.netRoiPercent > 0 ? '+' : ''}${ch.netRoiPercent}%</strong></td>
             <td>
               <span class="badge ${ch.velocityStatus === 'Rapid Payback' ? 'badge-good' : (ch.velocityStatus === 'Standard Payback' ? 'badge-normal' : 'badge-warn')}">
                 ${escapeXml(ch.velocityStatus)}

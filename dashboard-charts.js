@@ -2082,30 +2082,20 @@ export function renderUpstreamGatewaySvg(gatewayData) {
 }
 
 /**
- * Renders an accessible pure SVG horizontal bar chart comparing subscriber acquisition
- * channel payback duration, unit CAC, and marketing ROI.
+ * Renders the subscriber acquisition ROI chart as real HTML rows (not SVG).
+ * The 560-wide SVG clipped its end-anchored channel labels past the left
+ * edge and read at ~5px at 360px; HTML rows wrap on their own line and read
+ * at full size. The export name is kept (call site + re-export + tests
+ * import it) even though the output is no longer an SVG.
  */
 export function renderAcquisitionRoiSvg(roiData) {
-  const width = 560;
-  const height = 222;
-
   if (!roiData || roiData.totalPortfolioAcquisitions === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Acquisition ROI: No subscribers tracked">
-      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
-      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
-        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
-        <path d="M-8 -6 L0 -14 L8 -6 M0 -14 L0 4" stroke="#0e5b4d" stroke-width="2" fill="none" />
-        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No subscriber acquisition data available</text>
-        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Add customers to evaluate acquisition channel payback velocity, CAC unit economics, and marketing ROI</text>
-      </g>
-    </svg>`;
+    return `<div class="acquisition-roi-rows acquisition-roi-empty">
+      <div class="acquisition-roi-empty-icon" aria-hidden="true">↑</div>
+      <p class="acquisition-roi-empty-title">No subscriber acquisition data available</p>
+      <p class="acquisition-roi-empty-subtitle">Add customers to evaluate acquisition channel payback velocity, CAC unit economics, and marketing ROI</p>
+    </div>`;
   }
-
-  const topPad = 20;
-  const rowHeight = 36;
-  const labelX = 140;
-  const barX = 150;
-  const barMaxW = 230;
 
   const displayChannels = [...roiData.channels]
     .sort((a, b) => b.totalAcquisitions - a.totalAcquisitions)
@@ -2113,56 +2103,37 @@ export function renderAcquisitionRoiSvg(roiData) {
 
   const maxMonths = Math.max(...displayChannels.map(c => c.paybackMonths), 6);
 
-  const rows = displayChannels.map((ch, idx) => {
-    const y = topPad + idx * rowHeight;
-    const normalizedWidth = Math.min(barMaxW, Math.max(12, Math.round((ch.paybackMonths / maxMonths) * barMaxW)));
-    const pillColor = ch.velocityStatus === 'Rapid Payback'
-      ? { bg: 'rgba(16, 185, 129, 0.15)', text: '#047857', label: 'RAPID' }
+  const rows = displayChannels.map((ch) => {
+    // Bar width as a percentage of the slowest channel (same max(12px, …)
+    // floor as the old SVG fill, now as a CSS min-width on the fill).
+    const fillPct = Math.min(100, Math.max(0, (ch.paybackMonths / maxMonths) * 100));
+    const pill = ch.velocityStatus === 'Rapid Payback'
+      ? { cls: 'acquisition-roi-pill--rapid', label: 'RAPID' }
       : (ch.velocityStatus === 'Standard Payback'
-        ? { bg: 'rgba(59, 130, 246, 0.15)', text: '#2563eb', label: 'STANDARD' }
-        : { bg: 'rgba(245, 158, 11, 0.15)', text: '#d97706', label: 'LAGGING' });
+        ? { cls: 'acquisition-roi-pill--standard', label: 'STANDARD' }
+        : { cls: 'acquisition-roi-pill--lagging', label: 'LAGGING' });
 
     return `
-      <g class="acquisition-roi-row" transform="translate(0, ${y})">
-        <text x="${labelX}" y="15" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #182e2a)">
-          ${escapeXml(ch.name)}
-          <tspan font-weight="400" font-size="10" fill="var(--muted, #71817c)"> (${ch.totalAcquisitions} subs)</tspan>
-        </text>
-
-        <!-- Background bar -->
-        <rect x="${barX}" y="4" width="${barMaxW}" height="16" rx="4" fill="rgba(0, 0, 0, 0.05)" />
-
-        <!-- Payback fill -->
-        <rect x="${barX}" y="4" width="${normalizedWidth}" height="16" rx="4" fill="${ch.color}">
-          <title>${escapeXml(ch.name)}: ${ch.paybackMonths} mo payback, CAC PKR ${ch.blendedCac}, ROI ${ch.netRoiPercent}%</title>
-        </rect>
-
-        <text x="${barX + normalizedWidth + 8}" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
-          ${ch.paybackMonths}m <tspan font-weight="400" fill="var(--muted, #71817c)">· ${ch.netRoiPercent > 0 ? '+' : ''}${ch.netRoiPercent}% ROI</tspan>
-        </text>
-
-        <!-- Status pill -->
-        <rect x="${width - 105}" y="3" width="75" height="18" rx="9" fill="${pillColor.bg}" />
-        <text x="${width - 67}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${pillColor.text}">
-          ${pillColor.label}
-        </text>
-      </g>
-    `;
+      <div class="acquisition-roi-row">
+        <div class="acquisition-roi-name"><strong>${escapeXml(ch.name)}</strong> <span class="acquisition-roi-subs">(${ch.totalAcquisitions} subs)</span></div>
+        <div class="acquisition-roi-bar-row">
+          <div class="acquisition-roi-bar"><div class="acquisition-roi-bar-fill" style="width:${fillPct.toFixed(1)}%;background:${ch.color};" title="${escapeXml(ch.name)}: ${ch.paybackMonths} mo payback, CAC PKR ${ch.blendedCac}, ROI ${ch.netRoiPercent}%"></div></div>
+          <span class="acquisition-roi-value">${ch.paybackMonths}m · ${ch.netRoiPercent > 0 ? '+' : ''}${ch.netRoiPercent}% ROI</span>
+          <span class="acquisition-roi-pill ${pill.cls}">${pill.label}</span>
+        </div>
+      </div>`;
   }).join('');
 
-  const footerY = height - 12;
-
-  return `<svg class="chart-svg acquisition-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Acquisition Channel ROI and Payback Velocity Chart">
-    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
-
+  // Totals leave the SVG for a wrapping HTML row (same pattern as the
+  // #dashChart17Summary row above this chart): three cells, same values.
+  return `<div class="acquisition-roi-rows">
     ${rows}
-
-    <g transform="translate(${width / 2}, ${footerY})" text-anchor="middle">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
-        Total CAC: <tspan font-weight="700" fill="#dc2626">${formatPKR(roiData.totalPortfolioCac)}</tspan> · Realized Rev: <tspan font-weight="700" fill="#047857">${formatPKR(roiData.totalPortfolioRealizedRevenue)}</tspan> · Avg Payback: <tspan font-weight="700" fill="var(--ink, #182e2a)">${roiData.portfolioAvgPaybackMonths} mo</tspan>
-      </text>
-    </g>
-  </svg>`;
+    <div class="acquisition-roi-footer">
+      <span class="acquisition-roi-footer-cell">Total CAC: <strong class="acquisition-roi-footer-cac">${formatPKR(roiData.totalPortfolioCac)}</strong></span>
+      <span class="acquisition-roi-footer-cell">Realized Rev: <strong class="acquisition-roi-footer-rev">${formatPKR(roiData.totalPortfolioRealizedRevenue)}</strong></span>
+      <span class="acquisition-roi-footer-cell">Avg Payback: <strong>${roiData.portfolioAvgPaybackMonths} mo</strong></span>
+    </div>
+  </div>`;
 }
 
 /**
@@ -3365,6 +3336,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   if (acqEl) {
     const acqData = calculateAcquisitionRoiMetrics(state, referenceDate);
     acqEl.innerHTML = renderAcquisitionRoiSvg(acqData);
+    // The chart body is now real HTML text, not an SVG image: drop the
+    // container's role="img" (it would hide the rows from assistive tech).
+    // Guarded: test doubles for the chart containers are bare { innerHTML }
+    // objects without removeAttribute.
+    if (typeof acqEl.removeAttribute === 'function') {
+      acqEl.removeAttribute('role');
+      acqEl.removeAttribute('aria-label');
+    }
     const acqSummary = document.getElementById('dashChart17Summary');
     if (acqSummary) {
       const hasAcq = (acqData.totalPortfolioAcquisitions ?? 0) > 0;

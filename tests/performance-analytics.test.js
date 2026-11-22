@@ -134,7 +134,11 @@ test('upstream and acquisition summary headers live in HTML, not in the SVG', ()
   });
   assert.equal(acq.includes('Fastest Channel:'), false);
   assert.equal(acq.includes('Portfolio Net ROI:'), false);
-  assert.match(acq, /viewBox="0 0 560 222"/);
+  // Acquisition ROI redesign: the chart body is now HTML rows, not an SVG —
+  // the 560-wide viewBox clipped labels and read at ~5px at 360px.
+  assert.equal(acq.includes('<svg'), false);
+  assert.ok(acq.includes('acquisition-roi-rows'));
+  assert.ok(acq.includes('acquisition-roi-row'));
 });
 
 test('method legend truncates long labels and the period reads as words', () => {

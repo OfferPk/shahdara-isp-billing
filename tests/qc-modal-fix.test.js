@@ -110,7 +110,11 @@ function subtitleState() {
 
 test('(3) the card subtitle is Mohalla • Package Name, never the scorer reason', () => {
   const { html: pickerHtml } = renderQuickCollectPickerHtml(subtitleState(), '', 'all-dues');
-  assert.ok(pickerHtml.includes('CHAMYAAA • 3Mbps / 100GB'), 'subtitle must read Mohalla • Package Name (mohalla in its stored form)');
+  // QC speed pill (user, 2026-11-22): the subtitle now carries the
+  // speed's emoji before the speed — 3 Mbps takes 🚲 — so the pinned
+  // string gains the emoji between the bullet and the package name.
+  // The mohalla-first order and the package text are unchanged.
+  assert.ok(pickerHtml.includes('CHAMYAAA • 🚲 3Mbps / 100GB'), 'subtitle must read Mohalla • Package Name (mohalla in its stored form)');
   assert.equal(pickerHtml.includes('qc2-priority-reason'), false, 'no scorer reason under the name');
   assert.equal(pickerHtml.includes('Outstanding PKR 1,000 (+'), false, 'no truncated Outstanding line');
   // Quick Collect CSS tightening (user instruction 2026-11-13):

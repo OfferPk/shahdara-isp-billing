@@ -8874,6 +8874,21 @@ html, body {
   text-overflow: ellipsis;
 }
 
+/* QC speed pill (user, 2026-11-22): the area + speed line on a picker
+   card is a pill with the speed's emoji before the speed. Neutral
+   .ds-chip tint (surface-soft / muted, dark-safe by token), NOT the
+   DUE pill's amber. The span stays a block container on purpose:
+   .qc-cust-meta's nowrap + overflow + ellipsis is load-bearing (a
+   long mohalla/package still truncates with … at 360px), and an
+   inline-flex pill would wrap the text in an anonymous flex item and
+   kill the ellipsis — so no display change here, just the pill
+   surfacing on the existing full-width Row-2 span. */
+.qc-speed-pill {
+  background: var(--surface-soft);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-2);
+}
+
 .qc-card-right {
   display: flex;
   flex-direction: column;

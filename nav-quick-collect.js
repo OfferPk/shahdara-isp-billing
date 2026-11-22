@@ -41,6 +41,7 @@ import {
 } from './core.js';
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel, validateBillPackageSnapshot } from './package-catalog.js';
+import { resolvePackageSpeedMbps } from './mikrotik-generator.js';
 import { salesTaxCentsForPrice, salesTaxCentsOfBill, salesTaxReceiptLine, SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
 import { firstFiniteRemainingPayable, formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js';
 // Plan 575: the VER stamp the slip prints — the derivation the HTML
@@ -2202,6 +2203,29 @@ function dueBadgeEmoji(remainingRupees, totalBilledRupees) {
   return '⏳';
 }
 
+// QC speed-pill emoji (user, 2026-11-22): the area + speed line on a
+// picker card is a pill with the speed's own emoji before the speed —
+// 🚲 3, 🏍 5, 🚁 10, 🚀 15, 🛸 29 Mbps (the flagship, faster than 15's
+// rocket, so it takes the UFO, not the slower ✈️). Exact map first,
+// then the speed bands (≤3 → 🚲, ≤5 → 🏍, ≤10 → 🚁, ≤15 → 🚀,
+// >15 → 🛸) so a free-form custom speed is never emoji-less. The
+// speed comes from resolvePackageSpeedMbps (catalogue lookup, then
+// the Mbps regex), so 10 Mbps works even though it has no catalogue
+// entry. Unparseable or missing package -> '' (no emoji, no pill —
+// the plain area-only line stays).
+const SPEED_EMOJI_BY_MBPS = { 3: '🚲', 5: '🏍', 10: '🚁', 15: '🚀', 29: '🛸' };
+
+function speedEmojiForPackage(packageName) {
+  const mbps = resolvePackageSpeedMbps({ packageSpeed: packageName });
+  if (mbps === null) return '';
+  if (SPEED_EMOJI_BY_MBPS[mbps]) return SPEED_EMOJI_BY_MBPS[mbps];
+  if (mbps <= 3) return '🚲';
+  if (mbps <= 5) return '🏍';
+  if (mbps <= 10) return '🚁';
+  if (mbps <= 15) return '🚀';
+  return '🛸';
+}
+
 export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null, sameNameBadges = null, mohallaFilter = '', priorityById = null) {
   if (!customers || customers.length === 0) {
     // Plan 542: when a mohalla filter is what emptied the list, name
@@ -2288,8 +2312,9 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     // the recorded number. A missing package name leaves just the
     // mohalla, never a guessed package.
     const packageName = typeof c.packageName === 'string' ? c.packageName.trim() : '';
+    const speedEmoji = speedEmojiForPackage(packageName);
     const cardSubtitle = packageName
-      ? `${qcCardAreaDisplay(c.area)} • ${packageName}`
+      ? `${qcCardAreaDisplay(c.area)} • ${speedEmoji ? `${speedEmoji} ` : ''}${packageName}` // speed pill: 🚲 3 · 🏍 5 · 🚁 10 · 🚀 15 · 🛸 29
       : qcCardAreaDisplay(c.area);
     const dueLabel = hasDues
       ? `<strong class="qc-due-val">PKR ${c.totalDues.toLocaleString('en-PK')}</strong><span class="qc-due-tag">${dueBadgeEmoji(c.totalDues, c.totalBilled)} DUE</span>`
@@ -2389,7 +2414,7 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
               <span class="qc3-figure-value">${dueLabel}</span>
             </span>
           </div>
-          <span class="qc-cust-meta">${escapeHtml(cardSubtitle)}</span>
+          <span class="qc-cust-meta${speedEmoji ? ' qc-speed-pill' : ''}">${escapeHtml(cardSubtitle)}</span>
           ${chipsHtml}
         </button>
         ${actionsRow}

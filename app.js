@@ -3638,45 +3638,34 @@ _Shahdara Fiber Net & Cable Network_`,A=Vi(Rr(u),$);c.push({id:u.id,customerNumb
     </g>
   </svg>`}function bge(e){if(!e||!e.hubs||e.hubs.length===0||e.totalDeployedPorts===0)return`<svg class="chart-svg" viewBox="0 0 560 240" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub: No active drops">
       <rect width="560" height="240" rx="10" fill="transparent" />
-      <g transform="translate(${560/2}, 105)" text-anchor="middle">
+      <g transform="translate(280, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
         <path d="M-12 0 L-4 -8 L4 8 L12 0" stroke="#0e5b4d" stroke-width="2" fill="none" />
         <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No fiber distribution hubs or drops recorded</text>
         <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Assign customers to areas to map optical splitter utilization, attenuation, and dark fiber headroom</text>
       </g>
-    </svg>`;let o=36,r=36,a=130,l=560-a-100,c=e.hubs.slice(0,5),d=Math.floor((240-o-r)/Math.max(c.length,1)),u=Math.min(18,Math.max(12,d-12)),m="#047857";e.overallSaturationPercent>=85?m="#ef4444":e.overallSaturationPercent>=70&&(m="#d97706");let p=c.map((h,g)=>{let y=o+g*d+d/2,b=Math.round(y-u/2),_=h.totalPorts>0?h.activeSubscribers/h.totalPorts:0,v=h.totalPorts>0?h.offlineSubscribers/h.totalPorts:0,C=Math.round(_*l),S=Math.round(v*l),$=Math.max(0,l-C-S),A=a,N=A+C,D=N+S,R=h.saturationPercent>=85?"#ef4444":h.saturationPercent>=70?"#d97706":"#10b981";return`
-      <text x="${a-12}" y="${y+4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="600" fill="var(--ink, #182e2a)">
+    </svg>`;let o=36,r=36,a=160,l=420-a-140,c=e.hubs.slice(0,5),d=Math.floor((240-o-r)/Math.max(c.length,1)),u=Math.min(18,Math.max(12,d-12)),m="var(--color-emerald-dark)";e.overallSaturationPercent>=85?m="#ef4444":e.overallSaturationPercent>=70&&(m="#d97706");let p=c.map((h,g)=>{let y=o+g*d+d/2,b=Math.round(y-u/2),_=h.totalPorts>0?h.activeSubscribers/h.totalPorts:0,v=h.totalPorts>0?h.offlineSubscribers/h.totalPorts:0,C=Math.round(_*l),S=Math.round(v*l),$=Math.max(0,l-C-S),A=a,N=A+C,D=N+S,R=h.saturationPercent>=85?"#ef4444":h.saturationPercent>=70?"#d97706":"var(--color-emerald)";return`
+      <text x="${a-12}" y="${y+5}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="15" font-weight="600" fill="var(--ink, #182e2a)">
         ${Tt(h.areaName.length>16?h.areaName.slice(0,15)+"\u2026":h.areaName)}
       </text>
 
       <rect x="${a}" y="${b}" width="${l}" height="${u}" rx="4" fill="var(--bg-soft, #f1f5f3)" />
 
-      ${C>0?`<rect x="${A}" y="${b}" width="${C}" height="${u}" rx="${S===0&&$===0?4:0}" fill="#0e5b4d" />`:""}
+      ${C>0?`<rect x="${A}" y="${b}" width="${C}" height="${u}" rx="${S===0&&$===0?4:0}" fill="var(--color-brand-600)" />`:""}
 
       ${S>0?`<rect x="${N}" y="${b}" width="${S}" height="${u}" rx="${C===0&&$===0?4:0}" fill="#f59e0b" />`:""}
 
-      ${$>0?`<rect x="${D}" y="${b}" width="${$}" height="${u}" rx="${C===0&&S===0?4:0}" fill="rgba(148, 163, 184, 0.4)" />`:""}
+      ${$>0?`<rect x="${D}" y="${b}" width="${$}" height="${u}" rx="${C===0&&S===0?4:0}" fill="var(--color-slate-400)" fill-opacity="0.4" />`:""}
 
-      <text x="${a+l+8}" y="${y+4}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="${R}">
+      <text x="${a+l+8}" y="${y+5}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="${R}">
         ${h.assignedPorts}/${h.totalPorts} (${h.saturationPercent}%)
       </text>
-    `}).join("");return`<div class="chart-top-bar"><span class="chart-top-bar-title">Markaz-e-Taqseem-e-Fiber (FDH)</span><span class="chart-metric-sub">Total Ports: <strong>${e.totalDeployedPorts}</strong> \xB7 Dark Headroom: <strong style="color:#047857">${e.totalSparePorts}</strong> \xB7 Saturation: <strong style="color:${m}">${e.overallSaturationPercent}%</strong></span></div><svg class="chart-svg" viewBox="0 0 560 240" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
-    <rect width="560" height="240" rx="10" fill="transparent" />
+    `}).join("");return`<div class="chart-top-bar"><span class="chart-top-bar-title">Markaz-e-Taqseem-e-Fiber (FDH)</span><span class="chart-metric-strip"><span class="chart-metric-cell"><span class="chart-metric-label">Total Ports</span><span class="chart-metric-value">${e.totalDeployedPorts}</span></span><span class="chart-metric-cell"><span class="chart-metric-label">Dark Headroom</span><span class="chart-metric-value" style="color:var(--color-emerald-dark)">${e.totalSparePorts}</span></span><span class="chart-metric-cell"><span class="chart-metric-label">Saturation</span><span class="chart-metric-value" style="color:${m}">${e.overallSaturationPercent}%</span></span></span></div><svg class="chart-svg" viewBox="0 0 420 240" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
+    <rect width="420" height="240" rx="10" fill="transparent" />
 
 
     ${p}
-
-    <g transform="translate(${560/2}, 230)" text-anchor="middle">
-      <rect x="-180" y="-8" width="10" height="10" rx="2" fill="#0e5b4d" />
-      <text x="-164" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Active Drops</text>
-
-      <rect x="-70" y="-8" width="10" height="10" rx="2" fill="#f59e0b" />
-      <text x="-54" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Offline Drops</text>
-
-      <rect x="40" y="-8" width="10" height="10" rx="2" fill="rgba(148, 163, 184, 0.5)" />
-      <text x="56" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Dark Headroom (Spare)</text>
-    </g>
-  </svg>`}function _ge(e){let{simulated:t,monthlyProfitDelta:n,annualizedImpact:o,marginDeltaPercent:r}=e,a=new Date().toISOString().slice(0,10),s=n>=0?"+":"",l=["=========================================","SHAHDARA ISP - PACKAGE MARGIN SIMULATION",`Generated: ${a} PKT`,"=========================================","[ SIMULATION PARAMETERS ]",`  Upstream Transit Rate: PKR ${t.costPerMbps}/Mbps`,`  Wholesale Cost Multiplier: ${t.simulatedMultiplier}x`,`  Retail Price Adjustment: ${t.retailPriceDeltaPercent>0?"+":""}${t.retailPriceDeltaPercent}%`,"","[ NETWORK-WIDE MARGIN IMPACT ]",`  Monthly Revenue: ${M(t.totalRevenue)}`,`  Upstream Wholesale Cost: ${M(t.totalUpstreamCost)}`,`  Net Gross Profit: ${M(t.totalGrossProfit)}`,`  Blended Margin: ${t.blendedMarginPercent}% (${s}${r}% vs baseline)`,`  Monthly Profit Delta: ${s}${M(n)}/mo`,`  Annualized EBITDA Impact: ${s}${M(o)}/yr`,"","[ PACKAGE PROFITABILITY MATRIX ]"];for(let c of t.packages)l.push(`  ${c.packageName} (${c.subscriberCount} subs):`),l.push(`    Revenue: ${M(c.totalRevenue)} | Cost: ${M(c.totalUpstreamCost)}`),l.push(`    Gross Profit: ${M(c.grossProfit)} (${c.grossMarginPercent}% margin)`);return l.push("========================================="),l.join(`
+  </svg><div class="chart-legend" role="list" aria-label="Chart legend"><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--active"></span>Active Drops</span><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--offline"></span>Offline Drops</span><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--spare"></span>Dark Headroom (Spare)</span></div>`}function _ge(e){let{simulated:t,monthlyProfitDelta:n,annualizedImpact:o,marginDeltaPercent:r}=e,a=new Date().toISOString().slice(0,10),s=n>=0?"+":"",l=["=========================================","SHAHDARA ISP - PACKAGE MARGIN SIMULATION",`Generated: ${a} PKT`,"=========================================","[ SIMULATION PARAMETERS ]",`  Upstream Transit Rate: PKR ${t.costPerMbps}/Mbps`,`  Wholesale Cost Multiplier: ${t.simulatedMultiplier}x`,`  Retail Price Adjustment: ${t.retailPriceDeltaPercent>0?"+":""}${t.retailPriceDeltaPercent}%`,"","[ NETWORK-WIDE MARGIN IMPACT ]",`  Monthly Revenue: ${M(t.totalRevenue)}`,`  Upstream Wholesale Cost: ${M(t.totalUpstreamCost)}`,`  Net Gross Profit: ${M(t.totalGrossProfit)}`,`  Blended Margin: ${t.blendedMarginPercent}% (${s}${r}% vs baseline)`,`  Monthly Profit Delta: ${s}${M(n)}/mo`,`  Annualized EBITDA Impact: ${s}${M(o)}/yr`,"","[ PACKAGE PROFITABILITY MATRIX ]"];for(let c of t.packages)l.push(`  ${c.packageName} (${c.subscriberCount} subs):`),l.push(`    Revenue: ${M(c.totalRevenue)} | Cost: ${M(c.totalUpstreamCost)}`),l.push(`    Gross Profit: ${M(c.grossProfit)} (${c.grossMarginPercent}% margin)`);return l.push("========================================="),l.join(`
 `)}function vge(e,{referenceDate:t=new Date,onToast:n,clipboard:o}={}){if(typeof document>"u"||typeof document.getElementById!="function")return;let r=document.getElementById("dashboardMarginSimulatorModal"),a=document.getElementById("dashboardOpenMarginSimulatorBtn"),s=document.getElementById("dashboardMarginModalCloseBtn"),l=document.getElementById("marginSimCostInput"),c=document.getElementById("marginSimTableBody"),d=document.getElementById("marginSimCopyBtn");if(!r)return;let u={costPerMbps:x9,simulatedMultiplier:1,retailPriceDeltaPercent:0};function m(){let g=dge(e,u),{simulated:y,monthlyProfitDelta:b,annualizedImpact:_,marginDeltaPercent:v}=g,C=document.getElementById("marginSimRevenueVal"),S=document.getElementById("marginSimCostVal"),$=document.getElementById("marginSimProfitVal"),A=document.getElementById("marginSimMarginVal"),N=document.getElementById("marginSimDeltaBadge");if(C&&(C.textContent=M(y.totalRevenue)),S&&(S.textContent=M(y.totalUpstreamCost)),$&&($.textContent=M(y.totalGrossProfit)),A&&(A.textContent=`${y.blendedMarginPercent}%`),N){let D=b>=0?"+":"";N.textContent=`${D}${M(b)}/mo (${D}${M(_)}/yr)`,N.className=`sim-delta-badge ${b>=0?"delta-positive":"delta-negative"}`}return c&&(y.packages.length===0?c.innerHTML='<tr><td colspan="6" class="empty-cell">No package distribution data found.</td></tr>':c.innerHTML=y.packages.map(D=>`
           <tr>
             <td>

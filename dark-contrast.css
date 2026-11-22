@@ -103,6 +103,15 @@
   border-color: #0b7a6c !important;
 }
 
+/* Top Defaulters modal polish (2026-11-22): the prelock WhatsApp
+   gradient becomes the same dark teal in dark mode (buttons-tint
+   precedent); both hexes already occur in this file, dark count
+   stays 19. */
+[data-theme="dark"] .td-prelock-btn {
+  background: #075e54 !important;
+  border-color: #0b7a6c !important;
+}
+
 /* 5. Remaining muted text found by the dark audit (customer list/profile, reports, transactions, analytics). */
 [data-theme="dark"] :is(#detailCustomerNumber, .customer-number-line, .customer-card-package, .customer-card-open-hint, .profile-tab,
   [role="tab"][aria-selected="false"], .pane-footer, #customerListSearchHelp, #transactionFilterHelp, #transactionsCount, #transactionsEmpty,

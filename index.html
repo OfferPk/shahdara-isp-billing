@@ -28602,11 +28602,11 @@
           </div>
         </div>
 
-        <!-- Pure Vector SVG Debt Concentration Chart -->
-        <div class="defaulters-chart-wrapper" style="margin-top: 16px;">
-          <h4 class="modal-section-title">Top Defaulters Debt Concentration Chart</h4>
-          <div id="topDefaultersChartContainer" class="chart-svg-container" style="min-height: 220px;" role="img" aria-label="Top defaulters debt concentration visualizer"></div>
-        </div>
+        <!-- Pure Vector SVG Debt Concentration Chart (modal polish
+             2026-11-22: the outer wrapper card + duplicate title are
+             gone — the SVG draws its own card + title, so this is the
+             single card now) -->
+        <div id="topDefaultersChartContainer" class="chart-svg-container" style="min-height: 220px;" role="img" aria-label="Top defaulters debt concentration visualizer"></div>
 
         <!-- SISP-13: MikroTik defaulter lock / restore script output -->
         <div id="topDefaultersMikrotikOutput" class="mikrotik-output-block" hidden>
@@ -28625,43 +28625,34 @@
              primary content and the actions stay available but
              secondary. Top Defaulters Modal Fix item 2 (2026-11-13)
              removed the bottom Close: the header ✕ is the only close. -->
-        <!-- Top Defaulters Modal Fix item 3 (2026-11-13): the ten action
-             buttons are grouped under 3 mini-labels in a compact
-             2-column grid (Follow-up + Print/Export side by side,
-             Router Scripts full-width below), so the drawer stays
-             scannable on a phone. Button ids and handlers are
-             unchanged — only DOM order and grouping changed: the
-             Follow-up group order is Prelock, Hide Contacted, Lock Due
-             (the old Lock Due < Prelock order is gone by design). The
-             bottom green Close is removed (item 2): the header ✕ is
-             the only close. -->
+        <!-- Top Defaulters modal polish (2026-11-22): the ten action
+             buttons are now a flat layout — Prelock full-width on top,
+             the other seven in one balanced 2-column grid (Copy
+             Briefing spans the last row), Router Scripts full-width
+             below — so the drawer fits the 45dvh cap with no inner
+             scrollbar. Button ids and handlers are unchanged; only DOM
+             order and grouping changed. The bottom green Close is
+             removed (2026-11-13 item 2): the header ✕ is the only
+             close. -->
         <details class="defaulters-actions-details">
           <summary class="secondary-button defaulters-actions-summary">⚙️ Actions</summary>
           <div class="footer-actions-left">
             <div class="defaulters-action-groups">
-              <div class="defaulters-action-group">
-                <span class="defaulters-action-group-label">Follow-up</span>
-                <div class="defaulters-action-group-buttons">
-                  <button id="topDefaultersPrelockNoticeBtn" class="secondary-button" type="button" data-i18n="prelock_open_btn" title="Final 24h WhatsApp notice queue for the Lock Due set (Waada-promised and paused customers are spared, as in the lock script)">📲 Send Final Pre-Lock WhatsApp Notice</button>
-                  <button id="topDefaultersHideContactedBtn" class="secondary-button" type="button" aria-pressed="false" data-i18n="cct_hide_contacted_today">Hide contacted today</button>
-                  <button id="topDefaultersLockDueBtn" class="secondary-button lock-due-toggle" type="button" aria-pressed="false" title="Filter to Lock Due (15th+, no active Waada) — the MikroTik Lock Script then covers exactly this suspension set">🔴 Lock Due (15th+)</button>
-                </div>
-              </div>
-              <div class="defaulters-action-group">
-                <span class="defaulters-action-group-label">Print / Export</span>
-                <div class="defaulters-action-group-buttons">
-                  <button id="topDefaultersZoneSheetBtn" class="secondary-button" type="button" data-i18n="zsheet_open_btn">🖨️ Zone Collection Sheet</button>
-                  <button id="topDefaultersPrintA4Btn" class="secondary-button" type="button">📄 Print A4</button>
-                  <button id="topDefaultersPrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
-                  <button id="topDefaultersExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
-                  <button id="topDefaultersCopyBriefingBtn" class="secondary-button" type="button">📋 Copy Briefing</button>
-                </div>
+              <button id="topDefaultersPrelockNoticeBtn" class="secondary-button td-prelock-btn" type="button" data-i18n="prelock_open_btn" title="Final 24h WhatsApp notice queue for the Lock Due set (Waada-promised and paused customers are spared, as in the lock script)">📲 Send Final Pre-Lock WhatsApp Notice</button>
+              <div class="td-actions-grid">
+                <button id="topDefaultersHideContactedBtn" class="secondary-button" type="button" aria-pressed="false" data-i18n="cct_hide_contacted_today">Hide contacted today</button>
+                <button id="topDefaultersLockDueBtn" class="secondary-button lock-due-toggle" type="button" aria-pressed="false" title="Filter to Lock Due (15th+, no active Waada) — the MikroTik Lock Script then covers exactly this suspension set">🔴 Lock Due (15th+)</button>
+                <button id="topDefaultersZoneSheetBtn" class="secondary-button" type="button" data-i18n="zsheet_open_btn">🖨️ Zone Collection Sheet</button>
+                <button id="topDefaultersPrintA4Btn" class="secondary-button" type="button">📄 Print A4</button>
+                <button id="topDefaultersPrintThermalBtn" class="secondary-button td-btn-thermal" type="button">🧾 Thermal 80mm</button>
+                <button id="topDefaultersExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
+                <button id="topDefaultersCopyBriefingBtn" class="secondary-button td-action-wide" type="button">📋 Copy Briefing</button>
               </div>
               <div class="defaulters-action-group defaulters-action-group--wide">
                 <span class="defaulters-action-group-label">Router Scripts</span>
                 <div class="defaulters-action-group-buttons">
-                  <button id="topDefaultersMikrotikLockBtn" class="secondary-button" type="button">📡 MikroTik Lock Script</button>
-                  <button id="topDefaultersMikrotikRestoreBtn" class="secondary-button" type="button">✅ MikroTik Restore Script</button>
+                  <button id="topDefaultersMikrotikLockBtn" class="secondary-button td-btn-mikrotik-lock" type="button">📡 MikroTik Lock Script</button>
+                  <button id="topDefaultersMikrotikRestoreBtn" class="secondary-button td-btn-mikrotik-restore" type="button">✅ MikroTik Restore Script</button>
                 </div>
               </div>
             </div>

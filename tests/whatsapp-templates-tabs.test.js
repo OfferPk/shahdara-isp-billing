@@ -175,7 +175,7 @@ test('drafts: saving clears both variant drafts and leaves other templates alone
 });
 
 test('parity: EN + UR key counts are the new total', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5222);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5222);
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5223);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5223);
   assert.equal(Object.keys(TRANSLATIONS.en).length, Object.keys(TRANSLATIONS.ur).length);
 });

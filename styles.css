@@ -9130,6 +9130,16 @@ html, body {
   color: var(--muted);
 }
 
+/* Plan 628 — the always-visible bill-month line under the amount
+   field ("Bill month: October 2026"), so the form states which bill
+   month the payment is for before anything is saved. Same muted 12px
+   treatment as the prefill line, so no new hex colour is introduced. */
+.qc-bill-month-line {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 /* Plan 377 — live amount-in-words line beside the amount field: the
    typed amount in plain words, so an extra zero is caught before the
    receipt is printed. No colour of its own, so no new hex colour is

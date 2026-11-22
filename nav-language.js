@@ -320,7 +320,7 @@ export const TRANSLATIONS = {
     cust_pill_bar_aria: 'Quick financial filters',
     cust_pill_all: 'All Active',
     cust_pill_unpaid: 'Unpaid This Month',
-    cust_pill_arrears: '2+ Months Arrears',
+    cust_pill_arrears: '2+ Mo Arrears',
     cust_pill_waada: 'Active Waada',
     cust_pill_paid: 'Paid',
     cust_pill_credit: 'Advance Credit',

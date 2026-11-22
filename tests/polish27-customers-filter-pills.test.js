@@ -12,10 +12,12 @@
 // solid-green treatment with dark-theme text fixed to dark ink; each
 // pill carries its own 44 px tap-target guarantee.
 //
-// Customers Directory Polish (Nov 2026) supersedes D3-pin below: the
-// six remaining 3D emoji are replaced by 16px ds-icons (paid gets a
-// green CSS dot like unpaid's red one), and the bar splits into a 2×2
-// revenue grid + a compact count row. The D3 dot assertions stay.
+// Customers stat cards (2026-11-21, user spec) supersedes the D1/D5
+// pins below: each pill carries its own soft semantic tint; the
+// pressed revenue card keeps its tint and gains a 2px ring, the
+// pressed count pill goes solid-800 with white text; at phone widths
+// the bar still wraps but the count row scrolls as a single row.
+// The D3 dot assertions stay.
 //
 // Stylesheet-value approach (polish #17/#21/#25 pattern): read the
 // CSS/JS as text and assert the values; no browser needed.
@@ -98,14 +100,25 @@ function contrastRatio(fgHex, bgHex) {
 }
 
 // --- D1: wrap, don't scroll (<= 620 px) ------------------------------------
-
-test('D1 wrap: a 620px media rule makes the pill bar wrap with no horizontal scroll', () => {
+// Customers stat cards (2026-11-21, user spec): the BAR still wraps at
+// phone widths, but the COUNT ROW inside it is now a single horizontal
+// scrollable row — a reversal of the Polish #27 phone decision ("wraps
+// into ~3 rows … with no horizontal scroll"). The row's scrollbar is
+// hidden (app precedent: .bc-mohalla-pills); pills 3-4 hide behind a
+// swipe with no scroll cue — on-phone check owed, a fade/chevron cue
+// is a separate follow-up if he wants it.
+test('D1 wrap: a 620px media rule keeps the pill bar wrapping, while the count row inside it scrolls as one row', () => {
   const pillBars = media620Blocks(css).filter((block) => block.includes('.roster-pill-bar'));
   assert.equal(pillBars.length, 1, 'exactly one 620px media rule must carry .roster-pill-bar');
   const bar = ruleBlock(pillBars[0], '.roster-pill-bar {');
   assert.ok(bar.includes('flex-wrap: wrap'), 'wrapped bar must carry flex-wrap: wrap');
   assert.ok(bar.includes('overflow-x: visible'), 'wrapped bar must carry overflow-x: visible');
   assert.ok(!bar.includes('overflow-x: auto'), 'wrapped bar must not keep overflow-x: auto');
+  const row = ruleBlock(pillBars[0], '.roster-pill-row {');
+  assert.ok(row.includes('flex-wrap: nowrap'), 'count row must not wrap at phone widths');
+  assert.ok(row.includes('overflow-x: auto'), 'count row must scroll horizontally at phone widths');
+  assert.ok(/scrollbar-width\s*:\s*none/.test(row), 'count row must hide its scrollbar');
+  assert.ok(css.includes('.roster-pill-row::-webkit-scrollbar'), 'count row must hide the webkit scrollbar');
 });
 
 test('D1 pin: the base bar rule still scrolls on wide screens (desktop unchanged)', () => {
@@ -179,37 +192,83 @@ test('D2 full figure: the render still spells the whole PKR total, untruncated',
   assert.ok(!fn.includes('ellipsis'), 'the render must not ellipsize the total');
 });
 
-// --- D5: selected state — dark-theme text fix --------------------------------
+// --- D5: selected state — per-pill pressed treatment ------------------------
+// Customers stat cards (2026-11-21, user spec): the generic solid-green
+// pressed rule (Polish #27 D5) is replaced by eight per-pill pressed
+// rules. Revenue cards keep their tint and gain a 2px ring; count pills
+// go solid-800 with white text. The old dark override (dark ink on
+// dark --green) is deleted: the --roster-*-active backgrounds are
+// theme-stable, so white text clears 4.5:1 in both themes, and dark
+// pressed revenue cards keep their idle dark tints + ring.
 
-test('D5 dark: the pressed pill (and its total) reads in dark ink, clearing 4.5:1', () => {
+test('D5 dark: no generic dark pressed override remains; per-pill pressed states clear 4.5:1 in dark', () => {
   assert.ok(
-    css.includes('[data-theme="dark"] .roster-pill[aria-pressed="true"] .roster-pill-total'),
-    'the dark override must cover the pressed total span too (the :2991 rule sets it white)'
+    !css.includes('[data-theme="dark"] .roster-pill[aria-pressed="true"]'),
+    'the old generic dark pressed override must be gone (per-pill rules replace it)'
   );
-  const dark = ruleBlock(css, '[data-theme="dark"] .roster-pill[aria-pressed="true"],');
-  const m = /color\s*:\s*([^;}]+)/.exec(dark);
-  assert.ok(m, 'no color declaration in the dark pressed rule');
-  assert.equal(m[1].trim(), 'var(--color-neutral-900)', 'dark pressed text must be var(--color-neutral-900)');
-  assert.ok(!/#/.test(dark), 'dark pressed rule must contain no hex literal (token-only)');
-  // Token resolutions, asserted against tokens.css so a token change
-  // trips the test instead of silently changing the measured ratio.
-  assert.ok(tokensSrc.includes('--color-neutral-900: #172e29'), 'token --color-neutral-900 must stay #172e29');
+  // The pressed count-pill backgrounds are theme-stable tokens: the
+  // dark block must hold the same values as light, so white text
+  // clears 4.5:1 in dark too (same ratios as light).
   const darkTokens = tokensSrc.slice(tokensSrc.indexOf('[data-theme="dark"]'));
-  assert.ok(darkTokens.includes('--color-brand-500: #29b88f'), 'dark --green (via --color-brand-500) must stay #29b88f');
-  const ratio = contrastRatio('#172e29', '#29b88f');
-  assert.ok(ratio >= 4.5, `dark pressed pill must clear 4.5:1 (got ${ratio.toFixed(2)}:1 for #172e29 on #29b88f)`);
+  for (const [token, hex, ratio] of [
+    ['--roster-all-active', '#065f46', 7.68],
+    ['--roster-waada-active', '#6d28d9', 7.10],
+    ['--roster-slate-800', '#1e293b', 14.63],
+    ['--roster-kist-active', '#115e59', 7.58]
+  ]) {
+    assert.ok(darkTokens.includes(`${token}: ${hex}`), `dark ${token} must stay ${hex} (theme-stable pressed bg)`);
+    const measured = contrastRatio('#ffffff', hex);
+    assert.ok(measured >= 4.5, `white on ${hex} must clear 4.5:1 in dark (got ${measured.toFixed(2)}:1, expected ~${ratio}:1)`);
+  }
+  // Dark pressed revenue cards keep their idle dark tints + ring, so
+  // the dark idle text on the dark tint background must clear 4.5:1.
+  // Token resolutions are asserted so a token change trips the test
+  // instead of silently changing the measured ratio.
+  for (const [id, textToken, textHex, bgToken, bgHex] of [
+    ['unpaid', '--color-pending', '#fbbf24', '--qc-amber-soft-bg', '#3a2c10'],
+    ['arrears', '--qc-rose-text', '#ffb4a8', '--qc-rose-bg', '#3a1513'],
+    ['paid', '--qc-mint-strong-text', '#86dcbb', '--qc-mint-bg', '#16362d'],
+    ['credit', '--roster-sky-900', '#d5e2ff', '--qc-low-bg', '#182d27']
+  ]) {
+    assert.ok(darkTokens.includes(`${textToken}: ${textHex}`), `dark ${textToken} must stay ${textHex}`);
+    assert.ok(darkTokens.includes(`${bgToken}: ${bgHex}`), `dark ${bgToken} must stay ${bgHex}`);
+    const measured = contrastRatio(textHex, bgHex);
+    assert.ok(measured >= 4.5, `dark pressed ${id} text ${textHex} on ${bgHex} must clear 4.5:1 (got ${measured.toFixed(2)}:1)`);
+  }
+  // The pressed total inherits the pill's text colour in both themes.
+  const total = ruleBlock(css, '.roster-pill[aria-pressed="true"] .roster-pill-total {');
+  assert.ok(total.includes('color: inherit'), 'pressed total must inherit the pill text colour');
+  assert.ok(!/#/.test(total), 'pressed total rule must contain no hex literal (token-only)');
 });
 
-test('D5 pin: the light pressed treatment is unchanged (solid green, white text)', () => {
-  const pressed = ruleBlock(css, '.roster-pill[aria-pressed="true"] {');
-  assert.ok(pressed.includes('background: var(--green)'), 'light pressed background must stay var(--green)');
-  assert.ok(pressed.includes('border-color: var(--green-dark)'), 'light pressed border must stay var(--green-dark)');
-  // `color:` must be its own declaration — the plain /color:/ pattern
-  // also matches inside `border-color:` (which precedes it here).
-  assert.equal(/(?:^|[;\n])\s*color\s*:\s*([^;}]+)/.exec(pressed)[1].trim(), 'var(--color-neutral-0)', 'light pressed text must stay white');
-  assert.ok(tokensSrc.includes('--color-brand-500: #145b4b'), 'light --green (via --color-brand-500) must stay #145b4b');
-  const ratio = contrastRatio('#ffffff', '#145b4b');
-  assert.ok(ratio >= 4.5, `light pressed pill must clear 4.5:1 (got ${ratio.toFixed(2)}:1 for white on #145b4b)`);
+test('D5 pin: the light pressed treatment is per-pill — rings on revenue cards, solid-800 on count pills', () => {
+  // Revenue: same tint as idle + a 2px ring in the pill's ring token.
+  for (const [id, bgToken, ringToken, ringHex] of [
+    ['unpaid', '--qc-amber-soft-bg', '--qc-amber-strong-border', '#f59e0b'],
+    ['arrears', '--qc-rose-bg', '--qc-rose-strong-text', '#e11d48'],
+    ['paid', '--qc-mint-bg', '--color-emerald', '#10b981'],
+    ['credit', '--qc-low-bg', '--qc-low-border', '#0ea5e9']
+  ]) {
+    const rule = ruleBlock(css, `.roster-pill[data-roster-pill="${id}"][aria-pressed="true"] {`);
+    assert.ok(rule.includes(`background: var(${bgToken})`), `active ${id} must keep its tint background var(${bgToken})`);
+    assert.ok(rule.includes(`box-shadow: 0 0 0 2px var(${ringToken})`), `active ${id} ring must be 2px var(${ringToken})`);
+    assert.ok(tokensSrc.includes(`${ringToken}: ${ringHex}`), `token ${ringToken} must stay ${ringHex}`);
+  }
+  // Count: solid-800 background + white text, each clearing 4.5:1.
+  for (const [id, bgToken, bgHex] of [
+    ['all', '--roster-all-active', '#065f46'],
+    ['waada', '--roster-waada-active', '#6d28d9'],
+    ['paused', '--roster-slate-800', '#1e293b'],
+    ['kist', '--roster-kist-active', '#115e59']
+  ]) {
+    const rule = ruleBlock(css, `.roster-pill[data-roster-pill="${id}"][aria-pressed="true"] {`);
+    assert.ok(rule.includes(`background: var(${bgToken})`), `active ${id} background must be var(${bgToken})`);
+    assert.ok(rule.includes(`border-color: var(${bgToken})`), `active ${id} border must match its background`);
+    assert.equal(/(?:^|[;\n])\s*color\s*:\s*([^;}]+)/.exec(rule)[1].trim(), 'var(--color-neutral-0)', `active ${id} text must stay white`);
+    assert.ok(tokensSrc.includes(`${bgToken}: ${bgHex}`), `token ${bgToken} must stay ${bgHex}`);
+    const ratio = contrastRatio('#ffffff', bgHex);
+    assert.ok(ratio >= 4.5, `active ${id} white on ${bgHex} must clear 4.5:1 (got ${ratio.toFixed(2)}:1)`);
+  }
 });
 
 // --- D4: labels byte-identical ------------------------------------------------

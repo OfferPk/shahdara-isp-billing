@@ -3294,11 +3294,15 @@ button.expense-roznamcha-badge {
 .install-gate-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--text-sm); }
 .install-gate-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 /* SISP-136: roster 1-tap financial/status filter pills (token-only).
-   Polish #27: at phone widths (<= 620px) the bar wraps so all eight
-   pills and their full PKR totals are visible with no horizontal
-   scroll; wide screens keep the scrolling single row below. The unpaid
-   signal is a designed 8px dot, not an emoji. Selected state follows
-   the house pressed-button treatment. */
+   Customers stat cards (2026-11-21): each pill carries its own soft
+   semantic tint (amber unpaid, rose arrears, emerald paid, sky credit;
+   emerald All Active, purple waada, slate paused, teal kist). The
+   pressed revenue card keeps its tint and gains a 2px ring; the
+   pressed count pill goes solid with white text. At phone widths
+   (<= 620px) the bar wraps and the count row scrolls as a single
+   row (a reversal of the Polish #27 wrap decision, per the user's
+   spec — pills 3-4 hide behind a swipe with no scroll cue). The
+   unpaid signal is a designed 8px dot, not an emoji. */
 .roster-pill-bar {
   display: flex;
   gap: var(--space-2);
@@ -3359,22 +3363,131 @@ button.expense-roznamcha-badge {
   cursor: pointer;
 }
 .global-search-chip-remove:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
-.roster-pill[aria-pressed="true"] {
-  background: var(--green);
-  border-color: var(--green-dark);
+/* Customers stat cards (2026-11-21): per-pill soft semantic tints.
+   The spec's Tailwind classes are descriptive shorthand — the
+   /80 opacity has no token equivalent, so solid soft backgrounds
+   are used. Hover keeps working: the per-pill rules sit after the
+   base :hover rule and win the tie, so hover darkens the tint
+   slightly instead of swapping in --surface-soft. */
+.roster-pill[data-roster-pill="unpaid"] {
+  background: var(--qc-amber-soft-bg);
+  border-color: var(--ds-warning-border);
+  color: var(--color-pending);
+}
+.roster-pill[data-roster-pill="arrears"] {
+  background: var(--qc-rose-bg);
+  border-color: var(--qc-rose-border);
+  color: var(--qc-rose-text);
+}
+.roster-pill[data-roster-pill="paid"] {
+  background: var(--qc-mint-bg);
+  border-color: var(--qc-mint-border);
+  color: var(--qc-mint-strong-text);
+}
+.roster-pill[data-roster-pill="credit"] {
+  background: var(--qc-low-bg);
+  border-color: var(--qc-blue-border);
+  color: var(--roster-sky-900);
+}
+.roster-pill[data-roster-pill="all"] {
+  background: var(--qc-mint-bg);
+  border-color: var(--qc-mint-border);
+  color: var(--qc-emerald-text);
+}
+.roster-pill[data-roster-pill="waada"] {
+  background: var(--qc-purple-bg);
+  border-color: var(--ds-line);
+  color: var(--qc-purple-text);
+}
+.roster-pill[data-roster-pill="paused"] {
+  background: var(--color-slate-100);
+  border-color: var(--ds-line);
+  color: var(--color-slate-700);
+}
+.roster-pill[data-roster-pill="kist"] {
+  background: var(--roster-teal-50);
+  border-color: var(--roster-teal-200);
+  color: var(--roster-teal-800);
+}
+.roster-pill[data-roster-pill]:hover { filter: brightness(0.97); }
+/* Customers stat cards (2026-11-21): pressed revenue cards keep
+   their tint and gain a 2px ring; pressed count pills go solid
+   (theme-stable --roster-*-active backgrounds) with white text.
+   This replaces the old generic solid-green pressed rule (Polish
+   #27 D5) — a single green no longer covers all eight pills. */
+.roster-pill[data-roster-pill="unpaid"][aria-pressed="true"] {
+  background: var(--qc-amber-soft-bg);
+  border-color: var(--ds-warning-border);
+  color: var(--color-pending);
+  box-shadow: 0 0 0 2px var(--qc-amber-strong-border);
+}
+.roster-pill[data-roster-pill="arrears"][aria-pressed="true"] {
+  background: var(--qc-rose-bg);
+  border-color: var(--qc-rose-border);
+  color: var(--qc-rose-text);
+  box-shadow: 0 0 0 2px var(--qc-rose-strong-text);
+}
+.roster-pill[data-roster-pill="paid"][aria-pressed="true"] {
+  background: var(--qc-mint-bg);
+  border-color: var(--qc-mint-border);
+  color: var(--qc-mint-strong-text);
+  box-shadow: 0 0 0 2px var(--color-emerald);
+}
+.roster-pill[data-roster-pill="credit"][aria-pressed="true"] {
+  background: var(--qc-low-bg);
+  border-color: var(--qc-blue-border);
+  color: var(--roster-sky-900);
+  box-shadow: 0 0 0 2px var(--qc-low-border);
+}
+.roster-pill[data-roster-pill="all"][aria-pressed="true"] {
+  background: var(--roster-all-active);
+  border-color: var(--roster-all-active);
+  color: var(--color-neutral-0);
+}
+.roster-pill[data-roster-pill="waada"][aria-pressed="true"] {
+  background: var(--roster-waada-active);
+  border-color: var(--roster-waada-active);
+  color: var(--color-neutral-0);
+}
+.roster-pill[data-roster-pill="paused"][aria-pressed="true"] {
+  background: var(--roster-slate-800);
+  border-color: var(--roster-slate-800);
+  color: var(--color-neutral-0);
+}
+.roster-pill[data-roster-pill="kist"][aria-pressed="true"] {
+  background: var(--roster-kist-active);
+  border-color: var(--roster-kist-active);
   color: var(--color-neutral-0);
 }
 .roster-pill:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+/* Customers stat cards (2026-11-21): the count is a compact pill
+   badge — fully rounded, 11px semibold (the Sharafat 97 floor
+   exactly), never shrinking out of the card's top-right. No separate
+   background: the badge must stay legible on both the light tints
+   and the solid-800 pressed count pills, so it inherits the pill's
+   text colour. */
 .roster-pill-count {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 999px;
   font-variant-numeric: var(--numeric);
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 600;
 }
+/* Customers stat cards (2026-11-21): a 0-count status pill is muted
+   unless selected (count pills only — the render adds the class). */
+.roster-pill--zero { opacity: 0.7; }
+.roster-pill--zero[aria-pressed="true"] { opacity: 1; }
 .roster-pill-total {
   font-variant-numeric: var(--numeric);
   color: var(--muted);
   font-weight: 700;
 }
-.roster-pill[aria-pressed="true"] .roster-pill-total { color: var(--color-neutral-0); }
+/* Customers stat cards (2026-11-21): the pressed total inherits the
+   pill's text colour — the tint on a pressed revenue card, white on
+   a solid pressed count pill. (The old rule forced white, which only
+   read on the old solid-green pressed background.) */
+.roster-pill[aria-pressed="true"] .roster-pill-total { color: inherit; }
 /* Polish #27: the unpaid signal is a designed dot on the danger token,
    a controlled 8px on every phone (the old red-circle emoji varied by
    phone and font, and sat inside the aria-label as noise). */
@@ -3421,27 +3534,48 @@ button.expense-roznamcha-badge {
   min-width: 0;
   overflow: hidden;
 }
+/* Customers stat cards (2026-11-21): the revenue-card label flexes
+   and ellipsizes so a long label never pushes the count badge out
+   of the card's top-right (line 1 already clips overflow). */
+.roster-pill-grid .roster-pill-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .roster-pill-row .roster-pill {
   min-height: 32px;
   padding: 4px 10px;
 }
-/* Polish #27: dark pressed text is dark ink, not white — white on dark
-   --green fails AA, while dark ink on dark --green clears 4.5:1
-   (measured 5.72:1). The total span needs the override too, or it stays
-   white-on-green. Scoped to .roster-pill; the shared --green token is
-   untouched. Light theme already passes and is unchanged. */
-[data-theme="dark"] .roster-pill[aria-pressed="true"],
-[data-theme="dark"] .roster-pill[aria-pressed="true"] .roster-pill-total {
-  color: var(--color-neutral-900);
-}
-/* Polish #27: at phone widths the bar wraps into ~3 rows so all eight
-   pills and their full PKR totals are visible at the top with no
-   horizontal scroll; wide screens keep the scrolling single row. */
+/* Customers stat cards (2026-11-21): the old dark pressed override
+   (dark ink on dark --green, Polish #27 D5) is deleted, not replaced
+   — there is no generic pressed background any more. Dark pressed
+   revenue cards keep their idle dark tints + ring, and dark pressed
+   count pills use the same theme-stable --roster-*-active
+   backgrounds as light (white text clears 4.5:1 in both themes:
+   7.68 / 7.10 / 14.63 / 7.58). */
+/* Customers stat cards (2026-11-21): at phone widths the bar still
+   wraps (the revenue grid stacks above the count row), but the count
+   row is now a single horizontal scrollable row — a reversal of the
+   Polish #27 wrap decision, per the user's spec. Pills 3-4 hide
+   behind a swipe with no scroll cue; the scrollbar is hidden (app
+   precedent: .bc-mohalla-pills). A fade/chevron cue is a separate
+   follow-up if he wants one. */
 @media (max-width: 620px) {
   .roster-pill-bar {
     flex-wrap: wrap;
     overflow-x: visible;
   }
+  /* The count row must come before the combined full-width rule
+   * below: the scrollable-row rule is the first .roster-pill-row
+   * rule in this block. (No braces in this comment — the test
+   * harness counts braces to find the end of the media block.) */
+  .roster-pill-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .roster-pill-row::-webkit-scrollbar { display: none; }
   /* Customers Directory Polish: each group takes the full bar width
    * at phone widths, so the revenue grid stacks above the count row. */
   .roster-pill-grid,

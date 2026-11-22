@@ -2257,13 +2257,26 @@ export function renderBandwidthShapingSvg(metrics) {
  * active vs offline drops, and available dark fiber headroom across key areas.
  */
 export function renderFiberDistributionSvg(metrics) {
-  const width = 560;
+  // Fiber Hubs mobile redesign: viewBox narrowed 560 -> 420 so the
+  // 15px labels read 11.1px effective at 312px display (360px viewport)
+  // — the 11px content floor (Sharafat 97). Pads are measured, not
+  // guessed: leftPad 160 fits the worst-case 16-glyph hub label
+  // (16 x 0.6em x 15px = 144px + 12px gap = 156, +4 margin);
+  // rightPad 140 fits the worst-case "100/100 (100%)" value
+  // (14 x 0.6em x 15px = 126px + 8px gap = 134, +6 margin).
+  // Plot width 120 (420 - 160 - 140). See
+  // tests/fiber-hubs-mobile-redesign.test.js for the pinned arithmetic.
+  const width = 420;
   const height = 240;
 
   if (!metrics || !metrics.hubs || metrics.hubs.length === 0 || metrics.totalDeployedPorts === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub: No active drops">
-      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
-      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+    // Empty state is OUT OF SCOPE for the mobile redesign — it is SVG-only
+    // already and fits. It keeps its OWN 560-wide viewBox (NOT the shared
+    // `width` const, which is now 420): the centred subtitle is ~550px at
+    // 11px and only just fits 560; at 420 it would clip at both edges.
+    return `<svg class="chart-svg" viewBox="0 0 560 240" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub: No active drops">
+      <rect width="560" height="240" rx="10" fill="transparent" />
+      <g transform="translate(280, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
         <path d="M-12 0 L-4 -8 L4 8 L12 0" stroke="#0e5b4d" stroke-width="2" fill="none" />
         <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No fiber distribution hubs or drops recorded</text>
@@ -2274,8 +2287,8 @@ export function renderFiberDistributionSvg(metrics) {
 
   const topPad = 36;
   const bottomPad = 36;
-  const leftPad = 130;
-  const rightPad = 100;
+  const leftPad = 160;
+  const rightPad = 140;
   const plotWidth = width - leftPad - rightPad;
 
   // Display top 5 hubs
@@ -2283,10 +2296,17 @@ export function renderFiberDistributionSvg(metrics) {
   const rowHeight = Math.floor((height - topPad - bottomPad) / Math.max(displayHubs.length, 1));
   const barHeight = Math.min(18, Math.max(12, rowHeight - 12));
 
-  let statusColor = '#047857';
+  // Saturation colour scale (thresholds unchanged: >=70% amber, >=85% red).
+  // #d97706 / #ef4444 have NO exact design token — kept as hex by parent
+  // decision; do NOT substitute the closest token (that would change the
+  // visible shade without the user asking). #047857 -> --color-emerald-dark.
+  let statusColor = 'var(--color-emerald-dark)';
   if (metrics.overallSaturationPercent >= 85) statusColor = '#ef4444';
   else if (metrics.overallSaturationPercent >= 70) statusColor = '#d97706';
 
+  // Bar fills: #0e5b4d -> --color-brand-600, spare grey -> --color-slate-400
+  // + fill-opacity. #f59e0b (offline amber) has NO exact token — kept as
+  // hex by parent decision (same reason as the amber scale above).
   const rowsSvg = displayHubs.map((hub, idx) => {
     const yCenter = topPad + idx * rowHeight + rowHeight / 2;
     const barY = Math.round(yCenter - barHeight / 2);
@@ -2302,22 +2322,22 @@ export function renderFiberDistributionSvg(metrics) {
     const offlineX = activeX + activeW;
     const spareX = offlineX + offlineW;
 
-    const satColor = hub.saturationPercent >= 85 ? '#ef4444' : (hub.saturationPercent >= 70 ? '#d97706' : '#10b981');
+    const satColor = hub.saturationPercent >= 85 ? '#ef4444' : (hub.saturationPercent >= 70 ? '#d97706' : 'var(--color-emerald)');
 
     return `
-      <text x="${leftPad - 12}" y="${yCenter + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="600" fill="var(--ink, #182e2a)">
+      <text x="${leftPad - 12}" y="${yCenter + 5}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="15" font-weight="600" fill="var(--ink, #182e2a)">
         ${escapeXml(hub.areaName.length > 16 ? hub.areaName.slice(0, 15) + '…' : hub.areaName)}
       </text>
 
       <rect x="${leftPad}" y="${barY}" width="${plotWidth}" height="${barHeight}" rx="4" fill="var(--bg-soft, #f1f5f3)" />
 
-      ${activeW > 0 ? `<rect x="${activeX}" y="${barY}" width="${activeW}" height="${barHeight}" rx="${offlineW === 0 && spareW === 0 ? 4 : 0}" fill="#0e5b4d" />` : ''}
+      ${activeW > 0 ? `<rect x="${activeX}" y="${barY}" width="${activeW}" height="${barHeight}" rx="${offlineW === 0 && spareW === 0 ? 4 : 0}" fill="var(--color-brand-600)" />` : ''}
 
       ${offlineW > 0 ? `<rect x="${offlineX}" y="${barY}" width="${offlineW}" height="${barHeight}" rx="${activeW === 0 && spareW === 0 ? 4 : 0}" fill="#f59e0b" />` : ''}
 
-      ${spareW > 0 ? `<rect x="${spareX}" y="${barY}" width="${spareW}" height="${barHeight}" rx="${activeW === 0 && offlineW === 0 ? 4 : 0}" fill="rgba(148, 163, 184, 0.4)" />` : ''}
+      ${spareW > 0 ? `<rect x="${spareX}" y="${barY}" width="${spareW}" height="${barHeight}" rx="${activeW === 0 && offlineW === 0 ? 4 : 0}" fill="var(--color-slate-400)" fill-opacity="0.4" />` : ''}
 
-      <text x="${leftPad + plotWidth + 8}" y="${yCenter + 4}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="${satColor}">
+      <text x="${leftPad + plotWidth + 8}" y="${yCenter + 5}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="${satColor}">
         ${hub.assignedPorts}/${hub.totalPorts} (${hub.saturationPercent}%)
       </text>
     `;
@@ -2325,23 +2345,18 @@ export function renderFiberDistributionSvg(metrics) {
 
   // Telemetry Lab: the title + stats row left the SVG (fixed x-coords
   // collided on narrow screens) and is an HTML flex bar above the chart.
-  return `<div class="chart-top-bar"><span class="chart-top-bar-title">Markaz-e-Taqseem-e-Fiber (FDH)</span><span class="chart-metric-sub">Total Ports: <strong>${metrics.totalDeployedPorts}</strong> \u00b7 Dark Headroom: <strong style="color:#047857">${metrics.totalSparePorts}</strong> \u00b7 Saturation: <strong style="color:${statusColor}">${metrics.overallSaturationPercent}%</strong></span></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
+  // Fiber Hubs redesign: the metrics are three wrapping cells (the
+  // existing .chart-metric-strip pattern) so they stack under the title
+  // at 312px instead of clipping; the legend left the SVG too and is
+  // HTML chips below the chart at the 11px floor — the same move
+  // Telemetry Lab made for the title. Same numbers, labels, order and
+  // colour thresholds; labels render uppercase via .chart-metric-label.
+  return `<div class="chart-top-bar"><span class="chart-top-bar-title">Markaz-e-Taqseem-e-Fiber (FDH)</span><span class="chart-metric-strip"><span class="chart-metric-cell"><span class="chart-metric-label">Total Ports</span><span class="chart-metric-value">${metrics.totalDeployedPorts}</span></span><span class="chart-metric-cell"><span class="chart-metric-label">Dark Headroom</span><span class="chart-metric-value" style="color:var(--color-emerald-dark)">${metrics.totalSparePorts}</span></span><span class="chart-metric-cell"><span class="chart-metric-label">Saturation</span><span class="chart-metric-value" style="color:${statusColor}">${metrics.overallSaturationPercent}%</span></span></span></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
 
     ${rowsSvg}
-
-    <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
-      <rect x="-180" y="-8" width="10" height="10" rx="2" fill="#0e5b4d" />
-      <text x="-164" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Active Drops</text>
-
-      <rect x="-70" y="-8" width="10" height="10" rx="2" fill="#f59e0b" />
-      <text x="-54" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Offline Drops</text>
-
-      <rect x="40" y="-8" width="10" height="10" rx="2" fill="rgba(148, 163, 184, 0.5)" />
-      <text x="56" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Dark Headroom (Spare)</text>
-    </g>
-  </svg>`;
+  </svg><div class="chart-legend" role="list" aria-label="Chart legend"><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--active"></span>Active Drops</span><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--offline"></span>Offline Drops</span><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--spare"></span>Dark Headroom (Spare)</span></div>`;
 }
 
 /**

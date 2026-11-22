@@ -22,6 +22,7 @@
 
 import { announceToScreenReader } from './nav-accessibility.js';
 import { t, getAppLanguage } from './nav-language.js';
+import { clearDashboardPlace } from './dashboard-place.js';
 
 export const PWA_INSTALLED_STORAGE_KEY = 'shahdara_pwa_installed_v1';
 export const PWA_BANNER_DISMISSED_KEY = 'shahdara_pwa_banner_dismissed_v1';
@@ -808,6 +809,13 @@ export function setupSwUpdatePrompt({
       clearSwUpdatePromptShown(storage);
       return false;
     }
+    // Update reload must land at the TOP, not restore the saved (possibly
+    // bottom) dashboard place: clear the Plan 485 place and stop the
+    // browser's own reload restoration for this navigation. Either half
+    // alone leaves one restore live (the app's restore, or Chrome's
+    // 'auto' reload restoration), so both are needed.
+    try { clearDashboardPlace(storage); } catch { /* place-keeping is best-effort */ }
+    try { if (win?.history) win.history.scrollRestoration = 'manual'; } catch { /* history is best-effort */ }
     if (requestSwUpdateActivation(liveWaitingWorker())) {
       activationRequested = true;
       if (fallbackTimer) clearTimeout(fallbackTimer);

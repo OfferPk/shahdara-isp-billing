@@ -2460,9 +2460,15 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
   // itself (input + Save / Cancel, no jump to the profile edit); the
   // editor is wired by delegation on the card container.
   const displayPhone = String(whatsappPhone || '').trim() || String(receipt.phone || '').trim();
+  // QC success rows pill (user, 2026-11-21): the Mobile Number row
+  // leaves the two-column grid and becomes a full-width pill row in
+  // the Amount Collected style — the Change / Add number action sits
+  // INLINE inside the value (right after the number), not on its own
+  // line; the editor state (input + Save/Cancel + error) still lives
+  // in the same value slot and expands the pill row while editing.
   const phoneRow = editingPhone ? `
-        <div class="qc-receipt-item" data-qc-receipt-phone>
-          <span class="qc-meta-label">Mobile Number</span>
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row" data-qc-receipt-phone>
+          <span class="qc-receipt-label">Mobile Number</span>
           <span class="qc-meta-val">
             <input class="qc-input qc-phone-input" data-qc-phone-input type="tel" inputmode="tel" maxlength="40" value="${escapeHtml(phoneEditValue)}" placeholder="03012345678" aria-label="Mobile number" />
             ${phoneEditError ? `<span class="qc-phone-error" data-qc-phone-error role="alert">${escapeHtml(phoneEditError)}</span>` : ''}
@@ -2472,9 +2478,9 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
             </span>
           </span>
         </div>` : `
-        <div class="qc-receipt-item" data-qc-receipt-phone>
-          <span class="qc-meta-label">Mobile Number</span>
-          ${displayPhone ? `<strong class="qc-meta-val qc-phone-saved">${escapeHtml(displayPhone)}</strong>${receipt.customerId ? `<button type="button" class="text-button" data-qc-edit-phone>Change</button>` : ''}` : `<strong class="qc-meta-val">Not saved</strong>${receipt.customerId ? `<button type="button" class="secondary-button" data-qc-add-phone>Add number</button>` : ''}`}
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row" data-qc-receipt-phone>
+          <span class="qc-receipt-label">Mobile Number</span>
+          ${displayPhone ? `<strong class="qc-meta-val qc-phone-saved">${escapeHtml(displayPhone)}${receipt.customerId ? ` <button type="button" class="text-button" data-qc-edit-phone>Change</button>` : ''}</strong>` : `<strong class="qc-meta-val">Not saved${receipt.customerId ? ` <button type="button" class="secondary-button" data-qc-add-phone>Add number</button>` : ''}</strong>`}
         </div>`;
   // Month name: the BILL month being paid ("2026-11" → "November"),
   // never the device clock — an October payment recorded in November
@@ -2523,30 +2529,46 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
         <strong class="qc-receipt-amount">PKR ${formatReceiptMoneyFigure(receipt.amount)}</strong>
       </div>
 
-      <div class="qc-receipt-grid">
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Customer</span>
+      <!-- QC success rows pill (user spec): the six detail rows leave
+           the two-column grid and become full-width pill rows in the
+           hero pill style — same soft rounded pill, slightly more
+           compact (0.875rem values; the hero rows stay 1.3rem). Name
+           and phone each get their own full-width row; the area
+           select stays inline inside its pill row. The other grid
+           rows stay in the grid. (No row labels, dates, or amounts
+           in this comment: the tests find rows by their label text,
+           and a literal here would shadow the real row.) -->
+      <div class="qc-receipt-detail-rows">
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Customer</span>
           <strong class="qc-meta-val qc-customer-golden">👑 ${escapeHtml(receipt.customerName)} ${escapeHtml(String(receipt.customerNumber))}</strong>
         </div>
         ${phoneRow}
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Date &amp; Method</span>
+          <strong class="qc-meta-val">${escapeHtml(formatQcReceiptDate(receipt.date))} · ${escapeHtml(receipt.method)}</strong>
+        </div>
+        ${billMonthName ? `
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Month</span>
+          <strong class="qc-meta-val">${escapeHtml(billMonthName)}</strong>
+        </div>` : ''}
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Area / Location</span>
+          ${quickCollectAreaSelectHtml(receipt.area)}
+        </div>
+        <div class="qc-receipt-amount-row qc-amount-pill qc-receipt-detail-row">
+          <span class="qc-receipt-label">Next due date</span>
+          <strong class="qc-meta-val">${escapeHtml(nextDueDateText || SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT)}</strong>
+        </div>
+      </div>
+
+      <div class="qc-receipt-grid">
         ${receipt.connection ? `
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Connection</span>
           <strong class="qc-meta-val">${escapeHtml(receipt.connection)}</strong>
         </div>` : ''}
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Date &amp; Method</span>
-          <strong class="qc-meta-val">${escapeHtml(formatQcReceiptDate(receipt.date))} · ${escapeHtml(receipt.method)}</strong>
-        </div>
-        ${billMonthName ? `
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Month</span>
-          <strong class="qc-meta-val">${escapeHtml(billMonthName)}</strong>
-        </div>` : ''}
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Area / Location</span>
-          ${quickCollectAreaSelectHtml(receipt.area)}
-        </div>
         ${ticketChargeRows}
         ${formatRemainderWaadaLine(receipt) ? `
         <div class="qc-receipt-item full-width">
@@ -2591,10 +2613,6 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, next
           <span class="qc-meta-label">${escapeHtml(mergedOwedLabel)}</span>
           <strong class="qc-meta-val has-balance">PKR ${formatReceiptMoneyFigure(remainingPayable)}</strong>
         </div>` : ''}
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Next due date</span>
-          <strong class="qc-meta-val">${escapeHtml(nextDueDateText || SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT)}</strong>
-        </div>
         ${receipt.referenceOverrideReason ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Ref Note / Override</span>

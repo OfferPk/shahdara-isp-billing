@@ -73,10 +73,12 @@ function baseReceipt(overrides = {}) {
 }
 
 // The Mobile Number row, or null when the card has none.
+// QC success rows pill (user, 2026-11-21): the row is a pill row now,
+// not a .qc-receipt-item — find the enclosing div, not the grid item.
 function phoneRowOf(html) {
   const at = html.indexOf('Mobile Number');
   if (at < 0) return null;
-  const rowStart = html.lastIndexOf('<div class="qc-receipt-item', at);
+  const rowStart = html.lastIndexOf('<div', at);
   const rowEnd = html.indexOf('</div>', at);
   return html.slice(rowStart, rowEnd);
 }

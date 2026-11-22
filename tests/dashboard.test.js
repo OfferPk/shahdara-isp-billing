@@ -848,7 +848,13 @@ test('Sharafat 22 — opening the charts section renders all 21 charts', () => {
   try {
     renderDashboardCharts(state, new Date('2026-10-15T12:00:00+05:00'));
     for (const id of SHARAFAT22_CHART_CONTAINER_IDS) {
-      assert.ok(fakeContainers.get(id).innerHTML.includes('<svg'), `${id} renders an SVG when open`);
+      // Acquisition ROI renders HTML rows, not an SVG (mobile redesign: the
+      // 560-wide SVG clipped labels and read at ~5px at 360px).
+      if (id === 'dashboardAcquisitionChart') {
+        assert.ok(fakeContainers.get(id).innerHTML.includes('acquisition-roi-rows'), `${id} renders HTML rows when open`);
+      } else {
+        assert.ok(fakeContainers.get(id).innerHTML.includes('<svg'), `${id} renders an SVG when open`);
+      }
     }
     // Still no dues-aging container — the 22nd build is skipped by the
     // if (el) guard even when open; do NOT add the container here.
@@ -3439,25 +3445,30 @@ test('calculateAcquisitionRoiMetrics handles empty state safely', () => {
   assert.equal(res.fastestPaybackChannel, 'None');
 });
 
-test('renderAcquisitionRoiSvg renders accessible SVG with channel bars and empty state fallback', async () => {
+test('renderAcquisitionRoiSvg renders accessible HTML rows with channel bars and empty state fallback', async () => {
   const emptyState = { customers: [], receipts: [] };
   const emptyData = calculateAcquisitionRoiMetrics(emptyState);
-  const emptySvg = renderAcquisitionRoiSvg(emptyData);
+  const emptyHtml = renderAcquisitionRoiSvg(emptyData);
 
-  assert.ok(emptySvg.includes('<svg'));
-  assert.ok(emptySvg.includes('No subscriber acquisition data available'));
+  // Acquisition ROI redesign: the chart body moved from SVG to HTML rows
+  // (the 560-wide SVG clipped end-anchored labels and read at ~5px at
+  // 360px), so the '<svg' asserts became 'not <svg' and the footer now
+  // lives in wrapping HTML. The export name is kept (call site + re-export
+  // + tests import it).
+  assert.ok(!emptyHtml.includes('<svg'));
+  assert.ok(emptyHtml.includes('No subscriber acquisition data available'));
 
   const populatedState = createInitialState(SAMPLE_NAMES);
   const popData = calculateAcquisitionRoiMetrics(populatedState);
-  const svg = renderAcquisitionRoiSvg(popData);
+  const html = renderAcquisitionRoiSvg(popData);
 
-  assert.ok(svg.includes('<svg'));
-  assert.ok(svg.includes('acquisition-roi-row'));
-  assert.ok(svg.includes('Total CAC:'));
+  assert.ok(!html.includes('<svg'));
+  assert.ok(html.includes('acquisition-roi-row'));
+  assert.ok(html.includes('Total CAC:'));
   // Performance & Collection Analytics (D3(a)): the 'Portfolio Net ROI:'
   // header moved out of the SVG into the HTML summary row above it, so it
   // is asserted there instead of in the SVG.
-  assert.ok(!svg.includes('Portfolio Net ROI:'));
+  assert.ok(!html.includes('Portfolio Net ROI:'));
   const fs = await import('fs');
   const path = await import('path');
   const indexHtml = fs.readFileSync(path.resolve('./index.html'), 'utf-8');

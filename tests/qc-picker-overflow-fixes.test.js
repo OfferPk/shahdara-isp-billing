@@ -209,8 +209,9 @@ test('G self-guard — this file carries none of the parity bare digits', () => 
   // contains them (plan591 G5a sweeps the whole tests/ tree for the bare
   // digits of the current total, pnl G4 counts the files containing
   // them). This file asserts no parity total — 0 new keys.
+  // Re-pin (Reports Closing polish, rebased onto the Reports Register merge): current 5,228 → 5,229, previous 5,223 → 5,228.
   const selfSrc = read('tests/qc-picker-overflow-fixes.test.js');
-  assert.ok(!selfSrc.includes('52' + '28'), 'this file must not carry the current parity bare digits');
-  assert.ok(!selfSrc.includes('52' + '23'), 'this file must not carry the previous parity bare digits');
+  assert.ok(!selfSrc.includes('52' + '29'), 'this file must not carry the current parity bare digits');
+  assert.ok(!selfSrc.includes('52' + '28'), 'this file must not carry the previous parity bare digits');
   assert.ok(!selfSrc.includes('52' + '03'), 'this file must not carry the older parity bare digits');
 });

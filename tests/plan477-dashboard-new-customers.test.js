@@ -99,7 +99,10 @@ test('new customers strip: a business with no customers shows no one, at zero', 
   };
   renderNewCustomers(doc, summary);
   assert.equal(els.ncmNewTotal.textContent, '0');
-  assert.equal(els.ncmNewLine.textContent, '0 new customers this month');
+  // Reports Closing polish re-pin (why-comment): the "#ncmNewLine"
+  // count line is removed — the pill badge on #ncmNewTotal already
+  // carries the count — so the renderer never queries it.
+  assert.equal('ncmNewLine' in els, false, 'the count line is no longer written');
   assert.equal(els.ncmNewRows.innerHTML, '');
   assert.equal(els.ncmNewEmpty.hidden, false, 'empty state shows');
 });
@@ -112,7 +115,10 @@ test('new customers strip render: PKR figures, line, and rows land in the view',
   };
   renderNewCustomers(doc, summary);
   assert.equal(els.ncmNewTotal.textContent, '6');
-  assert.equal(els.ncmNewLine.textContent, '6 new customers this month');
+  // Reports Closing polish re-pin (why-comment): the "#ncmNewLine"
+  // count line is removed — the pill badge on #ncmNewTotal already
+  // carries the count — so the renderer never queries it.
+  assert.equal('ncmNewLine' in els, false, 'the count line is no longer written');
   assert.equal(els.ncmNewEmpty.hidden, true, 'empty state hides while new customers exist');
   const html = els.ncmNewRows.innerHTML;
   assert.ok(html.includes('New Conn A'), 'A row lands');
@@ -154,7 +160,10 @@ test('new customers strip render: one new customer reads the singular line', () 
     summary
   );
   assert.equal(els.ncmNewTotal.textContent, '1');
-  assert.equal(els.ncmNewLine.textContent, '1 new customer this month');
+  // Reports Closing polish re-pin (why-comment): the "#ncmNewLine"
+  // count line is removed — the pill badge on #ncmNewTotal already
+  // carries the count — so the renderer never queries it.
+  assert.equal('ncmNewLine' in els, false, 'the count line is no longer written');
   assert.equal(els.ncmNewEmpty.hidden, true);
 });
 
@@ -174,7 +183,10 @@ test('new customers strip wiring: the strip sits on the billing dashboard after 
   assert.ok(page.indexOf('id="newCustomersSection"') > page.indexOf('id="collectorCardSection"'), 'strip follows the collector card');
   assert.ok(page.indexOf('id="newCustomersSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'strip sits before the matrix section');
   assert.ok(page.includes('id="ncmNewTotal"'), 'count element exists');
-  assert.ok(page.includes('id="ncmNewLine"'), 'count line exists');
+  // Reports Closing polish re-pin (why-comment): the "#ncmNewLine"
+  // count line is removed from the card — the pill badge on
+  // #ncmNewTotal already carries the count.
+  assert.ok(!page.includes('id="ncmNewLine"'), 'count line removed');
   assert.ok(page.includes('id="ncmNewRows"'), 'rows element exists');
   assert.ok(page.includes('id="ncmNewEmpty"'), 'empty state exists');
   assert.ok(page.includes('data-i18n="dash_newcustomers_title"'), 'strip title is translated');
@@ -192,11 +204,17 @@ test('i18n: every dash_newcustomers_ key used exists in English and Urdu', () =>
   const module = readFileSync(new URL('../dashboard-new-customers.js', import.meta.url), 'utf8');
   const used = new Set();
   for (const match of page.matchAll(/data-i18n="(dash_newcustomers_[a-z_]+)"/g)) used.add(match[1]);
-  // The count, no-package, and dues keys sit inside t() calls in
+  // The no-package and dues keys sit inside t() calls in
   // the module, not directly after t(' — so the module scan
   // takes every quoted key.
+  // Reports Closing polish re-pin (why-comment): the count keys
+  // (dash_newcustomers_count_sing/plur) are no longer called — the
+  // "#ncmNewLine" count line is removed and the pill badge on
+  // #ncmNewTotal carries the count — so the used set drops 7 → 5.
+  // The two keys stay in nav-language.js as dead keys (repo
+  // convention: dead-key removal is a separate sweep).
   for (const match of module.matchAll(/'(dash_newcustomers_[a-z_]+)'/g)) used.add(match[1]);
-  assert.ok(used.size >= 7, `expected at least 7 new-customers keys, found ${[...used].join(', ')}`);
+  assert.ok(used.size >= 5, `expected at least 5 new-customers keys, found ${[...used].join(', ')}`);
   for (const key of used) {
     assert.ok(typeof TRANSLATIONS.en[key] === 'string' && TRANSLATIONS.en[key].length > 0, `missing English key ${key}`);
     assert.ok(typeof TRANSLATIONS.ur[key] === 'string' && TRANSLATIONS.ur[key].length > 0, `missing Urdu key ${key}`);

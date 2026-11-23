@@ -312,9 +312,9 @@ test('neon glassy: this file asserts no parity total and carries neither parity 
   // current 5,210, previous 5,204 (the +6 keys).
   // Plan 628 — guard moves one step:
   // current 5,223, previous 5,222 (the +1 key pair).
-  // Reports Register & audit polish — guard moves one step:
-  // current 5,228, previous 5,223 (the +5 keys).
-  assert.ok(!selfSrc.includes('52' + '28'), 'file contains the current parity total as a bare literal');
-  assert.ok(!selfSrc.includes('52' + '23'), 'file contains the previous parity total as a bare literal');
+  // Reports Closing polish — guard moves one step:
+  // current 5,229, previous 5,228 (the +1 key).
+  assert.ok(!selfSrc.includes('52' + '29'), 'file contains the current parity total as a bare literal');
+  assert.ok(!selfSrc.includes('52' + '28'), 'file contains the previous parity total as a bare literal');
   assert.ok(!selfSrc.includes('nav-' + 'language.js'), 'this file must not assert a parity total');
 });

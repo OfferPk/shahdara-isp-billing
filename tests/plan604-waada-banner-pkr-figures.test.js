@@ -91,8 +91,9 @@ const TOAST_EN = {
 // ================= G1 — parity guard (this file's own pin) =================
 
 test('G1: parity is 5,222/5,222 in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5228, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5228, 'UR parity');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(en).length, 5229, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5229, 'UR parity');
   const prvEn = Object.keys(en).filter((k) => k.startsWith('prv_'));
   const prvUr = Object.keys(ur).filter((k) => k.startsWith('prv_'));
   // Plan 608 adds the 240th prv_ key (prv_wr_toast_past_date).
@@ -217,7 +218,7 @@ test('G10: the no-labels default still renders raw Rs 100 (documented fallback, 
 // ================= G11 — self-guard =================
 
 test('G11: this file pins the new total and stays free of the previous and older total literals', () => {
-  assert.ok(selfSrc.includes('5228'), 'this file pins the new total 5,228');
+  assert.ok(selfSrc.includes('5229'), 'this file pins the new total 5,229');
   // The previous total's digits and the older total's digits are built,
   // never spelled, so this guard cannot trip the sweep it guards.
   assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');

@@ -394,8 +394,9 @@ test('plan566 G1: EN/UR parity stays 4,669/4,669 — the guard adds no i18n keys
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR key count moved');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR key count moved');
 });
 
 // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338

@@ -93,8 +93,9 @@ test('Lab: More menu + router + the one new key', () => {
 });
 
 test('Lab: parity is the NEW total (this file is the pin)', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228);
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229);
 });
 
 test('Lab: no in-SVG headers left on the seven fixed cards', () => {

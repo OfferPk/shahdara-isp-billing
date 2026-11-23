@@ -358,8 +358,9 @@ test('Plan 584 G5: parity holds at 4,722/4,722 with identical key sets', () => {
   // (Test title re-pinned with the asserts by Plan 586 — the 585 merge had
   // left the 584-era number in the title with disclosure; titles and
   // asserts move together from here on.)
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN count');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR count');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN count');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR count');
   assert.deepEqual(
     Object.keys(TRANSLATIONS.en).sort(),
     Object.keys(TRANSLATIONS.ur).sort(),

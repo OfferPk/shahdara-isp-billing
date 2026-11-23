@@ -5,7 +5,7 @@ import {
   buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, describePercentChange, CUSTOMER_RANKING_TYPES, TROUBLESOME_RULE,
   RECOVERY_MOHALLA_ORDER, recoveryMohallaRank, recoveryHealthTag
 } from './owner-insights.js';
-import { formatHisaabDate } from './dashboard-pnl.js';
+import { formatHisaabDate, formatSavedAt } from './dashboard-pnl.js';
 // Owner 5-part fix: the unified card answers the twelve fixed Pucho
 // catalogue questions through the same input, so the Pucho engine is
 // imported here too — one input, one answer area, two existing engines.
@@ -173,9 +173,26 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     const host=$('#savedMonthlyClosings'); if(!host)return;
     const snapshots=[...(getState().monthlyClosings??[])].sort((a,b)=>b.month.localeCompare(a.month));
     if(!snapshots.length){host.innerHTML='<p class="empty-state">No month has closed in this local ledger yet. The previous month is saved once when the app opens in the next Pakistan calendar month.</p>';return;}
-    host.innerHTML=snapshots.map(row=>{
+    // Reports Closing polish: one footnote <p> per card — the status
+    // sentence plus, when a previous month exists, the comparison
+    // sentence. The comparison figures survive even when zero (dropping
+    // them would be silent data loss).
+    const closingFootnote=(row)=>{
       const previous=row.previousMonthComparison;
-      return `<article class="saved-closing-card"><div class="closing-card-head"><h4>${escapeHtml(monthName(row.month))}</h4><span>Saved ${escapeHtml(row.savedAt)} PKT</span></div><div class="closing-metrics"><div><span>Total customers</span><strong>${row.totalCustomers}</strong></div><div><span>Total bills</span><strong>${row.billCount} <small>(${row.pricedBillCount} priced)</small></strong></div><div><span>Total billing</span><strong>${escapeHtml(formatAmount(row.billedAmount))}</strong></div><div><span>Collection</span><strong>${escapeHtml(formatAmount(row.collection))}</strong></div><div><span>Pending</span><strong>${escapeHtml(formatAmount(row.pending))}</strong></div><div><span>Expenses</span><strong>${escapeHtml(formatAmount(row.expenses))}</strong></div><div><span>Cash profit</span><strong>${escapeHtml(formatAmount(row.profit))}</strong></div></div><p class="closing-status-note">Manual status captured when saved: Active ${row.activeCustomerCount} · Offline ${row.offlineCustomerCount} · Not set ${row.notSetCustomerCount} · Archived ${row.archivedCustomerCount}. Not historical monitoring.</p>${previous?`<p class="closing-previous-note">Compared with ${escapeHtml(monthName(previous.month))}${previous.source==='saved-snapshot'?' saved close':' local ledger'}: billing ${escapeHtml(formatAmount(previous.billedAmount))} · collection ${escapeHtml(formatAmount(previous.collection))} · pending ${escapeHtml(formatAmount(previous.pending))} · expenses ${escapeHtml(formatAmount(previous.expenses))} · cash profit ${escapeHtml(formatAmount(previous.profit))}.</p>`:''}</article>`;
+      const status=`Manual status captured when saved: Active ${row.activeCustomerCount} · Offline ${row.offlineCustomerCount} · Not set ${row.notSetCustomerCount} · Archived ${row.archivedCustomerCount}. Not historical monitoring.`;
+      const compared=previous?` Compared with ${escapeHtml(monthName(previous.month))}${previous.source==='saved-snapshot'?' saved close':' local ledger'}: billing ${escapeHtml(formatAmount(previous.billedAmount))} · collection ${escapeHtml(formatAmount(previous.collection))} · pending ${escapeHtml(formatAmount(previous.pending))} · expenses ${escapeHtml(formatAmount(previous.expenses))} · cash profit ${escapeHtml(formatAmount(previous.profit))}.`:'';
+      return `<p class="closing-status-note">${status}${compared}</p>`;
+    };
+    const closingCard=(row)=>{
+      return `<div class="closing-card-head"><h4>${escapeHtml(monthName(row.month))}</h4><span>Saved ${escapeHtml(formatSavedAt(row.savedAt))}</span></div><div class="closing-metrics"><div><span>Total customers</span><strong>${row.totalCustomers}</strong></div><div><span>Total bills</span><strong>${row.billCount} <small>(${row.pricedBillCount} priced)</small></strong></div><div><span>Total billing</span><strong>${escapeHtml(formatAmount(row.billedAmount))}</strong></div><div><span>Collection</span><strong>${escapeHtml(formatAmount(row.collection))}</strong></div><div><span>Pending</span><strong>${escapeHtml(formatAmount(row.pending))}</strong></div><div><span>Expenses</span><strong>${escapeHtml(formatAmount(row.expenses))}</strong></div><div><span>Cash profit</span><strong>${escapeHtml(formatAmount(row.profit))}</strong></div></div>${closingFootnote(row)}`;
+    };
+    host.innerHTML=snapshots.map((row,index)=>{
+      if(index===0)return `<article class="saved-closing-card">${closingCard(row)}</article>`;
+      // Older months collapse by default: the summary is the compact
+      // row (month · profit); expanding reveals the full card. The ▾
+      // stays in the summary text when open — the repo's <details>
+      // patterns have no text-swap mechanism.
+      return `<details class="saved-closing-card saved-closing-collapsed"><summary class="closing-collapse-summary">${escapeHtml(monthName(row.month))} · Profit ${escapeHtml(formatAmount(row.profit))} ▾</summary>${closingCard(row)}</details>`;
     }).join('');
   }
   const compareLabels={billCount:'Total bills',pricedBillCount:'Priced bills',unpricedBillCount:'Unpriced bills',billedAmount:'Total billing',collection:'Collection',outstanding:'Pending / outstanding',expenses:'Expenses',cashProfit:'Cash profit',activeCustomers:'Active customers',newCustomers:'New customer profiles',newConnections:'New connections',archivedCustomers:'Archived customers',disconnectedCustomers:'Disconnected customers',collectionRate:'Collection rate'};

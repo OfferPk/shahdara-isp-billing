@@ -154,6 +154,16 @@
   margin-top: var(--space-2);
 }
 
+/* Reports Closing polish: the 6 action buttons are a uniform 2-column
+   grid with equal widths (grid rows stretch to equal height even if a
+   long label wraps). The inline flex style on the div is removed in
+   index.html — an inline style would beat any stylesheet rule.
+   Buttons keep 11px (--text-table-head), NOT the spec's 12px: 12px
+   risks wrapping the longest labels in the ~139px columns at 360px. */
+#dailyRoznamchaSection .daily-closing-actions {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2);
+}
+
 .daily-slip-btn {
   background: var(--surface-sunken, #eef4f1);
   border: 1px solid var(--line, #e2ece7);

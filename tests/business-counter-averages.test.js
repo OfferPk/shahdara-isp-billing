@@ -140,8 +140,11 @@ test('C5 milestone messages exist in EN + UR; 1000-day toast carries the party e
 });
 
 test('P1 parity total is the new total in EN + UR (+8 keys)', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228);
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds
+  // exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR.
+  // The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229);
 });
 
 test('P2 the 8 new keys exist in both dicts', () => {

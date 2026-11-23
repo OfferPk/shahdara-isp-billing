@@ -389,8 +389,9 @@ test('G5b components.css stays hex-free and parity stays 4,722/4,722', () => {
   const hexes = stripComments(read('components.css'))
     .match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g);
   assert.equal(hexes, null, 'components.css must stay hex-free (var() only)');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN parity 5,228');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR parity 5,228');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN parity 5,229');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR parity 5,229');
 });
 
 test('G5c the chip rules and the second palette are unchanged; T10 uses are left by name', () => {

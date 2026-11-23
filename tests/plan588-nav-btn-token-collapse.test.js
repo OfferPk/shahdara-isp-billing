@@ -419,8 +419,9 @@ test('G5: ratchet baselines hold — nav.css 163 (down from 164 via #094338), st
 });
 
 test('G5: parity is unchanged at 4,722/4,722 (no i18n key touched)', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN keys');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR keys');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN keys');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR keys');
   assert.deepEqual(
     Object.keys(TRANSLATIONS.en).sort(),
     Object.keys(TRANSLATIONS.ur).sort(),

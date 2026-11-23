@@ -66,8 +66,11 @@ test('6-tab bar: six numbered buttons in order, labelled by the six new keys', (
 });
 
 test('parity: the six new keys move the suite to the new total in both dicts', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN parity');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR parity');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds
+  // exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR.
+  // The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN parity');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR parity');
 });
 
 test('breakdown cards: one header row with a count · rate badge, then Billed | Collected | Due', () => {

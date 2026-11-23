@@ -128,8 +128,9 @@ const sinNote = { id: 's1', customerId: 'c1', amountCents: 300000, dayOfMonth: 5
 // ================= G1 — parity guard (this file's own pin) =================
 
 test('G1: parity is the new total in both dicts', () => {
-  assert.equal(Object.keys(en).length, 5228, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5228, 'UR parity');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(en).length, 5229, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5229, 'UR parity');
   const prvEn = Object.keys(en).filter((k) => k.startsWith('prv_'));
   const prvUr = Object.keys(ur).filter((k) => k.startsWith('prv_'));
   // Plan 608 adds the 240th prv_ key (prv_wr_toast_past_date, the

@@ -191,7 +191,10 @@ test('month comparison render: PKR figures, line, and difference land in the vie
   };
   renderMonthComparison(doc, summary);
   assert.equal(els.mvcMonthTotal.textContent, 'PKR 5,500.50');
-  assert.equal(els.mvcMonthLine.textContent, 'This month PKR 5,500.50 · Last month PKR 3,700');
+  // Reports Closing polish re-pin (why-comment): the "#mvcMonthLine"
+  // repeat is removed — the big total above already says this month's
+  // figure — so the renderer never queries it.
+  assert.equal('mvcMonthLine' in els, false, 'the figures line is no longer written');
   assert.equal(els.mvcMonthDiff.textContent, 'PKR 1,800.50 more than last month');
   // PKR only — no other currency symbol or code appears anywhere.
   for (const el of Object.values(els)) {
@@ -211,7 +214,10 @@ test('month comparison render: a month with no collections reads zero and the sa
   };
   renderMonthComparison(doc, summary);
   assert.equal(els.mvcMonthTotal.textContent, 'PKR 0');
-  assert.equal(els.mvcMonthLine.textContent, 'This month PKR 0 · Last month PKR 0');
+  // Reports Closing polish re-pin (why-comment): the "#mvcMonthLine"
+  // repeat is removed — the big total above already says this month's
+  // figure — so the renderer never queries it.
+  assert.equal('mvcMonthLine' in els, false, 'the figures line is no longer written');
   assert.equal(els.mvcMonthDiff.textContent, 'Same as last month');
 });
 
@@ -231,7 +237,10 @@ test('month comparison wiring: the line sits on the billing dashboard after the 
   assert.ok(page.indexOf('id="monthCompareSection"') > page.indexOf('id="noPaymentSection"'), 'line follows the quiet-customers view');
   assert.ok(page.indexOf('id="monthCompareSection"') < page.indexOf('id="multiMonthMatrixSection"'), 'line sits before the matrix section');
   assert.ok(page.includes('id="mvcMonthTotal"'), 'current total element exists');
-  assert.ok(page.includes('id="mvcMonthLine"'), 'figures line element exists');
+  // Reports Closing polish re-pin (why-comment): the "#mvcMonthLine"
+  // repeat is removed from the card — the big total above already
+  // says this month's figure.
+  assert.ok(!page.includes('id="mvcMonthLine"'), 'figures line removed');
   assert.ok(page.includes('id="mvcMonthDiff"'), 'difference element exists');
   assert.ok(page.includes('data-i18n="dash_monthcompare_title"'), 'line title is translated');
   assert.ok(page.includes('data-i18n="dash_monthcompare_sub"'), 'line subtitle is translated');
@@ -247,11 +256,17 @@ test('i18n: every dash_monthcompare_ key used exists in English and Urdu, with U
   const module = readFileSync(new URL('../dashboard-month-comparison.js', import.meta.url), 'utf8');
   const used = new Set();
   for (const match of page.matchAll(/data-i18n="(dash_monthcompare_[a-z_]+)"/g)) used.add(match[1]);
-  // The line and difference keys sit inside t() calls in the
+  // The difference keys sit inside t() calls in the
   // module, not directly after t(' — so the module scan takes
   // every quoted key.
+  // Reports Closing polish re-pin (why-comment): the line key
+  // (dash_monthcompare_line) is no longer called — the
+  // "#mvcMonthLine" repeat is removed and the big total above
+  // already says this month's figure — so the used set drops 6 → 5.
+  // The key stays in nav-language.js as a dead key (repo convention:
+  // dead-key removal is a separate sweep).
   for (const match of module.matchAll(/'(dash_monthcompare_[a-z_]+)'/g)) used.add(match[1]);
-  assert.ok(used.size >= 6, `expected at least 6 month-compare keys, found ${[...used].join(', ')}`);
+  assert.ok(used.size >= 5, `expected at least 5 month-compare keys, found ${[...used].join(', ')}`);
   for (const key of used) {
     assert.ok(typeof TRANSLATIONS.en[key] === 'string' && TRANSLATIONS.en[key].length > 0, `missing English key ${key}`);
     assert.ok(typeof TRANSLATIONS.ur[key] === 'string' && TRANSLATIONS.ur[key].length > 0, `missing Urdu key ${key}`);

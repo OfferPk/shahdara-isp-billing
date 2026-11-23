@@ -132,10 +132,9 @@ export function renderNewCustomers(doc, summary) {
   const count = summary.customerCount ?? 0;
   const totalEl = doc.getElementById('ncmNewTotal');
   if (totalEl) totalEl.textContent = String(count);
-  const lineEl = doc.getElementById('ncmNewLine');
-  if (lineEl) {
-    lineEl.textContent = t(count === 1 ? 'dash_newcustomers_count_sing' : 'dash_newcustomers_count_plur', null, { count });
-  }
+  // Reports Closing polish: the "#ncmNewLine" count line is removed —
+  // the pill badge on #ncmNewTotal already carries the count, so the
+  // duplicate "N new customers this month" heading is gone.
   const rowsEl = doc.getElementById('ncmNewRows');
   if (rowsEl) rowsEl.innerHTML = newCustomersSectionHtml(summary);
   const emptyEl = doc.getElementById('ncmNewEmpty');

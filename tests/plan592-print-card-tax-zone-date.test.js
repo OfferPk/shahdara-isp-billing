@@ -262,8 +262,9 @@ test('Plan 592: module stays pure and reuses only the two print-card colours', (
 
 test('Plan 592: parity does not move — 592 adds no i18n key', () => {
   // The count was 5,161/5,161 at Plan 606; Plan 608 adds one key, so it reads 5,162/5,162.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228);
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229);
 });
 
 test('Plan 592: the plan502 wording on the card is unchanged', () => {

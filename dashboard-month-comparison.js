@@ -98,13 +98,12 @@ export function renderMonthComparison(doc, summary) {
   if (!doc || !summary) return;
   const totalEl = doc.getElementById('mvcMonthTotal');
   if (totalEl) totalEl.textContent = formatPKR((summary.currentCents ?? 0) / 100);
-  const lineEl = doc.getElementById('mvcMonthLine');
-  if (lineEl) {
-    lineEl.textContent = t('dash_monthcompare_line', null, {
-      current: formatPKR((summary.currentCents ?? 0) / 100),
-      previous: formatPKR((summary.previousCents ?? 0) / 100)
-    });
-  }
+  // Reports Closing polish: the "#mvcMonthLine" repeat is removed —
+  // the big total above already says this month's figure. The diff
+  // keeps its text and gains a semantic pill class by direction.
   const diffEl = doc.getElementById('mvcMonthDiff');
-  if (diffEl) diffEl.textContent = monthComparisonDifferenceText(summary);
+  if (diffEl) {
+    diffEl.textContent = monthComparisonDifferenceText(summary);
+    diffEl.className = `collection-forecast-collected mvc-diff-pill mvc-diff-pill--${summary.direction ?? 'same'}`;
+  }
 }

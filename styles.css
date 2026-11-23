@@ -334,6 +334,14 @@ textarea { line-height: 1.5; }
   padding: 2px 1px 6px;
 }
 .report-filters .report-filter-button { flex: 0 0 auto; }
+/* Reports Register & audit polish: the All | Paid | Partial | Unpaid
+   chips carry subtle semantic tints (exact tokens, no new hex). The
+   active chip keeps its dark-green pressed treatment — the tints apply
+   to the unpressed chips only, so the active state is never washed
+   out. All stays neutral (the current white). */
+.billing-register-status .report-filter-button[data-register-status="paid"]:not([aria-pressed="true"]) { background: var(--color-paid-bg); border-color: var(--color-paid-bg); color: var(--color-paid); }
+.billing-register-status .report-filter-button[data-register-status="partial"]:not([aria-pressed="true"]) { background: var(--amber-bg); border-color: var(--amber-bg); color: var(--amber); }
+.billing-register-status .report-filter-button[data-register-status="unpaid"]:not([aria-pressed="true"]) { background: var(--qc-rose-bg); border-color: var(--qc-rose-bg); color: var(--qc-rose-text); }
 /* Reports Tab: the Archived label is a flex item of .report-filters, so
    it used to shrink to its longest word and wrap under the checkbox.
    Inline-flex + nowrap keeps box and label on one row. */
@@ -3185,6 +3193,60 @@ html, body {
   align-items: center;
   gap: 6px;
 }
+
+/* Reports Register & audit polish: the Sales Tax summary bar is a clean
+   3-column KPI strip (label above value, short labels — Taxable /
+   Total Tax / Charged). The bar keeps its existing #f4f8f6 background
+   and border; only the layout changes. The per-customer cards become
+   compact 2-line grouped rows inside one white card (the list keeps
+   .monthly-report-list's grid; the grouped class turns it into a
+   single card with divide lines). */
+.monthly-report-summary-bar.stx-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.stx-summary .report-summary-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.stx-summary .report-summary-label { font-size: var(--text-table-head); }
+.stx-summary .report-summary-item strong { font-size: 13px; }
+.stx-grouped-list {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  gap: 0;
+  overflow: hidden;
+}
+.stx-grouped-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  min-width: 0;
+}
+.stx-grouped-row + .stx-grouped-row { border-top: 1px solid var(--line); }
+.stx-grouped-main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ink);
+}
+.stx-grouped-package { color: var(--muted); font-weight: 500; }
+.stx-grouped-tax {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.stx-grouped-tax strong { font-size: 12px; color: var(--ink); white-space: nowrap; }
+.stx-grouped-tax-sub { font-size: var(--text-table-head); color: var(--muted); white-space: nowrap; }
 
 .tx-summary-label,
 .report-summary-label {

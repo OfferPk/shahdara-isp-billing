@@ -255,7 +255,11 @@ test('i18n: every loyalty_* key used by the UI exists in en + ur and never echoe
     for (const match of src.matchAll(/t\('(loyalty_[a-z_]+)'/g)) used.add(match[1]);
   }
   for (const match of indexSrc.matchAll(/data-i18n="(loyalty_[a-z_]+)"/g)) used.add(match[1]);
-  assert.ok(used.size >= 8, `expected >= 8 loyalty keys, got ${used.size}`);
+  // Reports Register & audit polish: the empty At-Risk Loyal Customers
+  // card collapsed into a 1-line row, so loyalty_empty is kept in the
+  // dicts but no longer used by the UI — the used-key count drops from
+  // 8 to 7.
+  assert.ok(used.size >= 7, `expected >= 7 loyalty keys, got ${used.size}`);
   for (const lang of ['en', 'ur']) {
     for (const key of used) {
       assert.equal(typeof TRANSLATIONS[lang][key], 'string', `${lang}:${key}`);

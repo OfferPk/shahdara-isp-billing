@@ -264,9 +264,10 @@ test('Plan 598: the toggle label reuses the vault words, no new i18n key', () =>
   assert.ok(bindSrc.includes("t('rcred_show')") && bindSrc.includes("t('rcred_hide')"), 'the binding uses the existing keys');
   assert.ok(!bindSrc.includes('aria-label'), 'no hardcoded English aria-label on the toggle');
   // Parity moved with the Reports Register & audit polish's +5 keys
-  // (4 help keys + the collapsed audit pill key): both dicts now hold
-  // the new total, counted without spelling the digits (see the file header).
-  const total = Number('52' + '28');
+  // (4 help keys + the collapsed audit pill key) and again with the
+  // Reports Closing polish's one new key (dash_khata_open): both dicts now
+  // hold the new total, counted without spelling the digits (see the file header).
+  const total = Number('52' + '29');
   assert.equal(Object.keys(TRANSLATIONS.en).length, total);
   assert.equal(Object.keys(TRANSLATIONS.ur).length, total);
 });
@@ -276,6 +277,8 @@ test('Plan 598: this file stays free of the parity-count digits it must not pin'
   // the previous total's digits, and counts every file containing the
   // current total's digits. The digits are built, never spelled, so this
   // guard cannot trip the sweep it guards.
-  assert.ok(!selfSrc.includes('52' + '28'), 'this file must stay free of the current-count literal');
-  assert.ok(!selfSrc.includes('52' + '23'), 'this file must stay free of the previous-count literal');
+  // Re-pin (Reports Closing polish, rebased onto the Reports Register merge):
+  // current 5,228 → 5,229, previous 5,223 → 5,228.
+  assert.ok(!selfSrc.includes('52' + '29'), 'this file must stay free of the current-count literal');
+  assert.ok(!selfSrc.includes('52' + '28'), 'this file must stay free of the previous-count literal');
 });

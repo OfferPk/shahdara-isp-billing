@@ -566,11 +566,13 @@ test('hisaab H4 G3: buried triggers untouched and no Hisaab wiring in the engine
 });
 
 // G4 — the binding is once-only, and parity moves with the 612 keys.
-// The parity digits are searched as a split literal ('52' + '28'): this
+// The parity digits are searched as a split literal ('52' + '29'): this
 // file must NOT contain the bare digits — 591's G5a sweep counts every
 // test file containing them and asserts 41, so a literal here would make
 // this the 42nd file and break the suite. The count below is 41 pinning
-// files (41 re-pins for the Reports Register & audit polish's +5 keys); the privacy canary
+// files (41 re-pins — the Reports Register & audit polish's +5 keys, then
+// the Reports Closing polish's one new key moved the digits 5,228 → 5,229
+// with the count held); the privacy canary
 // (tests/privacy-zero-pii-ratchet.test.js)
 // no longer holds the current digits — its invented CNIC holds the OLD
 // digits, so it is not counted. (The CNIC itself is spelled out in the
@@ -592,8 +594,11 @@ test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag,
     'the H5 keys exist in nav-language.js (34 hisaab_* + the one exp_* refusal hint)');
   assert.equal(Object.keys(TRANSLATIONS.en).length, Object.keys(TRANSLATIONS.ur).length,
     'the EN and UR dicts still agree');
-  const parityDigits = '52' + '28';
+  // Re-pin (Reports Closing polish, rebased onto the Reports Register merge):
+  // parity digits 5,228 → 5,229 (one new key, dash_khata_open); the
+  // pinning-file count holds at 41.
+  const parityDigits = '52' + '29';
   const pinning = fs.readdirSync(path.join(__dirname)).filter((f) =>
     f.endsWith('.test.js') && fs.readFileSync(path.join(__dirname, f), 'utf8').includes(parityDigits));
-  assert.equal(pinning.length, 41, `expected 41 test files containing the current parity digits (41 re-pins for the Reports Register & audit polish's +5 keys; the privacy canary holds the old digits), got ${pinning.length}: ${pinning.join(', ')}`);
+  assert.equal(pinning.length, 41, `expected 41 test files containing the current parity digits (41 re-pins — the Reports Register & audit polish's +5 keys, then the Reports Closing polish's +1 key; the privacy canary holds the old digits), got ${pinning.length}: ${pinning.join(', ')}`);
 });

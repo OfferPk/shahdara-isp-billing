@@ -46,6 +46,20 @@ body{font-family:var(--font-sans)}
 .provider-cost-explainer,.provider-cost-empty{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
 .provider-cost-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:7px}
 .provider-cost-list li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;align-items:center;padding:8px 10px;border:1px solid #e7eeea;border-radius:9px;background:#f9fbfa;font-size:11px}
+/* Reports Closing polish: the New Customers + One-page summary lists
+   are single grouped white cards (divide-y rows) instead of one
+   bordered box per row. Scoped to these two lists — the other
+   .provider-cost-list uses keep the per-row boxes. Radius is
+   --radius-lg 18px (no 16px radius token exists). */
+#newCustomersSection .provider-cost-list,
+#printSummarySection .provider-cost-list{display:block;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg)}
+#newCustomersSection .provider-cost-list li,
+#printSummarySection .provider-cost-list li{border:0;border-radius:0;background:transparent;padding:10px 12px}
+#newCustomersSection .provider-cost-list li+li,
+#printSummarySection .provider-cost-list li+li{border-top:1px solid var(--line)}
+/* Reports Closing polish: Total dues reads rose in the grouped
+   One-page summary list. */
+#printSummarySection #ppsTotalDues{color:var(--qc-rose-strong-text)}
 .provider-breakdown-name{font-weight:700;overflow-wrap:anywhere}.provider-cost-list strong{color:var(--green);font-size:12px}.provider-breakdown-meta{grid-column:1/-1;color:var(--muted);font-size:11px}.provider-cost-empty[hidden]{display:none}
 .data-loss-warning{max-width:1272px;margin:16px auto 28px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff8e8;border:1px solid #ead7a8;border-radius:12px;color:#604e25;font-size:11px;line-height:1.5}
 .backup-actions{display:flex;gap:7px;flex:0 0 auto}.backup-actions .secondary-button{min-height:44px}.storage-recovery-warning{display:block;max-width:1272px;margin:10px auto 0;padding:10px 14px;background:#fdecea;border:1px solid #eec5c0;border-radius:12px;color:#a6322a;font-weight:700;font-size:12px;line-height:1.5}.storage-recovery-warning[hidden]{display:none}
@@ -829,6 +843,14 @@ main, .app-shell, .customer-pane, .detail-pane, .customer-meta, .profile-grid,
   max-width: 100%;
   text-align: right;
 }
+/* Reports Closing polish: the Daily Roznamcha + Owner Khata values
+   ("No payment entries", "PKR -4,080 net profit") sit left-aligned
+   instead of floating right. Scoped override only — the shared rule
+   above right-aligns every summary value in the app (incl. the 7-card
+   home grid) and must not move. .summary-value--negative still paints
+   the PKR -4,080 red. */
+#dailyRoznamchaSection .summary-value,
+#ownerKhataSection .summary-value { text-align: left; }
 .provider-cost-list li > strong { justify-self: end; text-align: right; }
 .transaction-amount { flex: 0 0 auto; text-align: right; }
 .payment-amount { display: block; text-align: right; }
@@ -2119,6 +2141,17 @@ voice-armed controls and the answer-waiting dot. Token colours only. */
 .closing-metrics strong,.comparison-metric strong{font-size:13px;line-height:1.35;color:var(--green);overflow-wrap:anywhere}
 .closing-metrics small{font-size:11px;color:var(--muted);font-weight:500}
 .closing-status-note,.closing-previous-note{margin:7px 0 0}
+/* Reports Closing polish: the 7th metric (Cash profit) is the orphan
+   in the 2-col grid at 360px — it becomes a full-width highlighted
+   strip at the BOTTOM (already last in DOM order, no reorder). The
+   span-2 rule fixes the orphan at every breakpoint. */
+.closing-metrics>div:last-child{grid-column:span 2;background:color-mix(in srgb, var(--qc-mint-bg) 70%, transparent);border-color:var(--qc-mint-border)}
+/* Reports Closing polish: older months collapse by default. The
+   summary is the compact row (month · profit); the native marker is
+   hidden because the ▾ lives in the summary text. */
+.closing-collapse-summary{list-style:none;cursor:pointer;font:700 14px Manrope,sans-serif;color:var(--green)}
+.closing-collapse-summary::-webkit-details-marker{display:none}
+.saved-closing-collapsed[open] .closing-collapse-summary{margin-bottom:11px}
 .comparison-metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .comparison-metric strong small{font-size:11px;color:#8a9892}
 /* Reports → Compare polish: comparison deltas are semantically coloured

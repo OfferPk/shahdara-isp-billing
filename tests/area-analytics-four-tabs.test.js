@@ -53,9 +53,12 @@ test('G1: the four new tab-label keys exist in both dicts; parity is the new tot
     assert.equal(TRANSLATIONS.en[key], value, `${key} EN label`);
     assert.equal(TRANSLATIONS.ur[key], expectedUr[key], `${key} UR label`);
   }
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN parity');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR parity');
-  assert.ok(selfSrc.includes('5228'), 'this file pins the new total');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds
+  // exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR.
+  // The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN parity');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR parity');
+  assert.ok(selfSrc.includes('5229'), 'this file pins the new total');
 });
 
 test('4-tab bar: five numbered buttons in order, right after the view opens', () => {

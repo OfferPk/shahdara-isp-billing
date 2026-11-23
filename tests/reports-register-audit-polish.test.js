@@ -28,7 +28,9 @@ const billingRegisterJs = read('billing-register.js');
 const salesTaxJs = read('package-sales-tax.js');
 // The new parity total, split so this file never contains the bare
 // digits the sweeps count.
-const PARITY = Number('52' + '28');
+// Re-pin (Reports Closing rebase 2026-11-23): Closing adds 1 key,
+// total 5,228 -> 5,229.
+const PARITY = Number('52' + '29');
 
 function segment(source, startMarker, endMarker, fromIndex = 0) {
   const start = source.indexOf(startMarker, fromIndex);

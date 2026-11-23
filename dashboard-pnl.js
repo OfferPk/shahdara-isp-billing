@@ -529,6 +529,33 @@ export function formatHisaabDate(date) {
 }
 
 /**
+ * Reports Closing polish: "Nov 1 · 12:36 AM" from a saved-close
+ * timestamp. row.savedAt is a PKT wall-clock string "YYYY-MM-DDTHH:mm"
+ * (localDateTimeValue, core.js:120) — the time is always PKT, so the
+ * rendered form drops the "PKT" suffix (the card heading already says
+ * the month, so the year is dropped too). Locale-independent: the
+ * month names come from a fixed array, never toLocaleString.
+ * Returns the raw value for a missing or malformed input (never blank).
+ *
+ * @param {string} value — YYYY-MM-DDTHH:mm
+ * @returns {string}
+ */
+export function formatSavedAt(value) {
+  if (typeof value !== 'string') return value ?? '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  if (!m) return value;
+  const [, y, mo, d, h, mi] = m;
+  const year = Number(y), month = Number(mo), day = Number(d);
+  const hour = Number(h), minute = Number(mi);
+  if (month < 1 || month > 12 || hour > 23 || minute > 59) return value;
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return value;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${months[month - 1]} ${day} · ${hour12}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
+/**
  * Renders pure vector SVG dual-bar and net profit line chart.
  * 
  * @param {Object} pnlData - Result from calculatePnlAnalytics

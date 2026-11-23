@@ -204,8 +204,9 @@ test('Plan 593: module stays pure and carries no i18n key literal', () => {
 });
 
 test('Plan 593: parity does not move — no new key, and no stale-count literal in this file', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN parity 5,228');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR parity 5,228');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN parity 5,229');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR parity 5,229');
   // Trap T7: 591's G5a fails the suite if any test file contains the
   // old-count digits (now the previous total, four-seven-six-six).
   // The digits are built, never spelled, so this guard cannot trip the

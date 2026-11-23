@@ -336,8 +336,11 @@ test('S1 EN/UR parity holds (4,669 / 4,669 — Round 2 D9 net −1, Quick Collec
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR key count moved');
+  // Reports Closing polish: +1 key dash_khata_open ('Open Khata Closing ›')
+  // — parity 5,223 → 5,229/5,229. If the Reports Register polish (+5 keys)
+  // merges first, re-pin to 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR key count moved');
 });
 
 test('S2 global button floor intact', () => {

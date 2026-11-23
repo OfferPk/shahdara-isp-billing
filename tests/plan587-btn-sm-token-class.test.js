@@ -313,14 +313,17 @@ test('G4: the 10 unstyled buttons inside .analytics-btn-row keep padding 0 8px /
 
 // ---------- G5 — Guards + completeness ----------
 
-test('G5: ratchet baselines hold and parity is unchanged at 4,722/4,722 (no i18n key touched)', () => {
+test('G5: ratchet baselines hold and parity is 5,229/5,229 (Reports Closing adds dash_khata_open)', () => {
   // Current exact counts (ratchet ceilings in design-tokens-230):
   // styles.css 608 (<=616), nav.css 164 (<=164), components.css 0 hex.
+  // Re-pin (Reports Closing polish, rebased onto the Reports Register merge): parity 5,228 → 5,229 — the item adds
+  // exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR.
+  // If the Reports Register polish (+5 keys) merges first, re-pin to 5,229.
   assert.ok(distinctHex(stylesCss) <= 616, `styles.css distinct hex must not exceed 616 (now ${distinctHex(stylesCss)})`);
   assert.ok(distinctHex(navCss) <= 164, `nav.css distinct hex must not exceed 164 (now ${distinctHex(navCss)})`);
   assert.equal(distinctHex(componentsCss), 0, 'components.css stays hex-free');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN keys');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR keys');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN keys');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR keys');
   assert.deepEqual(
     Object.keys(TRANSLATIONS.en).sort(),
     Object.keys(TRANSLATIONS.ur).sort(),

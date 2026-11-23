@@ -238,8 +238,11 @@ test('hisaab G5: "Kharch dekhein" is bound once, with a guard flag, to the ledge
   const hisaabKeyDefs = (navJs.match(/^    hisaab_[a-z_]+:/gm) || []).length;
   assert.equal(hisaabKeyDefs, 60, '30 hisaab_* keys × 2 dicts');
   assert.ok(navJs.includes("exp_upstream_synced_hint: 'This expense is synced from the Upstream tab."), 'the D2(b) refusal hint key exists');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR key count moved');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds
+  // exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR.
+  // The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR key count moved');
 });
 
 /* ---------------- G6 — H5 i18n + parity + munafa (D1(a)–D10(a)) ---------------- */
@@ -268,8 +271,11 @@ test('hisaab G6a: all 30 hisaab_* keys + exp_upstream_synced_hint exist in both 
   }
   assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.en, 'EN has the D2(b) refusal hint');
   assert.ok('exp_upstream_synced_hint' in TRANSLATIONS.ur, 'UR has the D2(b) refusal hint');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN parity 5,228');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR parity 5,228');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds
+  // exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR.
+  // The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN parity 5,229');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR parity 5,229');
   // UR sentences end with ۔, fragments do not (591 bar).
   for (const key of ['hisaab_month_empty', 'hisaab_lifetime_empty', 'hisaab_provider_none', 'hisaab_honesty']) {
     assert.ok(TRANSLATIONS.ur[key].endsWith('۔'), `UR ${key} ends with ۔`);

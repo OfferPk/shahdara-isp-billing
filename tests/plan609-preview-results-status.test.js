@@ -97,8 +97,9 @@ test('G7: this file pins no parity total and stays free of the parity bare digit
   // contains them (plan591 G5a sweeps the whole tests/ tree for the bare
   // digits of the current total, pnl G4 counts the files containing
   // them). This file asserts no parity total — 0 new keys.
+  // Re-pin (Reports Closing polish, rebased onto the Reports Register merge): current 5,228 → 5,229, previous 5,223 → 5,228.
   const selfSrc = read('tests/plan609-preview-results-status.test.js');
-  assert.ok(!selfSrc.includes('52' + '28'), 'this file carries the current parity bare digits');
-  assert.ok(!selfSrc.includes('52' + '23'), 'this file carries the previous parity bare digits');
+  assert.ok(!selfSrc.includes('52' + '29'), 'this file carries the current parity bare digits');
+  assert.ok(!selfSrc.includes('52' + '28'), 'this file carries the previous parity bare digits');
   assert.ok(!selfSrc.includes('52' + '03'), 'this file carries the older parity bare digits');
 });

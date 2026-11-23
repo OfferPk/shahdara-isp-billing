@@ -326,8 +326,9 @@ test('plan569 G5 parity: EN/UR stays 4,669/4,669 — no new i18n keys (T6)', () 
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR key count moved');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR key count moved');
   const en = Object.keys(TRANSLATIONS.en).sort();
   const ur = Object.keys(TRANSLATIONS.ur).sort();
   assert.deepEqual(en, ur, 'the two languages must carry exactly the same keys');

@@ -2870,6 +2870,21 @@ button:not([hidden]).qc-shop-chip {
   transition: width 0.4s ease;
 }
 .collection-forecast-collected { margin: var(--space-2) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+/* Reports Closing polish: the New Customers count is a compact
+   emerald pill badge next to the title (the duplicate count line is
+   removed), and the month-compare diff is a semantic pill by
+   direction — rose when less, emerald when more, neutral when same.
+   The two card headers stay a row at phone width instead of stacking
+   (the ≤620px column rule would push the badge/button below the
+   title). The pill rules sit after .collection-forecast-collected so
+   the direction colours win over its ink colour at equal specificity. */
+.ncm-count-pill { display: inline-flex; align-items: center; padding: var(--space-1) var(--space-2-5); border: 1px solid var(--qc-mint-border); border-radius: var(--radius-pill); background: var(--qc-mint-bg); color: var(--color-emerald-dark); font-size: var(--text-xs); font-weight: 700; white-space: nowrap; }
+#newCustomersSection .collection-forecast-header,
+#printSummarySection .collection-forecast-header { flex-direction: row; align-items: center; gap: var(--space-3); }
+.mvc-diff-pill { display: inline-flex; align-items: center; padding: var(--space-1) var(--space-2-5); border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: 700; white-space: nowrap; }
+.mvc-diff-pill--less { background: var(--qc-rose-bg); color: var(--qc-rose-text); border: 1px solid var(--qc-rose-border); }
+.mvc-diff-pill--more { background: var(--qc-mint-bg); color: var(--color-emerald-dark); border: 1px solid var(--qc-mint-border); }
+.mvc-diff-pill--same { background: transparent; color: var(--muted); border: 1px solid var(--line); }
 .collection-forecast-line { margin: 2px 0 0; color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
 .collection-forecast-areas-title { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-md); color: var(--ink); }
 .collection-forecast-areas { display: grid; gap: var(--space-3); }

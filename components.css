@@ -2372,10 +2372,16 @@ body.field-mode-open { overflow: hidden; }
 .uptime-stat {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  padding: 12px;
   min-width: 0;
 }
+.uptime-stat--online{background:var(--qc-mint-bg);border-color:var(--qc-mint-border)}
+.uptime-stat--online>span,.uptime-stat--online strong{color:var(--qc-mint-strong-text)}
+.uptime-stat--offline{background:var(--qc-rose-bg);border-color:var(--qc-rose-border)}
+.uptime-stat--offline>span,.uptime-stat--offline strong{color:var(--qc-rose-text)}
+.uptime-stat--days{background:var(--color-slate-100);border-color:var(--ds-line)}
+.uptime-stat--days>span,.uptime-stat--days strong{color:var(--color-slate-700)}
 .uptime-stat > span {
   display: block;
   font-size: 11px;

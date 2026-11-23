@@ -45,6 +45,12 @@
 // (6630→6631, 6629→6630, manual log 6634→6635). The heading itself is
 // untouched — only the line numbers move, with this comment as the reason.
 //
+// RE-PINNED 2026-11-22 by the Profile Uptime polish: the header line
+// itself changes (the help-info-btn dialog button + the always-visible
+// disclaimer paragraph become a <details class="help-tip"> toggle,
+// collapsed by default, with the note text inside its tooltip span);
+// the line number stays :6631 and the heading stays h4 — only the
+// line content moves, with this comment as the reason.
 // RE-PINNED 2026-11-21 by Customers search toolbar: its index.html edits
 // above the uptime section (identifier select into the Filters panel +3
 // lines; search-block restructure +2 — chip to the top of the block,
@@ -88,13 +94,18 @@ const selfSrc = readFileSync(join(dir, 'plan594-uptime-heading-h4.test.js'), 'ut
 
 const indexLines = indexSrc.split('\n');
 
-// The :6631 line, pinned in full. The only difference from the base line
-// is the tag name (h3 -> h4). The help-button glyph is U+2139 + U+FE0F,
-// written as escapes in a separate segment so the pin cannot drift on
-// encoding (no literal glyph anywhere in this file).
-const EXPECTED_UPTIME_LINE = '              <div class="incident-section-heading"><div><p class="eyebrow" data-i18n="upt_eyebrow">UPTIME TRACKING</p><h4 id="uptimeHeading" data-i18n="upt_heading">Online / offline time</h4><button class="help-info-btn" type="button" data-help="uptime" aria-label="About this feature" data-i18n-aria-label="help_aria_label">'
-  + '\u2139\uFE0F'
-  + '</button><p class="incident-manual-note" data-i18n="upt_note">Counted from your own records: the complaint/outage entries below plus every manual service-status change. This app does not monitor the connection itself.</p></div><label class="uptime-month-label" for="uptimeMonthSelect"><span data-i18n="upt_month_label">Month</span><select id="uptimeMonthSelect"></select></label></div>';
+// The :6636 line, pinned in full (moved +5 by the Customers search
+// toolbar after the Uptime re-pin below). RE-PINNED 2026-11-22 by the Profile
+// Uptime polish: the help-info-btn dialog button + the always-visible
+// disclaimer paragraph become a <details class="help-tip"> toggle
+// (collapsed by default) with the note text inside its tooltip span;
+// the heading, the month picker and the line number are unchanged.
+// The tooltip span carries data-help="uptime" (tapping the note opens
+// the full guide dialog), so the topic stays mounted per the help-guide
+// OWNER-HELP (b) tight-registry pin.
+// The old pin's ℹ️ glyph (U+2139 + U+FE0F, written as escapes) is gone
+// with the button — the summary carries a plain 'i' instead.
+const EXPECTED_UPTIME_LINE = '              <div class="incident-section-heading"><div><p class="eyebrow" data-i18n="upt_eyebrow">UPTIME TRACKING</p><h4 id="uptimeHeading" data-i18n="upt_heading">Online / offline time</h4><details class="help-tip"><summary class="help-icon" aria-label="About this feature" data-i18n-aria-label="help_aria_label">i</summary><span class="help-tip-content" role="tooltip" data-i18n="upt_note" data-help="uptime">Counted from your own records: the complaint/outage entries below plus every manual service-status change. This app does not monitor the connection itself.</span></details></div><label class="uptime-month-label" for="uptimeMonthSelect"><span data-i18n="upt_month_label">Month</span><select id="uptimeMonthSelect"></select></label></div>';
 
 const SHARED_RULE = '.incident-section-heading h3{font:700 16px Manrope,sans-serif;letter-spacing:-.2px;margin:0;color:var(--ink)}';
 const SCOPED_RULE = '.uptime-section .incident-section-heading h4{font:700 16px Manrope,sans-serif;letter-spacing:-.2px;margin:0;color:var(--ink)}';

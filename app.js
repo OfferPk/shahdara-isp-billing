@@ -18537,7 +18537,7 @@ function oneSeriesSvg(rows,{key,label,title,isMoney=false}={}) {
 function signedOneSeriesSvg(rows,{key,label,title,isMoney=false}={}) {
   const values=rows.map(row=>row[key]).filter(value=>Number.isFinite(value));if(!values.length)return '';
   const width=720,height=220,left=76,right=12,top=14,bottom=38,plotWidth=width-left-right,plotHeight=height-top-bottom,low=Math.min(0,...values),high=Math.max(0,...values),span=Math.max(1,high-low),groupWidth=plotWidth/Math.max(rows.length,1),barWidth=Math.min(30,groupWidth*.42),zeroY=top+(high/span)*plotHeight;
-  const ticks=[high,0,low].filter((value,index,array)=>array.indexOf(value)===index),grid=ticks.map(value=>{const y=top+((high-value)/span)*plotHeight;return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" class="chart-grid-line"/><text x="${left-7}" y="${y+4}" text-anchor="end" class="chart-axis-label">${phase3Cell(chartAxis(value,isMoney))}</text>`;}).join('');
+  const tickValues=[high,0,low].filter((value,index,array)=>array.indexOf(value)===index),grid=tickValues.map(value=>{const y=top+((high-value)/span)*plotHeight;const hideLabel=value===low&&low!==0&&Math.abs(y-zeroY)<14;return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" class="chart-grid-line"/>${hideLabel?'':`<text x="${left-7}" y="${y+4}" text-anchor="end" class="chart-axis-label">${phase3Cell(chartAxis(value,isMoney))}</text>`}`;}).join('');
   const bars=rows.map((row,index)=>{const value=row[key],center=left+groupWidth*(index+.5),valueY=top+((high-value)/span)*plotHeight,y=Math.min(zeroY,valueY),h=Math.max(1,Math.abs(zeroY-valueY));return `${Number.isFinite(value)?`<rect x="${center-barWidth/2}" y="${y}" width="${barWidth}" height="${h}" rx="3" class="${value<0?'chart-bar-negative':'chart-bar-first'}"><title>${phase3Cell(label)} · ${phase3Cell(row.month)}: ${phase3Cell(isMoney?formatAmount(value):value)}</title></rect>`:''}<text x="${center}" y="${height-12}" text-anchor="middle" class="chart-month-label">${phase3Cell(shortMonth(row.month))}</text>`;}).join('');
   const description=rows.map(row=>`${row.month}: ${Number.isFinite(row[key])?row[key]:'not recorded'}`).join('; ');
   return `<svg class="phase3-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${phase3Cell(title)}"><title>${phase3Cell(title)}</title><desc>${phase3Cell(description)}</desc>${grid}${bars}</svg>`;
@@ -18602,7 +18602,20 @@ function renderAreaIntelligenceCardsHtml(areaRows) {
   }).join('');
 }
 function renderAreaSummaryCardsHtml(cards) {
-  return (cards ?? []).map(card => `<article class="area-intel-card"><header class="area-intel-card-header"><span class="area-intel-level">${phase3Cell(card.level)}</span><h4>${phase3Cell(card.label)}</h4></header><p class="area-intel-no-zone">${phase3Cell(card.context)}</p><div class="area-intel-metrics">${card.metrics.map(metric => `<div class="area-intel-metric"><span>${phase3Cell(metric.label)}</span><strong>${phase3Cell(metric.value)}</strong></div>`).join('')}</div></article>`).join('');
+  // Compact card (insights 8c): header carries Profiles + Online %, the strip
+  // shows Billed / Outstanding / ARPU, and the four secondary rows sit behind
+  // a <details> chevron. All nine metrics still render — layout only, so a
+  // card can never disagree with its table row.
+  const stripLabels=['Service-month billed','Outstanding','ARPU · billed / active'];
+  const detailLabels=['Excluded from ARPU','Incidents','New connections','Active configured subscriptions'];
+  const metricRow=metric=>`<div class="area-intel-metric"><span>${phase3Cell(metric.label)}</span><strong>${phase3Cell(metric.value)}</strong></div>`;
+  return (cards ?? []).map(card => {
+    const byLabel=Object.fromEntries((card.metrics??[]).map(metric=>[metric.label,metric.value]));
+    const summary=[byLabel['Profiles']?`${phase3Cell(byLabel['Profiles'])} profiles`:'',byLabel['Online % (n/N)']?`Online ${phase3Cell(byLabel['Online % (n/N)'])}`:''].filter(Boolean).join(' · ');
+    const strip=(card.metrics??[]).filter(metric=>stripLabels.includes(metric.label)).map(metricRow).join('');
+    const detail=(card.metrics??[]).filter(metric=>detailLabels.includes(metric.label)||(!stripLabels.includes(metric.label)&&metric.label!=='Profiles'&&metric.label!=='Online % (n/N)')).map(metricRow).join('');
+    return `<article class="area-intel-card"><header class="area-intel-card-header"><span class="area-intel-level">${phase3Cell(card.level)}</span><h4>${phase3Cell(card.label)}</h4>${summary?`<p class="area-intel-card-summary">${summary}</p>`:''}</header><p class="area-intel-no-zone">${phase3Cell(card.context)}</p><div class="area-intel-metrics">${strip}</div>${detail?`<details class="area-intel-more"><summary>More details ⌄</summary><div class="area-intel-metrics">${detail}</div></details>`:''}</article>`;
+  }).join('');
 }
 function renderAreaIntelligence() {
   const from=$('#areaIntelFrom')?.value,to=$('#areaIntelTo')?.value,table=$('#areaIntelligenceTable');if(!table)return;

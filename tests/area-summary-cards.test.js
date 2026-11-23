@@ -9,6 +9,8 @@ import { buildAreaSummaryCards } from '../phase3.js';
 // as the card header, the other nine columns as labeled lines in table order,
 // and every value identical to the table's display string (same fallbacks,
 // same formatter), so a card can never disagree with its table row.
+// One exception: a 'Zone not set' child card is dropped when its area has no
+// named zones — the roll-up already includes the unzoned subset (insights 8a).
 
 const pkr = value => `PKR ${value}`;
 function row(overrides) {
@@ -58,14 +60,27 @@ test('new connections show Not set when no connection dates are recorded', () =>
   assert.equal(undated.metrics.find(metric => metric.label === 'New connections').value, 'Not set');
 });
 
-test('Zone not set becomes Not set and the parent context names the stripped parent', () => {
-  const [zoneless, area] = buildAreaSummaryCards([
-    row({ area: 'Zone not set', level: 'zone', parentArea: 'Area: Shahdara', depth: 1 }),
+test('Zone not set becomes Not set when the area HAS named zones (the child is a genuine subset)', () => {
+  const [area, zone, zoneless] = buildAreaSummaryCards([
     row({}),
+    row({ area: 'Zone: North', level: 'zone', parentArea: 'Area: Shahdara', depth: 1 }),
+    row({ area: 'Zone not set', level: 'zone', parentArea: 'Area: Shahdara', depth: 1 }),
   ], true, pkr);
+  assert.equal(area.label, 'Shahdara');
+  assert.equal(zone.label, 'North');
   assert.equal(zoneless.label, 'Not set');
   assert.equal(zoneless.context, 'Within Shahdara');
   assert.equal(area.context, 'Area roll-up');
+});
+
+test('Zone not set card is dropped when the area has NO named zones (the roll-up already includes it)', () => {
+  const cards = buildAreaSummaryCards([
+    row({}),
+    row({ area: 'Zone not set', level: 'zone', parentArea: 'Area: Shahdara', depth: 1 }),
+  ], true, pkr);
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].label, 'Shahdara');
+  assert.ok(!cards.some(card => card.label === 'Not set'));
 });
 
 test('empty input builds no cards and input rows are never mutated', () => {

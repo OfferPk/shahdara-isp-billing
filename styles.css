@@ -19021,7 +19021,7 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
    text read 5.6px effective at 312px display) and is HTML chips below
    the chart — wrapping flex row at the 11px floor, same three items in
    the same order and colours as the SVG legend it replaces. */
-.chart-legend{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-3);justify-content:center;padding-top:var(--space-1);}
+.chart-legend{display:flex;flex-wrap:wrap;gap:6px var(--space-4);justify-content:center;padding-top:var(--space-1);}
 .chart-legend-chip{display:inline-flex;align-items:center;gap:var(--space-1);font:600 var(--text-table-head)/1.4 'DM Sans',system-ui,sans-serif;color:var(--muted,#64748b);}
 .chart-legend-swatch{width:10px;height:10px;border-radius:2px;flex:none;}
 .chart-legend-swatch--active{background:var(--color-brand-600);}
@@ -19029,6 +19029,19 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
    substitute the closest token (that would change the visible shade). */
 .chart-legend-swatch--offline{background:#f59e0b;}
 .chart-legend-swatch--spare{background:var(--color-slate-400);opacity:.5;}
+/* Home analytics CSS bugfix (360px): the legacy phase-3 rules
+   (.chart-legend span::before + min-height:24px, styles.css:147 and
+   406-408) put a green dot on EVERY descendant span and stretch the
+   10px swatch into a 24px-tall bar — the double-dot + tall-bar artifact
+   in the FDH legend screenshot. Scoped to the chip/swatch spans only:
+   the phase-3 legends (index.html:14587-14590) still rely on the legacy
+   ::before dots, so those rules are NOT touched. The 6px/16px gap above
+   is the spec's gap-y-1.5/gap-x-4; the chip font stays 11px
+   (--text-table-head), pinned by tests/fiber-hubs-mobile-redesign.test.js. */
+.chart-legend .chart-legend-chip::before,
+.chart-legend .chart-legend-swatch::before{content:none;}
+.chart-legend .chart-legend-chip,
+.chart-legend .chart-legend-swatch{min-height:0;}
 /* Pacing line moved out of the delinquency SVG so it wraps on narrow screens
    instead of spanning ~99% of the viewBox as one clipped line. Same type as
    .chart-metric-sub; the values read in --ink like the SVG tspans did. */

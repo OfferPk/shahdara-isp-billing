@@ -4838,6 +4838,29 @@ test('renderRouteDensityMatrixSvg renders pure SVG graphic with density rows and
   assert.ok(svg.includes('Begum Kot'));
   assert.ok(svg.includes('TARGET:'));
   assert.ok(svg.includes('DENSITY:'));
+
+  // Home analytics CSS bugfix (360px): the viewBox height used to be a
+  // fixed 260, which left ~170 units of blank viewBox below the last row
+  // when only one area was listed (row ends y=80, footer at height-10).
+  // Height is computed from the row count: 1 row -> 122, 4 rows -> 260.
+  assert.ok(svg.includes('viewBox="0 0 640 122"'), '1-row chart must use the tight 640x122 viewBox');
+  const fourAreaData = {
+    areas: [
+      { areaName: 'Begum Kot', overdueCount: 2, totalOverdueAmount: 6000, avgTicketPerStop: 3000, priorityTier: 'High', densityRating: 'High Density', recommendedCollectors: 1, estimatedRouteDays: 1 },
+      { areaName: 'Vandala Road', overdueCount: 1, totalOverdueAmount: 1800, avgTicketPerStop: 1800, priorityTier: 'Quick Win', densityRating: 'Moderate Route', recommendedCollectors: 1, estimatedRouteDays: 2 },
+      { areaName: 'Saeed Park', overdueCount: 1, totalOverdueAmount: 1200, avgTicketPerStop: 1200, priorityTier: 'Standard', densityRating: 'Low Density', recommendedCollectors: 1, estimatedRouteDays: 3 },
+      { areaName: 'Charyaa', overdueCount: 3, totalOverdueAmount: 4500, avgTicketPerStop: 1500, priorityTier: 'High', densityRating: 'High Density', recommendedCollectors: 2, estimatedRouteDays: 1 },
+    ],
+    totalDelinquentAccounts: 7,
+    totalUncollectedDues: 13500,
+    totalRecommendedCollectors: 5,
+    totalAreasTargeted: 4,
+    dailyFleetRecoveryTargetPkr: 450,
+    fleetRoutingStatus: 'Optimal Route Density',
+  };
+  const svg4 = renderRouteDensityMatrixSvg(fourAreaData);
+  assert.ok(svg4.includes('viewBox="0 0 640 260"'), '4-row chart must keep the 640x260 viewBox');
+  assert.ok(svg4.includes('Charyaa'), '4-row chart must render all four areas');
 });
 
 test('setupRouteDensityModal wires modal open, populate, filter, copy, and close actions', async () => {

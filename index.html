@@ -695,7 +695,7 @@
             <div id="dashboardPackageChart" class="chart-svg-container" role="img" aria-label="Package tier distribution donut chart"></div>
           </article>
           <article class="dashboard-chart-card chart-card-health">
-            <div class="chart-card-header chart-card-header-flex">
+            <div class="chart-card-header chart-card-header-flex chart-card-header--stacked">
               <div>
                 <h4 class="chart-title" data-i18n="dash_chart_07_title">Customer Health &amp; Delinquency Matrix</h4>
                 <p class="chart-subtitle" data-i18n="dash_chart_07_sub">Account standing, watchlist, and overdue risk segments</p>
@@ -734,7 +734,7 @@
             <div id="dashboardChurnChart" class="chart-svg-container" role="img" aria-label="Customer churn risk gauge and subscriber cohort breakdown"></div>
           </article>
           <article class="dashboard-chart-card chart-card-heatmap">
-            <div class="chart-card-header chart-card-header-flex">
+            <div class="chart-card-header chart-card-header-flex chart-card-header--stacked">
               <div>
                 <h4 class="chart-title" data-i18n="dash_chart_10_title">Geographic Collection Heatmap</h4>
                 <p class="chart-subtitle" data-i18n="dash_chart_10_sub">Collection efficiency &amp; recovery rate by operational zone</p>
@@ -772,7 +772,7 @@
             <div id="dashboardPackageMarginChart" class="chart-svg-container" role="img" aria-label="Package gross margin and wholesale transit cost chart"></div>
           </article>
           <article class="dashboard-chart-card chart-card-ltv">
-            <div class="chart-card-header chart-card-header-flex">
+            <div class="chart-card-header chart-card-header-flex chart-card-header--stacked">
               <div>
                 <h4 class="chart-title" data-i18n="dash_chart_13_title">Customer Lifetime Value (LTV) &amp; Cohorts</h4>
                 <p class="chart-subtitle" data-i18n="dash_chart_13_sub">Historical collected revenue and retention progression by tenure</p>
@@ -869,9 +869,9 @@
                 <p class="chart-subtitle" data-i18n="dash_chart_20_sub">Aging stages, weighted recovery probability, and field collector pacing</p>
               </div>
               <!-- Home Tab M3 polish (user decision 2026-11-22): the three
-                   actions ride one no-scrollbar scroll row — at 360px the
-                   plain div wrapped them onto two rows. Ids unchanged, so
-                   all three modules' wiring holds. -->
+                   actions rode one no-scrollbar scroll row — REVERSED 2026-11-24
+                   (all 3 pills must show fully; "Top Defaulters" cut to "Top D";
+                   one-row width ~391px vs ~314px at the 11px floor). Ids unchanged. -->
               <div class="chart-actions-scroll">
                 <button id="dashboardOpenDelinquencyModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Recovery Pipeline</button>
                 <button id="dashboardOpenDuesAgingBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Dues Aging (0–90+d)</button>

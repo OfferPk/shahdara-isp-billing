@@ -536,6 +536,28 @@
   gap: var(--space-3);
 }
 
+/* Home analytics CSS bugfix (360px): multi-button controls inline to
+   the right of a card title squeeze the title/subtitle into a narrow
+   strip (one word per line, overlapping the controls). The three cards
+   below stack instead — full-width title/subtitle on top, controls
+   below. Scoped per card: .chart-card-header-flex is used 66x in
+   index.html and must NOT change globally. */
+.chart-card-header-flex.chart-card-header--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2-5);
+}
+
+/* Home analytics CSS bugfix (360px): the LTV actions row had NO rule
+   anywhere. Scoped to .chart-card-ltv — the Projection card
+   (index.html:806) shares .chart-header-actions-row and is out of scope. */
+.chart-card-ltv .chart-header-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
 /* Time range duration toggle group */
 .chart-time-range-group {
   display: inline-flex;
@@ -595,7 +617,18 @@
 
 /* Home Tab M3 polish (user decision 2026-11-22): the three delinquency
    actions ride one no-scrollbar scroll row instead of wrapping onto two
-   rows at 360px. The buttons keep their 44px floor (not a bug). */
+   rows at 360px. The buttons keep their 44px floor (not a bug).
+   Home analytics CSS bugfix: REVERSED for this card only (user's newer
+   instruction: all 3 pills must fit cleanly, "Top Defaulters" was cut
+   to "Top D"). Padding alone cannot fit them: measured one-row width
+   ~391px vs ~314px content width at the 11px floor (spec's px-2.5/py-1.5
+   at text-xs makes them WIDER, not narrower — pills are already 10px
+   horizontal at 11px). So this card's row wraps; the base scroll-row
+   behaviour below stays nowrap for any other use. */
+.chart-card-delinquency .chart-actions-scroll {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
 .chart-actions-scroll {
   display: flex;
   flex-wrap: nowrap;
@@ -825,6 +858,19 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+
+/* Home analytics CSS bugfix (360px): Good/Watch/Overdue/Offline ride a
+   4-col grid below the stacked title (was a flex row squeezed beside it,
+   overlapping "Customer"). */
+.chart-card-health .health-filter-group {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.chart-card-health .health-filter-btn {
+  min-width: 0;
+  text-align: center;
 }
 
 .health-filter-btn {
@@ -1186,6 +1232,18 @@
   background: var(--surface-sunken, #edf3f0);
   padding: 2px;
   border-radius: var(--radius-xs);
+}
+
+/* Home analytics CSS bugfix (360px): the segmented control spans the
+   full card width below the stacked title (was shrink-to-fit beside it,
+   clipping the title to "Geograph / Collection"). */
+.chart-card-heatmap .heatmap-filter-group {
+  width: 100%;
+}
+.chart-card-heatmap .heatmap-filter-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
 }
 
 .heatmap-filter-btn {
@@ -1904,6 +1962,14 @@
 /* Route Density & Collector Pacing Styles */
 .chart-card-route-density {
   background: var(--surface, #ffffff);
+}
+
+/* Home analytics CSS bugfix (360px): the shared .chart-svg-container
+   forces min-height:190px, so the card kept a tall blank gap even after
+   the route-density SVG shrank to its row count. Scoped to this card
+   only — other cards rely on the shared 190px. */
+.chart-card-route-density .chart-svg-container {
+  min-height: 0;
 }
 
 .route-density-modal-card {

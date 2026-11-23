@@ -2251,7 +2251,6 @@ export function renderFiberDistributionSvg(metrics) {
   // the legend left the SVG (see below), so the viewBox shortens; the
   // width stays 420 (Fiber Hubs).
   const width = 420;
-  const height = 216;
 
   if (!metrics || !metrics.hubs || metrics.hubs.length === 0 || metrics.totalDeployedPorts === 0) {
     // Empty state is OUT OF SCOPE for the mobile redesign — it is SVG-only
@@ -2273,14 +2272,27 @@ export function renderFiberDistributionSvg(metrics) {
   // delinquency footer above — the legend left the SVG (height 240 ->
   // 216, bottomPad 36 -> 12, row geometry unchanged) and the return is
   // one .chart-with-topbar wrapper with a 3-cell strip on top.
-  const topPad = 36;
+  // Display top 5 hubs
+  const displayHubs = metrics.hubs.slice(0, 5);
+
+  // Home analytics CSS bugfix (360px): the viewBox height used to be a
+  // fixed 216, which centred a single hub's bar at y=120 and left ~82px
+  // of internal whitespace below the metric strip at 312px display (the
+  // strip-to-bar gap in the screenshot). Compute height/topPad from the
+  // hub count so few-hub charts tighten: 1 hub -> 66 (topPad 12 + 42 row
+  // + bottomPad 12), 2 -> 108, 3 -> 150; 4-5 hubs stay 216 with topPad 36
+  // (the 4/5-hub geometry is pinned by
+  // tests/fiber-hubs-mobile-redesign.test.js). A literal my-3 (12px)
+  // margin between strip and bar would ADD space, not remove it — the
+  // tightening is the reduced topPad + computed height. Strip-to-bar gap
+  // on screen at 360px: ~82px -> ~24px for 1 hub.
+  const topPad = displayHubs.length >= 4 ? 36 : 12;
   const bottomPad = 12;
+  const height = displayHubs.length >= 4 ? 216 : topPad + displayHubs.length * 42 + bottomPad;
   const leftPad = 160;
   const rightPad = 140;
   const plotWidth = width - leftPad - rightPad;
 
-  // Display top 5 hubs
-  const displayHubs = metrics.hubs.slice(0, 5);
   const rowHeight = Math.floor((height - topPad - bottomPad) / Math.max(displayHubs.length, 1));
   const barHeight = Math.min(18, Math.max(12, rowHeight - 12));
 
@@ -2981,6 +2993,14 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
   const rowStartY = 42;
   const rowH = 46;
 
+  // Home analytics CSS bugfix (360px): the viewBox height used to be a
+  // fixed 260, which left ~170 units of blank viewBox below the last row
+  // when only one area was listed (row ends y=80, footer pinned at
+  // height-10 = 250) — ~83px of on-screen white gap. Compute it from the
+  // row count: 1 row -> 122, 4 rows -> 260 (unchanged). The footer at
+  // height-10 rides up with it. options.height still overrides.
+  const chartHeight = options.height || (rowStartY + rows.length * rowH + 34);
+
   const maxDues = Math.max(1, ...densityData.areas.map(a => a.totalOverdueAmount));
   const maxStops = Math.max(1, ...densityData.areas.map(a => a.overdueCount));
 
@@ -3043,8 +3063,8 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
     `;
   }).join('');
 
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
-    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${chartHeight}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
+    <rect width="${width}" height="${chartHeight}" rx="10" fill="transparent" />
 
     <g transform="translate(${leftPad}, 20)">
       <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
@@ -3058,7 +3078,7 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
     ${renderedRows}
 
     <!-- Bottom Legend & Health Status -->
-    <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
+    <g transform="translate(${width / 2}, ${chartHeight - 10})" text-anchor="middle">
       <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
         Dispatch Status: <tspan font-weight="700" fill="${statusColor}">${escapeXml(densityData.fleetRoutingStatus)}</tspan> · Sectors: <tspan font-weight="700" fill="var(--ink, #182e2a)">${densityData.totalAreasTargeted}</tspan> · Daily Pacing: <tspan font-weight="700" fill="#047857">${formatPKR(densityData.dailyFleetRecoveryTargetPkr)}/day</tspan>
       </text>

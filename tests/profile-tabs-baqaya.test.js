@@ -1,5 +1,7 @@
 // Profile tabs: Manual Baqaya is a 4th tab, and all four tabs are
-// numbered 1–4.
+// unnumbered (Profile Info-tab redesign, user decision 2026-11-22 —
+// the '1·' '2·' '3·' '4·' number spans were removed so all four tabs
+// fit at 360px; the tabs read Billing / Info / Complaints / Baqaya).
 //
 // The user asked (2026-11-10, phone screenshots) for the Manual
 // Baqaya (Loan) function to sit at the top of the profile like
@@ -42,12 +44,12 @@ const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 
 const TABS = [
-  // Live visual bugs (Nov 2026): the number span carries the user's
-  // middle dot — "1· Billing", "2· Info", "3· Complaints", "4· Baqaya".
-  ['profileTabBilling', 'profilePanelBilling', '1·', 'Billing'],
-  ['profileTabInfo', 'profilePanelInfo', '2·', 'Info'],
-  ['profileTabComplaints', 'profilePanelComplaints', '3·', 'Complaints'],
-  ['profileTabBaqaya', 'profilePanelBaqaya', '4·', 'Baqaya'],
+  // Profile Info-tab redesign (user decision 2026-11-22) — the number
+  // spans are gone; the tabs carry only their label spans now.
+  ['profileTabBilling', 'profilePanelBilling', 'Billing'],
+  ['profileTabInfo', 'profilePanelInfo', 'Info'],
+  ['profileTabComplaints', 'profilePanelComplaints', 'Complaints'],
+  ['profileTabBaqaya', 'profilePanelBaqaya', 'Baqaya'],
 ];
 
 test('profile tabs: the Baqaya tab and panel exist and start hidden', () => {
@@ -58,24 +60,28 @@ test('profile tabs: the Baqaya tab and panel exist and start hidden', () => {
     'Baqaya panel starts hidden');
 });
 
-test('profile tabs: four tabs in order, numbered 1–4 in their own spans', () => {
+test('profile tabs: four tabs in order, unnumbered, label first', () => {
   const html = read('index.html');
   const navStart = html.indexOf('<nav class="profile-tabs"');
   assert.notEqual(navStart, -1, 'the tab nav must exist');
   const navEnd = html.indexOf('</nav>', navStart);
   const nav = html.slice(navStart, navEnd);
   let previous = -1;
-  for (const [tabId, panelId, number, label] of TABS) {
+  for (const [tabId, panelId, label] of TABS) {
     const at = nav.indexOf(`id="${tabId}"`);
     assert.ok(at > previous, `${tabId} must follow the previous tab in the nav`);
     previous = at;
     assert.match(nav, new RegExp(`id="${tabId}"[^>]*aria-controls="${panelId}"`), `${tabId} must control ${panelId}`);
-    assert.match(nav, new RegExp(`<span class="profile-tab-number" aria-hidden="true">${number}</span><span class="profile-tab-label" data-i18n="prof_tab_[a-z_]+">${label}</span>`),
-      `${tabId} must carry number ${number} in its own span before the label`);
+    // Profile Info-tab redesign (user decision 2026-11-22) — no number
+    // span precedes the label any more; the label span is the first
+    // child of the button.
+    assert.match(nav, new RegExp(`<span class="profile-tab-label" data-i18n="prof_tab_[a-z_]+">${label}</span>`),
+      `${tabId} must carry the bare label with no number prefix`);
   }
-  // The numbers live in their own spans (i18n-safe): no tab label
-  // string carries a digit, so translations never have to.
-  for (const [, , , label] of TABS) {
+  // No number span may remain anywhere in the tab bar.
+  assert.ok(!nav.includes('profile-tab-number'), 'the tab bar must carry no number spans');
+  // The labels carry no digit, so translations never have to.
+  for (const [, , label] of TABS) {
     assert.ok(!/\d/.test(label), `label "${label}" must not carry a number`);
   }
 });
@@ -105,7 +111,7 @@ test('profile tabs: counts rewrite the label span, never the button', () => {
   assert.ok(body.includes("$('#profileBillingMonthsCount')"), 'the months figure is written into the Billing panel header');
   assert.ok(body.includes("$('#profileTabComplaints .profile-tab-label')"), 'complaints count targets the label span');
   assert.ok(!body.includes("billingTab.textContent") && !body.includes("complaintsTab.textContent") && !body.includes("baqayaTab.textContent"),
-    'no count write may touch the button textContent — that would wipe the number span');
+    'no count write may touch the button textContent — that would wipe the label and count spans');
   assert.ok(!body.includes('profileTabInfo'), 'the Info tab still carries no count');
   // Sharafat 79 reverses the old Plan 519 decision on this tab: the
   // Baqaya tab DOES carry a count now — the count of unpaid entries.
@@ -144,15 +150,12 @@ test('profile tabs: the Baqaya label exists in both languages, Urdu script on th
   assert.ok(lang.includes("prof_billing_months_count: '{count} ماہ'"), 'UR billing months figure lives in the panel, not on the tab');
 });
 
-test('profile tabs: number styling and the sticky fix exist', () => {
+test('profile tabs: the number rule is gone and the sticky fix exists', () => {
   const styles = read('styles.css');
-  // Sharafat 95: the number's gap is logical now (margin-inline-end:4px)
-  // so it stays between the number and its label in Urdu mode.
-  // Sharafat 97: the number rises 10px -> 11px (content-text floor 11px;
-  // the tab number is content, not a label). The 10px string is NOT a
-  // dead-rule pin — .profile-tab-number renders 10px on base.
-  assert.ok(styles.includes('.profile-tab-number{font-size:11px;font-weight:800;opacity:.75;margin-inline-end:4px;flex:none}'),
-    'the number span is small, bold and muted, with a 4px gap to its label (1px glued them: "2Customer Info")');
+  // Profile Info-tab redesign (user decision 2026-11-22) — the number
+  // spans are gone, so their rule is gone too; the sticky fix and the
+  // hidden scrollbar stay.
+  assert.ok(!styles.includes('.profile-tab-number'), 'the number-span rule must be gone with the spans');
   assert.ok(styles.includes('scrollbar-width:none'), 'the tab bar hides its scrollbar (was a thick grey track on the phone)');
   assert.ok(styles.includes('.profile-tabs::-webkit-scrollbar{display:none}'), 'the tab bar hides its WebKit scrollbar too');
   assert.ok(styles.includes('.profile-tabs{display:flex;gap:4px;'), 'the tab gap is tightened so four tabs fit');

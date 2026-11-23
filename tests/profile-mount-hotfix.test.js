@@ -455,12 +455,15 @@ test('profile mount: 100% survival of protected form controllers inside the moun
     assert.ok(panels[expectedGroup]?.includes(owner), `#${id} (inside ${owner.label}) survives into the ${expectedGroup} panel`);
   }
   // Polish #28 Phase A — the Referral, Custody and Deposit Settlement
-  // sections now render inside the Financial / Hardware section bodies,
-  // which the assembly renders into #customerProfileView via the
-  // section shells. Pin that the render still targets the surviving
-  // container, through the shells.
+  // sections now render inside the Financial / Hardware section bodies.
+  // Financial still renders through its shell; Hardware renders as a
+  // row inside the grouped list (Profile Info-tab redesign, user
+  // decision 2026-11-22 — no <details> shell any more), and its body
+  // renders into the bottom sheet on tap. Pin that the render still
+  // targets the surviving container.
   assert.match(app, /\$\('#customerProfileView'\)\.innerHTML = `[\s\S]*?\$\{profileSectionFinancialHtml\}/, 'Financial section renders into #customerProfileView');
-  assert.match(app, /\$\('#customerProfileView'\)\.innerHTML = `[\s\S]*?\$\{profileSectionHardwareHtml\}/, 'Hardware section renders into #customerProfileView');
+  assert.match(app, /\$\('#customerProfileView'\)\.innerHTML = `[\s\S]*?\$\{profileInfoGroupedListHtml\}/, 'grouped list (with the Hardware row) renders into #customerProfileView');
+  assert.ok(app.includes('data-profile-info-row="hardware"'), 'Hardware renders as a grouped-list row');
   const financialBodyAt = app.indexOf('const profileSectionFinancialBody = ');
   const financialBody = app.slice(financialBodyAt, app.indexOf('\n', financialBodyAt));
   assert.ok(financialBody.includes('${referralSectionHtml}'), 'referral section renders inside Financial');

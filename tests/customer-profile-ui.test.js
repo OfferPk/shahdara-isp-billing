@@ -417,18 +417,18 @@ test('customer profile uses an identity-first card with separate manual service 
   const cardEnd = index.indexOf('</section>', cardStart);
   assert.ok(cardStart >= 0 && cardEnd > cardStart, 'profile summary card wraps its identity and current bill');
   const card = index.slice(cardStart, cardEnd);
-  // Profile View Polish (user report 2026-11-13): Delete left the
-  // header action group for the danger zone at the Info-tab bottom —
-  // it is rendered by app.js into #customerProfileView, not static
-  // markup. Edit stays in the header action group; Profile redesign
-  // D6 REMOVES + New customer from the header, so the card test pins
-  // the remaining buttons here.
+  // Profile Info-tab redesign (user decision 2026-11-22): Delete left
+  // the header action group for the slim standalone row at the Info-tab
+  // bottom — it is rendered by app.js into #customerProfileView, not
+  // static markup. Edit stays in the header action group; Profile
+  // redesign D6 REMOVES + New customer from the header, so the card
+  // test pins the remaining buttons here.
   for (const id of ['detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','editProfileButton','archiveCustomerButton','unarchiveCustomerButton','customerCurrentBillSummary']) {
     assert.ok(card.includes(`id="${id}"`), `${id} remains inside the profile card`);
   }
   assert.ok(!card.includes('id="deleteCustomerButton"'), 'Delete is no longer inside the profile card');
-  assert.ok(app.includes('class="profile-danger-zone"'), 'the danger zone is rendered by app.js');
-  assert.ok(app.includes('id="deleteCustomerButton"'), 'Delete is rendered once inside the danger zone');
+  assert.ok(app.includes('class="profile-delete-row"'), 'the delete row is rendered by app.js');
+  assert.ok(app.includes('id="deleteCustomerButton"'), 'Delete is rendered once inside the delete row');
   assert.ok(!card.includes('id="profileAvatar"'), 'profile avatar is gone from the profile card');
   assert.ok(!index.includes('id="profileAvatar"'), 'no profileAvatar anywhere in the page');
   assert.ok(!app.includes("$('#profileAvatar')"), 'renderDetail no longer touches profileAvatar');

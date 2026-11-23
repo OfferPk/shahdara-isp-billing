@@ -252,7 +252,11 @@ test('wiring: the strip sits at the top of the profile, after the wada banner an
   // sections, banner first in Financial, groups inside their sections.
   const stripAt = appJs.indexOf('${profileHeaderStripSectionHtml}');
   const customerAt = appJs.indexOf('${profileSectionCustomerHtml}', stripAt);
-  const historyAt = appJs.indexOf('${profileSectionHistoryHtml}', customerAt);
+  // Profile Info-tab redesign (user decision 2026-11-22) — History no
+  // longer has its own <details> shell: the grouped list (ending with
+  // the History row) is the last item in the assembly, so it is the
+  // order anchor now.
+  const historyAt = appJs.indexOf('${profileInfoGroupedListHtml}', customerAt);
   assert.ok(stripAt > 0, 'strip is in the profile assembly');
   assert.ok(customerAt > stripAt, 'sections sit after the strip');
   assert.ok(historyAt > customerAt, 'sections render in order');

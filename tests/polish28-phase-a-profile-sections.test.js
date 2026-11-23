@@ -154,8 +154,11 @@ test('phase A membership: every view item renders inside exactly one of the 7 se
   }
 });
 
-test('phase A membership: the 7 section bodies exist, in the Req 1 order, after the strip', () => {
+test('phase A membership: the 3 section shells + grouped list exist, in the Req 1 order, after the strip', () => {
   const assembly = viewAssembly();
+  // Profile Info-tab redesign (user decision 2026-11-22) — Connection,
+  // Network, Hardware and History no longer have <details> shells:
+  // they render as rows in ONE grouped list, last in the assembly.
   const order = [
     'profile-view-heading',
     'profileQuickActionsRowMarkup',
@@ -163,10 +166,7 @@ test('phase A membership: the 7 section bodies exist, in the Req 1 order, after 
     'profileSectionCustomerHtml',
     'profileSectionServiceHtml',
     'profileSectionFinancialHtml',
-    'profileSectionConnectionHtml',
-    'profileSectionNetworkHtml',
-    'profileSectionHardwareHtml',
-    'profileSectionHistoryHtml',
+    'profileInfoGroupedListHtml',
   ];
   let prev = -1;
   for (const token of order) {
@@ -344,17 +344,22 @@ test('phase A custody: the real custody section carries the unique class', () =>
 
 // ------------------------------------------------------------ summaries + i18n
 
-test('phase A summaries: seven shells, each with a heading and a one-line summary', () => {
+test('phase A summaries: three shells plus the grouped list, each with a heading and a one-line summary', () => {
+  // Profile Info-tab redesign (user decision 2026-11-22) — Connection,
+  // Network, Hardware and History no longer have <details> shells:
+  // they render as rows in ONE grouped list, each with the same
+  // heading key and the same one-line summary (now via the subtitle
+  // helper). Customer, Service and Financial keep their shells.
   // Shell consts are single lines, like the groups literal: extract each
   // `const profileSection<X>Html = ...;` line and check its arguments.
   const shells = {};
-  for (const section of SECTIONS) {
+  for (const section of ['Customer', 'Service', 'Financial']) {
     const start = appSrc.indexOf(`const profileSection${section}Html = `);
     assert.notEqual(start, -1, `profileSection${section}Html must exist`);
     shells[section] = appSrc.slice(start, appSrc.indexOf('\n', start));
   }
-  assert.equal(Object.keys(shells).length, 7, 'exactly seven section shells');
-  const keys = { Customer: 'customer', Service: 'service', Financial: 'financial', Connection: 'connection', Network: 'network', Hardware: 'hardware', History: 'history' };
+  assert.equal(Object.keys(shells).length, 3, 'exactly three section shells remain');
+  const keys = { Customer: 'customer', Service: 'service', Financial: 'financial' };
   for (const [section, key] of Object.entries(keys)) {
     const call = shells[section];
     assert.ok(call.includes(`profileDetailSectionHtml({ key: '${key}'`), `${key} shell must name its key`);
@@ -368,6 +373,16 @@ test('phase A summaries: seven shells, each with a heading and a one-line summar
       assert.ok(call.includes('summary: `'), `${key} summary must be a template literal`);
     }
     assert.ok(call.includes('open: profileSectionOpenFor('), `${key} open state must come from the store`);
+  }
+  // The four grouped rows carry the same heading keys and the same
+  // one-line summaries, via the subtitle helper.
+  const listAt = appSrc.indexOf('const profileInfoGroupedListHtml = ');
+  assert.notEqual(listAt, -1, 'profileInfoGroupedListHtml must exist');
+  const list = appSrc.slice(listAt, listAt + 4000);
+  for (const key of ['connection', 'network', 'hardware', 'history']) {
+    assert.ok(list.includes(`data-profile-info-row="${key}"`), `${key} row must exist in the grouped list`);
+    assert.ok(list.includes(`t('prof_sec_${key}')`), `${key} row title must use its prof_sec_ key`);
+    assert.ok(list.includes(`profileInfoRowSubtitle('${key}'`), `${key} row subtitle must come from the subtitle helper`);
   }
 });
 

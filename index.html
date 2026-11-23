@@ -6486,10 +6486,10 @@
             </section>
               </div>
             <nav class="profile-tabs" role="tablist" data-i18n-aria-label="prof_tabs_aria" aria-label="Customer profile sections">
-              <button id="profileTabBilling" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelBilling" aria-selected="false" tabindex="-1"><span class="profile-tab-number" aria-hidden="true">1·</span><span class="profile-tab-label" data-i18n="prof_tab_billing">Billing</span></button>
-              <button id="profileTabInfo" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelInfo" aria-selected="true" tabindex="0"><span class="profile-tab-number" aria-hidden="true">2·</span><span class="profile-tab-label" data-i18n="prof_tab_info">Info</span></button>
-              <button id="profileTabComplaints" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelComplaints" aria-selected="false" tabindex="-1"><span class="profile-tab-number" aria-hidden="true">3·</span><span class="profile-tab-label" data-i18n="prof_tab_complaints">Complaints</span><span class="profile-tab-count" hidden></span></button>
-              <button id="profileTabBaqaya" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelBaqaya" aria-selected="false" tabindex="-1"><span class="profile-tab-number" aria-hidden="true">4·</span><span class="profile-tab-label" data-i18n="prof_tab_baqaya">Baqaya</span><span class="profile-tab-count" hidden></span></button>
+              <button id="profileTabBilling" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelBilling" aria-selected="false" tabindex="-1"><span class="profile-tab-label" data-i18n="prof_tab_billing">Billing</span></button>
+              <button id="profileTabInfo" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelInfo" aria-selected="true" tabindex="0"><span class="profile-tab-label" data-i18n="prof_tab_info">Info</span></button>
+              <button id="profileTabComplaints" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelComplaints" aria-selected="false" tabindex="-1"><span class="profile-tab-label" data-i18n="prof_tab_complaints">Complaints</span><span class="profile-tab-count" hidden></span></button>
+              <button id="profileTabBaqaya" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelBaqaya" aria-selected="false" tabindex="-1"><span class="profile-tab-label" data-i18n="prof_tab_baqaya">Baqaya</span><span class="profile-tab-count" hidden></span></button>
             </nav>
             <div class="profile-tab-panels">
               <section id="profilePanelBilling" class="profile-tab-panel" role="tabpanel" aria-labelledby="profileTabBilling" tabindex="0" hidden></section>
@@ -15509,6 +15509,22 @@
         <span class="sheet-action-label">Shortcuts (?)</span>
       </button>
     </div>
+  </aside>
+  <!-- Profile Info-tab redesign (user decision 2026-11-22): a second
+    bottom sheet reusing the mobile Quick Actions sheet's classes — the
+    Quick Actions singleton above is untouched. One element, shared by
+    the four grouped-list rows and the Delete confirmation; content is
+    swapped per open by openProfileSectionSheet /
+    openProfileDeleteConfirmSheet (app.js). -->
+  <div id="profileSectionSheetBackdrop" class="mobile-action-sheet-backdrop" aria-hidden="true" hidden></div>
+  <aside id="profileSectionSheet" class="mobile-action-sheet profile-section-sheet" role="dialog" aria-modal="true" aria-labelledby="profileSectionSheetHeading" aria-hidden="true" hidden>
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-header">
+      <h3 id="profileSectionSheetHeading" class="sheet-title"></h3>
+      <button id="profileSectionSheetClose" class="sheet-close-btn" type="button" aria-label="Close">↩</button>
+    </div>
+    <div id="profileSectionSheetContent" class="profile-section-sheet-content"></div>
+    <button id="profileSectionSheetEdit" class="secondary-button profile-section-sheet-edit" type="button" data-i18n="prof_view_edit">Edit</button>
   </aside>
   <div id="offlineSyncBanner" class="offline-sync-banner" role="status" aria-live="polite" hidden>
     <div class="offline-sync-content">

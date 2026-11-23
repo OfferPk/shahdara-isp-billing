@@ -42,42 +42,44 @@ const ACTION_IDS = [
   'openEquipmentRetrievalBtn',
 ];
 
-// Profile View Polish (user report 2026-11-13) deliberately REVERSES
-// Polish #24 here (same class as #1393's Archive reversal): the
-// danger zone RETURNS at the bottom of the Info tab, and Delete
-// leaves the header action group for it — Delete sat right beneath
-// Edit, one accidental tap from wiping the profile and its whole
-// history. The zone is rendered by app.js (not static markup), so
-// its title/help keys are the new prof_danger_zone_* pair; the old
-// dead prof_danger_title / prof_danger_help keys stay gone.
-test('Plan 492: the danger zone RETURNS at the Info-tab bottom — Delete lives there, not in the header action group (Profile View Polish reversal of polish #24)', () => {
-  assert.ok(app.includes('class="profile-danger-zone"'), 'the danger-zone block is rendered by app.js');
-  assert.ok(app.includes("t('prof_danger_zone_title')"), 'the zone heading is the Danger zone key');
-  assert.ok(app.includes("t('prof_danger_zone_help')"), 'the zone carries its help copy');
+// Profile Info-tab redesign (user decision 2026-11-22) deliberately
+// REVERSES the Profile View Polish danger zone: the bulky box is gone
+// and Delete is a slim standalone row at the bottom of the Info tab —
+// Delete still leaves the header action group for it, one accidental
+// tap from wiping the profile is still two taps away (row, then the
+// confirmation sheet). The row is rendered by app.js (not static
+// markup), so its label key is the existing prof_action_delete; the
+// help copy lives in the confirm sheet, and the prof_danger_zone_*
+// keys stay in the dictionaries (title unused by the render now).
+test('Plan 492: the slim delete row STANDS at the Info-tab bottom — Delete lives there, not in the header action group (Profile Info-tab redesign reversal of the Profile View Polish danger zone)', () => {
+  assert.ok(app.includes('class="profile-delete-row"'), 'the delete row is rendered by app.js');
+  assert.ok(!app.includes("t('prof_danger_zone_title')"), 'the Danger zone heading is gone from the render — the row carries no heading');
+  assert.ok(app.includes("t('prof_danger_zone_help')"), 'the help copy lives in the confirm sheet');
   assert.ok(lang.includes("prof_danger_zone_title: 'Danger zone'"), 'the zone title key exists in English');
   assert.ok(lang.includes("prof_danger_zone_title: 'خطرناک زون'"), 'the zone title key exists in Urdu');
   assert.ok(!lang.includes('prof_danger_title'), 'the dead danger-zone title key is gone from the dictionaries');
   assert.ok(!lang.includes('prof_danger_help'), 'the dead danger-zone help key is gone from the dictionaries');
   assert.ok(!index.includes('id="deleteCustomerButton"'), 'Delete is not in the header action group any more');
   assert.ok(app.includes('id="deleteCustomerButton"'), 'delete button keeps its id (the delegated wiring attaches to it)');
-  const zoneAt = app.indexOf('profile-danger-zone');
-  assert.ok(zoneAt > app.indexOf('Object.entries(PROFILE_SECTION_TAB)'), 'the zone is appended after the section-move loop — bottom of the Info tab');
+  const rowAt = app.indexOf('profile-delete-row');
+  assert.ok(rowAt > app.indexOf('Object.entries(PROFILE_SECTION_TAB)'), 'the row is appended after the section-move loop — bottom of the Info tab');
 });
 
-// Profile View Polish — the zone is mounted into the Info panel
-// again, but NOT by mountCustomerProfileContent: renderCustomerProfileView
-// appends it after the section-move loop, so the mount group still
-// claims no zone (its info group still ends with the uptime section).
-test('Plan 492: mountCustomerProfileContent still mounts no danger zone — renderCustomerProfileView appends it after the move loop (Profile View Polish)', () => {
+// Profile Info-tab redesign (user decision 2026-11-22) — the row is
+// mounted into the Info panel again, but NOT by
+// mountCustomerProfileContent: renderCustomerProfileView appends it
+// after the section-move loop, so the mount group still claims no row
+// (its info group still ends with the uptime section).
+test('Plan 492: mountCustomerProfileContent still mounts no delete row — renderCustomerProfileView appends it after the move loop (Profile Info-tab redesign)', () => {
   // Plan 617: the share-draft host joins the info group FIRST — the
   // group still ends with the uptime section and still claims no
-  // danger zone.
+  // delete row.
   assert.ok(
     app.includes("info:['#stxProfileShareDraft','.customer-meta','.uptime-section']"),
-    'info group ends with the uptime section — no danger zone claimed',
+    'info group ends with the uptime section — no delete row claimed',
   );
-  assert.ok(!app.includes("'.profile-danger-zone'"), 'no mount group claims the danger zone anywhere');
-  assert.ok(app.indexOf('profile-danger-zone') > app.indexOf('Object.entries(PROFILE_SECTION_TAB)'), 'the zone append sits after the section-move loop');
+  assert.ok(!app.includes("'.profile-delete-row'"), 'no mount group claims the delete row anywhere');
+  assert.ok(app.indexOf('profile-delete-row') > app.indexOf('Object.entries(PROFILE_SECTION_TAB)'), 'the row append sits after the section-move loop');
 });
 
 test('Plan 492: the 12 quick actions live inside the More actions disclosure; Archive and Unarchive stay in the header row (Profile Archive Button Visibility)', () => {

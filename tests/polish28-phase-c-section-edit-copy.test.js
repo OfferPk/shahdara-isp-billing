@@ -77,9 +77,13 @@ test('phase C: the edit label is escaped, never raw HTML', () => {
 // Per-section Edit — the wiring (app.js)
 // ---------------------------------------------------------------------------
 
-test('phase C: sections S1–S6 pass an edit label, S7 History does not', () => {
+test('phase C: sections S1–S3 pass an edit label in their shells, S4–S6 carry Edit in the sheet, S7 History does not', () => {
   const app = read('app.js');
-  for (const key of ['customer', 'service', 'financial', 'connection', 'network', 'hardware']) {
+  // Profile Info-tab redesign (user decision 2026-11-22) — Connection,
+  // Network and Hardware no longer render <details> shells, so they no
+  // longer pass editLabel in a row: their Edit lives in the bottom
+  // sheet, which opens the same form at the section.
+  for (const key of ['customer', 'service', 'financial']) {
     const call = app.match(new RegExp(`profileDetailSectionHtml\\(\\{ key: '${key}'[\\s\\S]*?\\}\\);`));
     assert.ok(call, `the ${key} section call must exist`);
     assert.ok(
@@ -87,12 +91,23 @@ test('phase C: sections S1–S6 pass an edit label, S7 History does not', () => 
       `${key} must pass the existing Edit label — the button text is the existing i18n key, not a new string`,
     );
   }
-  const historyCall = app.match(/profileDetailSectionHtml\(\{ key: 'history'[\s\S]*?\}\);/);
-  assert.ok(historyCall, 'the history section call must exist');
-  assert.ok(
-    !historyCall[0].includes('editLabel'),
-    'History has zero form fields (Table A), so it must carry no Edit button — an Edit with no group to scroll to would be a dead control',
-  );
+  const listAt = app.indexOf('const profileInfoGroupedListHtml = ');
+  assert.notEqual(listAt, -1, 'the grouped list must exist');
+  const list = app.slice(listAt, listAt + 4000);
+  for (const key of ['connection', 'network', 'hardware']) {
+    assert.ok(list.includes(`data-profile-info-row="${key}"`), `${key} must render as a grouped-list row`);
+    assert.ok(!list.includes(`data-profile-section-edit="${key}"`), `${key} row must carry no Edit button — Edit lives in the sheet`);
+  }
+  const sheetAt = app.indexOf('function openProfileSectionSheet(');
+  assert.notEqual(sheetAt, -1, 'the sheet-open function must exist');
+  const sheetFn = app.slice(sheetAt, sheetAt + 4000);
+  assert.ok(sheetFn.includes('data-profile-section-edit'), 'the sheet must carry an Edit control');
+  assert.ok(sheetFn.includes('openProfileFormAtSection('), 'the sheet Edit must open the form at the section');
+  assert.ok(sheetFn.includes("edit.hidden = key === 'history'"), 'History’s sheet must hide the Edit button');
+  // History has zero form fields (Table A), so it must carry no Edit
+  // anywhere — no shell call, no row edit, no sheet Edit.
+  assert.ok(!app.includes("profileDetailSectionHtml({ key: 'history'"), 'History must have no section shell');
+  assert.ok(!list.includes('data-profile-section-edit="history"'), 'History row must carry no Edit button');
 });
 
 test('phase C: section Edit clicks open the form at the section without toggling the disclosure', () => {

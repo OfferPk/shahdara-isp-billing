@@ -61,15 +61,27 @@ function fragmentSlice(frags, from, to) {
 }
 
 function sectionSummaryLine(key) {
-  // The seven summaries are inline in the profileSection*Html consts
-  // (one line each), not a summaries object — extract the one line for
-  // the named section.
+  // The three remaining summaries are inline in the profileSection*Html
+  // consts (one line each), not a summaries object — extract the one
+  // line for the named section. (The S4/S5/S6 summaries moved into the
+  // row-subtitle helper — see rowSubtitleHelper below.)
   const app = read('app.js');
   const start = app.indexOf(`const profileSection${key}Html = profileDetailSectionHtml(`);
   assert.notEqual(start, -1, `${key} section line must exist`);
   const end = app.indexOf('\n', start);
   assert.notEqual(end, -1, `${key} section line must end on its line`);
   return app.slice(start, end);
+}
+
+function rowSubtitleHelper() {
+  // Profile Info-tab redesign (user decision 2026-11-22) — the S4/S5/S6
+  // summaries moved out of the section shells into the row-subtitle
+  // helper: the same per-part dash expressions, in the same order, with
+  // the fully-empty case mapping to the muted Not set text.
+  const app = read('app.js');
+  const start = app.indexOf('function profileInfoRowSubtitle(');
+  assert.notEqual(start, -1, 'the row-subtitle helper must exist');
+  return app.slice(start, start + 2500);
 }
 
 function headingBadgesLine() {
@@ -417,15 +429,14 @@ test('phase B summaries: S3 profit is a bare dash when null', () => {
 });
 
 test('phase B summaries: S4, S5 and S6 dash their empty values', () => {
-  const connection = sectionSummaryLine('Connection');
-  assert.ok(connection.includes('customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH'), 'S4 summary must dash an empty connection date');
-  assert.ok(connection.includes('profileEmptyMoney(customer.connectionFee)'), 'S4 summary must dash an empty connection fee');
-  const network = sectionSummaryLine('Network');
-  assert.ok(network.includes('profileEmptyText(customer.pppoeUsername)'), 'S5 summary must dash an empty PPPoE username');
-  assert.ok(network.includes('profileEmptyText(customer.macAddress)'), 'S5 summary must dash an empty MAC');
-  const hardware = sectionSummaryLine('Hardware');
-  assert.ok(hardware.includes('profileEmptyText(customer.routerModel)'), 'S6 summary must dash an empty router model');
-  assert.ok(hardware.includes('profileEmptyText(custodyFields.serialNumber)'), 'S6 summary must dash an empty custody serial');
+  const helper = rowSubtitleHelper();
+  assert.ok(helper.includes('customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH'), 'S4 summary must dash an empty connection date');
+  assert.ok(helper.includes('profileEmptyMoney(customer.connectionFee)'), 'S4 summary must dash an empty connection fee');
+  assert.ok(helper.includes('profileEmptyText(customer.pppoeUsername)'), 'S5 summary must dash an empty PPPoE username');
+  assert.ok(helper.includes('profileEmptyText(customer.macAddress)'), 'S5 summary must dash an empty MAC');
+  assert.ok(helper.includes('profileEmptyText(customer.routerModel)'), 'S6 summary must dash an empty router model');
+  assert.ok(helper.includes('profileEmptyText(custodyFields.serialNumber)'), 'S6 summary must dash an empty custody serial');
+  assert.ok(helper.includes("t('prof_not_set')"), 'a fully-empty row subtitle reads Not set, not the bare dash pair');
 });
 
 // ------------------------------------------------------------ Req 4: the pill wiring

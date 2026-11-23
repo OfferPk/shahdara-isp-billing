@@ -158,7 +158,7 @@ const DEFAULT_PHS_LABELS = {
   nextDueNotRecorded: 'Next due date not recorded.',
   unavailable: 'Profile header strip unavailable.',
   aria: 'Customer at a glance',
-  perMonth: '/month',
+  perMonth: '/mo',
   notSet: 'Not set',
 };
 
@@ -201,21 +201,26 @@ export function profileHeaderStripText(strip, formatAmount = defaultFormatAmount
   return parts.join(' ');
 }
 
-export function profileHeaderStripHtml(strip, formatAmount = defaultFormatAmount, labels = {}) {
+export function profileHeaderStripHtml(strip, formatAmount = defaultFormatAmount, labels = {}, formatDate = (iso) => iso) {
   if (!strip || typeof strip !== 'object') return '';
   const L = phsLabels(labels);
   const format = typeof formatAmount === 'function' ? formatAmount : defaultFormatAmount;
+  const formatDay = typeof formatDate === 'function' ? formatDate : (iso) => iso;
   const packageLabel = strip.packageLabel === 'Not set' ? L.notSet : strip.packageLabel;
   const dues = strip.duesCents === 0
     ? L.noAmountDue
     : escapeHtml(format(strip.dues));
+  // Customer information card polish (2026-11-22): the package value
+  // splits into a bold speed label and a compact price subtitle, so a
+  // long 'label · price/month' string no longer stretches the Package
+  // cell to three lines; no subtitle without a price (Plan 351:92).
   const packageValue = strip.packagePriceCents === null
-    ? escapeHtml(packageLabel)
-    : `${escapeHtml(packageLabel)} · ${escapeHtml(format(strip.packagePrice))}${escapeHtml(L.perMonth)}`;
+    ? `<strong class="phs-value">${escapeHtml(packageLabel)}</strong>`
+    : `<strong class="phs-value">${escapeHtml(packageLabel)}</strong><span class="phs-value-sub">${escapeHtml(format(strip.packagePrice))}${escapeHtml(L.perMonth)}</span>`;
   const lastPayment = strip.lastPayment
     ? `${escapeHtml(format(strip.lastPayment.amount))} · ${escapeHtml(strip.lastPayment.date)}`
     : L.noPaymentYet;
-  const nextDue = strip.nextDueDate ? escapeHtml(strip.nextDueDate) : L.notRecorded;
+  const nextDue = strip.nextDueDate ? escapeHtml(formatDay(strip.nextDueDate)) : L.notRecorded;
   // Profile View Polish — the strip is a 2-column grid now (Dues |
   // Package on row 1, Last payment | Next due on row 2), and a zero
   // balance reads soft emerald, not alarm red: the dues pill takes the
@@ -226,5 +231,5 @@ export function profileHeaderStripHtml(strip, formatAmount = defaultFormatAmount
   // Plan 591 — the section/label/value styles moved into
   // .profile-header-strip / .phs-label / .phs-value (styles.css); the
   // template carries no inline style attribute and no hex literal.
-  return `<section class="profile-header-strip" id="phsStrip" aria-label="${escapeHtml(L.aria)}"><div class="phs-stat phs-pill phs-pill-dues${strip.duesCents === 0 ? ' phs-pill-dues-zero' : ''}"><span class="phs-label">${L.dues}</span><strong class="phs-value">${dues}</strong></div><div class="phs-stat phs-pill phs-pill-package"><span class="phs-label">${L.package}</span><strong class="phs-value">${packageValue}</strong></div><div class="phs-stat phs-pill phs-pill-last-payment"><span class="phs-label">${L.lastPayment}</span><strong class="phs-value">${lastPayment}</strong></div><div class="phs-stat phs-pill phs-pill-next-due"><span class="phs-label">${L.nextDue}</span><strong class="phs-value">${nextDue}</strong></div></section>`;
+  return `<section class="profile-header-strip" id="phsStrip" aria-label="${escapeHtml(L.aria)}"><div class="phs-stat phs-pill phs-pill-dues${strip.duesCents === 0 ? ' phs-pill-dues-zero' : ''}"><span class="phs-label">${L.dues}</span><strong class="phs-value">${dues}</strong></div><div class="phs-stat phs-pill phs-pill-package"><span class="phs-label">${L.package}</span>${packageValue}</div><div class="phs-stat phs-pill phs-pill-last-payment"><span class="phs-label">${L.lastPayment}</span><strong class="phs-value">${lastPayment}</strong></div><div class="phs-stat phs-pill phs-pill-next-due"><span class="phs-label">${L.nextDue}</span><strong class="phs-value">${nextDue}</strong></div></section>`;
 }

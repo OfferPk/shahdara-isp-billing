@@ -47,8 +47,11 @@ test('profile Edit button keeps its thumb-sized target and single pencil icon', 
 // Profile redesign (DS 8.1, user-locked): the utility row is an even
 // 4-column grid, not a wrapping flex row — the minmax(0,1fr) columns
 // shrink instead of wrapping, so flex-wrap no longer applies. The row
-// still cannot overflow, and labels still stay whole (nowrap below).
-test('profile header action row wraps and labels never break mid-label', () => {
+// still cannot overflow. Customer information card polish (2026-11-22):
+// the nowrap rule is DELETED — it was the proven cause of 'Welcome Slip'
+// overflowing its tile at 360px — and the labels now wrap inside their
+// own .profile-info-btn-label spans.
+test('profile header action row wraps and labels wrap inside their tiles', () => {
   const css = read('styles.css');
   const actions = ruleBody(css, /\.profile-view-actions\{([^}]*)\}/);
   assert.match(actions, /display:grid/);
@@ -58,7 +61,7 @@ test('profile header action row wraps and labels never break mid-label', () => {
   const headings = [...css.matchAll(/\.profile-view-heading\{([^}]*)\}/g)].map((m) => m[1]);
   assert.ok(headings.some((b) => /flex-wrap:wrap/.test(b)), 'a .profile-view-heading rule must wrap');
   const feedback = read('ui-feedback.css');
-  assert.match(feedback, /\.profile-view-actions \.secondary-button \{ white-space: nowrap; \}/);
+  assert.doesNotMatch(feedback, /\.profile-view-actions \.secondary-button \{ white-space: nowrap; \}/, 'the tile nowrap rule is gone (Customer information card polish 2026-11-22)');
 });
 
 // Root cause of the reported overlap: the author `display: flex` on the

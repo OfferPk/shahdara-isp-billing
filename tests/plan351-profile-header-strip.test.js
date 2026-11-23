@@ -36,6 +36,15 @@ function baseStrip(overrides = {}) {
   };
 }
 
+// Customer information card polish (2026-11-22): the strip renders Next
+// due through a date formatter — the fixture mirrors app.js humanDate
+// (Intl medium style, en-US): 'Nov 5, 2026'.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const formatDateFixture = (iso) => {
+  const [y, m, d] = String(iso).split('-').map(Number);
+  return `${MONTHS[m - 1]} ${d}, ${y}`;
+};
+
 test('build carries the fixture figures verbatim', () => {
   const strip = buildProfileHeaderStrip(baseStrip());
   assert.equal(strip.customerId, 'CUST-1');
@@ -161,7 +170,7 @@ test('text carries all four figures on the same fixture', () => {
   const textOut = profileHeaderStripText(strip);
   // Plan 614: the dues sentence carries the scoped 'Total dues' label.
   assert.match(textOut, /Total dues PKR 3000\./);
-  assert.match(textOut, /Package 5 Mbps — 200 GB \(PKR 2000\/month\)\./);
+  assert.match(textOut, /Package 5 Mbps — 200 GB \(PKR 2000\/mo\)\./);
   assert.match(textOut, /Last payment PKR 2000 on 2026-10-19\./);
   assert.match(textOut, /Next due 2026-11-05\./);
 });
@@ -172,21 +181,25 @@ test('a custom amount formatter is honoured in text and html', () => {
   // Plan 614: the dues sentence carries the scoped 'Total dues' label.
   assert.match(profileHeaderStripText(strip, format), /Total dues Rs 3000\./);
   assert.match(profileHeaderStripHtml(strip, format), /Rs 3000/);
-  assert.match(profileHeaderStripHtml(strip, format), /Rs 2000\/month/);
+  assert.match(profileHeaderStripHtml(strip, format), /Rs 2000\/mo/);
 });
 
 test('html carries the four figures under the phs strip id', () => {
-  const html = profileHeaderStripHtml(buildProfileHeaderStrip(baseStrip()));
+  // Customer information card polish (2026-11-22): the html renders Next
+  // due through the formatter ('Nov 5, 2026'); the Last payment date
+  // stays ISO by the same decision.
+  const html = profileHeaderStripHtml(buildProfileHeaderStrip(baseStrip()), undefined, {}, formatDateFixture);
   assert.match(html, /id="phsStrip"/);
   // Plan 614: the html label is the scoped 'Total dues'.
   assert.match(html, /Total dues/);
   assert.match(html, /PKR 3000/);
   assert.match(html, /5 Mbps — 200 GB/);
-  assert.match(html, /PKR 2000\/month/);
+  assert.match(html, /PKR 2000\/mo/);
   assert.match(html, /Last payment/);
   assert.match(html, /2026-10-19/);
   assert.match(html, /Next due/);
-  assert.match(html, /2026-11-05/);
+  assert.match(html, /Nov 5, 2026/);
+  assert.ok(!html.includes('2026-11-05'), 'the ISO next-due date does not survive on the card');
 });
 
 test('html escapes a hostile package label', () => {

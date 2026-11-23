@@ -5033,7 +5033,10 @@ export const TRANSLATIONS = {
     phs_next_due_not_recorded: 'Next due date not recorded.',
     phs_unavailable: 'Profile header strip unavailable.',
     phs_aria: 'Customer at a glance',
-    phs_per_month: '/month',
+    // Customer information card polish (2026-11-22): the strip price
+    // reads '/mo' — the bill-form '/ month' literal (app.js:6116) is a
+    // different surface and is untouched here.
+    phs_per_month: '/mo',
     // Plan 600 — the eight message-draft sections speak the operator's
     // language (D1(b) full keying, D3 one dft_ family). EN is the
     // Roman-Urdu operator voice, byte-identical to the shipped literals;

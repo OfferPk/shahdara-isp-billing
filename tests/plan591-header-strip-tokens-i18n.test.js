@@ -288,7 +288,9 @@ test('G3a: all 13 phs_* keys exist in EN and UR, defined once per dict', () => {
     phs_next_due_not_recorded: 'Next due date not recorded.',
     phs_unavailable: 'Profile header strip unavailable.',
     phs_aria: 'Customer at a glance',
-    phs_per_month: '/month',
+    // Customer information card polish (2026-11-22): the strip price
+    // reads '/mo' now; the Urdu value stays '/ماہ'.
+    phs_per_month: '/mo',
   };
   const navSrc = read('nav-language.js');
   const [enHalf, urHalf] = navSrc.split('\n  ur: {');
@@ -345,7 +347,7 @@ test('G3c: with no labels passed, the strip renders the exact English of today',
   assert.ok(html.includes('>Total dues<') && html.includes('>Package<'));
   assert.ok(html.includes('>Last payment<') && html.includes('>Next due<'));
   assert.ok(html.includes('aria-label="Customer at a glance"'));
-  assert.ok(html.includes('/month') && !html.includes('/ماہ'));
+  assert.ok(html.includes('/mo') && !html.includes('/ماہ'));
   assert.ok(profileHeaderStripHtml(baseStrip({ outstanding: 0 })).includes('No total dues'));
   assert.ok(profileHeaderStripHtml(baseStrip({ lastPayment: null })).includes('No payment yet'));
   assert.ok(profileHeaderStripHtml(baseStrip({ nextDueDate: null })).includes('Not recorded'));

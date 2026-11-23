@@ -96,7 +96,7 @@ export function missingFieldsChecklistHtml(missing, labels, texts) {
   const rawPercent = Number(texts?.percent);
   const percent = Number.isFinite(rawPercent) ? Math.min(100, Math.max(0, Math.round(rawPercent))) : 0;
   if (items.length === 0) {
-    return `<details class="profile-completion-details mfc-checklist" aria-label="${escapeMissingFieldsHtml(title)}"><summary class="profile-details-summary"><span class="ds-action-icon" data-ds-icon="ClipboardList" aria-hidden="true"></span><span class="profile-details-title">${escapeMissingFieldsHtml(title)}</span><span class="profile-details-bar" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeMissingFieldsHtml(title)}"><span class="profile-details-fill" style="width:${percent}%"></span></span></summary><p class="mfc-all-filled">${escapeMissingFieldsHtml(allFilled)}</p></details>`;
+    return `<details class="profile-completion-details mfc-checklist" aria-label="${escapeMissingFieldsHtml(title)}"><summary class="profile-details-summary"><span class="profile-details-row"><span class="ds-action-icon" data-ds-icon="ClipboardList" aria-hidden="true"></span><span class="profile-details-title">${escapeMissingFieldsHtml(title)}</span></span><span class="profile-details-bar" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeMissingFieldsHtml(title)}"><span class="profile-details-fill" style="width:${percent}%"></span></span></summary><p class="mfc-all-filled">${escapeMissingFieldsHtml(allFilled)}</p></details>`;
   }
   const rows = items.map((item) => {
     const name = names[item.controlId] || item.fieldKey;
@@ -108,5 +108,8 @@ export function missingFieldsChecklistHtml(missing, labels, texts) {
   // in the same order. The ▾ is a text glyph the app already uses
   // (e.g. 'Receipt ▾'); the caller swaps it for the hide label when
   // the details opens (see the toggle listener in app.js).
-  return `<details class="profile-completion-details mfc-checklist" aria-label="${escapeMissingFieldsHtml(title)}"><summary class="profile-details-summary"><span class="ds-action-icon" data-ds-icon="ClipboardList" aria-hidden="true"></span><span class="profile-details-title">${escapeMissingFieldsHtml(title)}</span><span class="profile-details-sep">•</span><span class="profile-details-toggle-text">${escapeMissingFieldsHtml(showMissing)} ▾</span><span class="profile-details-bar" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeMissingFieldsHtml(title)}"><span class="profile-details-fill" style="width:${percent}%"></span></span></summary><ul class="mfc-list">${rows}</ul></details>`;
+  // Customer information card polish (2026-11-22): the summary is one
+  // title/toggle row with the bar as a full-width block beneath it —
+  // the trailing '•' separator is gone with the old inline 120px bar.
+  return `<details class="profile-completion-details mfc-checklist" aria-label="${escapeMissingFieldsHtml(title)}"><summary class="profile-details-summary"><span class="profile-details-row"><span class="ds-action-icon" data-ds-icon="ClipboardList" aria-hidden="true"></span><span class="profile-details-title">${escapeMissingFieldsHtml(title)}</span><span class="profile-details-toggle-text">${escapeMissingFieldsHtml(showMissing)} ▾</span></span><span class="profile-details-bar" role="progressbar" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeMissingFieldsHtml(title)}"><span class="profile-details-fill" style="width:${percent}%"></span></span></summary><ul class="mfc-list">${rows}</ul></details>`;
 }

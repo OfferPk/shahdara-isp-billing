@@ -133,6 +133,10 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   // help-tips (dues recovery + collection by area) are 28px
   // informational triggers — matched to the Month-end 28px standard —
   // as a FOURTH NAMED scoped exception, pinned by name below.
+  // Customer information card polish (2026-11-22): the (i) next to the
+  // 'Customer information' heading is a SIXTH NAMED scoped exception at
+  // 32px (.profile-view-heading .help-icon), pinned by name below; the
+  // final guard admits 32 for that named rule as well.
   const base = /\.help-icon\{([^}]*)\}/.exec(stylesNC)?.[1];
   assert.ok(base, 'base .help-icon rule present');
   assert.ok(sizes([base]).length > 0 && sizes([base]).every((v) => v >= 40),
@@ -160,9 +164,16 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   assert.ok(uptime, 'scoped .uptime-section .help-icon rule present');
   assert.deepEqual(sizes([uptime]).sort((a, b) => a - b), [20, 20, 20],
     'scoped uptime (i) is exactly 20px (Profile Uptime polish, inline toggle)');
+  // Customer information card polish (2026-11-22): the (i) next to the
+  // 'Customer information' heading is 32px — the sixth NAMED scoped
+  // exception, pinned by name here.
+  const profile = /\.profile-view-heading\s+\.help-icon\s*\{([^}]*)\}/.exec(stylesNC)?.[1];
+  assert.ok(profile, 'scoped .profile-view-heading .help-icon rule present');
+  assert.deepEqual(sizes([profile]).sort((a, b) => a - b), [32, 32, 32],
+    'scoped profile (i) is exactly 32px (Customer information card polish 2026-11-22)');
   const all = sizes(ruleBodies(stylesNC, '.help-icon'));
-  assert.ok(all.every((v) => v >= 40 || v === 28 || v === 20),
-    'a .help-icon rule other than the named 28px / 20px exceptions carries a sub-40px size');
+  assert.ok(all.every((v) => v >= 40 || v === 28 || v === 20 || v === 32),
+    'a .help-icon rule other than the named 28px / 20px / 32px exceptions carries a sub-40px size');
 });
 
 test('F5 detail-identity-action (a) is 40x40 in its own rule', () => {

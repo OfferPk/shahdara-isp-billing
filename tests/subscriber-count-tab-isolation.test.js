@@ -55,18 +55,16 @@ function cardParents(source) {
   return found;
 }
 
-// D2 homes: Reports 7, Analytics 10 (the parent "Analytics 9" is an
+// D2 homes: Reports 2, Analytics 10 (the parent "Analytics 9" is an
 // arithmetic slip — the D2 table lists ten cards), Inventory 3, Home 2.
 // Receipt Verification + Field Tools have no home: their cards are
 // deleted and their modals stay reachable from the More menu.
+// (Reports Status polish, 2026-11-22: five Reports cards left this
+// table when they became grouped list rows — their Reports home is
+// pinned in tests/reports-status-polish.test.js A4.)
 const EXPECTED_HOME = {
   'summary-billing-cycle': 'billingReportsView',
-  'summary-complaint-register': 'billingReportsView',
-  'summary-field-tickets': 'billingReportsView',
-  'summary-monthly-complaint-report': 'billingReportsView',
-  'summary-saad-visits': 'billingReportsView',
   'summary-group-billing': 'billingReportsView',
-  'summary-lineman-scorecard': 'billingReportsView',
   'summary-downtime-analytics': 'analyticsView',
   'summary-upstream-sla': 'analyticsView',
   'summary-fleet-uptime': 'analyticsView',
@@ -87,10 +85,10 @@ const EXPECTED_HOME = {
 test('registry cards live in their D2 home view, never loose and never on the Customers tab', () => {
   const parents = cardParents(html);
   // No total-count assertion here: the document legitimately holds other
-  // summary-cards outside the 24 (Home/Transactions/Reports cards that
+  // summary-cards outside the 17 (Home/Transactions/Reports cards that
   // predate this item — e.g. Shop Settlement + Installation Tracker in
   // #transactionsView, Daily Closing + Owner Khata in Reports). Only the
-  // 24-card universe is pinned: every expected card present in its D2
+  // 17-card universe is pinned: every expected card present in its D2
   // home, and no card anywhere loose or on the Customers tab.
   for (const [card, home] of Object.entries(EXPECTED_HOME)) {
     assert.equal(parents.get(card), home, `${card} should live in ${home}, found in ${parents.get(card) ?? 'nowhere'}`);

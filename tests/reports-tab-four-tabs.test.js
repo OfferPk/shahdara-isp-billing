@@ -48,14 +48,17 @@ test('regroup map: every Reports panel in exactly one tab', () => {
   assert.ok(i >= 0);
   const region = appJs.slice(i, i + 6000);
   const expected = {
-    status: ['.report-heading', '#billsActionsBar', '.report-filters', '.report-search-bar', '#monthlyReportSummaryBar', '#monthlyReportCount', '.mohalla-analytics', '#reportAreaFilterChip', '#monthlyReportList', '#monthlyReportPagination', '#monthlyReportEmpty', '.report-not-set-note', '#duesRecoveryPanel', '#smartAlertsPanel', '#targetGaugeSection', 'h3[data-i18n="ops_section_billing"]', '.summary-billing-cycle', '.summary-complaint-register', '.summary-field-tickets', '.summary-monthly-complaint-report', '.summary-group-billing', 'h3[data-i18n="ops_section_workers"]', '.summary-saad-visits', '.summary-lineman-scorecard'],
+    // Reports Status polish (2026-11-22): the five ops cards became two
+    // grouped lists (#opsListBilling / #opsListWorkers) and the
+    // note + count moved inside their panels — 43 -> 38 selectors.
+    status: ['.report-heading', '#billsActionsBar', '.report-filters', '.report-search-bar', '#monthlyReportSummaryBar', '.mohalla-analytics', '#reportAreaFilterChip', '#monthlyReportList', '#monthlyReportPagination', '#monthlyReportEmpty', '#duesRecoveryPanel', '#smartAlertsPanel', '#targetGaugeSection', 'h3[data-i18n="ops_section_billing"]', '.summary-billing-cycle', '#opsListBilling', '.summary-group-billing', 'h3[data-i18n="ops_section_workers"]', '#opsListWorkers'],
     register: ['#stxTaxDashboard', '#billingRegisterSection'],
     compare: ['#monthComparisonSection', '#customerRankingsSection', '#multiMonthMatrixSection', '#annualOwnerSummarySection', '#collectionVelocitySection', '#packageUpgradeSection', '#fuelCostSection', '#winBackSection', '#atRiskLoyalSection', '#revenueLeakSection', '#hardwareAuditSection'],
     closing: ['#savedClosingsSection', '#dailyRoznamchaSection', '#ownerKhataSection', '#newCustomersSection', '#monthCompareSection', '#printSummarySection'],
   };
   const all = Object.values(expected).flat();
-  assert.equal(all.length, 43);
-  assert.equal(new Set(all).size, 43, 'no selector in two tabs');
+  assert.equal(all.length, 38);
+  assert.equal(new Set(all).size, 38, 'no selector in two tabs');
   for (const sel of all) assert.ok(region.includes(sel), `map names ${sel}`);
   assert.ok(region.includes('.hidden ='), 'sync hides panels, it does not skip rendering');
 });

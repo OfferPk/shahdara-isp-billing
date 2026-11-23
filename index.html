@@ -7211,16 +7211,15 @@
           </div>
         </div>
         <div id="monthlyReportSummaryBar" class="monthly-report-summary-bar" aria-live="polite">
+          <p id="monthlyReportCount" class="transactions-count" role="status">0 customers</p>
           <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_billed">Billed:</span> <strong id="reportSummaryBilled">PKR 0</strong></span>
-          <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_collected">Collected:</span> <span id="reportSummaryCollected">PKR 0</span></span>
-          <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_balance">Balance:</span> <span id="reportSummaryBalance">PKR 0</span></span>
-          <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_credit">Credit/Advance Adjusted:</span> <strong id="reportSummaryCredit">PKR 0</strong></span>
+          <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_collected">Collected:</span> <strong id="reportSummaryCollected">PKR 0</strong></span>
+          <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_balance">Balance:</span> <strong id="reportSummaryBalance">PKR 0</strong></span>
+          <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_credit">Credit Adjusted</span> <strong id="reportSummaryCredit">PKR 0</strong></span>
           <div id="monthlyReportMethodBreakdown" class="monthly-report-method-breakdown" role="group" aria-label="Collection by payment method" data-i18n-aria-label="bill_method_aria"></div>
         </div>
-        <p id="monthlyReportCount" class="transactions-count" role="status">0 customers</p>
         <section class="mohalla-analytics" aria-labelledby="mohallaAnalyticsHeading">
-          <div class="table-heading"><div><p class="eyebrow">AREA / MOHALLA ANALYTICS</p><h3 id="mohallaAnalyticsHeading" data-i18n="mohalla_analytics_title">Collection by area</h3></div></div>
-          <p class="chart-caption" data-i18n="mohalla_analytics_sub">Money and collection per area for this month, grouped by normalized area name. Customers with no priced bill this month are not counted. Tap a card to see that area's pending and partial customers.</p>
+          <div class="table-heading"><div><p class="eyebrow">AREA / MOHALLA ANALYTICS</p><h3 id="mohallaAnalyticsHeading" data-i18n="mohalla_analytics_title">Collection by area</h3></div><details class="help-tip reports-status-help"><summary class="help-icon" aria-label="Collection by area help" aria-controls="mohallaAnalyticsHelp">i</summary><span id="mohallaAnalyticsHelp" class="help-tip-content" role="tooltip" data-i18n="mohalla_analytics_sub">Money and collection per area for this month, grouped by normalized area name. Customers with no priced bill this month are not counted. Tap a card to see that area's pending and partial customers.</span></details></div>
           <div id="mohallaAnalyticsList" class="mohalla-analytics-grid" aria-live="polite"></div>
         </section>
         <div id="reportAreaFilterChip" class="report-area-chip" hidden></div>
@@ -7239,7 +7238,6 @@
           </label>
         </nav>
         <p id="monthlyReportEmpty" class="transactions-empty" hidden data-i18n="bill_empty">No customers match this status and search.</p>
-        <p class="report-not-set-note" data-i18n="bill_notset_note">Rows with no generated or manually recorded bill amount are accurately shown as Not set; All includes them. Pending means a saved bill has no payment or applied credit. Partial means a real bill has some amount received/credited but still has a balance. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</p>
         <!-- Polish #11: sales-tax dashboard host — filled by renderSalesTaxDashboard in app.js. -->
         <section class="owner-report-panel" id="stxTaxDashboard" aria-labelledby="stxTaxHeading"></section>
                 <section id="billingRegisterSection" class="owner-report-panel billing-register-panel" aria-labelledby="billingRegisterHeading">
@@ -7272,7 +7270,7 @@
         <section id="savedClosingsSection" class="owner-report-panel" aria-labelledby="monthlyClosingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL MONTH CLOSE</p><h3 id="monthlyClosingHeading">Saved monthly closings</h3></div><p class="chart-caption">Created once when the app first opens in the next PKT calendar month. Status counts are manual values captured at the saved time, not monitored month-end status.</p></div><div id="savedMonthlyClosings" class="saved-closing-list" aria-live="polite"></div></section>
         <section id="monthComparisonSection" class="owner-report-panel" aria-labelledby="monthComparisonHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL BUSINESS COMPARISON</p><h3 id="monthComparisonHeading">Compare two months</h3></div></div><div class="owner-filter-grid"><label for="compareMonthA">Earlier / first month<select id="compareMonthA"></select></label><label for="compareMonthB">Later / second month<select id="compareMonthB"></select></label></div><details class="calculation-rules"><summary data-i18n="compare_calc_rules">ℹ️ Calculation Rules</summary><p id="monthComparisonBasis" class="chart-caption" role="status" aria-live="polite"></p></details><div id="monthComparisonMetrics" class="comparison-metric-grid" aria-live="polite"></div><div id="monthComparisonChart" class="comparison-bars" aria-label="Mobile month comparison chart"></div><div class="comparison-package-wrap"><h4>Package distribution</h4><ul id="monthPackageComparison" class="comparison-package-list"></ul></div><form id="performanceExplainForm" class="performance-explain-form"><label for="performanceMetric">Explain change in<select id="performanceMetric"><option value="billedAmount">Billed revenue</option><option value="collection">Cash collection</option><option value="outstanding">Outstanding</option><option value="expenses">Expenses</option><option value="profit">Cash profit</option></select></label><button class="secondary-button" type="submit">Explain this change</button></form><div id="performanceExplanation" class="performance-explanation" role="status" aria-live="polite"></div></section>
         <section id="customerRankingsSection" class="owner-report-panel" aria-labelledby="customerRankingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL CUSTOMER RANKINGS</p><h3 id="customerRankingHeading">Customer rankings</h3></div></div><div class="owner-filter-grid"><label for="rankingType">Ranking<select id="rankingType"></select></label><label for="rankingMonth">Month<select id="rankingMonth"></select></label><label for="rankingArea">Area / mohalla<select id="rankingArea"><option value="all">All recorded areas</option></select></label><label for="rankingPackage">Package<select id="rankingPackage"><option value="all">All recorded packages</option></select></label><label for="rankingStatus">Manual status<select id="rankingStatus"><option value="all">All statuses</option><option value="active">Active</option><option value="offline">Offline</option><option value="not-set">Not set</option><option value="archived">Archived</option></select></label></div><div id="customerRankingResults" class="owner-result-list" aria-live="polite"></div></section>
-        <section id="duesRecoveryPanel" class="owner-report-panel" aria-labelledby="duesRecoveryHeading"><div class="table-heading" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><p class="eyebrow">NO AUTOMATIC CONTACT</p><h3 id="duesRecoveryHeading">Smart dues recovery &amp; WhatsApp drafts</h3><p class="chart-caption">Balances and priority use the local ledger. A link opens a draft only; review and send yourself.</p></div><button id="openWorklistsFromDuesBtn" class="secondary-button btn-sm" type="button" style="margin-top: 4px;" aria-haspopup="dialog">📋 Disconnect / Reconnect Worklists</button></div><div id="recoverySummaryBar" class="recovery-summary-bar" role="status" aria-live="polite"></div><div class="recovery-filter-row"><label class="recovery-search"><span class="sr-only">Search recovery list</span><input id="recoverySearchInput" type="search" placeholder="Search name, #ID or phone" autocomplete="off"></label><label class="recovery-mohalla"><span class="sr-only">Filter by mohalla</span><select id="recoveryMohallaFilter" aria-label="Filter by mohalla"></select></label><div id="recoveryPriorityPills" class="recovery-priority-pills" role="group" aria-label="Filter by priority"><button type="button" data-recovery-priority="all" aria-pressed="true">All</button><button type="button" data-recovery-priority="High Priority" aria-pressed="false">High</button><button type="button" data-recovery-priority="Medium Priority" aria-pressed="false">Medium</button><button type="button" data-recovery-priority="Low Priority" aria-pressed="false">Low</button><button type="button" data-recovery-priority="waada" aria-pressed="false">Waada Due</button></div></div><details class="calculation-rules"><summary data-i18n="recovery_calc_rules">ℹ️ How priority is calculated</summary><p id="recoveryFormula" class="chart-caption"></p></details><div id="duesRecoveryGroups" class="recovery-groups" aria-live="polite"></div></section><section id="smartAlertsPanel" class="owner-report-panel" aria-labelledby="smartAlertsSummary"><h3 id="smartAlertsHeading" data-i18n="drawer_alerts">Smart Alerts</h3><p id="smartAlertsSummary" class="chart-caption" role="status" aria-live="polite"></p><div id="smartAlertsList" class="smart-alert-list" aria-live="polite"></div></section>
+        <section id="duesRecoveryPanel" class="owner-report-panel" aria-labelledby="duesRecoveryHeading"><div class="table-heading" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><p class="eyebrow">NO AUTOMATIC CONTACT</p><h3 id="duesRecoveryHeading">Smart dues recovery &amp; WhatsApp drafts</h3><p class="chart-caption">Balances and priority use the local ledger. A link opens a draft only; review and send yourself.</p></div><details class="help-tip reports-status-help"><summary class="help-icon" aria-label="Smart dues recovery help" aria-controls="duesRecoveryHelp">i</summary><span id="duesRecoveryHelp" class="help-tip-content" role="tooltip" data-i18n="bill_notset_note">Rows with no generated or manually recorded bill amount are accurately shown as Not set; All includes them. Pending means a saved bill has no payment or applied credit. Partial means a real bill has some amount received/credited but still has a balance. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</span></details><button id="openWorklistsFromDuesBtn" class="secondary-button btn-sm" type="button" style="margin-top: 4px;" aria-haspopup="dialog">📋 Disconnect / Reconnect Worklists</button></div><div id="recoverySummaryBar" class="recovery-summary-bar" role="status" aria-live="polite"></div><div class="recovery-filter-row"><label class="recovery-search"><span class="sr-only">Search recovery list</span><input id="recoverySearchInput" type="search" placeholder="Search name, #ID or phone" autocomplete="off"></label><label class="recovery-mohalla"><span class="sr-only">Filter by mohalla</span><select id="recoveryMohallaFilter" aria-label="Filter by mohalla"></select></label><div id="recoveryPriorityPills" class="recovery-priority-pills" role="group" aria-label="Filter by priority"><button type="button" data-recovery-priority="all" aria-pressed="true">All</button><button type="button" data-recovery-priority="High Priority" aria-pressed="false">High</button><button type="button" data-recovery-priority="Medium Priority" aria-pressed="false">Medium</button><button type="button" data-recovery-priority="Low Priority" aria-pressed="false">Low</button><button type="button" data-recovery-priority="waada" aria-pressed="false">Waada Due</button></div></div><details class="calculation-rules"><summary data-i18n="recovery_calc_rules">ℹ️ How priority is calculated</summary><p id="recoveryFormula" class="chart-caption"></p></details><div id="duesRecoveryGroups" class="recovery-groups" aria-live="polite"></div></section><section id="smartAlertsPanel" class="owner-report-panel" aria-labelledby="smartAlertsSummary"><h3 id="smartAlertsHeading" data-i18n="drawer_alerts">Smart Alerts</h3><p id="smartAlertsSummary" class="chart-caption" role="status" aria-live="polite"></p><div id="smartAlertsList" class="smart-alert-list" aria-live="polite"></div></section>
         <!-- Home Dashboard overhaul: Daily Roznamcha + Daily Register
              & Closing merged into ONE card here in Reports (the two
              grid cards showed the same day from two angles). All ids
@@ -7488,43 +7486,12 @@
             <button id="openMonthEndWizardBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Receipt" aria-hidden="true"></span><span data-i18n="dash_btn_month_end">Month-End Check</span></button>
           </div>
         </article>
-        <article class="summary-card summary-complaint-register ds-stat ds-stat--overdue ops-card">
-          <div class="ds-card-head">
-            <span class="ds-icon-tile" data-ds-icon="Hammer" aria-hidden="true"></span>
-            <span class="summary-label" data-i18n="dash_card_complaint">Complaint Register</span>
-            <strong id="dashboardComplaintValue" class="summary-value ds-card-metric">No complaints</strong>
-          </div>
-          <p id="dashboardComplaintPeriod" class="summary-period">Open faults and resolution downtime</p>
-          <div id="complaintRegisterSummary" class="complaint-register-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Hammer" aria-hidden="true"></span><span data-i18n="dash_card_complaint">Complaint Register</span></button>
-            <button id="openPostRepairCheckinModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Handshake" aria-hidden="true"></span><span data-i18n="prc_open_btn">Post-Repair Check-Ins</span></button>
-          </div>
-        </article>
-        <article class="summary-card summary-field-tickets ds-stat ds-stat--pending ops-card">
-          <div class="ds-card-head">
-            <span class="ds-icon-tile" data-ds-icon="Wrench" aria-hidden="true"></span>
-            <span class="summary-label" data-i18n="dash_card_tickets">Field Tickets</span>
-            <strong id="dashboardFieldTicketsValue" class="summary-value ds-card-metric">No field tickets</strong>
-          </div>
-          <p id="dashboardFieldTicketsPeriod" class="summary-period">Lineman worklist and material use</p>
-          <div id="fieldTicketsSummary" class="field-tickets-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Wrench" aria-hidden="true"></span><span data-i18n="dash_card_tickets">Field Tickets</span></button>
-          </div>
-        </article>
-        <article class="summary-card summary-monthly-complaint-report ds-stat ds-stat--info ops-card">
-          <div class="ds-card-head">
-            <span class="ds-icon-tile" data-ds-icon="ClipboardList" aria-hidden="true"></span>
-            <span class="summary-label" data-i18n="dash_card_monthly_report">Monthly Complaint Report</span>
-            <strong id="dashboardMonthlyReportValue" class="summary-value ds-card-metric">No complaints</strong>
-          </div>
-          <p id="dashboardMonthlyReportPeriod" class="summary-period">4-part monthly report: summary, customers, causes, full log</p>
-          <div id="monthlyComplaintReportSummary" class="monthly-complaint-report-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="ClipboardList" aria-hidden="true"></span><span data-i18n="dash_btn_monthly_report">Monthly Report</span></button>
-          </div>
-        </article>
+        <div class="ops-list-card" id="opsListBilling">
+          <button type="button" class="ops-list-row" id="openComplaintRegisterModalBtn"><span class="ds-icon-tile" data-ds-icon="Hammer" aria-hidden="true"></span><span class="ops-list-row-text"><span class="summary-label" data-i18n="dash_card_complaint">Complaint Register</span><strong id="dashboardComplaintValue" class="summary-value ds-card-metric">No complaints</strong></span><span class="ops-list-chevron" aria-hidden="true">›</span></button>
+          <button type="button" class="ops-list-row" id="openPostRepairCheckinModalBtn"><span class="ds-icon-tile" data-ds-icon="Handshake" aria-hidden="true"></span><span class="ops-list-row-text"><span class="summary-label" data-i18n="prc_open_btn">Post-Repair Check-Ins</span></span><span class="ops-list-chevron" aria-hidden="true">›</span></button>
+          <button type="button" class="ops-list-row" id="openFieldTicketsModalBtn"><span class="ds-icon-tile" data-ds-icon="Wrench" aria-hidden="true"></span><span class="ops-list-row-text"><span class="summary-label" data-i18n="dash_card_tickets">Field Tickets</span><strong id="dashboardFieldTicketsValue" class="summary-value ds-card-metric">No field tickets</strong></span><span class="ops-list-chevron" aria-hidden="true">›</span></button>
+          <button type="button" class="ops-list-row" id="openMonthlyComplaintReportModalBtn"><span class="ds-icon-tile" data-ds-icon="ClipboardList" aria-hidden="true"></span><span class="ops-list-row-text"><span class="summary-label" data-i18n="dash_card_monthly_report">Monthly Complaint Report</span><strong id="dashboardMonthlyReportValue" class="summary-value ds-card-metric">No complaints</strong></span><span class="ops-list-chevron" aria-hidden="true">›</span></button>
+        </div>
         <article class="summary-card summary-group-billing ds-stat ds-stat--brand ops-card">
           <div class="ds-card-head">
             <span class="ds-icon-tile" data-ds-icon="Users" aria-hidden="true"></span>
@@ -7538,29 +7505,10 @@
           </div>
         </article>
       <h3 class="ops-section-header" data-i18n="ops_section_workers">Workers &amp; Field Staff</h3>
-        <article class="summary-card summary-saad-visits ds-stat ds-stat--pending ops-card">
-          <div class="ds-card-head">
-            <span class="ds-icon-tile" data-ds-icon="ClipboardCheck" aria-hidden="true"></span>
-            <span class="summary-label" data-i18n="dash_card_saad">Saad Visit Log</span>
-            <strong id="dashboardSaadVisitsValue" class="summary-value ds-card-metric">No visits yet</strong>
-          </div>
-          <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
-          <div id="saadVisitsSummary" class="saad-visits-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="ClipboardCheck" aria-hidden="true"></span><span data-i18n="dash_btn_saad_visits">Saad Visits</span></button>
-          </div>
-        </article>
-        <article class="summary-card summary-lineman-scorecard ds-stat ds-stat--info ops-card">
-          <div class="ds-card-head">
-            <span class="ds-icon-tile" data-ds-icon="HardHat" aria-hidden="true"></span>
-            <span class="summary-label" data-i18n="dash_card_lineman">Lineman Scorecard</span>
-            <strong id="dashboardLinemanScorecardValue" class="summary-value ds-card-metric">No field activity</strong>
-          </div>
-          <p id="dashboardLinemanScorecardPeriod" class="summary-period">Resolved complaints · petty cash · collections this month</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openLinemanScorecardModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="HardHat" aria-hidden="true"></span><span data-i18n="dash_btn_lineman">Scorecard</span></button>
-          </div>
-        </article>
+        <div class="ops-list-card" id="opsListWorkers">
+          <button type="button" class="ops-list-row" id="openSaadVisitsModalBtn"><span class="ds-icon-tile" data-ds-icon="ClipboardCheck" aria-hidden="true"></span><span class="ops-list-row-text"><span class="summary-label" data-i18n="dash_card_saad">Saad Visit Log</span><strong id="dashboardSaadVisitsValue" class="summary-value ds-card-metric">No visits yet</strong></span><span class="ops-list-chevron" aria-hidden="true">›</span></button>
+          <button type="button" class="ops-list-row" id="openLinemanScorecardModalBtn"><span class="ds-icon-tile" data-ds-icon="HardHat" aria-hidden="true"></span><span class="ops-list-row-text"><span class="summary-label" data-i18n="dash_card_lineman">Lineman Scorecard</span><strong id="dashboardLinemanScorecardValue" class="summary-value ds-card-metric">No field activity</strong></span><span class="ops-list-chevron" aria-hidden="true">›</span></button>
+        </div>
       </div>
     </section>
     <section id="analyticsView" class="phase3-view" aria-labelledby="analyticsHeading" hidden>

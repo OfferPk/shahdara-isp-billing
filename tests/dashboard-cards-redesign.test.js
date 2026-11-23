@@ -71,7 +71,12 @@ test('every dashboard summary card adopted the shared card; plain KPI cards got 
   // articles are the Receipt Verification + Field Tools cards, dropped
   // per D2 (their modals live on via the More menu). The 22 moved
   // cards still count; they only changed homes.
-  assert.ok(articles.length >= 30, `summary cards present (${articles.length})`);
+  // Reports Status polish: 30 -> 25 — the 5 deleted articles are the
+  // Operations & Staff summary cards (Complaint Register, Field
+  // Tickets, Monthly Complaint Report, Saad Visit Log, Lineman
+  // Scorecard), converted into grouped-list rows inside two white
+  // cards; their modals live on via the row buttons (same ids).
+  assert.ok(articles.length >= 25, `summary cards present (${articles.length})`);
   for (const tag of articles) {
     assert.ok(tag.includes('ds-stat'), `shared card applied: ${tag}`);
     assert.ok(/ds-stat--(brand|paid|info|pending|overdue|whatsapp)/.test(tag), `accent set: ${tag}`);

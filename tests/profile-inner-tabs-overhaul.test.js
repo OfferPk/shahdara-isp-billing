@@ -110,7 +110,7 @@ test('Inner Tabs: the first-bill section renders only before the first bill', ()
 
 test('Inner Tabs: Wada keeps one empty state — the health line', () => {
   const app = read('app.js');
-  const start = app.indexOf('function wadaProfileBannerHtml(customer) {');
+  const start = app.indexOf('function wadaProfileBannerHtml(customer, totalDues = null) {');
   assert.notEqual(start, -1, 'the banner function must exist');
   const fn = app.slice(start, app.indexOf('\nfunction renderDetail() {', start));
   assert.ok(!fn.includes('<p class="wada-banner-none">'), 'the duplicate empty line is gone from the banner');

@@ -82,6 +82,7 @@ const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 const appJs = read('app.js');
 const navJs = read('nav-language.js');
+const helpGuideJs = read('help-guide.js');
 const selfSrc = readFileSync(join(dir, 'plan601-preview-sections-i18n.test.js'), 'utf8');
 const en = TRANSLATIONS.en;
 const ur = TRANSLATIONS.ur;
@@ -197,9 +198,21 @@ test('G2e: this file stays free of the previous-total and older-total literals',
 test('G3: all 240 keys reach the templates and helpers through t()', () => {
   const keys = Object.keys(en).filter((k) => k.startsWith('prv_'));
   assert.equal(keys.length, 240, 'the family to wire');
+  // Profile Billing tab M3 (2026-11-22, Specs P+Q+R, parent decision
+  // D2): prv_bc_explainer + prv_pch_explainer moved behind
+  // helpButtonMarkup — they reach the UI through help-guide.js
+  // HELP_TOPICS bodies (helpTopicContent calls t(topic.bodyKey)), not
+  // through a t() call in app.js. Every other prv_ key still passes
+  // through t() in app.js.
+  const helpWired = new Set(['prv_bc_explainer', 'prv_pch_explainer']);
   for (const key of keys) {
+    if (helpWired.has(key)) continue;
     assert.ok(appJs.includes(`t('${key}'`), `app.js must pass t('${key}')`);
   }
+  for (const key of helpWired) {
+    assert.ok(helpGuideJs.includes(`bodyKey: '${key}'`), `help-guide.js must wire ${key} as a HELP_TOPICS body`);
+  }
+  assert.ok(helpGuideJs.includes('t(topic.bodyKey'), 'helpTopicContent must pass the body key through t()');
   // The labels helpers exist and are the ones the templates call.
   for (const helper of ['firstBillPreviewLabels()', 'packageChangeLabels()', 'billingCycleLabels()', 'paymentChannelLabels()', 'qualityLogLabels()', 'lifecycleLabels()', 'onboardingLabels()', 'packageHistoryLabels()', 'crossPaymentsLabels()', 'wadaRecordLabels()']) {
     assert.ok(appJs.includes(helper), `app.js must define ${helper}`);

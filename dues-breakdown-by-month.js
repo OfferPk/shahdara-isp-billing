@@ -86,6 +86,26 @@ function cleanCents(value) {
   return Math.max(0, Math.round(value));
 }
 
+// Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the module stays
+// import-free, so the month label and the pill amount format locally:
+// the month reads "Sep 2026" (the same shape formatReceiptMonth
+// renders) and the pill reads "PKR 1,000" (the same shape formatPKR
+// renders), without importing either. The total and the additional
+// line keep the caller's formatter: they are the reconciliation
+// anchors Plan 370 pins, so their wording never changes here.
+const DUES_MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function formatDuesMonth(monthKey) {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(text(monthKey));
+  if (!match) return text(monthKey);
+  return `${DUES_MONTH_NAMES[Number(match[2]) - 1]} ${match[1]}`;
+}
+function formatPkrGrouped(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 'PKR 0';
+  const whole = String(Math.trunc(Math.abs(amount))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `PKR ${amount < 0 ? '-' : ''}${whole}`;
+}
+
 // One dues breakdown for a customer, from the caller's allocation
 // result and additional amount. Rows are oldest month first; each
 // row carries billed, paid and still owed in integer cents (plus
@@ -141,13 +161,19 @@ export function duesBreakdownByMonth(customer, allocations, manualBaqayaCents = 
   };
 }
 
-// The profile section for the breakdown: one row per month with
-// billed, paid and still owed, a settled badge on a month fully
-// paid, a not-priced line on a month with no priced bill, the manual
-// additional amount as its own line when there is one, and the total
-// still owed. A customer with no bills reads the none line instead
-// of a blank. Read-only: no form, no button, no binding.
-export function duesBreakdownSectionHtml(customer, allocations, manualBaqayaCents = 0, texts = {}, formatAmount = defaultFormatAmount) {
+// The profile section for the breakdown: one compact line per month —
+// the month on the left, one status pill on the right ('✓ Settled' or
+// 'PKR 1,000 Due'), a not-priced line on a month with no priced bill,
+// the manual additional amount as its own line when there is one, and
+// the total still owed. The intro paragraph is gone (Profile Billing
+// tab M3): the heading plus the rows say what the card is. The caller
+// may pass the next-month projection (projectNextMonthInvoice's own
+// result) as the last argument; it renders as one footer line under
+// the total ('Dec 2026 Projected: PKR 1,000') and is omitted for a
+// paused or free projection, which has no due figure. A customer with
+// no bills reads the none line instead of a blank. Read-only: no form,
+// no button, no binding.
+export function duesBreakdownSectionHtml(customer, allocations, manualBaqayaCents = 0, texts = {}, formatAmount = defaultFormatAmount, projection = null) {
   const format = typeof formatAmount === 'function' ? formatAmount : defaultFormatAmount;
   const breakdown = duesBreakdownByMonth(customer, allocations, manualBaqayaCents);
   const label = (key, fallback) => {
@@ -155,13 +181,15 @@ export function duesBreakdownSectionHtml(customer, allocations, manualBaqayaCent
     return value || fallback;
   };
   const heading = label('heading', 'Dues by month');
-  const intro = label('intro', 'What is owed for each month, from the bills and payments already on this profile.');
   const rows = breakdown.rows.map((row) => {
+    const monthLabel = formatDuesMonth(row.month);
     if (!row.priced) {
-      return `<li><span class="dmb-month">${escapeHtml(row.month)}</span> <span class="dmb-not-priced">${escapeHtml(label('notPriced', 'Bill not priced yet'))}</span></li>`;
+      return `<li><span class="dmb-month">${escapeHtml(monthLabel)}</span><span class="dmb-not-priced">${escapeHtml(label('notPriced', 'Bill not priced yet'))}</span></li>`;
     }
-    const settled = row.settled ? ` <span class="dmb-settled">${escapeHtml(label('settled', 'Settled'))}</span>` : '';
-    return `<li><span class="dmb-month">${escapeHtml(row.month)}</span> <span class="dmb-billed">${escapeHtml(label('billed', 'Billed'))} ${escapeHtml(format(row.billed))}</span> <span class="dmb-paid">${escapeHtml(label('paid', 'Paid'))} ${escapeHtml(format(row.paid))}</span> <span class="dmb-owed">${escapeHtml(label('stillOwed', 'Still owed'))} ${escapeHtml(format(row.stillOwed))}</span>${settled}</li>`;
+    if (row.settled) {
+      return `<li><span class="dmb-month">${escapeHtml(monthLabel)}</span><span class="dmb-settled">✓ ${escapeHtml(label('settled', 'Settled'))}</span></li>`;
+    }
+    return `<li><span class="dmb-month">${escapeHtml(monthLabel)}</span><span class="dmb-due">${escapeHtml(formatPkrGrouped(row.stillOwed))} ${escapeHtml(label('due', 'Due'))}</span></li>`;
   }).join('');
   const list = rows
     ? `<ul id="dmbList" class="dmb-list">${rows}</ul>`
@@ -170,5 +198,8 @@ export function duesBreakdownSectionHtml(customer, allocations, manualBaqayaCent
     ? `<p class="dmb-additional">${escapeHtml(label('additional', 'Additional amount'))} ${escapeHtml(format(breakdown.manualBaqaya))}</p>`
     : '';
   const total = `<p class="dmb-total">${escapeHtml(label('total', 'Total still owed'))} ${escapeHtml(format(breakdown.profileTotal))}</p>`;
-  return `<section class="profile-dues-breakdown" aria-label="${escapeHtml(heading)}"><h4>${escapeHtml(heading)}</h4><p>${escapeHtml(intro)}</p>${list}${additional}${total}</section>`;
+  const projectionFooter = projection && projection.targetMonth && typeof projection.projectedDue === 'number' && projection.status !== 'paused' && projection.status !== 'free'
+    ? `<p class="dmb-projection">${escapeHtml(formatDuesMonth(projection.targetMonth))} Projected: ${escapeHtml(formatPkrGrouped(projection.projectedDue))}</p>`
+    : '';
+  return `<section class="profile-dues-breakdown" aria-label="${escapeHtml(heading)}"><h4>${escapeHtml(heading)}</h4>${list}${additional}${total}${projectionFooter}</section>`;
 }

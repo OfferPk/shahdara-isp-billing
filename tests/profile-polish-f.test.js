@@ -116,11 +116,14 @@ test('Polish F: each group pill is a real pill in its rotation colour', () => {
   const pills = [
     ['contact', '#fef3c7', '#e7c77e', '#704600'],
     ['location', '#fff0e8', '#dc9478', '#8a2b12'],
-    ['money', '#e7f2ec', '#9acbad', '#0e5b4d'],
     ['install', '#dcfce7', '#5fa876', '#145b38'],
     ['network', '#e5efff', '#adc9f1', '#174b87'],
     ['hardware', '#334155', '#334155', '#fff'],
   ];
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // 'money' is out of this loop — its rows are a key-value list now,
+  // not oval pills (see the money test below). The other five groups
+  // keep their pills exactly.
   for (const [group, bg, border, text] of pills) {
     const rule = styles.match(new RegExp(`\\.profile-info-group--${group} \\.profile-readonly-field\\{[^}]*\\}`));
     assert.ok(rule, `the ${group} pill rule must exist`);
@@ -132,6 +135,23 @@ test('Polish F: each group pill is a real pill in its rotation colour', () => {
     assert.ok(dtRule && dtRule[0].includes(`color:${text}`), `${group}: label in ${text}`);
     assert.ok(ddRule && ddRule[0].includes(`color:${text}`), `${group}: value in ${text}`);
   }
+});
+
+test('Polish F: the money group is a key-value list, not an oval pill', () => {
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the Profit & CLV card shows the 7 money rows as a key-value list
+  // (divide-y, tabular-nums) — the 999px pill is deleted for this
+  // group only, and the teal label/value colour stays.
+  const rule = styles.match(/\.profile-info-group--money \.profile-readonly-field\{[^}]*\}/);
+  assert.ok(rule, 'the money rule must exist');
+  assert.ok(!rule[0].includes('border-radius:999px'), 'money: no oval pill');
+  assert.ok(rule[0].includes('background:transparent'), 'money: transparent row');
+  assert.ok(rule[0].includes('border-bottom:1px solid'), 'money: a divider between rows');
+  const dtRule = styles.match(/\.profile-info-group--money \.profile-readonly-field dt\{[^}]*color:#0e5b4d[^}]*\}/);
+  const ddRule = styles.match(/\.profile-info-group--money \.profile-readonly-field dd\{[^}]*color:#0e5b4d[^}]*\}/);
+  assert.ok(dtRule, 'money: label stays teal');
+  assert.ok(ddRule, 'money: value stays teal');
+  assert.ok(/\.profile-info-group--money \.profile-readonly-field dd\{[^}]*font-variant-numeric:tabular-nums[^}]*\}/.test(styles), 'money: figures are tabular');
 });
 
 // ------------------------------------------------------------ explainers

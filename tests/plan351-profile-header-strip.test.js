@@ -275,7 +275,7 @@ test('wiring: the strip sits at the top of the profile, after the wada banner an
   assert.ok(historyAt > customerAt, 'sections render in order');
   const financialAt = appJs.indexOf('const profileSectionFinancialBody = ');
   const financialBody = appJs.slice(financialAt, appJs.indexOf('\n', financialAt));
-  assert.ok(financialBody.indexOf('${wadaProfileBannerHtml(customer)}') < financialBody.indexOf('${duesBreakdownSectionMarkup}'), 'wada banner opens the Financial section');
+  assert.ok(financialBody.indexOf('${wadaProfileBannerHtml(customer, duesBreakdownFigures.total)}') < financialBody.indexOf('${duesBreakdownSectionMarkup}'), 'wada banner opens the Financial section');
   assert.ok(appJs.includes('profileInfoGroupFragments.contact'), 'field groups live on as fragments');
 });
 

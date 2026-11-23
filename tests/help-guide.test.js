@@ -165,9 +165,29 @@ test('OWNER-HELP: the ℹ️ button is never a close control (SISP-87 audit safe
 });
 
 test('OWNER-HELP: every topic carries exactly the help_<topic>_title/_body key scheme', () => {
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the six Billing-tab topics are the ONE exception to the scheme —
+  // they reuse the section's own heading key as the title and its
+  // existing explainer key as the body, so no new i18n keys are added
+  // and parity stays put. Every other topic still follows the scheme.
+  const REUSED_KEYS = {
+    billing_cycle: ['prv_bc_heading', 'prv_bc_explainer'],
+    payment_channel: ['prv_pch_heading', 'prv_pch_explainer'],
+    statement_draft: ['dft_statement_heading', 'dft_statement_explainer'],
+    balance_reply: ['dft_balance_heading', 'dft_balance_explainer'],
+    payment_slip: ['dft_slip_heading', 'dft_slip_explainer'],
+    credit_balance: ['dft_credit_heading', 'dft_credit_explainer'],
+  };
   for (const key of HELP_TOPIC_KEYS) {
-    assert.equal(HELP_TOPICS[key].titleKey, `help_${key}_title`);
-    assert.equal(HELP_TOPICS[key].bodyKey, `help_${key}_body`);
+    if (key in REUSED_KEYS) {
+      assert.equal(HELP_TOPICS[key].titleKey, REUSED_KEYS[key][0], `${key} reuses its section heading key`);
+      assert.equal(HELP_TOPICS[key].bodyKey, REUSED_KEYS[key][1], `${key} reuses its explainer key`);
+      assert.equal(typeof TRANSLATIONS.en[REUSED_KEYS[key][0]], 'string', `${key} title key must exist in EN`);
+      assert.equal(typeof TRANSLATIONS.ur[REUSED_KEYS[key][1]], 'string', `${key} body key must exist in UR`);
+    } else {
+      assert.equal(HELP_TOPICS[key].titleKey, `help_${key}_title`);
+      assert.equal(HELP_TOPICS[key].bodyKey, `help_${key}_body`);
+    }
   }
   assert.equal(typeof TRANSLATIONS.en.help_aria_label, 'string');
   assert.equal(typeof TRANSLATIONS.ur.help_aria_label, 'string');

@@ -157,9 +157,11 @@ test('balance reply: a fallback-fed reply states the due date instead of "not re
     variant: 'roman',
   });
   assert.equal(reply.dueDate, '2026-12-05');
-  assert.ok(reply.text.includes('Due date: 2026-12-05.'));
-  assert.ok(reply.text.includes('You have no amount due at the moment.'));
-  assert.ok(!reply.text.includes('Due date: not recorded.'));
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.ok(reply.text.includes('Adaigi ki aakhri tareekh: 2026-12-05.'));
+  assert.ok(reply.text.includes('Aap ka koi baqaya baqi nahi hai.'));
+  assert.ok(!reply.text.includes('Adaigi ki aakhri tareekh darj nahi hai.'));
 });
 
 test('profile strip: a fallback-fed strip shows "Next due Dec 5" instead of "Not recorded"', () => {

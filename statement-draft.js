@@ -271,15 +271,20 @@ export function buildStatementDraftText(statement, variant = STATEMENT_DRAFT_VAR
     parts.push('شکریہ — شاہدرہ فائبر نیٹ۔');
     return { variant: useVariant, month: statement.month, text: parts.join(' ') };
   }
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the 'roman'
+  // variant is Roman Urdu, not English. The Urdu-script branch above
+  // is untouched (Plan 39 pins it); only this branch changes, and the
+  // figures render exactly as before. The closing line already read
+  // as Roman Urdu (closingLine) and stays verbatim.
   const parts = [
     `Assalam-o-Alaikum ${statement.customerName},`,
-    `Shahdara ISP — Monthly statement for ${monthLabel}:`,
-    `Opening balance: ${formatStatementAmount(statement.openingBalance)}.`,
-    `This month's charges: ${formatStatementAmount(statement.charges)}.`,
+    `Shahdara ISP — ${monthLabel} ka mahana statement:`,
+    `Ibtedai baqaya: ${formatStatementAmount(statement.openingBalance)}.`,
+    `Is mahine ke charges: ${formatStatementAmount(statement.charges)}.`,
   ];
-  if (!statement.hasBill) parts.push('No bill was raised for this month.');
-  parts.push(`Payments received this month: ${formatStatementAmount(statement.paymentsReceived)}.`);
-  parts.push(`Closing balance: ${formatStatementAmount(statement.closingBalance)}.`);
+  if (!statement.hasBill) parts.push('Is mahine ka koi bill jari nahi hua.');
+  parts.push(`Is mahine mein mili adaigiyan: ${formatStatementAmount(statement.paymentsReceived)}.`);
+  parts.push(`Ikhtitami baqaya: ${formatStatementAmount(statement.closingBalance)}.`);
   if (closing) parts.push(closing);
   parts.push('Shukriya — Shahdara Fiber Net.');
   return { variant: useVariant, month: statement.month, text: parts.join(' ') };
@@ -314,12 +319,6 @@ function stmtFill(template, params) {
   let out = String(template);
   for (const [k, v] of Object.entries(params || {})) out = out.split(`{${k}}`).join(String(v));
   return out;
-}
-
-export function statementDraftSummaryText(statement, labels = DEFAULT_STATEMENT_DRAFT_LABELS) {
-  if (!statement || typeof statement !== 'object') return stmtLabel(labels, 'unavailable');
-  const monthLabel = formatStatementMonth(statement.month) || statement.month;
-  return stmtFill(stmtLabel(labels, 'summary'), { name: statement.customerName, month: monthLabel, opening: formatStatementAmount(statement.openingBalance), charges: formatStatementAmount(statement.charges), payments: formatStatementAmount(statement.paymentsReceived), closing: formatStatementAmount(statement.closingBalance) });
 }
 
 // Append a send to the log (customer, month, time, channel), returning
@@ -360,17 +359,12 @@ export function statementSentText(sends, labels = DEFAULT_STATEMENT_DRAFT_LABELS
 
 export function statementDraftHtml(statement, { draftText = '', sends = [], labels = DEFAULT_STATEMENT_DRAFT_LABELS } = {}) {
   if (!statement || typeof statement !== 'object') return `<p class="empty-state">${escapeHtml(stmtLabel(labels, 'unavailable'))}</p>`;
-  const fields = [
-    `${stmtLabel(labels, 'month')} ${escapeHtml(formatStatementMonth(statement.month) || statement.month)}`,
-    `${stmtLabel(labels, 'opening')} ${escapeHtml(formatStatementAmount(statement.openingBalance))}`,
-    `${stmtLabel(labels, 'charges')} ${escapeHtml(formatStatementAmount(statement.charges))}`,
-    `${stmtLabel(labels, 'payments')} ${escapeHtml(formatStatementAmount(statement.paymentsReceived))} ${escapeHtml(stmtFill(stmtLabel(labels, statement.paymentCount === 1 ? 'onePayment' : 'manyPayments'), { count: statement.paymentCount }))}`,
-    `${stmtLabel(labels, 'closing')} ${escapeHtml(formatStatementAmount(statement.closingBalance))}`,
-  ];
-  if (!statement.hasBill) fields.push(stmtLabel(labels, 'noBill'));
-  if (statement.voidedCount > 0) fields.push(stmtFill(stmtLabel(labels, 'voidedCount'), { count: statement.voidedCount }));
-  return `<p>${escapeHtml(statementDraftSummaryText(statement, labels))}</p>`
-    + `<ul class="statement-draft-fields">${fields.map((field) => `<li>${field}</li>`).join('')}</ul>`
-    + (draftText ? `<p class="statement-draft-text">${escapeHtml(draftText)}</p>` : '')
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the middle
+  // summary <p> and the field pills are gone: the WhatsApp preview
+  // below carries the same figures, so the section no longer repeats
+  // them three times. statementDraftSummaryText is deleted with them
+  // (its only callers were this function and the tests that retire
+  // with it).
+  return (draftText ? `<p class="statement-draft-text">${escapeHtml(draftText)}</p>` : '')
     + `<p id="statementDraftSent">${escapeHtml(statementSentText(sends, labels))}</p>`;
 }

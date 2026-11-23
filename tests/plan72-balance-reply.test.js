@@ -68,9 +68,13 @@ test('plain draft: balance, due date, and last payment match the fixture exactly
   assert.equal(reply.hasOpenDispute, false);
   assert.equal(reply.dueDate, '2026-11-05');
   assert.deepEqual(reply.lastPayment, { amountCents: 50000, amount: 500, date: '2026-10-05' });
-  assert.match(reply.text, /Your current balance is Rs\. 1000\./);
-  assert.match(reply.text, /Due date: 2026-11-05\./);
-  assert.match(reply.text, /Last payment: Rs\. 500 on 2026-10-05\./);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English. The summary
+  // assertion below stays: balanceReplySummaryText is English UI text,
+  // unchanged by this item.
+  assert.match(reply.text, /Aap ka maujooda baqaya Rs\. 1000 hai\./);
+  assert.match(reply.text, /Adaigi ki aakhri tareekh: 2026-11-05\./);
+  assert.match(reply.text, /Aakhri adaigi: Rs\. 500, tareekh 2026-10-05\./);
   assert.equal(balanceReplySummaryText(reply), 'Current balance Rs. 1000.');
 });
 
@@ -79,8 +83,10 @@ test('zero balance gets a "no amount due" wording, never a zero presented as a d
   assert.ok(reply);
   assert.equal(reply.balanceKind, 'none');
   assert.equal(reply.balance, 0);
-  assert.match(reply.text, /You have no amount due at the moment\./);
-  assert.doesNotMatch(reply.text, /Your current balance is Rs\. 0/);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.match(reply.text, /Aap ka koi baqaya baqi nahi hai\./);
+  assert.doesNotMatch(reply.text, /Aap ka maujooda baqaya Rs\. 0/);
   assert.equal(balanceReplySummaryText(reply), 'No amount due.');
 });
 
@@ -98,9 +104,11 @@ test('open dispute: undisputed balance shown with a note, exact cent sums', () =
   assert.equal(reply.balance, 500);
   assert.equal(reply.balanceKind, 'undisputed');
   assert.equal(reply.excessCents, 0);
-  assert.match(reply.text, /Your undisputed balance is Rs\. 500\./);
-  assert.match(reply.text, /a dispute case is open on your bill \(Rs\. 500\)/);
-  assert.match(reply.text, /does not include the disputed amount/);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.match(reply.text, /Aap ka ghair-mutanaziah baqaya Rs\. 500 hai\./);
+  assert.match(reply.text, /aap ke bill par aik tanaziah case khula hua hai \(Rs\. 500\)/);
+  assert.match(reply.text, /mutanaziah raqam shamil nahi hai/);
   assert.equal(balanceReplySummaryText(reply), 'Undisputed balance Rs. 500 (disputed Rs. 500 not included).');
 });
 
@@ -113,8 +121,10 @@ test('fully disputed balance: no undisputed amount due, excess reported, never n
   assert.ok(reply);
   assert.equal(reply.balance, 0);
   assert.equal(reply.excessCents, 30000);
-  assert.match(reply.text, /You have no undisputed amount due at the moment\./);
-  assert.match(reply.text, /exceeds the outstanding balance by Rs\. 300/);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.match(reply.text, /Aap ka koi ghair-mutanaziah baqaya baqi nahi hai\./);
+  assert.match(reply.text, /Mutanaziah raqam baqaya se Rs\. 300 zyada hai/);
 });
 
 test('missing or unusable outstanding refuses the whole draft, never zero-filled', () => {
@@ -128,8 +138,10 @@ test('missing due date and last payment are said plainly, never invented', () =>
   assert.ok(reply);
   assert.equal(reply.dueDate, null);
   assert.equal(reply.lastPayment, null);
-  assert.match(reply.text, /Due date: not recorded\./);
-  assert.match(reply.text, /No payment recorded yet\./);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.match(reply.text, /Adaigi ki aakhri tareekh darj nahi hai\./);
+  assert.match(reply.text, /Abhi tak koi adaigi darj nahi hai\./);
   const badPayment = buildBalanceReply({ ...base, lastPayment: { amount: 500, date: '2026-02-30' } });
   assert.equal(badPayment.lastPayment, null);
   const badAmount = buildBalanceReply({ ...base, lastPayment: { amount: '', date: '2026-10-05' } });

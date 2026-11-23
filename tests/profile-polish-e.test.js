@@ -157,7 +157,7 @@ test('Polish E (21): the Wada banner rows are real pills with state borders', ()
   assert.ok(overdue && overdue[0].includes('background:#fdeceb') && overdue[0].includes('border:1px solid #f0dbd8'), 'overdue keeps its red with a matching border');
 });
 
-test('Polish E (21): the Wada none line, health line and history rows are pills; the quick-form labels carry chips', () => {
+test('Polish E (21): the Wada none line, health line and history rows are pills; the quick-form labels are plain text', () => {
   const noneRule = styles.match(/\.wada-banner-none\{[^}]*\}/);
   assert.ok(noneRule && noneRule[0].includes('border-radius:999px') && noneRule[0].includes('background:#e7f2ec'), 'no open wada reads as a teal pill');
   const healthRule = styles.match(/\.wada-health\{[^}]*\}/);
@@ -166,9 +166,16 @@ test('Polish E (21): the Wada none line, health line and history rows are pills;
   assert.ok(historyRule && historyRule[0].includes('border-radius:999px') && historyRule[0].includes('background:#e7f2ec'), 'each history row is a teal pill');
   // Plan 601 keyed the three quick-form labels: the template now
   // carries t() calls and the English wording lives in nav-language.js.
-  assert.ok(app.includes('<label for="wadaQuickDate"><span class="pcp-field-pill">${t(\'prv_wd_promised_date\')}</span><input id="wadaQuickDate"'), 'the date label carries its chip');
-  assert.ok(app.includes('<label for="wadaQuickAmount"><span class="pcp-field-pill">${t(\'prv_wd_amount\')}</span><input id="wadaQuickAmount"'), 'the amount label carries its chip');
-  assert.ok(app.includes('<label for="wadaQuickNote"><span class="pcp-field-pill">${t(\'prv_wd_note\')}</span><input id="wadaQuickNote"'), 'the note label carries its chip');
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the labels dropped the shared .pcp-field-pill chip for plain small
+  // text — the chip class is shared by package-change, quality-log and
+  // info-card, so it is never restyled globally; the look rides on a
+  // scoped .wada-quick-form label span rule in styles.css instead.
+  assert.ok(app.includes('<label for="wadaQuickDate"><span class="text-xs font-medium text-slate-600">${t(\'prv_wd_promised_date\')}</span><input id="wadaQuickDate"'), 'the date label carries its plain text');
+  assert.ok(app.includes('<label for="wadaQuickAmount"><span class="text-xs font-medium text-slate-600">${t(\'prv_wd_amount\')}</span><input id="wadaQuickAmount"'), 'the amount label carries its plain text');
+  assert.ok(app.includes('<label for="wadaQuickNote"><span class="text-xs font-medium text-slate-600">${t(\'prv_wd_note\')}</span><input id="wadaQuickNote"'), 'the note label carries its plain text');
+  assert.ok(styles.match(/\.wada-quick-form label span\{[^}]*font-size:12px[^}]*\}/), 'the scoped label rule carries the small-text look');
+  assert.ok(!app.includes('<label for="wadaQuickDate"><span class="pcp-field-pill"'), 'the date label no longer takes the shared chip');
   assert.equal(TRANSLATIONS.en.prv_wd_promised_date, 'Promised date', 'the Promised date wording is unchanged');
   assert.equal(TRANSLATIONS.en.prv_wd_amount, 'Amount promised (Rs, optional)', 'the Amount promised wording is unchanged');
   assert.equal(TRANSLATIONS.en.prv_wd_note, 'Note (optional)', 'the Note wording is unchanged');
@@ -190,6 +197,9 @@ test('Polish E (21): the Dues by month rows are teal pills, the total and empty 
   assert.ok(noneRule && noneRule[0].includes('border-radius:999px') && noneRule[0].includes('background:#e7f2ec'), 'the empty state is a teal pill');
   // Pinned strings still render (plan370 pins them too — this guards
   // that E changed styling only, never the strings).
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // each row is one line — the month reads "Oct 2026" and the owed
+  // figure is a single Due pill, not a "Still owed" line.
   const formatRs = (value) => `Rs ${Number(value).toFixed(2)}`;
   const stubAllocations = (summaries) => ({ forMonth: (customerId, month) => summaries[`${customerId}|${month}`] ?? null });
   const priced = duesBreakdownSectionHtml(
@@ -198,8 +208,8 @@ test('Polish E (21): the Dues by month rows are teal pills, the total and empty 
     0, {}, formatRs,
   );
   assert.ok(priced.includes('<ul id="dmbList" class="dmb-list">'), 'the month list keeps its id');
-  assert.ok(priced.includes('<span class="dmb-month">2026-10</span>'), 'the month still renders');
-  assert.ok(priced.includes('<span class="dmb-owed">Still owed Rs 1000.00</span>'), 'the owed figure still renders');
+  assert.ok(priced.includes('<span class="dmb-month">Oct 2026</span>'), 'the month still renders');
+  assert.ok(priced.includes('<span class="dmb-due">PKR 1,000 Due</span>'), 'the owed figure still renders');
   assert.ok(priced.includes('Total still owed Rs 1000.00'), 'the total still renders');
   const empty = duesBreakdownSectionHtml({ id: 'CUST-1', bills: [] }, stubAllocations({}), 0, {}, formatRs);
   assert.ok(empty.includes('<p class="dmb-none">No bills recorded yet.</p>'), 'the empty state still renders');

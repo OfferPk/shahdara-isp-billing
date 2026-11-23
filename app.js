@@ -54,7 +54,10 @@ import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, u
 import { UPSTREAM_PROVIDERS_KEY, UPSTREAM_PROVIDER_NAMES, loadUpstreamProviders, saveUpstreamProviders, summarizeProvider, addUpstreamProvider, addProviderBillMirror, editProviderBillMirror, deleteProviderBillMirror, setProviderPendingBill } from './upstream-providers.js';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
 import { PROFILE_EMPTY_DASH, profileEmptyText, profileEmptyMoney, profileEmptyTax, profileProfitDisplay, formatReceiptMonth, profileServiceState, profileServiceStatusPillHtml, profileIdentityLine, currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, createWhatsAppFollowupDraft, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
-import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
+// Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the
+// nextBillProjectionSectionHtml import is gone with its call: the
+// projection renders as a footer line inside the dues breakdown now
+// (profile-ui.js still exports the builder for other callers).
 // Polish #28 Phase D: the profile calculations — one shared module for
 // the view and the form profit preview, so the two can never disagree.
 import { profileMonthlyProfit, profileGrossProfit, profileInvestmentBreakdown, profileInvestmentRecovery } from './profile-profit.js?v=1.11.0';
@@ -4610,8 +4613,16 @@ function profileReceiptSummaryMarkup(customer) {
   const profileOutstandingStat = outstandingFigures.manualBaqayaCents > 0
     ? `<article class="profile-summary-stat"><span>${t('prof_receipts_outstanding')}</span><strong>${escapeHtml(formatAmount(outstandingFigures.total))}</strong><small>${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(outstandingFigures.billDues), additional: formatPKR(outstandingFigures.manualBaqaya) }))}</small></article>`
     : `<article class="profile-summary-stat"><span>${t('prof_receipts_outstanding')}</span><strong>${escapeHtml(formatAmount(behavior?.totalOutstanding ?? 0))}</strong><small>${t('prof_stat_credit_tracked')}</small></article>`;
-  const behaviorCards = behavior ? `${profileOutstandingStat}${profileDisputedStat}<article class="profile-summary-stat"><span>${t('prof_receipts_credit')}</span><strong>${pendingCreditCents ? escapeHtml(formatAmount(pendingCreditCents / 100)) : t('prof_none_recorded')}</strong><small>${t('prof_stat_prepaid')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_avg')}</span><strong>${behavior.averageMonthlyPayment===null?t('prof_stat_not_calc'):escapeHtml(formatAmount(behavior.averageMonthlyPayment))}</strong><small>${escapeHtml(profileAvgPaymentBasis(customer))}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_delay')}</span><strong>${behavior.averagePaymentDelayDays===null?t('prof_not_recorded'):t('prof_stat_delay_days', null, { days: behavior.averagePaymentDelayDays })}</strong><small>${t('prof_stat_delay_pairs', null, { count: behavior.delaySampleCount })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_range')}</span><strong>${behavior.highestPayment===null?t('prof_not_recorded'):`${escapeHtml(formatAmount(behavior.lowestPayment))}–${escapeHtml(formatAmount(behavior.highestPayment))}`}</strong><small>${t('prof_stat_range_sub')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_late')}</span><strong>${behavior.latePaymentCount} / ${behavior.partialPaymentCount}</strong><small>${t('prof_stat_late_sub', null, { count: behavior.totalPayments })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_consistency')}</span><strong>${behavior.paymentConsistency===null?t('prof_health_cat_insufficient'):`${behavior.paymentConsistency}%`}</strong><small>${t('prof_stat_consistency_sub', null, { settled: behavior.consistencySettledMonths, bill: behavior.consistencyBillMonths })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_last')}</span><strong>${lastPayment?escapeHtml(formatAmount(lastPayment.amount)):t('prof_not_recorded')}</strong><small>${lastPayment?escapeHtml(t('prof_stat_last_receipt', null, { date: humanDate(lastPayment.date) })): t('prof_stat_last_none')}</small></article>` : '';
-  return `<section class="customer-receipt-summary" aria-label="${t('prof_receipts_aria')}"><div class="profile-summary-heading"><h3>${t('prof_receipts_heading')}</h3><button type="button" class="secondary-button profile-summary-edit-btn" data-edit-customer="${escapeHtml(customer.id)}">✏️ ${t('prof_receipts_edit')}</button></div><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>${t('prof_receipts_total')}</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : t('prof_receipts_none')}</strong><small>${receipts.receiptCount ? (receipts.receiptCount === 1 ? t('prof_stat_total_small_1', null, { count: receipts.receiptCount }) : t('prof_stat_total_small_n', null, { count: receipts.receiptCount })) : t('prof_stat_receipts_none_note')}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>${t('prof_receipts_tenure')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article>${profileAgeMarkup(customer)}${behaviorCards}</div><section class="customer-health-summary" aria-label="${t('prof_health_aria')}"><strong>${escapeHtml(scoreText)}</strong><details><summary>${t('prof_health_basis')}</summary><ul>${scoreReasons || `<li>${t('prof_health_none')}</li>`}</ul></details></section><div class="receipt-month-history"><div class="receipt-month-heading"><strong>${t('prof_receipts_by_month')}</strong><span>${t('prof_receipts_by_month_sub')}</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="${t('prof_receipts_by_month_aria')}">${receiptRows}</ul>` : `<p class="receipt-month-empty">${t('prof_receipts_by_month_empty')}</p>`}</div></section>`;
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the receipts
+  // grid keeps Total Paid + Outstanding visible on top (plus the
+  // disputed stat when a dispute is open); the other 9 behaviour
+  // cards sit collapsed behind one 'Payment Behavior & Stats'
+  // details, always closed by default. The two consts below split
+  // the old single behaviorCards string so the return can place the
+  // top cards outside the details and the rest inside it.
+  const behaviorTopCards = behavior ? `${profileOutstandingStat}${profileDisputedStat}` : '';
+  const behaviorDetailCards = behavior ? `<article class="profile-summary-stat"><span>${t('prof_receipts_credit')}</span><strong>${pendingCreditCents ? escapeHtml(formatAmount(pendingCreditCents / 100)) : t('prof_none_recorded')}</strong><small>${t('prof_stat_prepaid')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_avg')}</span><strong>${behavior.averageMonthlyPayment===null?t('prof_stat_not_calc'):escapeHtml(formatAmount(behavior.averageMonthlyPayment))}</strong><small>${escapeHtml(profileAvgPaymentBasis(customer))}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_delay')}</span><strong>${behavior.averagePaymentDelayDays===null?t('prof_not_recorded'):t('prof_stat_delay_days', null, { days: behavior.averagePaymentDelayDays })}</strong><small>${t('prof_stat_delay_pairs', null, { count: behavior.delaySampleCount })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_range')}</span><strong>${behavior.highestPayment===null?t('prof_not_recorded'):`${escapeHtml(formatAmount(behavior.lowestPayment))}–${escapeHtml(formatAmount(behavior.highestPayment))}`}</strong><small>${t('prof_stat_range_sub')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_late')}</span><strong>${behavior.latePaymentCount} / ${behavior.partialPaymentCount}</strong><small>${t('prof_stat_late_sub', null, { count: behavior.totalPayments })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_consistency')}</span><strong>${behavior.paymentConsistency===null?t('prof_health_cat_insufficient'):`${behavior.paymentConsistency}%`}</strong><small>${t('prof_stat_consistency_sub', null, { settled: behavior.consistencySettledMonths, bill: behavior.consistencyBillMonths })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_last')}</span><strong>${lastPayment?escapeHtml(formatAmount(lastPayment.amount)):t('prof_not_recorded')}</strong><small>${lastPayment?escapeHtml(t('prof_stat_last_receipt', null, { date: humanDate(lastPayment.date) })): t('prof_stat_last_none')}</small></article>` : '';
+  return `<section class="customer-receipt-summary" aria-label="${t('prof_receipts_aria')}"><div class="profile-summary-heading"><h3>${t('prof_receipts_heading')}</h3><button type="button" class="secondary-button profile-summary-edit-btn" data-edit-customer="${escapeHtml(customer.id)}">✏️ ${t('prof_receipts_edit')}</button></div><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>${t('prof_receipts_total')}</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : t('prof_receipts_none')}</strong><small>${receipts.receiptCount ? (receipts.receiptCount === 1 ? t('prof_stat_total_small_1', null, { count: receipts.receiptCount }) : t('prof_stat_total_small_n', null, { count: receipts.receiptCount })) : t('prof_stat_receipts_none_note')}</small></article>${behaviorTopCards}<details class="profile-behavior-details"><summary>Payment Behavior &amp; Stats ▾</summary><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-tenure"><span>${t('prof_receipts_tenure')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article>${profileAgeMarkup(customer)}${behaviorDetailCards}</div></details></div><section class="customer-health-summary" aria-label="${t('prof_health_aria')}"><strong>${escapeHtml(scoreText)}</strong><details><summary>${t('prof_health_basis')}</summary><ul>${scoreReasons || `<li>${t('prof_health_none')}</li>`}</ul></details></section><div class="receipt-month-history"><div class="receipt-month-heading"><strong>${t('prof_receipts_by_month')}</strong><span>${t('prof_receipts_by_month_sub')}</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="${t('prof_receipts_by_month_aria')}">${receiptRows}</ul>` : `<p class="receipt-month-empty">${t('prof_receipts_by_month_empty')}</p>`}</div></section>`;
 }
 // Plan 355: known-as line beside the formal name on cards and search
 // results — plain words, escaped; '' when the record carries no known-as
@@ -8500,8 +8511,17 @@ function customerLifetimeValueMarkup(lifetime) {
   const futureBasis=lifetime.estimatedFutureValue===null
     ? (lifetime.receiptMonths===0?t('prof_clv_future_none_0'):t('prof_clv_future_none_2'))
     : t(`prof_clv_future_basis_${lifetime.receiptMonths===1?'1':'n'}${lifetime.observationMonths===1?'1':'n'}`, null, { avg: formatPKR(lifetime.averageMonthlyRevenue), receipts: lifetime.receiptMonths, months: lifetime.observationMonths, month: lifetime.asOf.slice(0,7) });
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the estimate
+  // tile carries ONE concise subtitle instead of the long basis
+  // sentence plus the separate disclaimer paragraph: 'Estimate ·
+  // PKR 1,500/mo avg × 12' (the future value is the monthly average
+  // times 12 — owner-insights.js). With no estimate the existing
+  // "Not estimated: …" line stays exactly as it was (D4).
+  const futureLine = lifetime.estimatedFutureValue === null
+    ? `<dd class="customer-lifetime-basis">${escapeHtml(futureBasis)}</dd>`
+    : `<dd class="customer-lifetime-subtitle">Estimate · ${escapeHtml(formatPKR(lifetime.averageMonthlyRevenue))}/mo avg × 12</dd>`;
   const revenueBasis=lifetime.receiptCount===1?t('prof_clv_rev_basis_1', null, { count: 1 }):t('prof_clv_rev_basis_n', null, { count: lifetime.receiptCount });
-  return `<section class="customer-lifetime-value" aria-labelledby="customerLifetimeValueHeading"><h4 id="customerLifetimeValueHeading">${t('prof_clv_heading')}</h4><dl class="customer-lifetime-grid"><div><dt>${t('prof_clv_revenue')}</dt><dd>${escapeHtml(formatAmount(lifetime.totalHistoricalRevenue))}</dd><dd class="customer-lifetime-basis">${escapeHtml(revenueBasis)}</dd></div><div><dt>${t('prof_clv_tenure')}</dt><dd>${escapeHtml(tenureLabel)}</dd><dd class="customer-lifetime-basis">${escapeHtml(tenureBasis)}</dd></div><div><dt>${t('prof_clv_avg_revenue')}</dt><dd>${escapeHtml(monthlyRevenue)}</dd><dd class="customer-lifetime-basis">${escapeHtml(avgBasis)}</dd></div><div><dt>${t('prof_clv_delay')}</dt><dd>${escapeHtml(delay)}</dd><dd class="customer-lifetime-basis">${escapeHtml(delayBasis)}</dd></div><div class="customer-lifetime-estimate"><dt>${t('prof_clv_future_value')}</dt><dd>${escapeHtml(future)}</dd><dd class="customer-lifetime-basis">${escapeHtml(futureBasis)}</dd></div></dl><p class="customer-lifetime-note">${t('prof_clv_note')}</p></section>`;
+  return `<section class="customer-lifetime-value" aria-labelledby="customerLifetimeValueHeading"><h4 id="customerLifetimeValueHeading">${t('prof_clv_heading')}</h4><dl class="customer-lifetime-grid"><div><dt>${t('prof_clv_revenue')}</dt><dd>${escapeHtml(formatAmount(lifetime.totalHistoricalRevenue))}</dd><dd class="customer-lifetime-basis">${escapeHtml(revenueBasis)}</dd></div><div><dt>${t('prof_clv_tenure')}</dt><dd>${escapeHtml(tenureLabel)}</dd><dd class="customer-lifetime-basis">${escapeHtml(tenureBasis)}</dd></div><div><dt>${t('prof_clv_avg_revenue')}</dt><dd>${escapeHtml(monthlyRevenue)}</dd><dd class="customer-lifetime-basis">${escapeHtml(avgBasis)}</dd></div><div><dt>${t('prof_clv_delay')}</dt><dd>${escapeHtml(delay)}</dd><dd class="customer-lifetime-basis">${escapeHtml(delayBasis)}</dd></div><div class="customer-lifetime-estimate"><dt>${t('prof_clv_future_value')}</dt><dd>${escapeHtml(future)}</dd>${futureLine}</div></dl></section>`;
 }
 // SISP-23: one-line installation profitability summary for the profile
 // Connection group. Plain text (the field renderer escapes it); the
@@ -8763,8 +8783,12 @@ function renderCustomerProfileView(customer) {
   // SISP-151: projected next-month invoice — the billing cycle
   // planner's own figures for next month, composed by
   // next-bill-projector.js. Pure preview: generates no bill.
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the separate
+  // next-bill section is gone; the projection renders as one footer
+  // line under the dues card, so the projection object is passed to
+  // the dues breakdown below instead of to
+  // nextBillProjectionSectionHtml.
   const nextBillProjection = projectNextMonthInvoice(customer, { referralQueued: queuedReferralTotalFor(loadReferralCredits(), customer.id) });
-  const nextBillSectionHtml = nextBillProjectionSectionHtml(nextBillProjection, formatAmount);
   // SISP-59: profile upgrade hint — shown only when this customer is
   // an upsell candidate (same read-only builder as the dashboard card).
   const upsellCandidate = upsellCandidateForCustomer(state, customer, { complaints: loadComplaints(), tickets: loadTickets() });
@@ -8980,14 +9004,14 @@ function renderCustomerProfileView(customer) {
   // bills keep their old due dates, and the pre-due reminder queue reads
   // each bill's own due date, so it follows the customer's own date.
   const billingCycleChoice = findBillingCycleChoice(loadBillingCycleChoices(), customer.id);
-  const billingCycleSectionHtml = `<section class="profile-custody-section" aria-label="${t('prv_bc_heading')}"><h4>${t('prv_bc_heading')}</h4><p>${t('prv_bc_explainer')}</p>${billingCycleChoiceHtml(billingCycleChoice, billingCycleLabels())}<div><label>${t('prv_bc_due_day')} <input id="billingCycleDueDay" type="number" min="1" max="31" value="${escapeHtml(String(billingCycleChoice ? billingCycleChoice.dueDay : DEFAULT_BILL_DUE_DAY))}"></label> <button type="button" class="secondary-button" id="billingCycleSaveBtn">${t('prv_bc_save')}</button></div></section>`;
+  const billingCycleSectionHtml = `<section class="profile-custody-section" aria-label="${t('prv_bc_heading')}"><h4>${t('prv_bc_heading')} ${helpButtonMarkup('billing_cycle')}</h4>${billingCycleChoiceHtml(billingCycleChoice, billingCycleLabels())}<div><label>${t('prv_bc_due_day')} <input id="billingCycleDueDay" class="rounded-xl border border-slate-200 px-3 py-2 w-20 text-center" type="number" min="1" max="31" value="${escapeHtml(String(billingCycleChoice ? billingCycleChoice.dueDay : DEFAULT_BILL_DUE_DAY))}"></label> <button type="button" class="secondary-button" id="billingCycleSaveBtn">${t('prv_bc_save')}</button></div></section>`;
   // Plan 40: the profile shows the customer's preferred payment
   // channel and lets the operator change it. Saving here changes
   // no payment, Waada, balance or bill — it only decides which
   // instruction line that customer's own drafts (Plans 11, 12, 13,
   // 39) carry when they are sent. No wallet number is recorded.
   const paymentChannelRecord = findPaymentChannelRecord(loadPaymentChannels(), customer.id);
-  const paymentChannelSectionHtml = `<section class="profile-custody-section" aria-label="${t('prv_pch_heading')}"><h4>${t('prv_pch_heading')}</h4><p>${t('prv_pch_explainer')}</p>${paymentChannelHtml(paymentChannelRecord, paymentChannelLabels())}<div><label>${t('prv_pch_preferred_channel')} <select id="paymentChannelSelect"><option value="">${t('prv_pch_not_set')}</option><option value="${PAYMENT_CHANNELS.CASH}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.CASH ? 'selected' : ''}>${t('prv_pch_cash')}</option><option value="${PAYMENT_CHANNELS.WALLET}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.WALLET ? 'selected' : ''}>${t('prv_pch_wallet')}</option></select></label> <button type="button" class="secondary-button" id="paymentChannelSaveBtn">${t('prv_pch_save')}</button>${paymentChannelRecord ? ` <button type="button" class="secondary-button" id="paymentChannelRemoveBtn">${t('prv_pch_remove')}</button>` : ''}</div></section>`;
+  const paymentChannelSectionHtml = `<section class="profile-custody-section" aria-label="${t('prv_pch_heading')}"><h4>${t('prv_pch_heading')} ${helpButtonMarkup('payment_channel')}</h4>${paymentChannelHtml(paymentChannelRecord, paymentChannelLabels())}<div><label>${t('prv_pch_preferred_channel')} <select id="paymentChannelSelect"><option value="">${t('prv_pch_not_set')}</option><option value="${PAYMENT_CHANNELS.CASH}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.CASH ? 'selected' : ''}>${t('prv_pch_cash')}</option><option value="${PAYMENT_CHANNELS.WALLET}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.WALLET ? 'selected' : ''}>${t('prv_pch_wallet')}</option></select></label> <button type="button" class="secondary-button" id="paymentChannelSaveBtn">${t('prv_pch_save')}</button>${paymentChannelRecord ? ` <button type="button" class="secondary-button" id="paymentChannelRemoveBtn">${t('prv_pch_remove')}</button>` : ''}</div></section>`;
   // Plan 39 (Plan 1-100) — Monthly statement draft on the profile.
   // One statement per customer per month, composed from this profile's
   // own bills and payments (opening, this month's charges, payments
@@ -9001,6 +9025,11 @@ function renderCustomerProfileView(customer) {
   const statementDraftPref = findContactPreference(loadContactPreferences(), customer.id);
   const statementDraftPayments = (customer.bills ?? []).flatMap((billRow) =>
     (billRow.payments ?? []).map((payment) => ({ ...payment, customerId: customer.id })));
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the statement
+  // gains the language control the other two drafts already had; the
+  // variant starts from the contact preference and follows the
+  // section's select (driven by the shared Group 2 select) after that.
+  let statementDraftVariant = statementDraftPref && statementDraftPref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? STATEMENT_DRAFT_VARIANTS.URDU : STATEMENT_DRAFT_VARIANTS.ROMAN;
   const statementDraftForMonth = (month) => {
     const statement = buildMonthlyStatement({
       customerId: customer.id,
@@ -9010,7 +9039,7 @@ function renderCustomerProfileView(customer) {
       payments: statementDraftPayments,
     });
     if (!statement) return null;
-    const variant = statementDraftPref && statementDraftPref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? STATEMENT_DRAFT_VARIANTS.URDU : STATEMENT_DRAFT_VARIANTS.ROMAN;
+    const variant = statementDraftVariant;
     return { statement, draft: buildStatementDraftText(statement, variant), variant };
   };
   let statementDraftMonth = localDate().slice(0, 7);
@@ -9020,7 +9049,7 @@ function renderCustomerProfileView(customer) {
   const statementDraftSendLabel = statementDraftPref && statementDraftPref.doNotMessage ? t('dft_do_not_message') : (statementDraftSendsForMonth(statementDraftMonth).length > 0 ? t('dft_statement_resend') : t('dft_statement_send'));
   // Plan 600 — labels object for the statement-draft preview chrome.
   const statementDraftLabels = { unavailable: t('dft_statement_unavailable'), summary: t('dft_stmt_summary'), notSent: t('dft_stmt_not_sent'), sent1: t('dft_stmt_sent_on'), sentN1: t('dft_stmt_sent_once_more'), sentN: t('dft_stmt_sent_more'), month: t('dft_stmt_month'), opening: t('dft_stmt_opening'), charges: t('dft_stmt_charges'), payments: t('dft_stmt_payments'), closing: t('dft_stmt_closing'), onePayment: t('dft_stmt_one_payment'), manyPayments: t('dft_stmt_many_payments'), noBill: t('dft_stmt_no_bill'), voidedCount: t('dft_stmt_voided_count') };
-  const statementDraftSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_statement_heading'))}"><h4>${escapeHtml(t('dft_statement_heading'))}</h4><p>${escapeHtml(t('dft_statement_explainer'))}</p><div><label>${escapeHtml(t('dft_statement_month'))} <input id="statementDraftMonth" type="month" value="${escapeHtml(statementDraftMonth)}"></label> <button type="button" class="secondary-button" id="statementDraftShowBtn">${escapeHtml(t('dft_statement_show'))}</button></div><div id="statementDraftResult">${statementDraftCurrent ? statementDraftHtml(statementDraftCurrent.statement, { draftText: statementDraftCurrent.draft.text, sends: statementDraftSendsForMonth(statementDraftMonth), labels: statementDraftLabels }) : `<p class="empty-state">${escapeHtml(t('dft_statement_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="statementDraftSendBtn" ${statementDraftSendDisabled ? 'disabled' : ''}>${escapeHtml(statementDraftSendLabel)}</button></section>`;
+  const statementDraftSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_statement_heading'))}"><h4>${escapeHtml(t('dft_statement_heading'))} ${helpButtonMarkup('statement_draft')}</h4><div><label>${escapeHtml(t('dft_statement_month'))} <input id="statementDraftMonth" type="month" value="${escapeHtml(statementDraftMonth)}"></label> <label hidden>${escapeHtml(t('dft_draft_language'))} <select id="statementDraftLanguage"><option value="${STATEMENT_DRAFT_VARIANTS.ROMAN}" ${statementDraftVariant === STATEMENT_DRAFT_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${STATEMENT_DRAFT_VARIANTS.URDU}" ${statementDraftVariant === STATEMENT_DRAFT_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label> <button type="button" class="secondary-button" id="statementDraftShowBtn">${escapeHtml(t('dft_statement_show'))}</button></div><div id="statementDraftResult">${statementDraftCurrent ? statementDraftHtml(statementDraftCurrent.statement, { draftText: statementDraftCurrent.draft.text, sends: statementDraftSendsForMonth(statementDraftMonth), labels: statementDraftLabels }) : `<p class="empty-state">${escapeHtml(t('dft_statement_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="statementDraftSendBtn" ${statementDraftSendDisabled ? 'disabled' : ''}>${escapeHtml(statementDraftSendLabel)}</button></section>`;
   // Plan 72 (Plan 1-100) — Balance enquiry reply draft on the
   // profile. When the customer asks "mera balance kitna hai?",
   // the operator opens this section and gets one same-shaped
@@ -9039,7 +9068,7 @@ function renderCustomerProfileView(customer) {
   const balanceReplySendLabel = balanceReplyPref && balanceReplyPref.doNotMessage ? t('dft_do_not_message') : (balanceReplySends().length > 0 ? t('dft_balance_resend') : t('dft_balance_send'));
   // Plan 600 — labels object for the balance-reply preview chrome.
   const balanceReplyLabels = { unavailable: t('dft_bal_summary_unavailable'), noAmountDue: t('dft_bal_no_amount_due'), noUndisputed: t('dft_bal_no_undisputed'), undisputed: t('dft_bal_undisputed'), current: t('dft_bal_current'), notSent: t('dft_bal_not_sent'), sent1: t('dft_bal_sent_on'), sentN1: t('dft_bal_sent_once_more'), sentN: t('dft_bal_sent_more'), customer: t('dft_bal_customer'), noDueLine: t('dft_bal_no_due_line'), noUndisputedLine: t('dft_bal_no_undisputed_line'), undisputedLine: t('dft_bal_undisputed_line'), currentLine: t('dft_bal_current_line'), dueDate: t('dft_bal_due_date'), dueNotRecorded: t('dft_bal_due_not_recorded'), lastPaymentLine: t('dft_bal_last_payment_line'), lastNone: t('dft_bal_last_none'), disputeEntries: t('dft_bal_dispute_entries') };
-  const balanceReplySectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_balance_heading'))}"><h4>${escapeHtml(t('dft_balance_heading'))}</h4><p>${escapeHtml(t('dft_balance_explainer'))}</p><div><label>${escapeHtml(t('dft_draft_language'))} <select id="balanceReplyVariant"><option value="${BALANCE_REPLY_VARIANTS.ROMAN}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${BALANCE_REPLY_VARIANTS.URDU}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label> <button type="button" class="secondary-button" id="balanceReplyShowBtn">${escapeHtml(t('dft_show_reply'))}</button></div><div id="balanceReplyResult">${balanceReplyCurrent ? balanceReplyHtml(balanceReplyCurrent, { draftText: balanceReplyCurrent.text, sends: balanceReplySends(), labels: balanceReplyLabels }) : `<p class="empty-state">${escapeHtml(t('dft_balance_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="balanceReplySendBtn" ${balanceReplySendDisabled ? 'disabled' : ''}>${escapeHtml(balanceReplySendLabel)}</button></section>`;
+  const balanceReplySectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_balance_heading'))}"><h4>${escapeHtml(t('dft_balance_heading'))} ${helpButtonMarkup('balance_reply')}</h4><div><label hidden>${escapeHtml(t('dft_draft_language'))} <select id="balanceReplyVariant"><option value="${BALANCE_REPLY_VARIANTS.ROMAN}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${BALANCE_REPLY_VARIANTS.URDU}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label> <button type="button" class="secondary-button" id="balanceReplyShowBtn">${escapeHtml(t('dft_show_reply'))}</button></div><div id="balanceReplyResult">${balanceReplyCurrent ? balanceReplyHtml(balanceReplyCurrent, { draftText: balanceReplyCurrent.text, sends: balanceReplySends(), labels: balanceReplyLabels }) : `<p class="empty-state">${escapeHtml(t('dft_balance_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="balanceReplySendBtn" ${balanceReplySendDisabled ? 'disabled' : ''}>${escapeHtml(balanceReplySendLabel)}</button></section>`;
   // Plan 73 (Plan 1-100) — Payment history mini-slip on the
   // profile, after the balance reply section. The last few
   // payments with date, amount, and channel, plus the current
@@ -9054,7 +9083,7 @@ function renderCustomerProfileView(customer) {
   const paymentSlipSendLabel = paymentSlipPref && paymentSlipPref.doNotMessage ? t('dft_do_not_message') : (paymentSlipSends().length > 0 ? t('dft_slip_resend') : t('dft_slip_send'));
   // Plan 600 — labels object for the payment-slip preview chrome.
   const paymentSlipLabels = { unavailable: t('dft_slip_unavailable'), summary: t('dft_slip_summary'), notSent: t('dft_slip_not_sent'), sent: t('dft_slip_sent'), noPayments: t('dft_slip_no_payments'), subtotal: t('dft_slip_subtotal'), currentLine: t('dft_bal_current_line'), voidStamp: t('dft_slip_void_stamp'), voidedExcluded: t('dft_slip_voided_excluded'), skippedRows: t('dft_slip_skipped_rows'), unavailableLong: t('dft_slip_unavailable_long') };
-  const paymentSlipSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_slip_heading'))}"><h4>${escapeHtml(t('dft_slip_heading'))}</h4><p>${escapeHtml(t('dft_slip_explainer'))}</p><div><label>${escapeHtml(t('dft_slip_payments_to_list'))} <input id="paymentSlipCount" type="number" min="1" value="${paymentSlipCount}"></label> <label>${escapeHtml(t('dft_draft_language'))} <select id="paymentSlipVariant"><option value="${PAYMENT_SLIP_VARIANTS.ROMAN}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${PAYMENT_SLIP_VARIANTS.URDU}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label> <button type="button" class="secondary-button" id="paymentSlipShowBtn">${escapeHtml(t('dft_slip_show'))}</button></div><div id="paymentSlipResult">${paymentSlipCurrent ? paymentSlipHtml(paymentSlipCurrent, { draftText: paymentSlipCurrent.text, sends: paymentSlipSends(), labels: paymentSlipLabels }) : `<p class="empty-state">${escapeHtml(t('dft_slip_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="paymentSlipSendBtn" ${paymentSlipSendDisabled ? 'disabled' : ''}>${escapeHtml(paymentSlipSendLabel)}</button></section>`;
+  const paymentSlipSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_slip_heading'))}"><h4>${escapeHtml(t('dft_slip_heading'))} ${helpButtonMarkup('payment_slip')}</h4><div><label>${escapeHtml(t('dft_slip_payments_to_list'))} <input id="paymentSlipCount" type="number" min="1" value="${paymentSlipCount}"></label> <label hidden>${escapeHtml(t('dft_draft_language'))} <select id="paymentSlipVariant"><option value="${PAYMENT_SLIP_VARIANTS.ROMAN}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${PAYMENT_SLIP_VARIANTS.URDU}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label> <button type="button" class="secondary-button" id="paymentSlipShowBtn">${escapeHtml(t('dft_slip_show'))}</button></div><div id="paymentSlipResult">${paymentSlipCurrent ? paymentSlipHtml(paymentSlipCurrent, { draftText: paymentSlipCurrent.text, sends: paymentSlipSends(), labels: paymentSlipLabels }) : `<p class="empty-state">${escapeHtml(t('dft_slip_unavailable'))}</p>`}</div><button type="button" class="secondary-button" id="paymentSlipSendBtn" ${paymentSlipSendDisabled ? 'disabled' : ''}>${escapeHtml(paymentSlipSendLabel)}</button></section>`;
   // Plan 74 (Plan 1-100) — Package and service info card on the
   // profile. When the customer asks "mera package kya hai, aur
   // bill kab due hai?", send one consistent card — current
@@ -9111,7 +9140,12 @@ function renderCustomerProfileView(customer) {
   // and it is never turned into cash here.
   // Plan 600 — labels object for the credit-balance summary line.
   const creditBalanceLabels = { noRecord: t('dft_credit_no_record'), summary: t('dft_credit_summary') };
-  const creditBalanceSectionHtml = `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_credit_heading'))}"><h4>${escapeHtml(t('dft_credit_heading'))}</h4><p>${escapeHtml(t('dft_credit_explainer'))}</p><p>${escapeHtml(creditSummaryText(creditBalanceForCustomer(loadCreditEntries(), loadCreditApplications(), customer.id), creditBalanceLabels))}</p></section>`;
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the credit
+  // section renders ONLY while credit remains (remainingCents > 0);
+  // a zero balance reads as no section, never as a zero to chase.
+  // The module itself is untouched: analytics dashboards keep calling
+  // creditSummaryText for a zero balance exactly as before.
+  const creditBalanceSectionHtml = creditBalanceForCustomer(loadCreditEntries(), loadCreditApplications(), customer.id).remainingCents > 0 ? `<section class="profile-custody-section" aria-label="${escapeHtml(t('dft_credit_heading'))}"><h4>${escapeHtml(t('dft_credit_heading'))} ${helpButtonMarkup('credit_balance')}</h4><p>${escapeHtml(creditSummaryText(creditBalanceForCustomer(loadCreditEntries(), loadCreditApplications(), customer.id), creditBalanceLabels))}</p></section>` : '';
   // Plan 46 (Plan 1-100) — Package change preview on the profile.
   // The preview is built from this profile's own package and monthly
   // amount, and the proposed package's catalogue price; both prices
@@ -9228,12 +9262,13 @@ function renderCustomerProfileView(customer) {
     billed: t('prof_dmb_billed'),
     paid: t('prof_dmb_paid'),
     stillOwed: t('prof_dmb_still_owed'),
+    due: t('cust_bill_due'),
     settled: t('prof_dmb_settled'),
     notPriced: t('prof_dmb_not_priced'),
     additional: t('prof_dmb_additional'),
     total: t('prof_dmb_total'),
     none: t('prof_dmb_none'),
-  }, formatAmount);
+  }, formatAmount, nextBillProjection);
   // Plan 371 — Customer profile last-interaction line: the most recent
   // of the last payment, the last visit, and the last sent message,
   // composed from the records the profile already uses. Display only:
@@ -9510,7 +9545,31 @@ function renderCustomerProfileView(customer) {
   }
   const profileSectionCustomerBody = `${handlingNoteSectionMarkup}${standingInstructionSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}<section class="profile-freshness-group" aria-label="${t('prof_dfs_heading')}"><h4>${t('prof_dfs_heading')}</h4>${profileFreshnessStampMarkup}${profileVerificationTickSectionMarkup}</section>${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${profileInfoGroupFragments.contact}${profileInfoGroupFragments.location}${welcomePackSectionHtml}${termsAckSectionHtml}`;
   const profileSectionServiceBody = `${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupFragments.service}${profileInfoGroupFragments.lifecycle}${upsellSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${disconnectProfileHtml(customer)}${packageChangeSectionHtml}${qualityLogSectionHtml}${infoCardSectionHtml}`;
-  const profileSectionFinancialBody = `${wadaProfileBannerHtml(customer)}${duesBreakdownSectionMarkup}${profileInfoGroupFragments.money}${crossPaymentsMadeSectionMarkup}${referralSectionHtml}${contributorSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${depositSettlementHtml}${depositOffsetHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${firstBillPreviewSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${creditBalanceSectionHtml}`;
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the Financial
+  // body renders as four groups. Group 1 (Dues & Wada) stays visible
+  // as today; Groups 2–4 open as expandable cards (the profile's own
+  // <details> idiom, not a bottom sheet — no shared sheet exists).
+  // Group 2 holds the three WhatsApp draft sections behind one
+  // segmented selector, one shared language select and one Send
+  // button (the three per-section selects stay hidden as the Show
+  // handlers' wiring targets, and the three send buttons stay wired
+  // behind the visible one — three separate send logs, never merged).
+  // Group 3 holds the money rows plus CLV (appended into the card
+  // below, not at the end of the body). Group 4 holds billing cycle,
+  // payment channel and Kist. The eight unnamed sections stay below
+  // Group 4 in their current order, and the credit section stays
+  // last, hidden while it is zero. The group titles and segment
+  // labels are hardcoded English (no existing key covers them) — the
+  // Urdu-mode gap is disclosed in the PR body.
+  const billingGroupSlipsHtml = `<details class="billing-group" id="billingGroupSlips"><summary><span class="billing-group-title">💬 WhatsApp Slips &amp; Statements</span><span class="billing-group-chev">›</span></summary><div class="billing-group-body"><div class="billing-segment-tabs" role="group" aria-label="WhatsApp Slips &amp; Statements"><button type="button" class="billing-segment-btn" data-billing-segment-tab="statement" aria-pressed="true">Statement</button><button type="button" class="billing-segment-btn" data-billing-segment-tab="balance" aria-pressed="false">Balance</button><button type="button" class="billing-segment-btn" data-billing-segment-tab="history" aria-pressed="false">History</button></div><div class="billing-slips-controls"><label>${escapeHtml(t('dft_draft_language'))} <select id="billingSlipsLanguage"><option value="${BALANCE_REPLY_VARIANTS.ROMAN}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>${escapeHtml(t('dft_lang_roman'))}</option><option value="${BALANCE_REPLY_VARIANTS.URDU}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.URDU ? 'selected' : ''}>${escapeHtml(t('dft_lang_urdu'))}</option></select></label><button type="button" class="primary-button" id="billingSlipsSendBtn">${escapeHtml(statementDraftSendLabel)}</button></div><div class="billing-slip-segment" data-billing-segment="statement">${statementDraftSectionHtml}</div><div class="billing-slip-segment" data-billing-segment="balance" hidden>${balanceReplySectionHtml}</div><div class="billing-slip-segment" data-billing-segment="history" hidden>${paymentSlipSectionHtml}</div></div></details>`;
+  const billingGroupProfitSubtitle = `Net ${monthlyProfit.net !== null ? `${netDisplay}/mo` : PROFILE_EMPTY_DASH} · Lifetime ${formatAmount(lifetimeValue.totalHistoricalRevenue)}`;
+  const billingGroupProfitClvHtml = `<details class="billing-group" id="billingGroupProfitClv"><summary><span class="billing-group-title">Profit &amp; CLV</span><span class="billing-group-sub">${escapeHtml(billingGroupProfitSubtitle)}</span><span class="billing-group-chev">›</span></summary><div class="billing-group-body">${profileInfoGroupFragments.money}</div></details>`;
+  const billingDueDay = billingCycleChoice ? billingCycleChoice.dueDay : DEFAULT_BILL_DUE_DAY;
+  const billingDueDayOrd = billingDueDay === 1 ? '1st' : billingDueDay === 2 ? '2nd' : billingDueDay === 3 ? '3rd' : `${billingDueDay}th`;
+  const billingChannelLabel = !paymentChannelRecord ? t('prv_pch_not_set') : paymentChannelRecord.channel === PAYMENT_CHANNELS.WALLET ? t('prv_pch_wallet') : t('prv_pch_cash');
+  const billingGroupSettingsSubtitle = `Due ${billingDueDayOrd} · ${billingChannelLabel} · ${kistProgress.plans.length > 0 ? 'Kist' : 'No Kist'}`;
+  const billingGroupSettingsHtml = `<details class="billing-group" id="billingGroupSettings"><summary><span class="billing-group-title">Billing Settings &amp; Kist</span><span class="billing-group-sub">${escapeHtml(billingGroupSettingsSubtitle)}</span><span class="billing-group-chev">›</span></summary><div class="billing-group-body">${billingCycleSectionHtml}${paymentChannelSectionHtml}${kistSectionHtml}</div></details>`;
+  const profileSectionFinancialBody = `${wadaProfileBannerHtml(customer, duesBreakdownFigures.total)}${duesBreakdownSectionMarkup}${billingGroupSlipsHtml}${billingGroupProfitClvHtml}${billingGroupSettingsHtml}${crossPaymentsMadeSectionMarkup}${referralSectionHtml}${contributorSectionHtml}${depositSettlementHtml}${depositOffsetHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${firstBillPreviewSectionHtml}${creditBalanceSectionHtml}`;
   const profileSectionConnectionBody = `${profileInfoGroupFragments.install}`;
   const profileSectionNetworkBody = `${profileInfoGroupFragments.network}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${mikrotikSectionHtml}${routerCredSectionHtml}`;
   const profileSectionHardwareBody = `${profileInfoGroupFragments.hardware}${custodySectionHtml}${nocSectionHtml}`;
@@ -9551,7 +9610,12 @@ function renderCustomerProfileView(customer) {
   // Polish #28 Phase A — lifetime value lands last inside the
   // Financial section (field map item 63), not at the end of the whole
   // view, which would now put it after the closed History section.
-  $('#customerProfileView').querySelector('[data-profile-section="financial"] .profile-section-body')?.insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — CLV lands
+  // last inside Group 3's Profit & CLV card, not at the end of the
+  // whole Financial body (Plan 520's append test is re-pinned for the
+  // retarget; the "appended last" intent is unchanged, scoped to the
+  // card).
+  $('#customerProfileView').querySelector('[data-profile-section="financial"] #billingGroupProfitClv .billing-group-body')?.insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Plan 512 — completion details directly under the view heading
   // they describe, not above it: the heading comes first, the bar
   // second, over the PR #813 per-field-save controls.
@@ -9926,6 +9990,7 @@ function renderCustomerProfileView(customer) {
   });
   $('#customerProfileView').querySelector('#statementDraftShowBtn')?.addEventListener('click', () => {
     const month = document.querySelector('#statementDraftMonth')?.value || '';
+    statementDraftVariant = document.querySelector('#statementDraftLanguage')?.value === STATEMENT_DRAFT_VARIANTS.URDU ? STATEMENT_DRAFT_VARIANTS.URDU : STATEMENT_DRAFT_VARIANTS.ROMAN;
     const built = statementDraftForMonth(month);
     const resultEl = document.querySelector('#statementDraftResult');
     const sendBtnEl = document.querySelector('#statementDraftSendBtn');
@@ -10062,6 +10127,60 @@ function renderCustomerProfileView(customer) {
     if (resultEl) resultEl.innerHTML = paymentSlipHtml(built, { draftText: built.text, sends: paymentSlipSends(), labels: paymentSlipLabels });
     sendBtn.textContent = t('dft_slip_resend');
   });
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — Group 2
+  // wiring. The three segment tabs switch which draft section shows;
+  // the one shared language select drives the three per-section
+  // selects (kept hidden as the Show handlers' wiring targets) and
+  // re-renders the active segment; the one visible Send button
+  // dispatches to the active segment's own send button, which stays
+  // wired, keeps its own send log, and keeps its label/disabled
+  // state — the visible button mirrors both, re-synced after every
+  // Show and Send click (these listeners attach after the three
+  // segments' own handlers above, so they run after them).
+  const billingSlipsSegments = ['statement', 'balance', 'history'];
+  const billingSlipsSendBtnFor = (segment) => document.querySelector(segment === 'statement' ? '#statementDraftSendBtn' : segment === 'balance' ? '#balanceReplySendBtn' : '#paymentSlipSendBtn');
+  const billingSlipsShowBtnFor = (segment) => document.querySelector(segment === 'statement' ? '#statementDraftShowBtn' : segment === 'balance' ? '#balanceReplyShowBtn' : '#paymentSlipShowBtn');
+  let billingSlipsSegment = 'statement';
+  const syncBillingSlipsSend = () => {
+    const active = billingSlipsSendBtnFor(billingSlipsSegment);
+    const visible = document.querySelector('#billingSlipsSendBtn');
+    if (!active || !visible) return;
+    visible.textContent = active.textContent;
+    visible.disabled = active.disabled;
+  };
+  const showBillingSlipsSegment = (segment) => {
+    billingSlipsSegment = segment;
+    for (const name of billingSlipsSegments) {
+      const tab = document.querySelector(`[data-billing-segment-tab="${name}"]`);
+      if (tab) tab.setAttribute('aria-pressed', String(name === segment));
+      const panel = document.querySelector(`[data-billing-segment="${name}"]`);
+      if (panel) panel.hidden = name !== segment;
+    }
+    const activeVariant = document.querySelector(segment === 'statement' ? '#statementDraftLanguage' : segment === 'balance' ? '#balanceReplyVariant' : '#paymentSlipVariant')?.value || '';
+    const shared = document.querySelector('#billingSlipsLanguage');
+    if (shared && activeVariant) shared.value = activeVariant;
+    syncBillingSlipsSend();
+  };
+  for (const name of billingSlipsSegments) {
+    document.querySelector(`[data-billing-segment-tab="${name}"]`)?.addEventListener('click', () => showBillingSlipsSegment(name));
+  }
+  document.querySelector('#billingSlipsLanguage')?.addEventListener('change', (event) => {
+    const value = event.currentTarget.value || '';
+    for (const id of ['#statementDraftLanguage', '#balanceReplyVariant', '#paymentSlipVariant']) {
+      const select = document.querySelector(id);
+      if (select) select.value = value;
+    }
+    billingSlipsShowBtnFor(billingSlipsSegment)?.click();
+    syncBillingSlipsSend();
+  });
+  document.querySelector('#billingSlipsSendBtn')?.addEventListener('click', () => {
+    billingSlipsSendBtnFor(billingSlipsSegment)?.click();
+  });
+  for (const name of billingSlipsSegments) {
+    billingSlipsShowBtnFor(name)?.addEventListener('click', () => syncBillingSlipsSend());
+    billingSlipsSendBtnFor(name)?.addEventListener('click', () => syncBillingSlipsSend());
+  }
+  syncBillingSlipsSend();
   // Plan 74 (Plan 1-100) — Package and service info card on the
   // profile. Show rebuilds the card from this profile's own
   // figures; Send opens WhatsApp with the text prefilled (plus
@@ -11598,7 +11717,7 @@ function wadaRecordLabels() {
 // Plan 507 — the banner is now the profile's only Waada surface: it
 // also carries the folded section's chips (in the quick-add form)
 // and its reliability badge (beside the health line).
-function wadaProfileBannerHtml(customer) {
+function wadaProfileBannerHtml(customer, totalDues = null) {
   const today = getWaadaTodayString();
   const all = loadWadaRecords();
   const active = activeWadaRecordsForCustomer(all, customer.id);
@@ -11612,7 +11731,18 @@ function wadaProfileBannerHtml(customer) {
   // when there are none, so the duplicate 'No open wada' line is gone
   // (the .wada-banner-none CSS rule stays, unreferenced — Plan 506
   // precedent — and the health line itself is untouched).
-  return `<section class="profile-wada-banner" aria-label="${t('prv_wd_aria')}"><h4>${t('prv_wd_heading')} ${helpButtonMarkup('waada')}</h4>${banner}<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="fifth">${t('prof_waada_chip_5th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="29th">${t('prv_wd_chip_29')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="30th">${t('prv_wd_chip_30')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="31st">${t('prv_wd_chip_31')}</button></div><label for="wadaQuickDate"><span class="pcp-field-pill">${t('prv_wd_promised_date')}</span><input id="wadaQuickDate" type="date" required min="${today}"></label><label for="wadaQuickAmount"><span class="pcp-field-pill">${t('prv_wd_amount')}</span><input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="${t('prv_wd_amount_ph')}"></label><label for="wadaQuickNote"><span class="pcp-field-pill">${t('prv_wd_note')}</span><input id="wadaQuickNote" type="text" maxlength="140" placeholder="${t('prv_wd_note_ph')}"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">${t('prv_wd_add')}</button></form><p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the quick-add
+  // form tucks behind a '+ Add Wada' details (the active-waada banner
+  // above it stays the surface when a waada is open), and the form is
+  // hidden entirely when the customer owes nothing (totalDues === 0):
+  // there is nothing to promise against, but the banner and the
+  // history stay reachable. The three field labels above drop the
+  // shared .pcp-field-pill chip for plain small text, scoped to this
+  // form only — the pill class is shared by package-change,
+  // quality-log and info-card, so it is never restyled globally.
+  const wadaQuickFormHtml = `<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="fifth">${t('prof_waada_chip_5th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="29th">${t('prv_wd_chip_29')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="30th">${t('prv_wd_chip_30')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="31st">${t('prv_wd_chip_31')}</button></div><label for="wadaQuickDate"><span class="text-xs font-medium text-slate-600">${t('prv_wd_promised_date')}</span><input id="wadaQuickDate" type="date" required min="${today}"></label><label for="wadaQuickAmount"><span class="text-xs font-medium text-slate-600">${t('prv_wd_amount')}</span><input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="${t('prv_wd_amount_ph')}"></label><label for="wadaQuickNote"><span class="text-xs font-medium text-slate-600">${t('prv_wd_note')}</span><input id="wadaQuickNote" type="text" maxlength="140" placeholder="${t('prv_wd_note_ph')}"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">${t('prv_wd_add')}</button></form>`;
+  const wadaQuickAddHtml = totalDues === 0 ? '' : `<details class="wada-quick-details"><summary>+ ${t('prv_wd_add')}</summary>${wadaQuickFormHtml}</details>`;
+  return `<section class="profile-wada-banner" aria-label="${t('prv_wd_aria')}"><h4>${t('prv_wd_heading')} ${helpButtonMarkup('waada')}</h4>${banner}${wadaQuickAddHtml}<p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
 }
 
 // Plan 518 — Zone datalist: offer the zone spellings already used under

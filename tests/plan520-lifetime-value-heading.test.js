@@ -77,10 +77,13 @@ test('Plan 520: the block is still appended last (leave-it-last decision)', () =
   // Polish #28 Phase A — lifetime value appends last inside the
   // Financial section (field map item 63), not at the end of the whole
   // view, which would now put it after the closed History section.
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the append target is now the Profit & CLV group card (Group 3),
+  // so CLV still lands last — inside its own card, not the section.
   // The preserved intent is CLV renders last in its area.
   assert.ok(
-    appSrc.includes("querySelector('[data-profile-section=\"financial\"] .profile-section-body')?.insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue))"),
-    'the CLV block must still be appended last, inside the Financial section body',
+    appSrc.includes("querySelector('[data-profile-section=\"financial\"] #billingGroupProfitClv .billing-group-body')?.insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue))"),
+    'the CLV block must still be appended last, inside the Profit & CLV group card',
   );
   assert.ok(
     !appSrc.includes("$('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue))"),

@@ -158,30 +158,35 @@ function buildBalanceReplyText(reply) {
     parts.push('— شاہدرہ فائبر نیٹ');
     return parts.join('\n');
   }
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the 'roman'
+  // variant is Roman Urdu, not English: the draft a customer reads on
+  // WhatsApp speaks the operator's language. The Urdu-script branch
+  // above is untouched (Plan 72 pins it); only this branch changes,
+  // and every figure (amount, date, dispute) renders exactly as before.
   const parts = [`Assalam-o-Alaikum ${name},`];
   if (reply.balanceKind === 'none') {
-    parts.push('You have no amount due at the moment.');
+    parts.push('Aap ka koi baqaya baqi nahi hai.');
   } else if (reply.hasOpenDispute && reply.balanceCents === 0) {
-    parts.push('You have no undisputed amount due at the moment.');
+    parts.push('Aap ka koi ghair-mutanaziah baqaya baqi nahi hai.');
   } else if (reply.hasOpenDispute) {
-    parts.push(`Your undisputed balance is ${formatAmount(reply.balance)}.`);
+    parts.push(`Aap ka ghair-mutanaziah baqaya ${formatAmount(reply.balance)} hai.`);
   } else {
-    parts.push(`Your current balance is ${formatAmount(reply.balance)}.`);
+    parts.push(`Aap ka maujooda baqaya ${formatAmount(reply.balance)} hai.`);
   }
   if (reply.dueDate) {
-    parts.push(`Due date: ${reply.dueDate}.`);
+    parts.push(`Adaigi ki aakhri tareekh: ${reply.dueDate}.`);
   } else {
-    parts.push('Due date: not recorded.');
+    parts.push('Adaigi ki aakhri tareekh darj nahi hai.');
   }
   if (reply.lastPayment) {
-    parts.push(`Last payment: ${formatAmount(reply.lastPayment.amount)} on ${reply.lastPayment.date}.`);
+    parts.push(`Aakhri adaigi: ${formatAmount(reply.lastPayment.amount)}, tareekh ${reply.lastPayment.date}.`);
   } else {
-    parts.push('No payment recorded yet.');
+    parts.push('Abhi tak koi adaigi darj nahi hai.');
   }
   if (reply.hasOpenDispute) {
-    parts.push(`Note: a dispute case is open on your bill (${formatAmount(reply.disputedAmount)}). The balance above does not include the disputed amount.`);
+    parts.push(`Note: aap ke bill par aik tanaziah case khula hua hai (${formatAmount(reply.disputedAmount)}). Upar di gayi raqam mein mutanaziah raqam shamil nahi hai.`);
     if (reply.excessCents > 0) {
-      parts.push(`The disputed amount exceeds the outstanding balance by ${formatAmount(fromCents(reply.excessCents))}.`);
+      parts.push(`Mutanaziah raqam baqaya se ${formatAmount(fromCents(reply.excessCents))} zyada hai.`);
     }
   }
   parts.push('— Shahdara Fiber Net');

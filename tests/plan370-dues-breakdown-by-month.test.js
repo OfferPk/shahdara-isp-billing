@@ -248,7 +248,7 @@ test('Plan 370: the total still reconciles when a manual additional amount is on
   assert.equal(view.profileTotalCents, 250000);
 });
 
-test('Plan 370: section renders one row per month with billed, paid and still owed', () => {
+test('Plan 370: section renders one compact row per month with a status pill', () => {
   const customer = {
     id: 'CUST-1',
     bills: [{ month: '2026-09' }, { month: '2026-10' }],
@@ -260,12 +260,20 @@ test('Plan 370: section renders one row per month with billed, paid and still ow
   const html = duesBreakdownSectionHtml(customer, allocations, 0, TEXTS, formatRs);
   assert.ok(html.includes('class="profile-dues-breakdown"'));
   assert.ok(html.includes('id="dmbList"'));
-  assert.ok(html.includes('2026-09'));
-  assert.ok(html.includes('2026-10'));
-  assert.ok(html.includes('Billed Rs 3000.00'));
-  assert.ok(html.includes('Paid Rs 3000.00'));
-  assert.ok(html.includes('Still owed Rs 1000.00'));
-  assert.ok(html.includes('<span class="dmb-settled">Settled</span>'));
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // each row is one line — month on the left, one status pill on the
+  // right. The old per-row Billed/Paid/Still-owed lines are gone, the
+  // month label is the readable "Sep 2026" (not the raw YYYY-MM key),
+  // and the total line below the list is the reconciliation anchor.
+  assert.ok(html.includes('Sep 2026'));
+  assert.ok(html.includes('Oct 2026'));
+  assert.ok(!html.includes('2026-09'));
+  assert.ok(!html.includes('2026-10'));
+  assert.ok(!html.includes('Billed Rs 3000.00'));
+  assert.ok(!html.includes('Paid Rs 3000.00'));
+  assert.ok(!html.includes('Still owed Rs 1000.00'));
+  assert.ok(html.includes('<span class="dmb-settled">✓ Settled</span>'));
+  assert.ok(html.includes('<span class="dmb-due">PKR 1,000 Due</span>'));
   assert.ok(html.includes('Total still owed Rs 1000.00'));
   assert.ok(!html.includes('Additional amount'));
 });
@@ -299,7 +307,10 @@ test('Plan 370: section escapes caller labels and falls back without a formatter
   const html = duesBreakdownSectionHtml(customer, allocations, 0, hostile, formatRs);
   assert.ok(html.includes('&lt;b&gt;Dues&lt;/b&gt;'));
   assert.ok(!html.includes('<b>Dues</b>'));
-  assert.ok(html.includes('A &amp; B'));
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the intro paragraph is dropped, so the hostile intro is never
+  // rendered at all — the heading escape above is the pin that stays.
+  assert.ok(!html.includes('A &amp; B'));
   const fallback = duesBreakdownSectionHtml(customer, allocations, 0, TEXTS, null);
   assert.ok(fallback.includes('PKR 1000'));
   const defaults = duesBreakdownSectionHtml(customer, allocations, 0, {}, formatRs);
@@ -358,13 +369,22 @@ test('Plan 370: wiring — import, section after the strip, before the household
   // Customer section, so sections now order household (S1) before dues
   // (S3) in the DOM; the strip sits above every section. The preserved
   // intent is dues near the top of Financial, strip above all sections.
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the wada banner now takes the dues total as its second argument
+  // (it hides the form at totalDues === 0), and the money fragment
+  // lives inside the Group 3 card (billingGroupProfitClvHtml) instead
+  // of directly in the body line — the order pins follow that move.
   const financialBodyAt = appSrc.indexOf('const profileSectionFinancialBody = ');
   const financialBody = appSrc.slice(financialBodyAt, appSrc.indexOf('\n', financialBodyAt));
-  const bannerAt = financialBody.indexOf('${wadaProfileBannerHtml(customer)}');
+  const bannerAt = financialBody.indexOf('${wadaProfileBannerHtml(customer, duesBreakdownFigures.total)}');
   const breakdownAt = financialBody.indexOf('${duesBreakdownSectionMarkup}');
-  const moneyAt = financialBody.indexOf('${profileInfoGroupFragments.money}');
-  assert.ok(bannerAt !== -1 && breakdownAt > bannerAt && moneyAt > breakdownAt,
-    'dues breakdown sits in Financial after the wada banner and before the money fragment');
+  const profitGroupAt = financialBody.indexOf('${billingGroupProfitClvHtml}');
+  assert.ok(bannerAt !== -1 && breakdownAt > bannerAt && profitGroupAt > breakdownAt,
+    'dues breakdown sits in Financial after the wada banner and before the Profit & CLV group');
+  const profitGroupAt2 = appSrc.indexOf('const billingGroupProfitClvHtml = ');
+  const profitGroup = appSrc.slice(profitGroupAt2, appSrc.indexOf('\n', profitGroupAt2));
+  assert.ok(profitGroup.includes('${profileInfoGroupFragments.money}'),
+    'the Profit & CLV group card carries the money fragment');
 });
 
 test('Plan 370: dues breakdown keys exist in both language tables', () => {

@@ -90,24 +90,29 @@ const MEMBERSHIP = {
     'infoCardSectionHtml',
   ],
   Financial: [
-    'wadaProfileBannerHtml(customer)',
+    'wadaProfileBannerHtml(customer, duesBreakdownFigures.total)',
     'duesBreakdownSectionMarkup',
-    'profileInfoGroupFragments.money',
+    // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+    // the 19-section stack is now 4 groups + the 8 unnamed sections.
+    // The money fragment rides inside the Profit & CLV group card, the
+    // billing-cycle / payment-channel / kist sections inside the
+    // Settings group card, and the three draft sections inside the
+    // WhatsApp Slips group card — so the membership markers name the
+    // three group cards, not the inner sections (those are pinned by
+    // plan600 G3d, which asserts the builder calls, and by the M3
+    // test). The next-bill projection section is deleted: the
+    // projection is a footer line inside duesBreakdownSectionMarkup.
+    'billingGroupSlipsHtml',
+    'billingGroupProfitClvHtml',
+    'billingGroupSettingsHtml',
     'crossPaymentsMadeSectionMarkup',
     'referralSectionHtml',
     'contributorSectionHtml',
-    'kistSectionHtml',
-    'nextBillSectionHtml',
     'depositSettlementHtml',
     'depositOffsetHtml',
     'creditTransferSectionHtml',
     'badDebtSectionHtml',
     'firstBillPreviewSectionHtml',
-    'billingCycleSectionHtml',
-    'paymentChannelSectionHtml',
-    'statementDraftSectionHtml',
-    'balanceReplySectionHtml',
-    'paymentSlipSectionHtml',
     'creditBalanceSectionHtml',
   ],
   Connection: [
@@ -205,8 +210,11 @@ test('phase A membership: the merged completion bar still sits directly under th
 // app.js at each insert).
 
 test('phase A appended: lifetime value lands last inside S3, not at the end of the view', () => {
-  assert.ok(appSrc.includes("querySelector('[data-profile-section=\"financial\"] .profile-section-body')?.insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue))"),
-    'CLV must append into the Financial section body (field map item 63)');
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the CLV block now appends inside the Profit & CLV group card
+  // (Group 3), not at the end of the whole Financial body.
+  assert.ok(appSrc.includes("querySelector('[data-profile-section=\"financial\"] #billingGroupProfitClv .billing-group-body')?.insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue))"),
+    'CLV must append into the Profit & CLV group card (field map item 63)');
   assert.ok(!appSrc.includes("$('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue))"),
     'CLV must no longer append at the end of the whole view');
 });
@@ -544,7 +552,10 @@ test('pin: every view item variable exists in app.js (membership counts items, n
     'upsellSectionHtml', 'boostSectionHtml', 'vacationHoldSectionHtml', 'packageChangeSectionHtml',
     'qualityLogSectionHtml', 'infoCardSectionHtml', 'wadaProfileBannerHtml', 'duesBreakdownSectionMarkup',
     'crossPaymentsMadeSectionMarkup', 'referralSectionHtml', 'contributorSectionHtml', 'kistSectionHtml',
-    'nextBillSectionHtml', 'depositSettlementHtml', 'depositOffsetHtml', 'creditTransferSectionHtml',
+    // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+    // 'nextBillSectionHtml' is deleted — the next-bill projection is a
+    // footer line inside duesBreakdownSectionMarkup now, not a section.
+    'depositSettlementHtml', 'depositOffsetHtml', 'creditTransferSectionHtml',
     'badDebtSectionHtml', 'firstBillPreviewSectionHtml', 'billingCycleSectionHtml', 'paymentChannelSectionHtml',
     'statementDraftSectionHtml', 'balanceReplySectionHtml', 'paymentSlipSectionHtml', 'creditBalanceSectionHtml',
     'bottleneckSectionHtml', 'opticalSectionHtml', 'gpsSectionHtml', 'poleSectionHtml', 'feederSectionHtml',

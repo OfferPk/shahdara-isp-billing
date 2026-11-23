@@ -29,9 +29,12 @@ const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 // `.waada-chip-custom` CSS rules are left in place, unreferenced —
 // removing them would mean editing shared selector lists for zero
 // user-visible benefit (Plan 506 precedent). The banner call in the
-// view assembly stays exactly '${wadaProfileBannerHtml(customer)}' —
-// eight ordering tests pin that text (plan351/358/359/360/361/363/
-// 370/371) — so the score badge is computed inside the banner from
+// view assembly is '${wadaProfileBannerHtml(customer,
+// duesBreakdownFigures.total)}' since the Profile Billing tab M3
+// (Specs P+Q+R, user decision 2026-11-22): the second argument is the
+// dues total, and the banner hides the quick-add form when it is 0 —
+// eight ordering tests pin that call text (plan351/358/359/360/361/
+// 363/370/371) — so the score badge is computed inside the banner from
 // module-level state, not passed in.
 
 const REMOVED_KEYS = [
@@ -43,7 +46,7 @@ const REMOVED_KEYS = [
 
 function bannerFunction() {
   const app = read('app.js');
-  const start = app.indexOf('function wadaProfileBannerHtml(customer) {');
+  const start = app.indexOf('function wadaProfileBannerHtml(customer, totalDues = null) {');
   assert.notEqual(start, -1, 'wadaProfileBannerHtml must exist');
   const end = app.indexOf('\nfunction renderDetail() {', start);
   assert.notEqual(end, -1, 'wadaProfileBannerHtml must end before renderDetail');
@@ -114,7 +117,7 @@ test('Plan 507: the lower Waada section renders not at all', () => {
   // now; the lower section stays out of the assembly entirely.
   const financialBodyAt = app.indexOf('const profileSectionFinancialBody = ');
   const financialBody = app.slice(financialBodyAt, app.indexOf('\n', financialBodyAt));
-  assert.ok(financialBody.indexOf('${wadaProfileBannerHtml(customer)}') < financialBody.indexOf('${duesBreakdownSectionMarkup}'), 'banner call opens the Financial section');
+  assert.ok(financialBody.indexOf('${wadaProfileBannerHtml(customer, duesBreakdownFigures.total)}') < financialBody.indexOf('${duesBreakdownSectionMarkup}'), 'banner call opens the Financial section');
   assert.ok(!assembly.includes('${waadaSectionHtml}'), 'lower section is not in the view assembly');
 });
 
@@ -176,7 +179,7 @@ test('Plan 507: the banner is the only Waada section — chips, custom date, hea
 
 test('Plan 507: the banner shows the current promise above the quick-add form', () => {
   const app = read('app.js');
-  const start = app.indexOf('function wadaProfileBannerHtml(customer) {');
+  const start = app.indexOf('function wadaProfileBannerHtml(customer, totalDues = null) {');
   const end = app.indexOf('\nfunction renderDetail() {', start);
   const src = app.slice(start, end);
   const sandbox = {

@@ -32,10 +32,12 @@ const PREF_A = { id: 'DWO-1', operator: 'Saad', widgets: ['Collections today', '
 const PREF_B = { id: 'DWO-2', operator: 'Bike', widgets: ['Overdue list', 'Collections today'], dateSet: '2026-11-06' };
 const DEFAULT_WIDGETS = ['Collections today', 'Overdue list', 'Due in 7 days', 'New customers'];
 
-// The 13 reorderable sections in static default order (D1(a) + D7(a)) —
+// The 12 reorderable sections in static default order (D1(a) + D7(a)) —
 // pinned exactly here, so a wrong list in the module cannot pass
 // trivially by being read back from itself.
 // (Hisaab H3 added the 13th entry directly after Today's Summary.)
+// Home Tab M3 polish (user decision 2026-11-22): System Health moved
+// into the More menu and leaves this list — 12 sections now.
 const EXPECTED_SECTIONS = [
   { name: 'Key performance indicators', id: 'homeKpiStrip' },
   { name: 'Share / Digest', id: 'homeShareMenu' },
@@ -49,7 +51,6 @@ const EXPECTED_SECTIONS = [
   { name: 'Performance & Collection Analytics', id: 'homeChartsCollapsible' },
   { name: 'Monthly Provider Cost Breakdown', id: 'homeProviderCostDetails' },
   { name: 'Pending Works', id: 'pendingWorksSection' },
-  { name: 'System Health', id: 'systemHealthSection' },
 ];
 const DEFAULT_IDS = EXPECTED_SECTIONS.map((section) => section.id);
 
@@ -68,12 +69,12 @@ function topLevelFunctionSource(src, name) {
 
 /* ---------------- G1 — The mapping (repro B5, as tests) ---------------- */
 
-test('plan583 G1: the mapping covers all 13 reorderable sections in default order', () => {
+test('plan583 G1: the mapping covers all 12 reorderable sections in default order', () => {
   assert.deepEqual(DASHBOARD_WIDGET_SECTIONS, EXPECTED_SECTIONS);
   const names = DASHBOARD_WIDGET_SECTIONS.map((section) => section.name);
   const ids = DASHBOARD_WIDGET_SECTIONS.map((section) => section.id);
-  assert.equal(new Set(names).size, 13, 'each section has exactly one display name');
-  assert.equal(new Set(ids).size, 13, 'each section has exactly one id');
+  assert.equal(new Set(names).size, 12, 'each section has exactly one display name');
+  assert.equal(new Set(ids).size, 12, 'each section has exactly one id');
   assert.ok(Object.isFrozen(DASHBOARD_WIDGET_SECTIONS), 'the section list is frozen');
 });
 
@@ -118,10 +119,10 @@ test('plan583 G1: no mapping entry points at a dialog, banner, heading, or the a
 
 test('plan583 G2: Overdue list first moves the today section first (PREF_B)', () => {
   const ordered = dashboardWidgetSectionIdsInPreferredOrder(PREF_B);
-  assert.equal(ordered.length, 13, 'no section vanishes');
+  assert.equal(ordered.length, 12, 'no section vanishes');
   assert.equal(ordered[0], 'homeTodaySection', 'the overdue preview\'s home goes first');
   assert.ok(ordered.indexOf('homeTodaySection') < DEFAULT_IDS.indexOf('homeTodaySection'), 'the today section moves ahead of its default position');
-  assert.deepEqual([...ordered].sort(), [...DEFAULT_IDS].sort(), 'the same 13 sections, only reordered');
+  assert.deepEqual([...ordered].sort(), [...DEFAULT_IDS].sort(), 'the same 12 sections, only reordered');
 });
 
 test('plan583 G2: Morning Briefing first moves it above Today\'s Summary (D4(a) restated acceptance)', () => {
@@ -148,7 +149,7 @@ test('plan583 G2: unknown names hide nothing (PREF_A + missing widget)', () => {
   // PREF_A names 'Due in 7 days' too — only its aliased names move.
   const orderedA = dashboardWidgetSectionIdsInPreferredOrder(PREF_A);
   assert.equal(orderedA[0], 'homeTodaySection', 'the aliased names move the today section first');
-  assert.deepEqual([...orderedA].sort(), [...DEFAULT_IDS].sort(), 'all 13 sections stay present');
+  assert.deepEqual([...orderedA].sort(), [...DEFAULT_IDS].sort(), 'all 12 sections stay present');
 });
 
 test('plan583 G2: the computation is idempotent — an applied order stays applied', () => {
@@ -207,7 +208,13 @@ test('plan583 G4: the static default order in index.html is unchanged', () => {
     assert.ok(positions[i] > positions[i - 1], `${DEFAULT_IDS[i]} follows ${DEFAULT_IDS[i - 1]} in the static order`);
   }
   const asideAt = indexHtml.indexOf('id="dataSafetyBanner"');
-  assert.ok(asideAt > positions[positions.length - 1], 'the data-safety aside stays last in the static order');
+  // Home Tab M3 polish (user decision 2026-11-22): the aside moved into
+  // the More menu — it lives inside #mobileMoreMenu after the menu mount
+  // (which itself follows the dashboard), and the last remaining widget
+  // id keeps its relative order ahead of it.
+  const menuAt = indexHtml.indexOf('id="mobileMoreMenu"');
+  assert.ok(asideAt > menuAt, 'the data-safety aside lives inside the More menu');
+  assert.ok(asideAt > positions[positions.length - 1], 'the data-safety aside stays after the last widget in the static order');
 });
 
 test('plan583 G4: parity holds at 4,722/4,722 — the wiring adds no i18n keys', () => {

@@ -76,7 +76,10 @@ test('every dashboard summary card adopted the shared card; plain KPI cards got 
   // Tickets, Monthly Complaint Report, Saad Visit Log, Lineman
   // Scorecard), converted into grouped-list rows inside two white
   // cards; their modals live on via the row buttons (same ids).
-  assert.ok(articles.length >= 25, `summary cards present (${articles.length})`);
+  // Home Tab M3 polish (user decision 2026-11-22): 25 -> 23 — Pending
+  // Works + System Health left the summary-card set (Pending is one
+  // grouped list row on Home, Health is a native row in the More menu).
+  assert.ok(articles.length >= 23, `summary cards present (${articles.length})`);
   for (const tag of articles) {
     assert.ok(tag.includes('ds-stat'), `shared card applied: ${tag}`);
     assert.ok(/ds-stat--(brand|paid|info|pending|overdue|whatsapp)/.test(tag), `accent set: ${tag}`);

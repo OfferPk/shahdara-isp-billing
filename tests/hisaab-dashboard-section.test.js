@@ -172,8 +172,12 @@ test('hisaab G3: duration is a calendar walk — "1 saal 6 mahine 13 din", same-
 
 /* ---------------- G4 — Section + order (D1(a), D4(a), D10(a)) ---------------- */
 
-test('hisaab G4: the widget order has 13 sections with Hisaab directly after Today\'s Summary (index 5, 6th)', () => {
-  assert.equal(DASHBOARD_WIDGET_SECTIONS.length, 13, '12 + Hisaab');
+test('hisaab G4: the widget order has 12 sections with Hisaab directly after Today\'s Summary (index 5, 6th)', () => {
+  // Home Tab M3 polish (user decision 2026-11-22): 13 -> 12 — the
+  // System Health section left the reorderable list (it lives in the
+  // More menu now). Hisaab's own position is unchanged: still index 5,
+  // directly after Today's Summary, before Recent Payments.
+  assert.equal(DASHBOARD_WIDGET_SECTIONS.length, 12, '11 + Hisaab');
   assert.equal(DASHBOARD_WIDGET_SECTIONS[5].id, 'hisaabSection');
   assert.equal(DASHBOARD_WIDGET_SECTIONS[5].name, 'Hisaab — Kya khoya, kya paya');
   assert.equal(DASHBOARD_WIDGET_SECTIONS[4].id, 'homeTodaySection');

@@ -56,12 +56,17 @@ function cardParents(source) {
 }
 
 // D2 homes: Reports 2, Analytics 10 (the parent "Analytics 9" is an
-// arithmetic slip — the D2 table lists ten cards), Inventory 3, Home 2.
+// arithmetic slip — the D2 table lists ten cards), Inventory 3, Home 0.
 // Receipt Verification + Field Tools have no home: their cards are
 // deleted and their modals stay reachable from the More menu.
 // (Reports Status polish, 2026-11-22: five Reports cards left this
 // table when they became grouped list rows — their Reports home is
 // pinned in tests/reports-status-polish.test.js A4.)
+// Home Tab M3 polish (user decision 2026-11-22): Pending Works + System
+// Health left the summary-card set too — Pending is one grouped list row
+// on Home, Health is a native row in the More menu — so they leave this
+// map (15 cards now); their new homes are pinned in
+// home-dashboard.test.js (pending on Home, health in More) instead.
 const EXPECTED_HOME = {
   'summary-billing-cycle': 'billingReportsView',
   'summary-group-billing': 'billingReportsView',
@@ -77,19 +82,22 @@ const EXPECTED_HOME = {
   'summary-power-backup': 'analyticsView',
   'summary-inventory-book': 'inventoryView',
   'summary-fiber-drums': 'inventoryView',
-  'summary-hardware-recovery': 'inventoryView',
-  'summary-pending-works': 'billingDashboard',
-  'summary-system-health': 'billingDashboard'
+  'summary-hardware-recovery': 'inventoryView'
 };
 
 test('registry cards live in their D2 home view, never loose and never on the Customers tab', () => {
   const parents = cardParents(html);
   // No total-count assertion here: the document legitimately holds other
-  // summary-cards outside the 17 (Home/Transactions/Reports cards that
+  // summary-cards outside the 15 (Home/Transactions/Reports cards that
   // predate this item — e.g. Shop Settlement + Installation Tracker in
   // #transactionsView, Daily Closing + Owner Khata in Reports). Only the
-  // 17-card universe is pinned: every expected card present in its D2
+  // 15-card universe is pinned: every expected card present in its D2
   // home, and no card anywhere loose or on the Customers tab.
+  // Home Tab M3 polish (user decision 2026-11-22): Pending Works +
+  // System Health are no longer summary-cards at all (row on Home / row
+  // in the More menu), so they are absent from this map by design.
+  assert.equal(parents.has('summary-pending-works'), false);
+  assert.equal(parents.has('summary-system-health'), false);
   for (const [card, home] of Object.entries(EXPECTED_HOME)) {
     assert.equal(parents.get(card), home, `${card} should live in ${home}, found in ${parents.get(card) ?? 'nowhere'}`);
   }

@@ -283,7 +283,10 @@ export const DASHBOARD_WIDGET_SECTIONS = Object.freeze([
   { name: 'Performance & Collection Analytics', id: 'homeChartsCollapsible' },
   { name: 'Monthly Provider Cost Breakdown', id: 'homeProviderCostDetails' },
   { name: 'Pending Works', id: 'pendingWorksSection' },
-  { name: 'System Health', id: 'systemHealthSection' },
+  // Home Tab M3 polish (user decision 2026-11-22): System Health moved
+  // into the More menu — it is no longer a dashboard child, so it leaves
+  // this list (12 sections now). The reorder anchor in app.js is guarded
+  // for the same move.
 ]);
 
 // Plan 583 (D2(a)) — aliases for the 338 vocabulary names whose content

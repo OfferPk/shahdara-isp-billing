@@ -92,8 +92,13 @@ test('no centered overflow at 320px either', () => {
   assert.ok(stripMin <= containerWidth320, `metric strip min-content ${stripMin}px must fit ${containerWidth320}px`);
 });
 
-test('SVG viewBox is narrowed to 420x240 (populated) while the empty state stays 560x240', () => {
-  assert.ok(rendered.includes('viewBox="0 0 420 240"'), 'populated chart must use the narrowed 420x240 viewBox');
+test('SVG viewBox is narrowed to 420x216 (populated) while the empty state stays 560x240', () => {
+  // Re-pinned at the Home Tab M3 rebase (2026-11-23): S moves the legend
+  // out of the SVG, so the populated viewBox shortens 240 -> 216
+  // (bottomPad 36 -> 12, row geometry unchanged); the narrowed width 420
+  // and the untouched 560x240 empty state are the Fiber Hubs intent,
+  // both kept.
+  assert.ok(rendered.includes('viewBox="0 0 420 216"'), 'populated chart must use the narrowed 420x216 viewBox');
   assert.ok(!rendered.includes('viewBox="0 0 560 240"'), 'populated chart must not keep the 560-wide viewBox');
   const empty = renderFiberDistributionSvg({ hubs: [], totalDeployedPorts: 0 });
   assert.ok(empty.includes('viewBox="0 0 560 240"'), 'empty state is out of scope — its viewBox stays 560x240');

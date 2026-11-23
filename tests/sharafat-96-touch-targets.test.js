@@ -137,6 +137,10 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   // 'Customer information' heading is a SIXTH NAMED scoped exception at
   // 32px (.profile-view-heading .help-icon), pinned by name below; the
   // final guard admits 32 for that named rule as well.
+  // Home Tab M3 polish (user decision 2026-11-22): the backup (i) in
+  // the More menu is the SEVENTH named scoped exception
+  // (.data-safety-banner .help-icon) — the fourth 28px one — pinned
+  // by name below.
   const base = /\.help-icon\{([^}]*)\}/.exec(stylesNC)?.[1];
   assert.ok(base, 'base .help-icon rule present');
   assert.ok(sizes([base]).length > 0 && sizes([base]).every((v) => v >= 40),
@@ -171,6 +175,13 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   assert.ok(profile, 'scoped .profile-view-heading .help-icon rule present');
   assert.deepEqual(sizes([profile]).sort((a, b) => a - b), [32, 32, 32],
     'scoped profile (i) is exactly 32px (Customer information card polish 2026-11-22)');
+  // Home Tab M3 polish (user decision 2026-11-22): the backup (i) in
+  // the More menu is 28px — the seventh NAMED scoped exception, pinned
+  // by name here.
+  const backup = /\.data-safety-banner\s+\.help-icon\s*\{([^}]*)\}/.exec(stylesNC)?.[1];
+  assert.ok(backup, 'scoped .data-safety-banner .help-icon rule present');
+  assert.deepEqual(sizes([backup]).sort((a, b) => a - b), [28, 28, 28],
+    'scoped backup (i) is exactly 28px (Home Tab M3 polish, seventh named exception)');
   const all = sizes(ruleBodies(stylesNC, '.help-icon'));
   assert.ok(all.every((v) => v >= 40 || v === 28 || v === 20 || v === 32),
     'a .help-icon rule other than the named 28px / 20px / 32px exceptions carries a sub-40px size');

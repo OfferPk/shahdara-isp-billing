@@ -259,6 +259,15 @@
       <p id="globalSearchStatus" class="sr-only" role="status" aria-live="polite"></p>
     </section>
     <section id="billingDashboard" class="dashboard" aria-labelledby="dashboardTitle">
+      <!-- Home Tab M3 polish (user decision 2026-11-22): slim dismissible
+           backup warning — critical ONLY, never on 'due'. Tap downloads a
+           JSON backup (the #backupHealthBadge precedent); × dismisses for
+           this session only (sessionStorage). Rendered by
+           renderHomeBackupCriticalChip from updateDataSafetyUi. -->
+      <div id="homeBackupCriticalChip" class="home-backup-chip" hidden>
+        <button type="button" id="homeBackupCriticalChipAction" class="home-backup-chip-action"><span id="homeBackupCriticalChipText">Backup: Never</span></button>
+        <button type="button" id="homeBackupCriticalChipDismiss" class="home-backup-chip-dismiss" aria-label="Dismiss backup warning">×</button>
+      </div>
       <div class="dashboard-heading">
         <div><p class="eyebrow" data-i18n="dash_eyebrow_live">LIVE SUMMARY</p><h2 id="dashboardTitle" data-i18n="dash_title">Billing dashboard</h2></div>
         <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units" data-i18n="dash_units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button" data-i18n="dash_add_payment">+ Add payment</button><button id="dplBackToTop" class="secondary-button" type="button" data-i18n="dash_place_top">Back to top</button><button id="dulLabelsToggle" class="secondary-button" type="button">اردو لیبل</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance" data-i18n-aria-label="dash_guidance_aria">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip" data-i18n="dash_guidance">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
@@ -627,14 +636,17 @@
       </section>
       <details id="homeChartsCollapsible" class="home-collapsible-section dashboard-charts-collapsible">
         <summary class="home-collapsible-summary">
-          <span data-i18n="dash_charts_collapse">📊 Performance &amp; Collection Analytics</span>
+          <span id="dashboardChartsTitle" data-i18n="dash_charts_collapse">📊 Performance &amp; Collection Analytics</span>
           <span class="collapsible-badge" data-i18n="dash_charts_badge">Charts</span>
           <span class="summary-arrow" aria-hidden="true">▾</span>
         </summary>
-      <section class="dashboard-charts-region" aria-labelledby="dashboardChartsHeading">
+      <section class="dashboard-charts-region" aria-labelledby="dashboardChartsTitle">
         <div class="dashboard-charts-header">
           <p class="eyebrow" data-i18n="dash_charts_eyebrow">VISUAL LEDGER INSIGHTS</p>
-          <h3 id="dashboardChartsHeading" data-i18n="dash_charts_heading">Performance &amp; Collection Analytics</h3>
+          <!-- Home Tab M3 polish (user decision 2026-11-22): the inner h3
+               duplicated the summary title above — deleted; the region now
+               points at the summary span instead (re-pins urdu-auto-phase2:
+               the dash_charts_heading KEY stays in nav-language.js). -->
           <p class="dashboard-charts-sub" data-i18n="dash_charts_caption">Pure client-side offline SVG charts. Real-time ledger calculations.</p>
           <div id="dashboardChartsTabBar" class="dashboard-charts-tabs" role="tablist" aria-label="Chart groups">
             <button type="button" class="dashboard-charts-tab-button is-active" data-charts-tab="revenue" role="tab" aria-selected="true" data-i18n="dash_charts_tab_revenue">Revenue</button>
@@ -856,10 +868,14 @@
                 <h4 class="chart-title" data-i18n="dash_chart_20_title">Delinquency Recovery Pipeline &amp; Escalation Pacing</h4>
                 <p class="chart-subtitle" data-i18n="dash_chart_20_sub">Aging stages, weighted recovery probability, and field collector pacing</p>
               </div>
-              <div>
+              <!-- Home Tab M3 polish (user decision 2026-11-22): the three
+                   actions ride one no-scrollbar scroll row — at 360px the
+                   plain div wrapped them onto two rows. Ids unchanged, so
+                   all three modules' wiring holds. -->
+              <div class="chart-actions-scroll">
                 <button id="dashboardOpenDelinquencyModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Recovery Pipeline</button>
-                <button id="dashboardOpenDuesAgingBtn" class="chart-action-link" type="button" aria-haspopup="dialog" style="margin-left: 8px;">Dues Aging (0–90+d)</button>
-                <button id="dashboardOpenTopDefaultersBtn" class="chart-action-link" type="button" aria-haspopup="dialog" style="margin-left: 8px;">Top Defaulters</button>
+                <button id="dashboardOpenDuesAgingBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Dues Aging (0–90+d)</button>
+                <button id="dashboardOpenTopDefaultersBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Top Defaulters</button>
               </div>
             </div>
             <div id="dashboardDelinquencyChart" class="chart-svg-container" role="img" aria-label="Delinquency Recovery Pipeline and Aging Escalation Chart"></div>
@@ -5889,50 +5905,29 @@
         </div>
       </dialog>
         <!-- Subscriber Count & Tab Isolation: registry & operations cards moved here from <main> (they were loose children rendering on every tab). -->
-        <article class="summary-card summary-pending-works ds-stat ds-stat--pending ops-card" id="pendingWorksSection">
-          <div class="ds-card-head">
+        <!-- Home Tab M3 polish (user decision 2026-11-22): Pending Works
+             leaves the ops-card set and becomes one grouped list row on
+             Home — title + live value subtitle + chevron; the modal
+             carries the detail. The period line and the due-items summary
+             stay in the markup (hidden): the dashboard updater is gated
+             on #pendingWorksSummary and keeps writing the value/period
+             ids, and the subtitle is the value text only (parent Q1). -->
+        <article class="home-ops-row" id="pendingWorksSection">
+          <button id="openPendingWorksModalBtn" class="home-ops-row-btn" type="button">
             <span class="ds-icon-tile" data-ds-icon="Pin" aria-hidden="true"></span>
-            <span class="summary-label" data-i18n="dash_card_pending">Pending Works</span>
-            <strong id="dashboardPendingWorksValue" class="summary-value ds-card-metric">Nothing pending</strong>
-          </div>
-          <p id="dashboardPendingWorksPeriod" class="summary-period">Owner notes &amp; reminders</p>
-          <div id="pendingWorksSummary" class="pending-works-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Pin" aria-hidden="true"></span><span data-i18n="dash_card_pending">Pending Works</span></button>
-          </div>
+            <span class="home-ops-row-text">
+              <span class="home-ops-row-title" data-i18n="dash_card_pending">Pending Works</span>
+              <span id="dashboardPendingWorksValue" class="home-ops-row-sub">Nothing pending</span>
+            </span>
+            <span class="home-ops-row-chevron" aria-hidden="true">›</span>
+          </button>
+          <p id="dashboardPendingWorksPeriod" class="summary-period" hidden>Owner notes &amp; reminders</p>
+          <div id="pendingWorksSummary" class="pending-works-summary" hidden></div>
         </article>
-        <article class="summary-card summary-system-health ds-stat ds-stat--info ops-card" id="systemHealthSection">
-          <div class="ds-card-head">
-            <span class="ds-icon-tile" data-ds-icon="Stethoscope" aria-hidden="true"></span>
-            <span class="summary-label" data-i18n="dash_card_health">System Health</span>
-            <strong id="dashboardSystemHealthValue" class="summary-value ds-card-metric">No records yet</strong>
-          </div>
-          <p id="dashboardSystemHealthPeriod" class="summary-period">All ledgers · counts · storage size</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSystemHealthModalBtn" class="action-btn-sm daily-slip-btn" type="button"><span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="Stethoscope" aria-hidden="true"></span><span data-i18n="dash_btn_health">Health Center</span></button>
-          </div>
-        </article>
-      <!-- Data-safety banner lives at the END of Home: it used to sit above every screen
-           (right under the header), which put a backup warning in the user's face on every
-           app open. It stays a distinct always-expanded section on Home — not collapsed —
-           so Share Backup / Protect Storage remain directly reachable, just one scroll away. -->
-      <aside id="dataSafetyBanner" class="data-loss-warning data-safety-banner" role="note">
-        <div class="data-safety-banner-main">
-          <div class="data-safety-banner-info">
-            <strong>Stored on this device only.</strong>
-            <details class="help-tip backup-help"><summary class="help-icon" aria-label="Backup and local storage guidance" aria-controls="backupGuidance">i</summary><span id="backupGuidance" class="help-tip-content" role="tooltip">Clearing site data, changing browsers or devices, storage eviction, or losing this device can remove the ledger. There is no account or cloud sync.</span></details>
-            <span id="dataSafetyBannerDesc" class="data-safety-desc">No cloud sync. Download or share backups regularly.</span>
-          </div>
-          <div class="data-safety-banner-badges">
-            <span id="dataSafetyBackupBadge" class="safety-badge badge-warning" title="Last backup timestamp">Backup: Checking…</span>
-            <span id="dataSafetyPersistenceBadge" class="safety-badge badge-neutral" title="Browser storage eviction protection status">Storage: Checking…</span>
-          </div>
-          <div class="data-safety-banner-actions">
-            <button id="dataSafetyShareBackupBtn" class="action-btn-sm daily-slip-btn data-safety-share-btn" type="button" title="Send or save JSON backup to WhatsApp or Google Drive">📲 Share Backup</button>
-            <button id="dataSafetyProtectStorageBtn" class="action-btn-sm daily-slip-btn" type="button" title="Ask browser to protect storage from eviction">🛡️ Protect Storage</button>
-          </div>
-        </div>
-      </aside>
+      <!-- Home Tab M3 polish (user decision 2026-11-22): the data-safety
+           banner moved into the More menu (Group 3) as a native row — see
+           there. On Home only a slim critical-only chip remains (above the
+           KPI strip); Share/Protect live in the footer backup controls. -->
     </section>
 
 
@@ -6014,6 +6009,35 @@
            working unchanged. The router returns null for the unknown
            data-mobile-more action, exactly like receipt-verify above. -->
       <button type="button" data-mobile-more="tool-custody" id="openToolCustodyModalBtn" data-i18n="dash_btn_tools">🔧 Tool Register</button>
+
+      <!-- Home Tab M3 polish (user decision 2026-11-22): System Health +
+           the backup card moved here from Home as native More rows (one
+           place only). Same ids throughout, so the app.js updaters and the
+           Health Center binding keep working unchanged; the Health row
+           closes the menu before opening its dialog, the backup row closes
+           the menu and expands the footer backup controls (Share/Protect
+           live in that panel now — parent Q3). The backup (i) is the third
+           NAMED 28px exception (sharafat-96 F4). -->
+      <div id="systemHealthSection">
+      <button type="button" id="openSystemHealthModalBtn" class="more-menu-row-btn">
+        <span class="ds-icon-tile" data-ds-icon="Stethoscope" aria-hidden="true"></span>
+        <span class="more-menu-row-text">
+          <span class="more-menu-row-title" data-i18n="dash_card_health">System Health</span>
+          <span class="more-menu-row-sub"><span id="dashboardSystemHealthValue">No records yet</span><span id="dashboardSystemHealthPeriod">All ledgers · counts · storage size</span></span>
+        </span>
+        <span class="more-menu-row-chevron" aria-hidden="true">›</span>
+      </button>
+      </div>
+      <aside id="dataSafetyBanner" class="data-loss-warning data-safety-banner" role="note">
+        <button type="button" id="dataSafetyBackupRowBtn" class="more-menu-row-btn">
+          <span class="more-menu-row-text">
+            <span class="more-menu-row-title">Stored on this device only.</span>
+            <span class="more-menu-row-sub"><span id="dataSafetyBackupBadge" class="safety-badge badge-warning" title="Last backup timestamp">Backup: Checking…</span><span id="dataSafetyPersistenceBadge" class="safety-badge badge-neutral" title="Browser storage eviction protection status">Storage: Checking…</span></span>
+          </span>
+          <span class="more-menu-row-chevron" aria-hidden="true">›</span>
+        </button>
+        <details class="help-tip backup-help"><summary class="help-icon" aria-label="Backup and local storage guidance" aria-controls="backupGuidance">i</summary><span id="backupGuidance" class="help-tip-content" role="tooltip">Clearing site data, changing browsers or devices, storage eviction, or losing this device can remove the ledger. There is no account or cloud sync.</span></details>
+      </aside>
 
       <!-- Collapsible Section: Operations & Intelligence Tools (moved from Home, #278) -->
       <details class="more-menu-field-details more-menu-ops-details" id="moreMenuOpsToolsDetails">

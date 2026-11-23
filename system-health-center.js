@@ -514,6 +514,11 @@ export function setupSystemHealthCenter({ getState, getStorage, onArchiveExport,
   if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
   const openBtn = typeof document !== 'undefined' ? document.getElementById('openSystemHealthModalBtn') : null;
   if (openBtn) openBtn.addEventListener('click', () => {
+    // Home Tab M3 polish (user decision 2026-11-22): the button moved
+    // into the More menu — close the menu first, the per-button pattern
+    // every other More row follows (the dialog is top-layer either way).
+    const moreMenu = typeof document !== 'undefined' ? document.getElementById('mobileMoreMenu') : null;
+    if (moreMenu) moreMenu.hidden = true;
     lastIntegrity = null;
     render();
     dialog.showModal();

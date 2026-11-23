@@ -1451,6 +1451,34 @@ $('#backupHealthBadge')?.addEventListener('click', () => {
   $('#downloadJsonBackupButton')?.click();
 });
 
+// Home Tab M3 polish (user decision 2026-11-22, parent Q4): the slim
+// backup chip on Home — critical ONLY, never on 'due'. Tap downloads a
+// JSON backup (the #backupHealthBadge precedent above); × dismisses for
+// this session only (sessionStorage, the offline-banner precedent in
+// nav.js — a still-critical backup warns again next session).
+function renderHomeBackupCriticalChip(health, record) {
+  const chip = $('#homeBackupCriticalChip');
+  if (!chip) return;
+  let dismissed = false;
+  try {
+    dismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('shahdara_backup_chip_dismissed') === '1';
+  } catch (_) {}
+  chip.hidden = health.status !== 'critical' || dismissed;
+  const text = $('#homeBackupCriticalChipText');
+  if (text) text.textContent = backupHealthLabelText(health, record.lastExportAt);
+}
+
+$('#homeBackupCriticalChipAction')?.addEventListener('click', () => {
+  $('#downloadJsonBackupButton')?.click();
+});
+$('#homeBackupCriticalChipDismiss')?.addEventListener('click', () => {
+  try {
+    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('shahdara_backup_chip_dismissed', '1');
+  } catch (_) {}
+  const chip = $('#homeBackupCriticalChip');
+  if (chip) chip.hidden = true;
+});
+
 function updateDataSafetyUi(status = null) {
   // Home Dashboard polish (D2): the storage badge reads the SAME
   // SISP-10 health record as the briefing tile, the top-bar badge and
@@ -1496,6 +1524,7 @@ function updateDataSafetyUi(status = null) {
   }
   renderBackupHealthBadge();
   renderBackupPreActionBanners();
+  renderHomeBackupCriticalChip(backupHealth, backupRecord);
 }
 
 const zonedDateTimeParts = date => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone:PAKISTAN_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type,part.value]));
@@ -3842,6 +3871,12 @@ function renderDashboard() {
       : health.totalRecords === 0
         ? t('dash_health_period_empty')
         : t('dash_health_period', null, { size: health.sizeLabel, ledgers: health.ledgerCount });
+    // Home Tab M3 polish (user decision 2026-11-22, parent Q2): the More
+    // row shows value + period, but at zero records the period line reads
+    // oddly appended — hide it so the subtitle is 'No records yet' only.
+    // The ' · ' separator lives in CSS (::before on the period), so it
+    // vanishes with the element.
+    if (healthPeriodEl) healthPeriodEl.hidden = health.totalRecords === 0;
   }
   // SISP-39: lineman monthly scorecard card (resolved complaints across
   // field staff this month; detail lives in the scorecard modal).
@@ -13074,6 +13109,23 @@ async function handleProtectStorageAction() {
 
 $('#shareJsonBackupButton')?.addEventListener('click', handleShareBackupAction);
 $('#dataSafetyShareBackupBtn')?.addEventListener('click', handleShareBackupAction);
+// Home Tab M3 polish (user decision 2026-11-22, parent Q3): the backup
+// row in the More menu closes the menu and expands the footer backup
+// controls — Share/Protect live in that panel now (the banner's own
+// Share/Protect buttons left with the move).
+$('#dataSafetyBackupRowBtn')?.addEventListener('click', () => {
+  const moreMenu = $('#mobileMoreMenu');
+  if (moreMenu) moreMenu.hidden = true;
+  const controls = $('#backupControls');
+  const toggle = $('#backupControlsToggle');
+  if (controls) controls.hidden = false;
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', 'true');
+    toggle.setAttribute('aria-label', 'Hide backup and restore controls');
+    toggle.title = 'Hide backup and restore controls';
+    toggle.scrollIntoView({ block: 'nearest' });
+  }
+});
 // SISP-52: the 1-tap share button inside the Backup Health panel itself.
 $('#shareBackupHealthButton')?.addEventListener('click', handleShareBackupAction);
 // SISP-199: the modal banners' share buttons run the SAME SISP-52 flow, and
@@ -41421,7 +41473,10 @@ function dashboardWidgetOrderPreferenceForCurrentOperator() {
 // they differ — renderDashboard runs on every save, not just on reload.
 // It scopes to the explicit 12-section list, never to all children
 // (61 of the dashboard's 77 children are dialogs). The sections are
-// re-inserted before the data-safety aside, which stays last; the
+// re-inserted before the data-safety aside while it is still a dashboard
+// child — since the Home Tab M3 polish (user decision 2026-11-22) the
+// aside lives in the More menu, so insertBefore with it as the anchor
+// would throw NotFoundError; the guard below appends instead. The
 // dialogs are display:none, so moving the sections past them changes
 // nothing visible except the section order itself.
 function applyDashboardWidgetOrder() {
@@ -41434,7 +41489,7 @@ function applyDashboardWidgetOrder() {
   for (const id of orderedIds) {
     const el = document.getElementById(id);
     if (!el) continue;
-    if (aside) db.insertBefore(el, aside);
+    if (aside && aside.parentNode === db) db.insertBefore(el, aside);
     else db.appendChild(el);
   }
 }

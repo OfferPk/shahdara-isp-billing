@@ -258,6 +258,11 @@ const BARE_GLYPH_ALLOWLIST = [
   // filter (same family as the Mohalla Analytics area-filter chip
   // above) — never a dialog close.
   { file: 'index.html', id: 'clearGlobalSearchChip', why: 'clears the global-search filter chip' },
+  // Home Tab M3 polish (user decision 2026-11-22): the ✕ on the backup
+  // critical chip dismisses only the chip for this session (a
+  // sessionStorage flag) — a chip dismiss, never a dialog close (same
+  // family as the toast dismiss and the field-mode nearby-dismiss).
+  { file: 'index.html', id: 'homeBackupCriticalChipDismiss', why: 'dismisses the backup critical chip for this session' },
 ];
 
 test('SISP-87 audit: bare ✕ / × buttons exist only as allowlisted micro-controls', () => {

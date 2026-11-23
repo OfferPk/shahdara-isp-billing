@@ -58,6 +58,12 @@
 // pins by +5 (6631→6636, 6630→6635, manual log 6635→6640). The heading
 // itself is untouched — only the line numbers move, with this comment as
 // the reason.
+// RE-PINNED 2026-11-22 by the Home Tab M3 polish (user decision
+// 2026-11-22): its index.html edits above the uptime section (analytics
+// h3 deleted, Pending rebuilt as one row, Health + Backup moved to the
+// More menu — net +24 lines) shift all three pins by +24 (6636→6660,
+// 6635→6659, manual log 6640→6664). The heading itself is untouched —
+// only the line numbers move, with this comment as the reason.
 //
 // Census on this base (measured): source-level 8 <h3>s in the Info
 // panel as built after this plan (view heading 1 + 7 detail-section
@@ -65,7 +71,7 @@
 // plan); runtime 7 on the Info tab (the Financial section reads under
 // Billing). The remaining <h3>s, by name: view heading (app.js:8821),
 // 7 detail-section summaries (profile-sections.js:160), manual log
-// (index.html:6640, Complaints tab), receipts summary (app.js:4146),
+// (index.html:6664, Complaints tab), receipts summary (app.js:4146),
 // current bill (app.js:10503).
 //
 // One re-pin, forced by the demotion itself: the 593 census file
@@ -94,8 +100,9 @@ const selfSrc = readFileSync(join(dir, 'plan594-uptime-heading-h4.test.js'), 'ut
 
 const indexLines = indexSrc.split('\n');
 
-// The :6636 line, pinned in full (moved +5 by the Customers search
-// toolbar after the Uptime re-pin below). RE-PINNED 2026-11-22 by the Profile
+// The :6660 line, pinned in full (moved +5 by the Customers search
+// toolbar after the Uptime re-pin below, then +24 by the Home Tab M3
+// polish). RE-PINNED 2026-11-22 by the Profile
 // Uptime polish: the help-info-btn dialog button + the always-visible
 // disclaimer paragraph become a <details class="help-tip"> toggle
 // (collapsed by default) with the note text inside its tooltip span;
@@ -128,11 +135,10 @@ test('Plan 594: uptime section renders an h4 and no h3 anywhere in its heading',
   // Plan 613 — the edit form gains one h3 line above this section,
   // so the pinned lines move +1 (6630→6631, 6629→6630, 6634→6635);
   // the lines themselves are unchanged.
-  // Customers search toolbar — the identifier select moves into the
-  // Filters panel (+3 lines) and the search block is restructured (+2),
-  // so the pinned lines move +5 (6631→6636, 6630→6635, 6635→6640);
-  // the lines themselves are unchanged.
-  assert.equal(lineNo, 6636, 'the uptime heading sits on index.html:6636');
+  // Home Tab M3 polish — its index.html edits above this section net
+  // +24 lines, so the pinned lines move +24 (6636→6660, 6635→6659,
+  // 6640→6664); the lines themselves are unchanged.
+  assert.equal(lineNo, 6660, 'the uptime heading sits on index.html:6660');
   assert.ok(indexLines[lineNo - 1].includes('<h4 id="uptimeHeading" data-i18n="upt_heading">Online / offline time</h4>'), 'the heading is an h4 with the same text and key');
   assert.ok(!indexSrc.includes('<h3 id="uptimeHeading"'), 'no h3 uptime heading remains anywhere');
   assert.ok(indexLines[lineNo - 2].includes('<section class="incident-section uptime-section" aria-labelledby="uptimeHeading">'), 'the section keeps its classes and aria-labelledby');
@@ -157,8 +163,8 @@ test('Plan 594: CLV and package history stay h4 (520/509 pins re-asserted)', () 
 // G2 — The demotion itself: byte-identical except the tag, no line shift.
 
 test('Plan 594: the demoted heading line is byte-identical to the base line except the tag name', () => {
-  assert.equal(indexLines[6635], EXPECTED_UPTIME_LINE, 'the :6636 line matches the pinned line in full');
-  const restored = indexLines[6635]
+  assert.equal(indexLines[6659], EXPECTED_UPTIME_LINE, 'the :6660 line matches the pinned line in full');
+  const restored = indexLines[6659]
     .replace('<h4 id="uptimeHeading"', '<h3 id="uptimeHeading"')
     .replace('Online / offline time</h4>', 'Online / offline time</h3>');
   assert.ok(restored.includes('<h3 id="uptimeHeading" data-i18n="upt_heading">Online / offline time</h3>'), 'swapping the tag back restores the base heading exactly');
@@ -166,7 +172,7 @@ test('Plan 594: the demoted heading line is byte-identical to the base line exce
 
 test('Plan 594: the heading sits on the same line number — no line shift, no panel move', () => {
   const sectionNo = indexLines.findIndex((l) => l.includes('<section class="incident-section uptime-section"')) + 1;
-  assert.equal(sectionNo, 6635, 'the section still opens at :6635');
+  assert.equal(sectionNo, 6659, 'the section still opens at :6659');
   // Plan 617: the share-draft host joins the info group FIRST, so the
   // uptime section is now third in Info, not second — its panel is
   // unchanged (still Info), only its position within the group moved.
@@ -176,7 +182,7 @@ test('Plan 594: the heading sits on the same line number — no line shift, no p
 
 test('Plan 594: the manual-log heading stays h3 with its text unchanged', () => {
   const lineNo = indexLines.findIndex((l) => l.includes('id="incidentHeading"')) + 1;
-  assert.equal(lineNo, 6640, 'the manual-log heading sits on index.html:6640');
+  assert.equal(lineNo, 6664, 'the manual-log heading sits on index.html:6664');
   assert.ok(indexLines[lineNo - 1].includes('<h3 id="incidentHeading" data-i18n="prof_incident_heading">Complaints &amp; outages</h3>'), 'the manual log keeps its h3 and its text');
 });
 
@@ -265,6 +271,6 @@ test('Plan 594: no JS references #uptimeHeading', () => {
   assert.ok(!/uptimeHeading/.test(appSrc), 'app.js never dereferences the id — the fix needs no JS change');
   // The h3s left behind, by name: view heading (app.js:8821), 7
   // detail-section summaries (profile-sections.js:160), manual log
-  // (index.html:6640), receipts summary (app.js:4146), current bill
+  // (index.html:6664), receipts summary (app.js:4146), current bill
   // (app.js:10503). None of them is silently claimed fixed here.
 });

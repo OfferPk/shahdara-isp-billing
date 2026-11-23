@@ -97,7 +97,7 @@ function distinctHex(css) {
 
 // ---------- G1 — Counts ----------
 
-test('G1: index.html carries 1,314 standalone btn-sm tags (and 85 action-btn-sm tags, which are NOT btn-sm)', () => {
+test('G1: index.html carries 1,314 standalone btn-sm tags (and 81 action-btn-sm tags, which are NOT btn-sm)', () => {
   // Spec correction: "837 times" is the number of LINES containing the
   // substring btn-sm (repro B1/S1). The class count is 1,314.
   // Inventory & Materials 2-tab cleanup: the Pending Hardware Recovery
@@ -119,12 +119,18 @@ test('G1: index.html carries 1,314 standalone btn-sm tags (and 85 action-btn-sm 
   // the btn-sm substring count moves 1,405 → 1,399; the standalone
   // btn-sm count (1,314) is unchanged — the deleted buttons were
   // action-btn-sm, not btn-sm.
+  // Home Tab M3 polish (user decision 2026-11-22): four action-btn-sm
+  // buttons leave index.html — Pending Works + System Health become
+  // grouped/menu row buttons (no action-btn-sm class) and the backup
+  // Share/Protect buttons are deleted outright — so the action-btn-sm
+  // count moves 85 → 81 and the btn-sm substring count moves 1,399 →
+  // 1,395; the standalone btn-sm count (1,314) is unchanged.
   assert.equal(countClassToken(html, 'btn-sm'), 1314, 'standalone btn-sm class tokens in index.html');
-  assert.equal(countClassToken(html, 'action-btn-sm'), 85, 'action-btn-sm tags (a different class, own rule)');
+  assert.equal(countClassToken(html, 'action-btn-sm'), 81, 'action-btn-sm tags (a different class, own rule)');
   assert.equal(btnSmButtons.length, 1314, 'btn-sm <button> tags in index.html');
   // Substring counts are reported alongside so the two numbers never get
-  // confused again: 1,399 substring occurrences on 825 lines.
-  assert.equal((html.match(/btn-sm/g) || []).length, 1399, 'substring btn-sm occurrences in index.html');
+  // confused again: 1,395 substring occurrences on 821 lines.
+  assert.equal((html.match(/btn-sm/g) || []).length, 1395, 'substring btn-sm occurrences in index.html');
 });
 
 test('G1: the token counter itself is token-exact (btn-sm vs action-btn-sm)', () => {

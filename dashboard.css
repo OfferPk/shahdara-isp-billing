@@ -466,7 +466,12 @@
   position: sticky;
   top: 78px;
   z-index: 2;
+  /* Home Tab M3 polish (user decision 2026-11-22): hide the gray
+     scrollbar under the 4 tabs — same shape as .profile-tabs /
+     .reports-tabs, the bar stays swipeable. */
+  scrollbar-width: none;
 }
+.dashboard-charts-tabs::-webkit-scrollbar { display: none; }
 
 .dashboard-charts-tab-button {
   min-height: 44px;
@@ -587,6 +592,18 @@
 .chart-action-link:hover {
   background: color-mix(in srgb, var(--color-brand-600) 14%, transparent);
 }
+
+/* Home Tab M3 polish (user decision 2026-11-22): the three delinquency
+   actions ride one no-scrollbar scroll row instead of wrapping onto two
+   rows at 360px. The buttons keep their 44px floor (not a bug). */
+.chart-actions-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 8px;
+  scrollbar-width: none;
+}
+.chart-actions-scroll::-webkit-scrollbar { display: none; }
 
 .chart-action-link:focus-visible {
   outline: 3px solid var(--green);

@@ -74,11 +74,16 @@ test('top bar wraps inside the container instead of clipping', () => {
 });
 
 test('render order is top bar, chart, pacing bar', () => {
+  // Re-pinned at the Home Tab M3 rebase (2026-11-23): S wraps the render
+  // in one .chart-with-topbar column (the shared .chart-svg-container is
+  // a row flex, so a bare top-bar div + SVG sat side by side and squeezed
+  // each other) — the render now starts with the wrapper, the top bar
+  // its first child. The order intent is unchanged.
+  assert.ok(out.startsWith('<div class="chart-with-topbar"><div class="chart-top-bar">'), 'render must start with the wrapper + top bar');
   const topBarAt = out.indexOf('<div class="chart-top-bar">');
   const svgAt = out.indexOf('<svg');
   const svgEnd = out.indexOf('</svg>');
   const pacingAt = out.indexOf('<div class="chart-pacing-bar">');
-  assert.ok(topBarAt === 0, 'render must start with the top bar');
   assert.ok(topBarAt < svgAt && svgAt < svgEnd && svgEnd < pacingAt, 'order must be top bar, chart, pacing bar');
 });
 

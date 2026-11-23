@@ -48,17 +48,20 @@ const ticketsSrc = fs.readFileSync(new URL('../complaint-tickets.js', import.met
 const PICTOGRAPH = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/u;
 const hasPictograph = (s) => PICTOGRAPH.test(s.replace(/[—·]/g, ''));
 
-// The 17 ops cards, in document order. (Reports Status polish,
-// 2026-11-22: the five Billing/Workers cards — complaint-register,
-// field-tickets, monthly-complaint-report, saad-visits,
-// lineman-scorecard — left this list when they became grouped list
-// rows; their modal openers and Reports home are pinned in
-// tests/reports-status-polish.test.js A2/A4.)
+// The 15 ops cards, in document order. (Reports Status polish,
+  // 2026-11-22: the five Billing/Workers cards — complaint-register,
+  // field-tickets, monthly-complaint-report, saad-visits,
+  // lineman-scorecard — left this list when they became grouped list
+  // rows; their modal openers and Reports home are pinned in
+  // tests/reports-status-polish.test.js A2/A4.)
+// Home Tab M3 polish (user decision 2026-11-22): Pending Works + System
+// Health left the ops-card set — Pending is one grouped list row on Home,
+// Health is a native row in the More menu — so the set shrinks 17 -> 15.
+// Everything else in this test still pins the remaining 15 cards exactly.
 const OPS_CARDS = [
-  'summary-pending-works', 'summary-system-health',
   'summary-billing-cycle',
   'summary-group-billing',
-  'summary-downtime-analytics',
+  'summary-downtime-analytics', 
   'summary-upstream-sla', 'summary-fleet-uptime', 'summary-splitter-map',
   'summary-pon-capacity', 'summary-outage-impact', 'summary-daisy-chain',
   'summary-pole-landmark', 'summary-pole-registry', 'summary-power-backup',
@@ -68,16 +71,16 @@ const OPS_CARDS = [
 
 function opsCardBlocks(source) {
   const blocks = [...source.matchAll(/<article[^>]*ops-card[^>]*>[\s\S]*?<\/article>/g)].map((m) => m[0]);
-  assert.equal(blocks.length, 17, `expected 17 ops-card articles, got ${blocks.length}`);
+  assert.equal(blocks.length, 15, `expected 15 ops-card articles, got ${blocks.length}`);
   return blocks;
 }
 
-test('ops cards: all 17 carry the scoped class and a single-row header (tile + title span + metric)', () => {
+test('ops cards: all 15 carry the scoped class and a single-row header (tile + title span + metric)', () => {
   const blocks = opsCardBlocks(html);
   assert.deepEqual(
     blocks.map((b) => (b.match(/class="summary-card (summary-[a-z-]+)/) || [])[1]).sort(),
     [...OPS_CARDS].sort(),
-    'the 17 ops cards are exactly the SCTI D2 set',
+    'the 15 ops cards are exactly the SCTI D2 set',
   );
   for (const block of blocks) {
     assert.ok(block.includes('class="ds-card-head"'), 'each ops card has a .ds-card-head row');
@@ -86,7 +89,7 @@ test('ops cards: all 17 carry the scoped class and a single-row header (tile + t
     assert.match(block, /<strong id="dashboard[a-zA-Z]+" class="summary-value ds-card-metric">/, 'value carries .ds-card-metric');
     assert.ok(!hasPictograph(block), 'no pictograph survives inside an ops card');
   }
-  // Header tiles: 17, button tiles: 18 — counted INSIDE the ops-card
+  // Header tiles: 15, button tiles: 16 — counted INSIDE the ops-card
   // blocks only (other surfaces use the same spans: profile actions,
   // speed dial, …). Fleet + PON have no buttons; the per-card button
   // counts are: Billing 2, Group 1, Downtime 0, SLA 0, Splitter 3,
@@ -94,10 +97,13 @@ test('ops cards: all 17 carry the scoped class and a single-row header (tile + t
   // Recovery 1, Pending 1, Health 1. (Reports Status polish,
   // 2026-11-22: Complaint 2, Field 1, Monthly 1, Saad 1 and
   // Lineman 1 left with the five grouped rows.)
+  // Home Tab M3 polish (user decision 2026-11-22): Pending 1 + Health 1
+  // leave with the two cards, so the counts move 17 -> 15 header tiles
+  // and 18 -> 16 button tiles.
   const headerTiles = blocks.reduce((n, b) => n + ((b.match(/<span class="ds-icon-tile" data-ds-icon="/g) || []).length), 0);
   const buttonTiles = blocks.reduce((n, b) => n + ((b.match(/<span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="/g) || []).length), 0);
-  assert.equal(headerTiles, 17);
-  assert.equal(buttonTiles, 18);
+  assert.equal(headerTiles, 15);
+  assert.equal(buttonTiles, 16);
   // Every icon named on an ops card exists in the DS-0 set.
   for (const block of blocks) {
     for (const [, name] of block.matchAll(/data-ds-icon="([A-Za-z]+)"/g)) {

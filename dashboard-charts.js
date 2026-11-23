@@ -1392,11 +1392,11 @@ export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
 
   const gridLines = gridTicks.map(t => `
     <line x1="${padding.left}" y1="${t.y}" x2="${width - padding.right}" y2="${t.y}" stroke="var(--border, rgba(0,0,0,0.08))" stroke-dasharray="3,3" />
-    <text x="${padding.left - 8}" y="${t.y + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${t.label}</text>
+    <text x="${padding.left - 8}" y="${t.y + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">${t.label}</text>
   `).join('');
 
   const xLabels = seasonalData.months.map((m, idx) => `
-    <text x="${getX(idx)}" y="${height - 18}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="${idx === seasonalData.currentMonthIndex ? '700' : '500'}" fill="${idx === seasonalData.currentMonthIndex ? 'var(--green, #0e5b4d)' : 'var(--muted, #71817c)'}">${m.monthName}</text>
+    <text x="${getX(idx)}" y="${height - 18}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="${idx === seasonalData.currentMonthIndex ? '700' : '500'}" fill="${idx === seasonalData.currentMonthIndex ? 'var(--green, #0e5b4d)' : 'var(--muted, #71817c)'}">${m.monthName}</text>
   `).join('');
 
   let priorYearSvg = '';
@@ -1429,12 +1429,14 @@ export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
     const peakY = getY(seasonalData.peakMonth.currentYearAmount);
     const calloutY = Math.max(peakY - 14, padding.top - 10);
     const peakLabel = `Peak: ${seasonalData.peakMonth.monthName} (${formatPKR(seasonalData.peakMonth.currentYearAmount)})`;
-    const peakLabelW = Math.ceil(peakLabel.length * 6.0) + 18;
+    // Home Tab M3 polish (user decision 2026-11-22): peak label 10 -> 11,
+    // so its width factor grows 6.0 -> ~6.6px/char (measured at 11px).
+    const peakLabelW = Math.ceil(peakLabel.length * 6.6) + 18;
     const peakCalloutX = Math.min(Math.max(peakX, peakLabelW / 2 + 4), width - padding.right - peakLabelW / 2 - 4);
     peakCallout = `
       <g transform="translate(${peakCalloutX}, ${calloutY})" text-anchor="middle">
         <rect x="${-peakLabelW / 2}" y="-12" width="${peakLabelW}" height="15" rx="3.5" fill="#0e5b4d" />
-        <text y="-2" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="#ffffff">${peakLabel}</text>
+        <text y="-2" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="#ffffff">${peakLabel}</text>
       </g>
     `;
   }
@@ -1452,18 +1454,22 @@ export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
     </defs>
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
-    <text x="${width - padding.right}" y="8" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${seasonalData.velocityStatus === 'Accelerating' ? '#047857' : (seasonalData.velocityStatus === 'Contraction' ? '#b91c1c' : '#b45309')}">
+    <text x="${width - padding.right}" y="8" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="${seasonalData.velocityStatus === 'Accelerating' ? '#047857' : (seasonalData.velocityStatus === 'Contraction' ? '#b91c1c' : '#b45309')}">
       YoY: ${ytdStr} (${seasonalData.velocityStatus})
     </text>
 
-    <g transform="translate(${padding.left}, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="10">
+    <!-- Home Tab M3 polish (user decision 2026-11-22): legend 10 -> 11.
+         Re-measured: the current-year text at 11px bold ends ~244
+         absolute, so the prior-year legend moves 170/190/196 ->
+         185/205/211 (prior text then ends ~427 of 600). -->
+    <g transform="translate(${padding.left}, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="11">
       <circle cx="5" cy="-3" r="4" fill="#0e5b4d" />
       <text x="14" y="0" font-weight="700" fill="var(--ink, #182e2a)">${seasonalData.currentYear} YTD: ${formatPKR(seasonalData.currentYearYtdTotal)}</text>
 
       ${seasonalData.hasPriorYearData ? `
-        <line x1="170" y1="-3" x2="190" y2="-3" stroke="#94a3b8" stroke-width="2" stroke-dasharray="3,3" />
-        <circle cx="180" cy="-3" r="2.5" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" />
-        <text x="196" y="0" fill="var(--muted, #71817c)">${seasonalData.priorYear} YTD: ${formatPKR(seasonalData.priorYearYtdTotal)}</text>
+        <line x1="185" y1="-3" x2="205" y2="-3" stroke="#94a3b8" stroke-width="2" stroke-dasharray="3,3" />
+        <circle cx="195" cy="-3" r="2.5" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" />
+        <text x="211" y="0" fill="var(--muted, #71817c)">${seasonalData.priorYear} YTD: ${formatPKR(seasonalData.priorYearYtdTotal)}</text>
       ` : ''}
 
     </g>
@@ -1654,7 +1660,7 @@ export function renderPackageMarginSvg(marginData, options = {}) {
 
     return `
       <g class="margin-row" transform="translate(0, ${y})">
-        <text x="165" y="18" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="600" fill="var(--ink, #182e2a)">
+        <text x="165" y="18" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="600" fill="var(--ink, #182e2a)">
           ${escapeXml(pkg.packageName)} <tspan font-weight="400" fill="var(--muted, #71817c)">(${pkg.subscriberCount})</tspan>
         </text>
 
@@ -1666,7 +1672,7 @@ export function renderPackageMarginSvg(marginData, options = {}) {
           <title>${escapeXml(pkg.packageName)}: Gross Profit ${formatPKR(pkg.grossProfit)} (${pkg.grossMarginPercent}% margin)</title>
         </rect>
 
-        <text x="${barX + totalW + 10}" y="19" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${pkg.grossMarginPercent >= 50 ? '#047857' : (pkg.grossMarginPercent >= 30 ? '#b45309' : '#b91c1c')}">
+        <text x="${barX + totalW + 10}" y="19" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="${pkg.grossMarginPercent >= 50 ? '#047857' : (pkg.grossMarginPercent >= 30 ? '#b45309' : '#b91c1c')}">
           ${pkg.grossMarginPercent}% · ${formatPKR(pkg.grossProfit)}
         </text>
       </g>
@@ -1678,18 +1684,22 @@ export function renderPackageMarginSvg(marginData, options = {}) {
   return `<svg class="chart-svg margin-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Package Margin and Bandwidth Cost Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
-    <g transform="translate(175, 18)" font-family="'DM Sans', system-ui, sans-serif" font-size="10">
+    <!-- Home Tab M3 polish (user decision 2026-11-22): legend 10 -> 11.
+         Re-measured: the first legend text at 11px ends ~188, so the
+         second legend moves 170/184 -> 195/209 (its text then ends ~544
+         of 560 at the largest realistic figures). -->
+    <g transform="translate(175, 18)" font-family="'DM Sans', system-ui, sans-serif" font-size="11">
       <rect x="0" y="-8" width="10" height="10" rx="2" fill="#f87171" />
       <text x="14" y="0" fill="var(--muted, #71817c)">Upstream Cost (${formatPKR(marginData.totalUpstreamCost)})</text>
 
-      <rect x="170" y="-8" width="10" height="10" rx="2" fill="#10b981" />
-      <text x="184" y="0" font-weight="600" fill="var(--ink, #182e2a)">Gross Profit (${formatPKR(marginData.totalGrossProfit)})</text>
+      <rect x="195" y="-8" width="10" height="10" rx="2" fill="#10b981" />
+      <text x="209" y="0" font-weight="600" fill="var(--ink, #182e2a)">Gross Profit (${formatPKR(marginData.totalGrossProfit)})</text>
     </g>
 
     ${rows}
 
     <g transform="translate(${width / 2}, ${footerY})" text-anchor="middle">
-      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="600" fill="var(--muted, #71817c)">
         Blended Margin: <tspan font-weight="700" fill="var(--ink, #182e2a)">${marginData.blendedMarginPercent}%</tspan> · Total Gross Margin: <tspan font-weight="700" fill="#047857">${formatPKR(marginData.totalGrossProfit)}/mo</tspan>
       </text>
     </g>
@@ -2237,8 +2247,11 @@ export function renderFiberDistributionSvg(metrics) {
   // (14 x 0.6em x 15px = 126px + 8px gap = 134, +6 margin).
   // Plot width 120 (420 - 160 - 140). See
   // tests/fiber-hubs-mobile-redesign.test.js for the pinned arithmetic.
+  // Home Tab M3 polish (user decision 2026-11-22): height 240 -> 216 —
+  // the legend left the SVG (see below), so the viewBox shortens; the
+  // width stays 420 (Fiber Hubs).
   const width = 420;
-  const height = 240;
+  const height = 216;
 
   if (!metrics || !metrics.hubs || metrics.hubs.length === 0 || metrics.totalDeployedPorts === 0) {
     // Empty state is OUT OF SCOPE for the mobile redesign — it is SVG-only
@@ -2256,8 +2269,12 @@ export function renderFiberDistributionSvg(metrics) {
     </svg>`;
   }
 
+  // Home Tab M3 polish (user decision 2026-11-22): same as the
+  // delinquency footer above — the legend left the SVG (height 240 ->
+  // 216, bottomPad 36 -> 12, row geometry unchanged) and the return is
+  // one .chart-with-topbar wrapper with a 3-cell strip on top.
   const topPad = 36;
-  const bottomPad = 36;
+  const bottomPad = 12;
   const leftPad = 160;
   const rightPad = 140;
   const plotWidth = width - leftPad - rightPad;
@@ -2322,12 +2339,15 @@ export function renderFiberDistributionSvg(metrics) {
   // HTML chips below the chart at the 11px floor — the same move
   // Telemetry Lab made for the title. Same numbers, labels, order and
   // colour thresholds; labels render uppercase via .chart-metric-label.
-  return `<div class="chart-top-bar"><span class="chart-top-bar-title">Markaz-e-Taqseem-e-Fiber (FDH)</span><span class="chart-metric-strip"><span class="chart-metric-cell"><span class="chart-metric-label">Total Ports</span><span class="chart-metric-value">${metrics.totalDeployedPorts}</span></span><span class="chart-metric-cell"><span class="chart-metric-label">Dark Headroom</span><span class="chart-metric-value" style="color:var(--color-emerald-dark)">${metrics.totalSparePorts}</span></span><span class="chart-metric-cell"><span class="chart-metric-label">Saturation</span><span class="chart-metric-value" style="color:${statusColor}">${metrics.overallSaturationPercent}%</span></span></span></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
+  // Home Tab M3 polish (user decision 2026-11-22): 3-cell strip + one
+  // .chart-with-topbar wrapper (see the delinquency renderer); the legend
+  // is wrapping HTML below the SVG.
+  return `<div class="chart-with-topbar"><div class="chart-top-bar"><span class="chart-top-bar-title">Markaz-e-Taqseem-e-Fiber (FDH)</span></div><div class="chart-metric-strip"><div class="chart-metric-cell"><div class="chart-metric-label">Total Ports</div><div class="chart-metric-value">${metrics.totalDeployedPorts}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Dark Headroom</div><div class="chart-metric-value" style="color:var(--color-emerald-dark)">${metrics.totalSparePorts}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Saturation</div><div class="chart-metric-value" style="color:${statusColor}">${metrics.overallSaturationPercent}%</div></div></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
 
     ${rowsSvg}
-  </svg><div class="chart-legend" role="list" aria-label="Chart legend"><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--active"></span>Active Drops</span><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--offline"></span>Offline Drops</span><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--spare"></span>Dark Headroom (Spare)</span></div>`;
+  </svg><div class="chart-legend" role="list" aria-label="Chart legend"><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--active"></span>Active Drops</span><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--offline"></span>Offline Drops</span><span class="chart-legend-chip" role="listitem"><span class="chart-legend-swatch chart-legend-swatch--spare"></span>Dark Headroom (Spare)</span></div></div>`;
 }
 
 /**
@@ -2627,7 +2647,7 @@ export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
  */
 export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
   const width = 560;
-  const height = 240;
+  const height = 216;
 
   if (!pipelineData || pipelineData.totalDelinquentAccounts === 0 || pipelineData.totalDelinquentDues === 0) {
     return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Delinquency Recovery Pipeline: Clean Ledger">
@@ -2641,8 +2661,13 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
     </svg>`;
   }
 
+  // Home Tab M3 polish (user decision 2026-11-22): the pacing/sector
+  // footer left the SVG for wrapping HTML below it (one centred line
+  // clipped on long area names), so the reserved bottom space shrinks
+  // with it — height 240 -> 216, bottomPad 36 -> 12. Row geometry is
+  // unchanged: (216 - 36 - 12) is the same 168 the rows used before.
   const topPad = 36;
-  const bottomPad = 36;
+  const bottomPad = 12;
   const leftPad = 140;
   const rightPad = 120;
   const plotWidth = width - leftPad - rightPad;
@@ -2695,13 +2720,19 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
   // collided on narrow screens) and is an HTML flex bar above the chart.
   // The pacing line left the SVG too (one 111-char line, ~99% of the
   // viewBox) and is a wrapping HTML bar below the chart.
-  return `<div class="chart-top-bar"><span class="chart-top-bar-title">Khata Wusooli &amp; Aging Pipeline</span><span class="chart-metric-sub">Delinquent: <strong>${pipelineData.totalDelinquentAccounts}</strong> \u00b7 Overdue: <strong style="color:#dc2626">${formatPKR(pipelineData.totalDelinquentDues)}</strong> \u00b7 Net Exp: <strong style="color:var(--color-emerald-dark)">${formatPKR(pipelineData.totalExpectedRecovery)}</strong></span></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
+  // Home Tab M3 polish (user decision 2026-11-22): the bar becomes a
+  // 3-cell .chart-metric-strip, and the whole return is ONE
+  // .chart-with-topbar wrapper — the shared .chart-svg-container is a
+  // row flex, so a bare top-bar div + SVG sat side by side and squeezed
+  // each other. The pacing/sector footer is wrapping HTML below the SVG.
+  // (Disclosed follow-up, not fixed here: a full bar's value label
+  // `x = leftPad + barW + 8` can still run past the right viewBox edge.)
+  return `<div class="chart-with-topbar"><div class="chart-top-bar"><span class="chart-top-bar-title">Khata Wusooli &amp; Aging Pipeline</span></div><div class="chart-metric-strip"><div class="chart-metric-cell"><div class="chart-metric-label">Delinquent:</div><div class="chart-metric-value">${pipelineData.totalDelinquentAccounts}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Overdue:</div><div class="chart-metric-value" style="color:#dc2626">${formatPKR(pipelineData.totalDelinquentDues)}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Net Exp:</div><div class="chart-metric-value" style="color:var(--color-emerald-dark)">${formatPKR(pipelineData.totalExpectedRecovery)}</div></div></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
 
     ${rowsSvg}
-
-  </svg><div class="chart-pacing-bar">Pacing Target: <strong>${formatPKR(pipelineData.dailyPacingTarget)}/day</strong> · Status: <strong style="color:${statusColor}">${escapeXml(pipelineData.pipelineHealthStatus)}</strong> · Highest Dues Sector: <strong>${topAreaText}</strong></div>`;
+  </svg><div class="chart-pacing-bar">Pacing Target: <strong>${formatPKR(pipelineData.dailyPacingTarget)}/day</strong> · Status: <strong style="color:${statusColor}">${escapeXml(pipelineData.pipelineHealthStatus)}</strong> · Highest Dues Sector: <strong>${topAreaText}</strong></div></div>`;
 }
 
 /**

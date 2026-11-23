@@ -161,8 +161,11 @@ test('moved registry cards live in their D2 home views (Subscriber Count & Tab I
   for (const key of ['dash_card_stock', 'dash_drum_card']) {
     inside(`data-i18n="${key}"`, inventoryStart, expensesStart, key);
   }
-  // Home: system health.
-  inside('data-i18n="dash_card_health"', homeStart, homeEnd, 'dash_card_health');
+  // Home: Pending Works stays on Home as one grouped list row.
+  // Home Tab M3 polish (user decision 2026-11-22): System Health moved
+  // to the More menu as a native row, so its label is asserted there now.
+  inside('data-i18n="dash_card_pending"', homeStart, homeEnd, 'dash_card_pending');
+  inside('data-i18n="dash_card_health"', moreStart, page.length, 'dash_card_health');
   // Reports: lineman scorecard.
   inside('data-i18n="dash_card_lineman"', reportsStart, page.length, 'dash_card_lineman');
   // The Field Tools card is DELETED, not moved: its label is gone

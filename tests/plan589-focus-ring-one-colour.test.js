@@ -128,10 +128,15 @@ function findContaining(selFragment, file) {
 const GREEN = 'var(--green)';
 
 // ================= G1 — Counts (rule-aware) =================
-test('G1a styles.css 3px focus tally is the post-589 tally (20 green, 19 exception)', () => {
+test('G1a styles.css 3px focus tally is the post-589 tally (21 green, 19 exception)', () => {
+  // Home Tab M3 polish (user decision 2026-11-22): the new grouped
+  // Pending row button gains a keyboard-focus ring
+  // (.home-ops-row-btn:focus-visible, 3px var(--green), offset 2px),
+  // so the styles.css green tally moves 20 → 21; the 19 exceptions
+  // are unchanged.
   const got = tally(threePx(focusRules('styles.css')));
   assert.deepEqual(got, {
-    'var(--green)': 20, '#cce9dd': 8, '#397b5c': 6, 'var(--line)': 2,
+    'var(--green)': 21, '#cce9dd': 8, '#397b5c': 6, 'var(--line)': 2,
     '#bfe3d5': 1, '#80b9a0': 1, '#9acbad': 1,
   });
   // The baseline blue and the dead-baseline colours are gone from the tally.
@@ -140,10 +145,10 @@ test('G1a styles.css 3px focus tally is the post-589 tally (20 green, 19 excepti
   }
 });
 
-test('G1b repo-wide 3px tally: 78 rules, 47 green, 12 distinct colours', () => {
+test('G1b repo-wide 3px tally: 79 rules, 48 green, 12 distinct colours', () => {
   const got = tally(threePx(allFocus));
-  assert.equal(Object.values(got).reduce((a, b) => a + b, 0), 78);
-  assert.equal(got['var(--green)'], 47);
+  assert.equal(Object.values(got).reduce((a, b) => a + b, 0), 79);
+  assert.equal(got['var(--green)'], 48);
   assert.equal(Object.keys(got).length, 12);
   // Every remaining 2px focus rule is a named D5(a)/D2(b) exception.
   const twoPx = allFocus.filter((r) => r.info && r.info.width === '2px');
@@ -185,13 +190,16 @@ test('G2a --green resolves light #145b4b / dark #29b88f and HAS a dark value', (
 });
 
 test('G2b no in-scope focus rule carries a literal hex or a fallback hex', () => {
-  // The 47th var(--green) 3px rule is the new-customer-tag search input
-  // (.nct-search-input, color-mix 35% at offset 1px) — a RECORDED
+  // The new-customer-tag search input (.nct-search-input, color-mix 35%
+  // at offset 1px) is one of the 48 var(--green) 3px rules — a RECORDED
   // EXCEPTION (D2(b): import/onboarding stays), not an in-scope rule, so
   // it is excluded here and asserted as an exception in G5d's file note.
+  // (Home Tab M3 polish, user decision 2026-11-22: the new
+  // .home-ops-row-btn:focus-visible ring is the 48th green rule and is
+  // in-scope, so the count below moves 46 → 47.)
   const inScope = allFocus.filter((r) => r.info && r.info.width === '3px' && r.info.colour === GREEN
     && !(r.file === 'new-customer-tag.css' && r.sel.includes('.nct-search-input')));
-  assert.equal(inScope.length, 46);
+  assert.equal(inScope.length, 47);
   for (const r of inScope) {
     assert.ok(!r.info.outline.includes('#'),
       `${r.file} ${r.sel} carries a literal hex: ${r.info.outline}`);

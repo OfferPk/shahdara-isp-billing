@@ -343,7 +343,10 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
     'dash_btn_wallet', 'dash_btn_target', 'dash_btn_worklists',
     'dash_target_title', 'dash_target_sub', 'dash_worklists_title', 'dash_worklists_sub',
     'dash_worklists_disc', 'dash_worklists_rec', 'dash_worklists_ready',
-    'dash_charts_collapse', 'dash_charts_badge', 'dash_charts_eyebrow', 'dash_charts_heading', 'dash_charts_caption',
+    'dash_charts_collapse', 'dash_charts_badge', 'dash_charts_eyebrow', 'dash_charts_caption',
+    // Home Tab M3 polish (user decision 2026-11-22): 'dash_charts_heading'
+    // left the data-i18n list with the deleted inner h3 — the KEY stays in
+    // nav-language.js and parity is untouched.
     'dash_prov_title', 'dash_prov_eyebrow', 'dash_prov_heading', 'dash_prov_explainer', 'dash_prov_empty',
     // Pucho + Profile Header Polish: dash_owner_eyebrow is gone (the
     // overline was deleted); dash_owner_voice_btn left the data-i18n list

@@ -173,7 +173,11 @@ test('Plan 514: app.js renders stamp and tick adjacent inside one group, after t
   const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
   const customerShellAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAt);
   const financialShellAt = appSrc.indexOf('${profileSectionFinancialHtml}', customerShellAt);
-  const historyShellAt = appSrc.indexOf('${profileSectionHistoryHtml}', financialShellAt);
+  // Profile Info-tab redesign (user decision 2026-11-22) — History no
+  // longer has its own <details> shell: the grouped list (ending with
+  // the History row) is the last item in the assembly, so it is the
+  // order anchor now.
+  const historyShellAt = appSrc.indexOf('${profileInfoGroupedListHtml}', financialShellAt);
   assert.ok(customerShellAt > stripAt && financialShellAt > customerShellAt && historyShellAt > financialShellAt, 'the group sits after the strip and before the dues breakdown and the last-interaction line');
   assert.ok(customerShellAt < historyShellAt, 'the tick no longer sits after the last-interaction line');
 });

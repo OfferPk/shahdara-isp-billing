@@ -82,7 +82,7 @@ test('profile view polish: Call / WhatsApp anchors sit beside the phone line wit
 // (4) Action group is Edit / Clear dues / Wada / Record payment /
 // Archive (no Delete); exactly one Delete button, inside the danger
 // zone at the end of #customerProfileView, bound by delegation.
-test('profile view polish: Delete leaves the action group for the Info-tab danger zone, bound by delegation', () => {
+test('profile view polish: Delete leaves the action group for the Info-tab delete row, bound by delegation', () => {
   const groupAt = index.indexOf('class="profile-action-group"');
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
   const order = ['editProfileButton', 'clearDuesButton', 'topWadaButton', 'currentBillPaymentShortcut', 'archiveCustomerButton'];
@@ -93,13 +93,16 @@ test('profile view polish: Delete leaves the action group for the Info-tab dange
     previousAt = at;
   }
   assert.ok(!index.includes('id="deleteCustomerButton"'), 'no Delete button remains in the static action group');
-  assert.ok(app.includes('id="deleteCustomerButton"'), 'the zone renders the Delete button with its id');
+  assert.ok(app.includes('id="deleteCustomerButton"'), 'the row renders the Delete button with its id');
   assert.strictEqual((app.match(/deleteCustomerButton/g) || []).length, 2, 'exactly one rendered Delete button plus the delegation branch — no second copy');
-  const zoneAt = app.indexOf('profile-danger-zone');
-  assert.ok(zoneAt > app.indexOf('Object.entries(PROFILE_SECTION_TAB)'), 'the zone is appended after the section-move loop (bottom of the Info tab)');
+  // Profile Info-tab redesign (user decision 2026-11-22) — the danger
+  // zone box is gone; Delete is a slim standalone row at the bottom of
+  // the Info tab, and its help copy lives in the confirm sheet.
+  const rowAt = app.indexOf('profile-delete-row');
+  assert.ok(rowAt > app.indexOf('Object.entries(PROFILE_SECTION_TAB)'), 'the row is appended after the section-move loop (bottom of the Info tab)');
   assert.ok(app.includes("$('#customerProfileView')?.addEventListener('click'"), 'the binding is delegated on #customerProfileView');
   assert.ok(app.includes("event.target.closest('#deleteCustomerButton')"), 'delegation branches on the Delete id');
-  assert.ok(app.includes("t('prof_danger_zone_title')"), 'the zone heading is the i18n Danger zone key');
+  assert.ok(app.includes("t('prof_danger_zone_help')"), 'the delete help copy lives in the confirm sheet');
 });
 
 // (5) Smart Clear dues: disabled + '✓ All Dues Cleared' when the FULL

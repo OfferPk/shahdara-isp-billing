@@ -91,7 +91,7 @@ function storesFor(stores, customerId, otherId) {
 // report 2026-11-13) reverses that last seat: Archive joins Row 1
 // beside Record payment (six buttons) because the user could not
 // find it two taps deep. The order pins below follow the new Row 1.
-test('Polish #24: header row order is Edit → Clear dues → Wada → Record payment → Archive, all visible above the tabs with no disclosure open; Delete lives in the Info-tab danger zone (profile redesign D6, Profile Polish B (10), Archive Button Visibility, Profile View Polish)', () => {
+test('Polish #24: header row order is Edit → Clear dues → Wada → Record payment → Archive, all visible above the tabs with no disclosure open; Delete lives in the Info-tab delete row (profile redesign D6, Profile Polish B (10), Archive Button Visibility, Profile View Polish, Profile Info-tab redesign)', () => {
   const groupAt = index.indexOf('class="profile-action-group"');
   assert.ok(groupAt >= 0, 'action group exists');
   const editAt = index.indexOf('id="editProfileButton"', groupAt);
@@ -100,10 +100,10 @@ test('Polish #24: header row order is Edit → Clear dues → Wada → Record pa
   const recordAt = index.indexOf('id="currentBillPaymentShortcut"', groupAt);
   const archiveAt = index.indexOf('id="archiveCustomerButton"', groupAt);
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
-  // Profile View Polish (user report 2026-11-13): Delete leaves the
-  // header row for the danger zone at the bottom of the Info tab —
-  // it sat right beneath Edit. The five remaining buttons keep their
-  // order; Delete is rendered by app.js into the zone.
+  // Profile Info-tab redesign (user decision 2026-11-22): Delete leaves
+  // the header row for the slim standalone row at the bottom of the
+  // Info tab — it sat right beneath Edit. The five remaining buttons
+  // keep their order; Delete is rendered by app.js as the row.
   assert.ok(editAt > groupAt && clearAt > editAt, 'Edit first, Clear dues second');
   assert.ok(wadaAt > clearAt, 'Wada sits next to Clear dues');
   assert.ok(recordAt > wadaAt, 'Record payment follows Wada');
@@ -111,7 +111,7 @@ test('Polish #24: header row order is Edit → Clear dues → Wada → Record pa
   assert.ok(!index.includes('id="profileNewCustomerButton"'), 'no + New customer button in the header (D6)');
   assert.ok(detailsAt > archiveAt, 'the More actions disclosure still follows the five primary actions');
   assert.ok(!index.includes('id="deleteCustomerButton"'), 'no Delete button in the header row any more');
-  assert.ok(app.includes('class="profile-danger-zone"'), 'Delete is rendered into the danger zone instead');
+  assert.ok(app.includes('class="profile-delete-row"'), 'Delete is rendered as the standalone row instead');
   // None of the five sits inside a <details>: they are direct children
   // of the action group, visible on every tab without opening anything.
   // The slice ends at the <details tag itself, which opens before its
@@ -121,23 +121,23 @@ test('Polish #24: header row order is Edit → Clear dues → Wada → Record pa
   assert.ok(!groupSlice.includes('<details'), 'no disclosure wraps the five primary actions');
 });
 
-test('Polish #24: exactly one Delete button, in the Info-tab danger zone — the header row no longer holds it', () => {
-  // Profile View Polish (user report 2026-11-13): Delete leaves the
-  // header action group for the danger zone at the bottom of the Info
-  // tab. The "exactly one" intent survives; the seat flips from
-  // static markup to the zone rendered by app.js.
+test('Polish #24: exactly one Delete button, in the Info-tab delete row — the header row no longer holds it', () => {
+  // Profile Info-tab redesign (user decision 2026-11-22): Delete leaves
+  // the header action group for the slim standalone row at the bottom
+  // of the Info tab. The "exactly one" intent survives; the seat flips
+  // from static markup to the row rendered by app.js.
   const matches = (app.match(/id="deleteCustomerButton"/g) || []);
   assert.strictEqual(matches.length, 1, 'one Delete control, not two');
   assert.ok(!index.includes('id="deleteCustomerButton"'), 'no Delete button in the static header markup');
-  assert.ok(app.includes('class="profile-danger-zone"'), 'the danger-zone block is rendered by app.js');
-  assert.ok(app.includes("t('prof_danger_zone_title')"), 'the zone heading is the Danger zone key');
+  assert.ok(app.includes('class="profile-delete-row"'), 'the delete row is rendered by app.js');
+  assert.ok(!app.includes("t('prof_danger_zone_title')"), 'the Danger zone heading is gone from the render');
   assert.ok(!index.includes('profileDangerZoneTitle'), 'the danger-zone title is gone');
   assert.ok(!index.includes('prof_danger_title'), 'the dead prof_danger_title key is gone from the page');
   assert.ok(!index.includes('prof_danger_help'), 'the dead prof_danger_help key is gone from the page');
   assert.ok(!lang.includes('prof_danger_title'), 'prof_danger_title removed from both dictionaries');
   assert.ok(!lang.includes('prof_danger_help'), 'prof_danger_help removed from both dictionaries');
-  assert.ok(!app.includes("'.profile-danger-zone'"), 'the Info mount group no longer claims the danger zone');
-  assert.ok(styles.includes('.profile-danger-zone'), 'the danger-zone CSS rules live in styles.css');
+  assert.ok(!app.includes("'.profile-delete-row'"), 'the Info mount group no longer claims the delete row');
+  assert.ok(styles.includes('.profile-delete-row'), 'the delete-row CSS rules live in styles.css');
 });
 
 // Profile Polish B (10) (user request 2026-11-12) swaps the two

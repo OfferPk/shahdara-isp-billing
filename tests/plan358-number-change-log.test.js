@@ -390,7 +390,11 @@ test('wiring: the profile order assertion still holds — banner, strip, then gr
   // section — here the number-change log inside History, after the
   // move-house history and before the mohalla record.
   const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
-  const historyAt = appSrc.indexOf('${profileSectionHistoryHtml}', stripAt);
+  // Profile Info-tab redesign (user decision 2026-11-22) — History no
+  // longer has its own <details> shell: the grouped list (ending with
+  // the History row) is the last item in the assembly, so it is the
+  // order anchor now.
+  const historyAt = appSrc.indexOf('${profileInfoGroupedListHtml}', stripAt);
   assert.ok(stripAt > 0, 'strip is in the profile assembly');
   assert.ok(historyAt > stripAt, 'History section sits after the strip');
   const historyBodyAt = appSrc.indexOf('const profileSectionHistoryBody = ');

@@ -222,7 +222,11 @@ test('wiring: the profile order assertion still holds — banner, strip, then gr
   // still sit directly under the heading, above the strip.
   const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
   const customerAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAt);
-  const historyAt = appSrc.indexOf('${profileSectionHistoryHtml}', customerAt);
+  // Profile Info-tab redesign (user decision 2026-11-22) — History no
+  // longer has its own <details> shell: the grouped list (ending with
+  // the History row) is the last item in the assembly, so it is the
+  // order anchor now.
+  const historyAt = appSrc.indexOf('${profileInfoGroupedListHtml}', customerAt);
   assert.ok(stripAt > 0, 'strip is in the profile assembly');
   assert.ok(customerAt > stripAt, 'sections sit after the strip');
   assert.ok(historyAt > customerAt, 'sections render in order');

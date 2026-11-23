@@ -218,7 +218,11 @@ test('Plan 371: profile order still holds — banner, then strip, then groups', 
   // groups) no longer exists; the preserved intent is strip above the
   // sections and the last-interaction line first in History.
   const stripAt = appSrc.indexOf('profileHeaderStripSectionHtml}');
-  const historyAt = appSrc.indexOf('profileSectionHistoryHtml}');
+  // Profile Info-tab redesign (user decision 2026-11-22) — History no
+  // longer has its own <details> shell: the grouped list (ending with
+  // the History row) is the last item in the assembly, so it is the
+  // order anchor now.
+  const historyAt = appSrc.indexOf('profileInfoGroupedListHtml}');
   assert.ok(stripAt > 0 && historyAt > stripAt);
   const historyBodyAt = appSrc.indexOf('const profileSectionHistoryBody = ');
   const historyBody = appSrc.slice(historyBodyAt, appSrc.indexOf('\n', historyBodyAt));

@@ -139,25 +139,30 @@ test('Plan 593: heading label is escaped before it reaches the page', () => {
 
 // G3 — The census, asserted by name (D1(a) reworded acceptance).
 
-test('Plan 593: post-fix census inside the profile view is 8 h3s — view heading + 7 detail sections', () => {
-  // D1(a): the acceptance is reworded to this measured census. The
-  // seven detail-section <h3>s are a separate item — they live in the
+test('Plan 593: post-fix census inside the profile view is 4 h3s — view heading + 3 detail sections', () => {
+  // Profile Info-tab redesign (user decision 2026-11-22): Connection,
+  // Network, Hardware and History no longer render <details> shells —
+  // they render as rows in ONE grouped list (spans, no h3), so the
+  // view mounts 3 detail sections + the grouped list. D1(a): the
+  // acceptance is reworded to this measured census. The three
+  // detail-section <h3>s are a separate item — they live in the
   // shared profileDetailSectionHtml template and are NOT demoted here.
   assert.equal((sectionsSrc.match(/<h3/g) || []).length, 1, 'the detail-section template carries exactly one h3');
   const viewLine = appSrc.split('\n').find((line) => line.includes("$('#customerProfileView').innerHTML"));
-  const mounted = viewLine.match(/profileSection(?:Customer|Service|Financial|Connection|Network|Hardware|History)Html/g) || [];
+  const mounted = viewLine.match(/profileSection(?:Customer|Service|Financial)Html/g) || [];
   assert.deepEqual(
     [...new Set(mounted)].sort(),
-    ['profileSectionConnectionHtml', 'profileSectionCustomerHtml', 'profileSectionFinancialHtml', 'profileSectionHardwareHtml', 'profileSectionHistoryHtml', 'profileSectionNetworkHtml', 'profileSectionServiceHtml'],
-    'the view mounts exactly the 7 detail sections',
+    ['profileSectionCustomerHtml', 'profileSectionFinancialHtml', 'profileSectionServiceHtml'],
+    'the view mounts exactly the 3 remaining detail sections',
   );
+  assert.ok(viewLine.includes('profileInfoGroupedListHtml'), 'the view mounts the grouped list (4 rows, no h3)');
   assert.equal((viewLine.match(/<h3/g) || []).length, 1, 'the view line carries exactly one h3 (its heading)');
 });
 
 test('Plan 593: the remaining headings are named — uptime h4 on Info (594), manual log h3 on Complaints, two sibling-panel h3s', () => {
-  // Census after Plan 594: 8 h3s inside the view (source); the Info
-  // panel as built holds 8 (uptime is h4 now, so it adds none); at
-  // runtime the Info tab holds 7 (Financial reads under Billing).
+  // Census after the redesign: 4 h3s inside the view (source); the Info
+  // panel as built holds 4 (uptime is h4 now, so it adds none); at
+  // runtime the Info tab holds 3 (Financial reads under Billing).
   // Uptime is h4 — Plan 594 demoted it; the manual log + the two
   // sibling panels keep their h3s. Each remaining heading below is
   // named by its mount, so a later reader cannot mistake this census

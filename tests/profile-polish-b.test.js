@@ -43,15 +43,16 @@ const ui = read('profile-ui.js');
 
 // ------------------------------------------------------------ (10)
 
-test('Polish B (10): top action group holds Edit, Clear dues, Wada, Record payment, Archive — in that order, ahead of More actions; Delete lives in the Info-tab danger zone', () => {
+test('Polish B (10): top action group holds Edit, Clear dues, Wada, Record payment, Archive — in that order, ahead of More actions; Delete lives in the Info-tab delete row', () => {
   const groupAt = index.indexOf('class="profile-action-group"');
   assert.ok(groupAt >= 0, 'action group exists');
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
-  // Profile View Polish (user report 2026-11-13): Delete leaves the
-  // header action group for the danger zone at the bottom of the Info
-  // tab — it sat right beneath Edit, one accidental tap from wiping
-  // the profile and its whole history. The five remaining buttons
-  // keep their order; Delete is rendered by app.js, not index.html.
+  // Profile Info-tab redesign (user decision 2026-11-22): Delete leaves
+  // the header action group for the slim standalone row at the bottom
+  // of the Info tab — it sat right beneath Edit, one accidental tap
+  // from wiping the profile and its whole history. The five remaining
+  // buttons keep their order; Delete is rendered by app.js, not
+  // index.html.
   const order = ['editProfileButton', 'clearDuesButton', 'topWadaButton', 'currentBillPaymentShortcut', 'archiveCustomerButton'];
   let previousAt = groupAt;
   for (const id of order) {
@@ -64,8 +65,8 @@ test('Polish B (10): top action group holds Edit, Clear dues, Wada, Record payme
     assert.strictEqual((index.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1, `exactly one ${id}`);
   }
   assert.ok(!index.includes('id="deleteCustomerButton"'), 'Delete is not in the static action group any more');
-  assert.ok(app.includes('class="profile-danger-zone"'), 'app.js renders the danger zone');
-  assert.ok(app.includes('id="deleteCustomerButton"'), 'Delete is rendered once inside the danger zone');
+  assert.ok(app.includes('class="profile-delete-row"'), 'app.js renders the delete row');
+  assert.ok(app.includes('id="deleteCustomerButton"'), 'Delete is rendered once inside the delete row');
 });
 
 test('Polish B (10): Archive is up in the header action group beside Record payment, NOT in the Payments section', () => {

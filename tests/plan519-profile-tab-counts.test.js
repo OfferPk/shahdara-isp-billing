@@ -143,12 +143,16 @@ test('Plan 519: resolving a complaint refreshes the counts through the register 
 
 test('Plan 519: the static HTML keeps the bare labels for the first paint', () => {
   const html = read('index.html');
-  // Live visual bugs (Nov 2026): the number span carries the user's
-  // middle dot — "1· Billing", "2· Info", "3· Complaints", "4· Baqaya".
-  assert.match(html, /id="profileTabBilling"[^>]*><span class="profile-tab-number" aria-hidden="true">1·<\/span><span class="profile-tab-label" data-i18n="prof_tab_billing">Billing</, 'Billing tab starts as the bare label');
-  assert.match(html, /id="profileTabInfo"[^>]*><span class="profile-tab-number" aria-hidden="true">2·<\/span><span class="profile-tab-label" data-i18n="prof_tab_info">Info</, 'Info tab starts as the bare label');
-  assert.match(html, /id="profileTabComplaints"[^>]*><span class="profile-tab-number" aria-hidden="true">3·<\/span><span class="profile-tab-label" data-i18n="prof_tab_complaints">Complaints</, 'Complaints tab starts as the bare label');
-  assert.match(html, /id="profileTabBaqaya"[^>]*><span class="profile-tab-number" aria-hidden="true">4·<\/span><span class="profile-tab-label" data-i18n="prof_tab_baqaya">Baqaya</, 'Baqaya tab starts as the bare label');
+  // Profile Info-tab redesign (user decision 2026-11-22) — the number
+  // spans are gone: the tabs read Billing / Info / Complaints / Baqaya
+  // with no '1·' '2·' '3·' '4·' prefix, so all four fit at 360px. The
+  // bare-label first paint is unchanged — each tab still carries its
+  // label span with the i18n key, and no number span precedes it.
+  assert.match(html, /id="profileTabBilling"[^>]*><span class="profile-tab-label" data-i18n="prof_tab_billing">Billing</, 'Billing tab starts as the bare label');
+  assert.match(html, /id="profileTabInfo"[^>]*><span class="profile-tab-label" data-i18n="prof_tab_info">Info</, 'Info tab starts as the bare label');
+  assert.match(html, /id="profileTabComplaints"[^>]*><span class="profile-tab-label" data-i18n="prof_tab_complaints">Complaints</, 'Complaints tab starts as the bare label');
+  assert.match(html, /id="profileTabBaqaya"[^>]*><span class="profile-tab-label" data-i18n="prof_tab_baqaya">Baqaya</, 'Baqaya tab starts as the bare label');
+  assert.ok(!html.includes('profile-tab-number'), 'no number span may remain in the tab bar');
 });
 
 test('Plan 519: the count keys exist in both languages with the count param', () => {

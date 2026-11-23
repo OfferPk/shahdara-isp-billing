@@ -9369,6 +9369,26 @@ function renderCustomerProfileView(customer) {
   // Open/closed is read from the per-customer store on every render, so
   // a re-render never resets the operator's choice.
   const profileSectionOpen = loadProfileSectionOpen(localStorage);
+  // Profile Info-tab redesign (user decision 2026-11-22) — the grouped
+  // rows show the same one-line summaries the <details> sections showed,
+  // with the per-part dash rule (Polish #28 Phase B) preserved: each
+  // empty part still dashes on its own. Only a FULLY empty subtitle
+  // reads the muted Not set text instead of '— · —'.
+  function profileInfoRowSubtitle(key, customer, custodyFields, customerComplaints, customerTickets) {
+    if (key === 'connection') {
+      const text = `${customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH} · ${profileEmptyMoney(customer.connectionFee)}`;
+      return text === `${PROFILE_EMPTY_DASH} · ${PROFILE_EMPTY_DASH}` ? t('prof_not_set') : text;
+    }
+    if (key === 'network') {
+      const text = `${profileEmptyText(customer.pppoeUsername)} · ${profileEmptyText(customer.macAddress)}`;
+      return text === `${PROFILE_EMPTY_DASH} · ${PROFILE_EMPTY_DASH}` ? t('prof_not_set') : text;
+    }
+    if (key === 'hardware') {
+      const text = `${profileEmptyText(customer.routerModel)} · ${profileEmptyText(custodyFields.serialNumber)}`;
+      return text === `${PROFILE_EMPTY_DASH} · ${PROFILE_EMPTY_DASH}` ? t('prof_not_set') : text;
+    }
+    return `${t('prof_tab_complaints')} ${customerComplaints.length} · ${t('fdisp_type_ticket')} ${customerTickets.length}`;
+  }
   const profileSectionCustomerBody = `${handlingNoteSectionMarkup}${standingInstructionSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}<section class="profile-freshness-group" aria-label="${t('prof_dfs_heading')}"><h4>${t('prof_dfs_heading')}</h4>${profileFreshnessStampMarkup}${profileVerificationTickSectionMarkup}</section>${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${profileInfoGroupFragments.contact}${profileInfoGroupFragments.location}${welcomePackSectionHtml}${termsAckSectionHtml}`;
   const profileSectionServiceBody = `${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupFragments.service}${profileInfoGroupFragments.lifecycle}${upsellSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${disconnectProfileHtml(customer)}${packageChangeSectionHtml}${qualityLogSectionHtml}${infoCardSectionHtml}`;
   const profileSectionFinancialBody = `${wadaProfileBannerHtml(customer)}${duesBreakdownSectionMarkup}${profileInfoGroupFragments.money}${crossPaymentsMadeSectionMarkup}${referralSectionHtml}${contributorSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${depositSettlementHtml}${depositOffsetHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${firstBillPreviewSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${creditBalanceSectionHtml}`;
@@ -9384,14 +9404,21 @@ function renderCustomerProfileView(customer) {
   // package speed stays visible in the Service group body.
   const profileSectionServiceHtml = profileDetailSectionHtml({ key: 'service', heading: t('prof_sec_service'), summaryHtml: profileServiceStatusPillHtml(serviceState, { wordOnly: true }), body: profileSectionServiceBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'service'), editLabel: t('prof_view_edit') });
   const profileSectionFinancialHtml = profileDetailSectionHtml({ key: 'financial', heading: t('prof_sec_financial'), summary: `Dues ${formatAmount(duesBreakdownFigures.total)} · ${t('prof_field_profit')} ${profit === null ? PROFILE_EMPTY_DASH : formatAmount(profit)}`, body: profileSectionFinancialBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'financial'), editLabel: t('prof_view_edit') });
-  const profileSectionConnectionHtml = profileDetailSectionHtml({ key: 'connection', heading: t('prof_sec_connection'), summary: `${customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH} · ${profileEmptyMoney(customer.connectionFee)}`, body: profileSectionConnectionBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'connection'), editLabel: t('prof_view_edit') });
-  const profileSectionNetworkHtml = profileDetailSectionHtml({ key: 'network', heading: t('prof_sec_network'), summary: `${profileEmptyText(customer.pppoeUsername)} · ${profileEmptyText(customer.macAddress)}`, body: profileSectionNetworkBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'network'), editLabel: t('prof_view_edit') });
-  const profileSectionHardwareHtml = profileDetailSectionHtml({ key: 'hardware', heading: t('prof_sec_hardware'), summary: `${profileEmptyText(customer.routerModel)} · ${profileEmptyText(custodyFields.serialNumber)}`, body: profileSectionHardwareBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'hardware'), editLabel: t('prof_view_edit') });
-  // Polish #28 Phase C — History carries NO Edit button: Table A gives it
-  // zero form fields (history is recorded by the app, never typed in), so
-  // an Edit button would be a dead control with no group to scroll to.
-  const profileSectionHistoryHtml = profileDetailSectionHtml({ key: 'history', heading: t('prof_sec_history'), summary: `${t('prof_tab_complaints')} ${customerComplaints.length} · ${t('fdisp_type_ticket')} ${customerTickets.length}`, body: profileSectionHistoryBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'history') });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="profileQrCardButton" class="secondary-button profile-info-btn-qr" type="button"><span class="ds-action-icon" data-ds-icon="QrCode" aria-hidden="true"></span>${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button profile-info-btn-print" type="button"><span class="ds-action-icon" data-ds-icon="Printer" aria-hidden="true"></span>${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileSectionConnectionHtml}${profileSectionNetworkHtml}${profileSectionHardwareHtml}${profileSectionHistoryHtml}`;
+  // Profile Info-tab redesign (user decision 2026-11-22) — Connection,
+  // Network, Hardware and History render as native rows in ONE grouped
+  // inset list instead of four <details> boxes. Customer, Service and
+  // Financial stay <details> above it, as the spec names only these
+  // four. Each row shows the section title + the subtitle helper's
+  // one-line summary; a tap opens the section in a bottom sheet.
+  // History carries NO Edit entry anywhere (Polish #28 Phase C — zero
+  // form fields), so its sheet is view-only.
+  const profileInfoGroupedListHtml = `<div class="profile-info-grouped-list">`
+    + `<button type="button" class="profile-info-row" data-profile-info-row="connection"><span class="profile-info-row-icon profile-info-row-icon--connection" data-ds-icon="Plug" aria-hidden="true"></span><span class="profile-info-row-text"><span class="profile-info-row-title">${escapeHtml(t('prof_sec_connection'))}</span><span class="profile-info-row-subtitle">${escapeHtml(profileInfoRowSubtitle('connection', customer, custodyFields, customerComplaints, customerTickets))}</span></span><span class="profile-info-row-chevron" data-ds-icon="ChevronRight" aria-hidden="true"></span></button>`
+    + `<button type="button" class="profile-info-row" data-profile-info-row="network"><span class="profile-info-row-icon profile-info-row-icon--network" data-ds-icon="Wifi" aria-hidden="true"></span><span class="profile-info-row-text"><span class="profile-info-row-title">${escapeHtml(t('prof_sec_network'))}</span><span class="profile-info-row-subtitle">${escapeHtml(profileInfoRowSubtitle('network', customer, custodyFields, customerComplaints, customerTickets))}</span></span><span class="profile-info-row-chevron" data-ds-icon="ChevronRight" aria-hidden="true"></span></button>`
+    + `<button type="button" class="profile-info-row" data-profile-info-row="hardware"><span class="profile-info-row-icon profile-info-row-icon--hardware" data-ds-icon="Wrench" aria-hidden="true"></span><span class="profile-info-row-text"><span class="profile-info-row-title">${escapeHtml(t('prof_sec_hardware'))}</span><span class="profile-info-row-subtitle">${escapeHtml(profileInfoRowSubtitle('hardware', customer, custodyFields, customerComplaints, customerTickets))}</span></span><span class="profile-info-row-chevron" data-ds-icon="ChevronRight" aria-hidden="true"></span></button>`
+    + `<button type="button" class="profile-info-row" data-profile-info-row="history"><span class="profile-info-row-icon profile-info-row-icon--history" data-ds-icon="History" aria-hidden="true"></span><span class="profile-info-row-text"><span class="profile-info-row-title">${escapeHtml(t('prof_sec_history'))}</span><span class="profile-info-row-subtitle">${escapeHtml(profileInfoRowSubtitle('history', customer, custodyFields, customerComplaints, customerTickets))}</span></span><span class="profile-info-row-chevron" data-ds-icon="ChevronRight" aria-hidden="true"></span></button>`
+    + `</div>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="profileQrCardButton" class="secondary-button profile-info-btn-qr" type="button"><span class="ds-action-icon" data-ds-icon="QrCode" aria-hidden="true"></span>${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button profile-info-btn-print" type="button"><span class="ds-action-icon" data-ds-icon="Printer" aria-hidden="true"></span>${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileInfoGroupedListHtml}`;
   // Plan 508 — the register complaints list renders on the Complaints tab,
   // after the manual service log that mountCustomerProfileContent moved
   // there at load. The panel is re-rendered per customer, so the previous
@@ -9532,6 +9559,34 @@ function renderCustomerProfileView(customer) {
     if (group) group.scrollIntoView({ block: 'start' });
     if (firstField) firstField.focus({ preventScroll: true });
   }
+  // Profile Info-tab redesign (user decision 2026-11-22) — a grouped
+  // row tap opens the section in the shared bottom sheet (a second
+  // element reusing the mobile Quick Actions sheet's classes; the
+  // singleton is untouched). The sheet shows the section's EXISTING
+  // body HTML verbatim plus an Edit button that opens the full form
+  // at the section — the sheet itself never edits inline. History has
+  // no Edit button (zero form fields). History's sheet also carries
+  // the field-change history, which the render appends to the History
+  // body after assembly (it is not inside profileSectionHistoryBody).
+  function openProfileSectionSheet(key) {
+    const bodyByKey = { connection: profileSectionConnectionBody, network: profileSectionNetworkBody, hardware: profileSectionHardwareBody, history: profileSectionHistoryBody + fieldChangeHistorySectionHtml(customer, fieldChangeList, fieldChangeLabels, { heading: t('prof_fch_heading'), intro: t('prof_fch_intro'), none: t('prof_fch_none'), notSet: t('prof_fch_not_set') }) };
+    const titleByKey = { connection: t('prof_sec_connection'), network: t('prof_sec_network'), hardware: t('prof_sec_hardware'), history: t('prof_sec_history') };
+    const sheet = $('#profileSectionSheet');
+    const backdrop = $('#profileSectionSheetBackdrop');
+    if (!sheet || !backdrop || !bodyByKey[key]) return;
+    const heading = $('#profileSectionSheetHeading');
+    const content = $('#profileSectionSheetContent');
+    const edit = $('#profileSectionSheetEdit');
+    if (heading) heading.textContent = titleByKey[key] || '';
+    if (content) content.innerHTML = bodyByKey[key];
+    if (edit) {
+      edit.hidden = key === 'history';
+      edit.setAttribute('data-profile-section-edit', key);
+      edit.onclick = () => { closeProfileSectionSheet(); openProfileFormAtSection(key); };
+    }
+    wireDsIcons();
+    showProfileSectionSheet();
+  }
   // Polish #28 Phase A — a section toggle persists the operator's
   // choice for this customer, so a re-render (or reload) re-opens the
   // same sections. The render replaces innerHTML, so the choice must
@@ -9549,6 +9604,12 @@ function renderCustomerProfileView(customer) {
       event.stopPropagation();
       openProfileFormAtSection(btn.getAttribute('data-profile-section-edit'));
     });
+  });
+  // Profile Info-tab redesign (user decision 2026-11-22) — the grouped
+  // rows are fresh nodes on every render, like the section Edit buttons
+  // above, so they are wired here per render (no double-bind risk).
+  $('#customerProfileView').querySelectorAll('[data-profile-info-row]').forEach((row) => {
+    row.addEventListener('click', () => openProfileSectionSheet(row.getAttribute('data-profile-info-row')));
   });
   // Profile Polish D (16) — tapping a Service field opens the edit
   // form at that field (the missing-fields checklist pattern: show
@@ -11043,19 +11104,19 @@ function renderCustomerProfileView(customer) {
     const panel = $(`#${profileTabMap[tabName][1]}`);
     if (section && panel) panel.append(section);
   }
-  // Profile View Polish — the danger zone RETURNS at the bottom of
-  // the Info tab (deliberate reversal of Polish #24, same class as
-  // #1393's Archive move): Delete leaves the header action group so
-  // it no longer sits right beneath Edit. Appended AFTER the
-  // section-move loop, so it lands after History, the last Info
-  // section. The button keeps its id, classes, icon and label, so
-  // the e2e #293 shape (zone + 'Danger zone' heading + Delete inside)
-  // is satisfied; the binding is delegated on #customerProfileView
-  // (the module-level binding cannot survive the re-rendered node).
+  // Profile Info-tab redesign (user decision 2026-11-22) — the danger
+  // zone box is gone: Delete is a slim standalone row at the bottom of
+  // the Info tab, opening a confirmation bottom sheet. Appended AFTER
+  // the section-move loop, so it lands after the grouped list, the last
+  // Info content. The row keeps Delete's id (the count-2 pin: one
+  // render + one delegation branch) and its label; the help text moves
+  // into the confirm sheet, and the binding stays delegated on
+  // #customerProfileView (the module-level binding cannot survive the
+  // re-rendered node).
   // Rendered with t() calls, not data-i18n — the static i18n pass
   // never re-runs on innerHTML.
-  $('#customerProfileView').insertAdjacentHTML('beforeend', `<section class="profile-danger-zone" aria-label="${escapeHtml(t('prof_danger_zone_title'))}"><h4>${escapeHtml(t('prof_danger_zone_title'))}</h4><p>${escapeHtml(t('prof_danger_zone_help'))}</p><button id="deleteCustomerButton" class="text-button danger profile-action-btn profile-delete-btn" type="button"><span class="ds-action-icon" data-ds-icon="Trash2" aria-hidden="true"></span> <span>${escapeHtml(t('prof_action_delete'))}</span></button></section>`);
-  // The zone's Trash2 icon is rendered by this function's innerHTML,
+  $('#customerProfileView').insertAdjacentHTML('beforeend', `<button id="deleteCustomerButton" class="profile-delete-row" type="button"><span class="ds-action-icon" data-ds-icon="Trash2" aria-hidden="true"></span>${escapeHtml(t('prof_action_delete'))}</button>`);
+  // The row's Trash2 icon is rendered by this function's innerHTML,
   // after the boot-time wireDsIcons() call, so it needs a re-wire
   // here (idempotent: hooks already filled are skipped).
   wireDsIcons();
@@ -16608,9 +16669,79 @@ $('#editCustomerNameBtn')?.addEventListener('click', () => {
   $('#customerProfileForm').hidden = false;
   jumpToProfileErrorTarget({ kind: 'field', id: 'profileNameInput' });
 });
-// Profile View Polish — Delete lives in the danger zone at the
-// Info-tab bottom now (rendered by renderCustomerProfileView on
-// every render), so the binding is DELEGATED on #customerProfileView:
+// Profile Info-tab redesign (user decision 2026-11-22) — the shared
+// bottom sheet for the Info-tab rows and the Delete confirmation.
+// Mirrors the mobile Quick Actions sheet (nav.js openSheet/closeSheet):
+// hidden toggling + rAF .is-open, backdrop click, Escape, swipe-down
+// (> 75px) dismiss, focus first focusable. The sheet element is static
+// in index.html, so its wiring runs once, lazily, on first show.
+let profileSectionSheetWired = false;
+let profileSectionSheetSwipeStartY = null;
+function wireProfileSectionSheetOnce() {
+  if (profileSectionSheetWired) return;
+  const sheet = document.getElementById('profileSectionSheet');
+  const backdrop = document.getElementById('profileSectionSheetBackdrop');
+  if (!sheet || !backdrop) return;
+  profileSectionSheetWired = true;
+  backdrop.addEventListener('click', () => closeProfileSectionSheet());
+  const closeBtn = document.getElementById('profileSectionSheetClose');
+  if (closeBtn) closeBtn.addEventListener('click', () => closeProfileSectionSheet());
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !sheet.hidden) closeProfileSectionSheet();
+  });
+  sheet.addEventListener('touchstart', (event) => { profileSectionSheetSwipeStartY = event.changedTouches?.[0]?.clientY ?? null; }, { passive: true });
+  sheet.addEventListener('touchmove', (event) => {
+    if (profileSectionSheetSwipeStartY === null) return;
+    const y = event.changedTouches?.[0]?.clientY;
+    if (typeof y === 'number' && y - profileSectionSheetSwipeStartY > 75) { profileSectionSheetSwipeStartY = null; closeProfileSectionSheet(); }
+  }, { passive: true });
+}
+function showProfileSectionSheet() {
+  const sheet = document.getElementById('profileSectionSheet');
+  const backdrop = document.getElementById('profileSectionSheetBackdrop');
+  if (!sheet || !backdrop) return;
+  wireProfileSectionSheetOnce();
+  sheet.hidden = false;
+  backdrop.hidden = false;
+  sheet.setAttribute('aria-hidden', 'false');
+  backdrop.setAttribute('aria-hidden', 'false');
+  requestAnimationFrame(() => { sheet.classList.add('is-open'); backdrop.classList.add('is-open'); });
+  const focusable = sheet.querySelector('button:not([hidden]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  if (focusable) focusable.focus();
+}
+function closeProfileSectionSheet() {
+  const sheet = document.getElementById('profileSectionSheet');
+  const backdrop = document.getElementById('profileSectionSheetBackdrop');
+  if (!sheet || !backdrop) return;
+  sheet.classList.remove('is-open');
+  backdrop.classList.remove('is-open');
+  sheet.hidden = true;
+  backdrop.hidden = true;
+  sheet.setAttribute('aria-hidden', 'true');
+  backdrop.setAttribute('aria-hidden', 'true');
+}
+function openProfileDeleteConfirmSheet(options, onChoice) {
+  const sheet = document.getElementById('profileSectionSheet');
+  const backdrop = document.getElementById('profileSectionSheetBackdrop');
+  if (!sheet || !backdrop) return;
+  const heading = document.getElementById('profileSectionSheetHeading');
+  const content = document.getElementById('profileSectionSheetContent');
+  const edit = document.getElementById('profileSectionSheetEdit');
+  if (heading) heading.textContent = options.title || '';
+  if (edit) { edit.hidden = true; edit.onclick = null; }
+  if (content) {
+    content.innerHTML = `<p class="profile-sheet-note">${escapeHtml(t('prof_danger_zone_help'))}</p><p class="profile-sheet-note">${escapeHtml(options.message || '')}</p><div class="profile-sheet-actions"><button id="profileDeleteConfirmButton" class="profile-delete-confirm" type="button">${escapeHtml(options.confirmLabel || '')}</button><button class="secondary-button" type="button" data-profile-sheet-cancel>${escapeHtml(options.cancelLabel || '')}</button></div>`;
+    const confirmBtn = content.querySelector('#profileDeleteConfirmButton');
+    if (confirmBtn) confirmBtn.addEventListener('click', () => { closeProfileSectionSheet(); onChoice('confirm'); });
+    const cancelBtn = content.querySelector('[data-profile-sheet-cancel]');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => closeProfileSectionSheet());
+  }
+  wireDsIcons();
+  showProfileSectionSheet();
+}
+// Profile View Polish — Delete lives at the Info-tab bottom now
+// (rendered by renderCustomerProfileView on every render as a slim
+// row), so the binding is DELEGATED on #customerProfileView:
 // a load-time query would bind to a dead node (or null) and the tap
 // would do nothing. The handler body is verbatim (confirm text,
 // snapshot, purge, 5-second Undo); selectedCustomer() is read at
@@ -16626,29 +16757,38 @@ $('#customerProfileView')?.addEventListener('click', async (event) => {
   // decision 2026-11-09): deleting a customer deletes the profile AND
   // its entire history — bills, payments, baqaya, wada promises and
   // complaints — whether or not anything is owed. The main use case is
-  // a duplicate profile for one household. The popup says so plainly,
+  // a duplicate profile for one household. The sheet says so plainly,
   // and the 5-second Undo puts everything back.
-  const choice = await appConfirm({ tone:'danger', title:`Are you sure you want to delete ${customer.name}'s profile?`, subject:`#${customer.customerNumber}`, message:'This permanently deletes the profile and all of its history — bills, payments, baqaya, wada promises and complaints. Nothing is kept. You can undo for 5 seconds.', confirmLabel:'Delete', cancelLabel:'Cancel' });
-  if (choice !== 'confirm' || selectedCustomer()?.id !== customer.id) return;
-  await snapshotBeforeDestructiveAction();
-  // Snapshot the whole history BEFORE deleting: the record carries its
-  // bills, payments, baqaya and complaints, and the separate
-  // per-customer stores are purged next — Undo must restore both, or it
-  // restores a bare record with the history gone.
-  const index = state.customers.findIndex(item => item.id === customer.id);
-  const removed = state.customers[index];
-  const removedHistory = purgeCustomerHistoryFromStorage(localStorage, { customerId: customer.id, complaintRefs: (customer.incidents ?? []).map(incident => incident.id).filter(Boolean) });
-  state = deleteCustomer(state, customer.id); selectedCustomerId = null; appShell.classList.remove('show-detail'); save(); renderDetail();
-  toast('Customer deleted from this device.', { type:'success', title:`#${customer.customerNumber} ${customer.name} deleted`, duration:5000, actionLabel:'Undo', onAction: () => {
-    if (state.customers.some(item => item.id === removed.id)) return;
-    restoreCustomerHistoryToStorage(localStorage, removedHistory.removed);
-    const customers = [...state.customers];
-    customers.splice(Math.min(index, customers.length), 0, removed);
-    state = { ...state, customers };
-    save();
-    selectCustomer(removed.id);
-    toast(`#${removed.customerNumber} ${removed.name} restored with all bills and payments.`, { type:'success', title:'Delete undone' });
-  } });
+  // Profile Info-tab redesign (user decision 2026-11-22) — the confirm
+  // is a bottom sheet now, not a modal popup: the copy, the snapshot,
+  // the purge, the delete and the 5-second Undo are unchanged. The
+  // purge options are hoisted to a const first: the inline object
+  // literal's closing brace-paren-semicolon would truncate the
+  // handler's source-slice assertions (profile-info-redesign C7,
+  // polish24 popup-copy) before the delete/Undo lines.
+  openProfileDeleteConfirmSheet({ tone:'danger', title:`Are you sure you want to delete ${customer.name}'s profile?`, subject:`#${customer.customerNumber}`, message:'This permanently deletes the profile and all of its history — bills, payments, baqaya, wada promises and complaints. Nothing is kept. You can undo for 5 seconds.', confirmLabel:'Delete', cancelLabel:'Cancel' }, async (choice) => {
+    if (choice !== 'confirm' || selectedCustomer()?.id !== customer.id) return;
+    await snapshotBeforeDestructiveAction();
+    // Snapshot the whole history BEFORE deleting: the record carries its
+    // bills, payments, baqaya and complaints, and the separate
+    // per-customer stores are purged next — Undo must restore both, or it
+    // restores a bare record with the history gone.
+    const index = state.customers.findIndex(item => item.id === customer.id);
+    const removed = state.customers[index];
+    const purgeOptions = { customerId: customer.id, complaintRefs: (customer.incidents ?? []).map(incident => incident.id).filter(Boolean) };
+    const removedHistory = purgeCustomerHistoryFromStorage(localStorage, purgeOptions);
+    state = deleteCustomer(state, customer.id); selectedCustomerId = null; appShell.classList.remove('show-detail'); save(); renderDetail();
+    toast('Customer deleted from this device.', { type:'success', title:`#${customer.customerNumber} ${customer.name} deleted`, duration:5000, actionLabel:'Undo', onAction: () => {
+      if (state.customers.some(item => item.id === removed.id)) return;
+      restoreCustomerHistoryToStorage(localStorage, removedHistory.removed);
+      const customers = [...state.customers];
+      customers.splice(Math.min(index, customers.length), 0, removed);
+      state = { ...state, customers };
+      save();
+      selectCustomer(removed.id);
+      toast(`#${removed.customerNumber} ${removed.name} restored with all bills and payments.`, { type:'success', title:'Delete undone' });
+    } });
+  });
 });
 $('#uptimeMonthSelect')?.addEventListener('change', (event) => {
   selectedUptimeMonth = event.target.value;

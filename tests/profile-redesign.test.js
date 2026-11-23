@@ -42,12 +42,13 @@ test('profile redesign: billing and actions sit inside the profile card; tabs an
   for (const id of ['detailName', 'profileServiceStatusBadge', 'customerCurrentBillSummary', 'editProfileButton', 'archiveCustomerButton', 'profileMoreActionsDetails', 'customerTechnicalToolsDetails']) {
     assert.ok(card.includes(`id="${id}"`), `${id} is inside the profile card`);
   }
-  // Profile View Polish (user report 2026-11-13): Delete leaves the
-  // card for the danger zone at the bottom of the Info tab — it is
-  // rendered by app.js into #customerProfileView, not static markup.
+  // Profile Info-tab redesign (user decision 2026-11-22): Delete leaves
+  // the card for the slim standalone row at the bottom of the Info tab
+  // — it is rendered by app.js into #customerProfileView, not static
+  // markup.
   assert.ok(!card.includes('id="deleteCustomerButton"'), 'Delete is no longer inside the profile card');
-  assert.ok(app.includes('class="profile-danger-zone"'), 'the danger zone is rendered by app.js');
-  assert.ok(app.includes('id="deleteCustomerButton"'), 'Delete is rendered once inside the danger zone');
+  assert.ok(app.includes('class="profile-delete-row"'), 'the delete row is rendered by app.js');
+  assert.ok(app.includes('id="deleteCustomerButton"'), 'Delete is rendered once inside the delete row');
   const paneStart = index.indexOf('<section id="detailPane"');
   // The pane close is the </section> at the pane's own indent: the
   // first </section> after the pane open is the nested CARD close.
@@ -194,7 +195,7 @@ test('profile redesign: QA holds 29 tools under 6 chips with search, Recent and 
 // the user could not find it two taps deep. The D6 pins below (no +
 // New customer, Edit primary, Delete wired with confirm + 5s undo)
 // are unchanged.
-test('profile redesign: Row 1 is Edit, Clear dues, Wada, Record payment, Archive — no + New customer, Delete in the Info-tab danger zone (D6, Profile Polish B (10), Archive Button Visibility, Profile View Polish)', () => {
+test('profile redesign: Row 1 is Edit, Clear dues, Wada, Record payment, Archive — no + New customer, Delete in the Info-tab delete row (D6, Profile Polish B (10), Archive Button Visibility, Profile View Polish, Profile Info-tab redesign)', () => {
   assert.ok(!index.includes('profileNewCustomerButton'), 'no + New customer button in the profile markup');
   assert.ok(!app.includes('profileNewCustomerButton'), 'no + New customer wiring in app.js');
   const groupAt = index.indexOf('class="profile-action-group"');

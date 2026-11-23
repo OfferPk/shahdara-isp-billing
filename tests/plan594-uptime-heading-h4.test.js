@@ -171,32 +171,36 @@ test('Plan 594: the manual-log heading stays h3 with its text unchanged', () => 
 
 // G3 — The census, asserted by name (D1(a) reworded acceptance).
 
-test('Plan 594: post-fix census in the Info panel as built is 8 h3s — view heading + 7 detail sections', () => {
-  // D1(a): the acceptance is reworded to this measured census. The
-  // seven detail-section <h3>s are a separate item — they live in the
+test('Plan 594: post-fix census in the Info panel as built is 4 h3s — view heading + 3 detail sections', () => {
+  // Profile Info-tab redesign (user decision 2026-11-22): Connection,
+  // Network, Hardware and History no longer render <details> shells —
+  // they render as rows in ONE grouped list (spans, no h3). D1(a): the
+  // acceptance is reworded to this measured census. The three
+  // detail-section <h3>s are a separate item — they live in the
   // shared profileDetailSectionHtml template and are NOT demoted here.
   // Tenure is <h4> since Plan 593 and uptime is <h4> since this plan,
-  // so neither counts. Source total: 8 (view heading 1 + 7 detail
-  // sections); runtime total on the Info tab is 7 (see the next test).
+  // so neither counts. Source total: 4 (view heading 1 + 3 detail
+  // sections); runtime total on the Info tab is 3 (see the next test).
   assert.equal((sectionsSrc.match(/<h3/g) || []).length, 1, 'the detail-section template carries exactly one h3');
   const viewLine = appSrc.split('\n').find((line) => line.includes("$('#customerProfileView').innerHTML"));
-  const mounted = viewLine.match(/profileSection(?:Customer|Service|Financial|Connection|Network|Hardware|History)Html/g) || [];
+  const mounted = viewLine.match(/profileSection(?:Customer|Service|Financial)Html/g) || [];
   assert.deepEqual(
     [...new Set(mounted)].sort(),
-    ['profileSectionConnectionHtml', 'profileSectionCustomerHtml', 'profileSectionFinancialHtml', 'profileSectionHardwareHtml', 'profileSectionHistoryHtml', 'profileSectionNetworkHtml', 'profileSectionServiceHtml'],
-    'the view mounts exactly the 7 detail sections',
+    ['profileSectionCustomerHtml', 'profileSectionFinancialHtml', 'profileSectionServiceHtml'],
+    'the view mounts exactly the 3 remaining detail sections',
   );
+  assert.ok(viewLine.includes('profileInfoGroupedListHtml'), 'the view mounts the grouped list (4 rows, no h3)');
   assert.equal((viewLine.match(/<h3/g) || []).length, 1, 'the view line carries exactly one h3 (its heading)');
   assert.ok(tenureSrc.includes('<h4>'), 'tenure is h4 since Plan 593 — it adds no h3');
   assert.ok(!tenureSrc.includes('<h3'), 'no h3 left in the tenure module');
   assert.ok(indexSrc.includes('<h4 id="uptimeHeading"'), 'uptime is h4 since this plan — it adds no h3');
 });
 
-test('Plan 594: the runtime census is 7 h3s on the Info tab — Financial reads under Billing', () => {
+test('Plan 594: the runtime census is 3 h3s on the Info tab — Financial reads under Billing', () => {
   // At runtime the Financial <details> section moves to Billing on
   // every render, taking one detail-section <h3> (and the CLV <h4>)
-  // with it — so the Info tab holds 7 h3s (view heading + 6 detail
-  // sections + uptime 0), not the source-level 8.
+  // with it — so the Info tab holds 3 h3s (view heading + 2 detail
+  // sections + uptime 0), not the source-level 4.
   assert.ok(appSrc.includes("const PROFILE_SECTION_TAB = { financial: 'billing' };"), 'the Financial section maps to Billing');
   assert.ok(appSrc.includes('panel.append(section)'), 'the move appends the section into its panel');
   const innerTabsSrc = readFileSync(join(dir, 'profile-inner-tabs-overhaul.test.js'), 'utf8');

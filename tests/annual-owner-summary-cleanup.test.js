@@ -214,7 +214,11 @@ test('cleanup: captions are one line; the full rules live in the tooltips', () =
   // now lives verbatim in the audit-explainer — so the count moves 14 → 13.
   // Reports Closing polish: the Saved Monthly Closings intro paragraph
   // moves behind a help-tip (i), so the count moves 13 → 14.
-  assert.equal(html.split('class="help-tip"').length - 1, 14, 'dashboard + three Annual + six Operational + Saad payroll + two More-tab tooltips + Saved Closings intro');
+  // Profile Uptime polish (2026-11-22, rebase 2026-11-23): the uptime
+  // header's always-visible 4-line disclaimer becomes a collapsed
+  // help-tip toggle, so the count moves 14 → 15 (both tooltips exist
+  // in the merged index.html — measured 15, not 14).
+  assert.equal(html.split('class="help-tip"').length - 1, 15, 'dashboard + three Annual + six Operational + Saad payroll + two More-tab tooltips + Saved Closings intro + one Uptime tooltip');
   assert.ok(html.includes('with the pending list ordered by age as the queue the operator works through'), 'enquiry rules kept in its tooltip');
   assert.ok(html.includes('it adds the per-device record those money paths never kept'), 'deposit rules kept in its tooltip');
   assert.ok(html.includes("returning a loan leaves the original device"), 'loan rules kept in its tooltip');

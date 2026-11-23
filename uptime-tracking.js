@@ -420,8 +420,22 @@ export function buildMonthlyUptime(customer, month, referenceDate = new Date(), 
 
   const tenure = summarizeCustomerTenure(customer, referenceDate);
   const lifetimeStartKey = tenure.connectionDate ?? tenure.profileAddedOn ?? null;
+  // Profile Uptime polish (2026-11-22): the connection record is
+  // date-only, but core.js stamps the first service-status entry with
+  // the real activation time. When that stamp falls ON the
+  // lifetime-start date it IS the start — the window opens at the
+  // stamp, not at midnight, so the ONLINE tile agrees with the live
+  // status line (a 23:57 activation reads 17 min, not 23h57m).
+  // Legacy records with no same-day stamp keep the midnight window.
+  const history = sanitizeServiceStatusHistory(customer?.serviceStatusHistory);
+  const firstStampMs = history.length ? history[0].atMs : null;
   let windowStartMs = monthStartMs;
-  if (lifetimeStartKey) windowStartMs = Math.max(windowStartMs, pkMidnightMs(lifetimeStartKey));
+  if (lifetimeStartKey) {
+    windowStartMs = Math.max(windowStartMs, pkMidnightMs(lifetimeStartKey));
+    if (firstStampMs !== null && pkDateKeyOf(firstStampMs) === lifetimeStartKey) {
+      windowStartMs = Math.max(windowStartMs, firstStampMs);
+    }
+  }
   let windowEndMs = Math.min(monthEndMs, nowMinuteMs);
   if (tenure.status === 'ended' && tenure.endDate) {
     windowEndMs = Math.min(windowEndMs, pkMidnightMs(tenure.endDate) + DAY_MINUTES * MINUTE_MS);

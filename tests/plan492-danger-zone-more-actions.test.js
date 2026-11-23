@@ -156,12 +156,19 @@ test('Plan 492: disclosure grid keeps the #302 treatment inside the category gri
 
 // Profile View Polish — the wiring moves with the button: the
 // module-level $('#deleteCustomerButton').addEventListener cannot
-// survive the re-rendered zone node, so the handler is delegated on
-// #customerProfileView instead (same id, same handler body). The
+// survive the re-rendered row node, so the handler is delegated on
+// #customerProfileView (same id, same handler body). The
 // clean-account gate stays REMOVED (polish #24, user decision
 // 2026-11-09).
+// RE-PINNED 2026-11-23 by the Profile Uptime polish rebase: N's R1
+// moved the delegation to #profilePanelInfo with the danger-zone
+// section, but K's merged Info redesign (user decision 2026-11-22)
+// replaced the zone with a slim Delete row that lives in
+// #customerProfileView — and the view is a SIBLING of the panel, not
+// a child, so panel delegation would never fire. Delegation stays on
+// the view; handler body verbatim.
 test('Plan 492: Delete wiring is delegated on #customerProfileView; the clean-account gate is REMOVED (polish #24, Profile View Polish)', () => {
-  assert.ok(app.includes("$('#customerProfileView')?.addEventListener('click'"), 'delete wiring attaches once, delegated on the profile view');
+  assert.ok(app.includes("$('#customerProfileView')?.addEventListener('click'"), 'delete wiring attaches once, delegated on the Info view');
   assert.ok(app.includes("event.target.closest('#deleteCustomerButton')"), 'delegation branches on the Delete id');
   assert.ok(app.includes('deleteCustomerButton'), 'delete handler references the same id');
   assert.ok(!app.includes('customerDeleteCleanCheck'), 'the gate import and its call are gone from app.js');

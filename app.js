@@ -4511,8 +4511,14 @@ function renderUptimePanel(customer) {
   select.innerHTML = months.map(month => `<option value="${month}"${month === selectedUptimeMonth ? ' selected' : ''}>${escapeHtml(displayMonthName(month))}</option>`).join('');
   const summary = buildMonthlyUptime(customer, selectedUptimeMonth, new Date());
   const formatInstant = ms => new Intl.DateTimeFormat(undefined, { dateStyle:'medium', timeStyle:'short', timeZone:PAKISTAN_TIME_ZONE }).format(new Date(ms));
-  const stats = `<div class="uptime-summary-grid"><article class="uptime-stat"><span>${t('upt_online_label')}</span><strong>${escapeHtml(uptimeDurationText(summary.onlineMinutes))}</strong></article><article class="uptime-stat"><span>${t('upt_offline_label')}</span><strong>${escapeHtml(uptimeDurationText(summary.offlineMinutes))}</strong></article><article class="uptime-stat"><span>${t('upt_month_days_label')}</span><strong>${summary.daysInMonth}</strong></article></div>`;
-  const partial = summary.lifetimeClamped && summary.lifetimeStart ? `<p class="uptime-note">${escapeHtml(t('upt_partial_note', null, { date: humanDate(summary.lifetimeStart) }))}</p>` : '';
+  const stats = `<div class="uptime-summary-grid"><article class="uptime-stat uptime-stat--online"><span>${t('upt_online_label')}</span><strong>${escapeHtml(uptimeDurationText(summary.onlineMinutes))}</strong></article><article class="uptime-stat uptime-stat--offline"><span>${t('upt_offline_label')}</span><strong>${escapeHtml(uptimeDurationText(summary.offlineMinutes))}</strong></article><article class="uptime-stat uptime-stat--days"><span>${t('upt_month_days_label')}</span><strong>${summary.daysInMonth}</strong></article></div>`;
+  // Profile Uptime polish (2026-11-22): the two footnotes share one
+  // muted line (partial + none-offline, joined with ' · '), composed
+  // from the existing keys — no new i18n key, parity stays 5,222/5,222.
+  const partialText = summary.lifetimeClamped && summary.lifetimeStart ? t('upt_partial_note', null, { date: humanDate(summary.lifetimeStart) }) : '';
+  const noneOfflineText = summary.periods.length ? '' : t('upt_none_offline');
+  const footnoteText = [partialText, noneOfflineText].filter(Boolean).join(' · ');
+  const footnote = footnoteText ? `<p class="uptime-note">${escapeHtml(footnoteText)}</p>` : '';
   // Live current-status counter (shared with the customer cards).
   // When it already states the very same open offline span, the older
   // "currently offline" line would only repeat it, so it stands down;
@@ -4527,7 +4533,7 @@ function renderUptimePanel(customer) {
       const reason = period.reason || (period.source === 'status' ? t('upt_reason_status') : t('upt_reason_none'));
       return `<li class="uptime-period"><div class="uptime-period-head"><strong>${escapeHtml(uptimeDurationText(period.minutes))}</strong><span>${escapeHtml(range)}</span></div><p class="uptime-period-reason">${escapeHtml(reason)}</p></li>`;
     }).join('')}</ul>`
-    : `<p class="uptime-note">${escapeHtml(t('upt_none_offline'))}</p>`;
+    : '';
   // SISP-189: inherited upstream outages (opt-in). The toggle only
   // appears when an ancestor home actually has a recorded outage in
   // the chosen month — every other profile's panel is byte-identical
@@ -4556,7 +4562,7 @@ function renderUptimePanel(customer) {
     }
     inherited = `${toggle}${detail}`;
   }
-  body.innerHTML = `${liveLine}${stats}${partial}${currently}${periods}${inherited}`;
+  body.innerHTML = `${liveLine}${stats}${footnote}${currently}${periods}${inherited}`;
   body.querySelector('[data-uptime-inherited-toggle]')?.addEventListener('click', () => {
     uptimeInheritedOpen = !uptimeInheritedOpen;
     renderUptimePanel(customer);

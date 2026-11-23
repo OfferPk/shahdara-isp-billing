@@ -116,10 +116,10 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   // exception (.analytics-panel .help-icon) — the user asked for the
   // oversized standalone (i) buttons to shrink. The BASE .help-icon
   // rule stays 40x40 in its own rule (a <summary>, so the button
-  // floor never reaches it), and the 28px exception was the ONLY
-  // sub-40px .help-icon rule until the search toolbar below. Any
-  // further shrink must extend the exceptions by name, not pass
-  // silently.
+  // floor never reaches it), and the named 28px exceptions were
+  // the only sub-40px .help-icon rules until the search toolbar
+  // and the uptime toggle below (20px each). Any further shrink
+  // must extend the exceptions by name, not pass silently.
   // Expenses 3-tab polish (2026-11-20): the Saad payroll card is one
   // compact metric card, so its (i) is a 28px informational trigger —
   // matched to the Month-end 28px standard after #1553 merged — as a
@@ -153,6 +153,13 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   assert.ok(reportsStatus, 'scoped .reports-status-help .help-icon rule present');
   assert.deepEqual(sizes([reportsStatus]).sort((a, b) => a - b), [28, 28, 28],
     'scoped Reports Status (i) is exactly 28px (Reports Status polish, matched to Month-end D5)');
+  // Profile Uptime polish (2026-11-22): the uptime header (i) is a
+  // small inline toggle, so its .help-icon is a 20px NAMED scoped
+  // exception, pinned by name below — the fifth named exception.
+  const uptime = /\.uptime-section\s+\.help-icon\s*\{([^}]*)\}/.exec(stylesNC)?.[1];
+  assert.ok(uptime, 'scoped .uptime-section .help-icon rule present');
+  assert.deepEqual(sizes([uptime]).sort((a, b) => a - b), [20, 20, 20],
+    'scoped uptime (i) is exactly 20px (Profile Uptime polish, inline toggle)');
   const all = sizes(ruleBodies(stylesNC, '.help-icon'));
   assert.ok(all.every((v) => v >= 40 || v === 28 || v === 20),
     'a .help-icon rule other than the named 28px / 20px exceptions carries a sub-40px size');

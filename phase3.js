@@ -407,7 +407,9 @@ function finalizeSummaryGroup(group,includedInAreaRollup=false) {
   return {...group,billedRevenue,outstanding:outstandingAmount,excludedSubscriptions:group.customerCount-group.activeCustomers,
     onlineDenominator:group.online+group.offline,onlinePercent:group.online+group.offline?Number((group.online/(group.online+group.offline)*100).toFixed(1)):null,
     hasBilledRevenue:group.hasBilledRevenue===true,hasBillHistory:group.hasBillHistory===true,
-    arpu:group.activeCustomers&&group.hasBilledRevenue?money(Math.round(group.billedRevenueCents/group.activeCustomers)):null,includedInAreaRollup};
+    // Insights D8: ARPU rounds to whole rupees (the cent-level round kept
+    // two decimals, e.g. 1873.42); package rows keep their own rounding.
+    arpu:group.activeCustomers&&group.hasBilledRevenue?money(Math.round(group.billedRevenueCents/group.activeCustomers/100)*100):null,includedInAreaRollup};
 }
 function sortedGroups(map) { return [...map.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([,value])=>value); }
 
@@ -477,7 +479,8 @@ export function buildPhase3Analytics(state,referenceDate=new Date()) {
   const currentBilledRevenueCents=[...revenueMap.values()].reduce((sum,amount)=>sum+cents(amount),0);
   const currentServiceMonthArpu={billedRevenue:revenueMap.size?money(currentBilledRevenueCents):null,billSnapshotCount:revenueMap.size,
     activeSubscriptions:activeConfiguredSubscriptions,excludedSubscriptions:customerRows.length-activeConfiguredSubscriptions,excludedByReason:exclusionCounts,
-    arpu:activeConfiguredSubscriptions&&revenueMap.size?money(Math.round(currentBilledRevenueCents/activeConfiguredSubscriptions)):null};
+    // Insights D8: whole-rupee ARPU, matching the area roll-ups above.
+    arpu:activeConfiguredSubscriptions&&revenueMap.size?money(Math.round(currentBilledRevenueCents/activeConfiguredSubscriptions/100)*100):null};
 
   const revenueCollection=months.map(month=>{const matchingBills=bills.filter(({bill})=>bill.month===month&&nonblank(bill.dueAmount)&&Number(bill.dueAmount)>0);const matchingPayments=payments.filter(({payment})=>monthOf(payment.date)===month);return {month,billedRevenue:matchingBills.length?matchingBills.reduce((sum,row)=>sum+Number(row.bill.dueAmount),0):null,cashCollection:matchingPayments.length?matchingPayments.reduce((sum,row)=>sum+Number(row.payment.amount||0),0):null,billCount:matchingBills.length,receiptCount:matchingPayments.length};});
   const incomeExpense=months.map(month=>{const matchingPayments=payments.filter(({payment})=>monthOf(payment.date)===month);const matchingExpenses=expenses.filter(row=>monthOf(row.date)===month);return {month,income:matchingPayments.length?matchingPayments.reduce((sum,row)=>sum+Number(row.payment.amount||0),0):null,expenses:matchingExpenses.length?matchingExpenses.reduce((sum,row)=>sum+Number(row.amount||0),0):null,incomeCount:matchingPayments.length,expenseCount:matchingExpenses.length};});
@@ -742,7 +745,14 @@ export function groupAreaIntelligenceCards(rows) {
  *  never mutated. */
 export function buildAreaSummaryCards(rows, hasConnectionDates, formatAmount) {
   const format = typeof formatAmount === 'function' ? formatAmount : value => String(value ?? '');
-  return (rows ?? []).map(row => {
+  const input = rows ?? [];
+  // A 'Zone not set' child card duplicates its roll-up when the area has no
+  // named zones — the roll-up already includes the unzoned subset. When the
+  // area HAS named zones the child is a genuine subset with different figures
+  // and is kept. The table still renders every row; only the cards drop it.
+  const namedZoneParents = new Set(input.filter(row => row.level === 'zone' && row.area !== 'Zone not set' && row.parentArea).map(row => row.parentArea));
+  const visible = input.filter(row => !(row.area === 'Zone not set' && !namedZoneParents.has(row.parentArea)));
+  return visible.map(row => {
     const level = row.level === 'mohalla' ? 'Mohalla' : row.level === 'zone' ? 'Zone' : 'Area';
     const label = row.area === 'Zone not set' ? 'Not set' : String(row.area ?? '').replace(/^(?:Area|Mohalla|Zone):\s*/, '');
     const context = row.parentArea ? `Within ${String(row.parentArea).replace(/^(?:Area|Mohalla|Zone):\s*/, '')}` : 'Area roll-up';

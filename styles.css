@@ -283,6 +283,7 @@ textarea { line-height: 1.5; }
 .summary-value, .phase3-metric strong {
   max-width: 100%;
   margin: 4px 0;
+  text-align:left;
   color: var(--green);
   font-size: clamp(19px, 1.7vw, 25px);
   line-height: 1.2;
@@ -2483,6 +2484,13 @@ section[aria-labelledby="customerRankingHeading"] .owner-filter-details-body{dis
 [data-theme="dark"] .area-intel-count-badge{color:#a2c4b7;background:#1e352d;border-color:#2e4e42}
 .area-intelligence-card{scroll-margin-top:12px}
 .area-intel-header-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+/* Insights (Area Intelligence buttons): the Collections action is the
+   full-width primary on top; Signal + Export sit in a 2-col grid below.
+   Scoped to the Area Intelligence card — the Area Summary and Packages
+   cards reuse the class and keep the wrapping row. */
+.area-intelligence-card .area-intel-header-actions{flex-direction:column;align-items:stretch}
+.area-intelligence-card .area-intel-header-actions .area-intel-primary{width:100%}
+.area-intel-secondary-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .area-intel-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .area-intel-chart-grid .chart-card:last-child{grid-column:1/-1}
 .area-intel-chart-grid .chart-card h4{margin:0;color:#244a3e;font:700 14px Manrope,system-ui,sans-serif}
@@ -2510,6 +2518,12 @@ section[aria-labelledby="customerRankingHeading"] .owner-filter-details-body{dis
 .area-intel-section h5{margin:0 0 8px;color:var(--ink,#244a3e);font-size:13px;overflow-wrap:anywhere}
 .area-intel-section .area-intel-section{margin-inline-start:10px;padding-inline-start:10px;border-inline-start:2px solid var(--line,#dfe9e4);border-top:0;padding-top:0}
 .area-intel-no-zone{margin:8px 0 0;color:var(--muted,#60756c);font-size:11px}
+/* Insights (compact area cards): Profiles + Online % move into the header
+   summary; the four secondary rows sit behind a <details> chevron. */
+.area-intel-card-summary{margin:0;color:var(--muted,#60756c);font-size:11px;font-weight:700}
+.area-intel-more{margin-top:10px}
+.area-intel-more summary{cursor:pointer;color:var(--muted,#60756c);font-size:11px;font-weight:700}
+.area-intel-more .area-intel-metrics{margin-top:8px}
 @media(max-width:700px){.area-intelligence-card .table-scroll{display:none}.area-intelligence-cards{display:grid;gap:12px}}
 /* Narrow-screen card layout for the Area & zone service summary table, same
    pattern as the Area Intelligence cards above: the wide table is kept for

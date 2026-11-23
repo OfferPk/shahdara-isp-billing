@@ -42,7 +42,11 @@ test('business analytics offers local trend charts and a month/date-filtered Are
   assert.match(app,/buildPackageRevenue\(state,\{startDate:from,endDate:to\}/);
   assert.match(app,/signedOneSeriesSvg\(profitRows/);
   assert.match(app,/areaIntelMonth.*addEventListener/);
-  assert.match(index,/Parent rows include their child rows/);
+  // Insights D9: the Area Intelligence helper caption is now the one-line
+  // "Saved bills + receipts; parent rows already include their children —
+  // do not add them twice." — the dashboard still explains the parent/child
+  // rule, in the shorter wording.
+  assert.match(index,/parent rows already include their children — do not add them twice/);
   assert.match(index,/not a historical status snapshot/i);
   assert.doesNotMatch(app,/fetch\s*\(|sendBeacon/);
 });

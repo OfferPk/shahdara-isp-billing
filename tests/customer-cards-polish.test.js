@@ -11,7 +11,7 @@
 // Customer Card Polish (user request 2026-11-12): the 44px avatar is
 // REMOVED from the card — the user asked for no DP, "abhi k lye" (for
 // now). The avatar CSS rule stays only because its #245e4c is counted
-// in the §8.9 608-hex pin; the markup must carry no avatar at all.
+// in the §8.9 610-hex pin; the markup must carry no avatar at all.
 //
 // Fixtures are generic placeholders only — no real customer data.
 import { test } from 'node:test';
@@ -38,12 +38,11 @@ test('polish: card avatar is removed — no DP tile in the card markup', () => {
   assert.ok(!card.includes('initials(customer.name)'), 'no initials rendered on the card');
 });
 
-test('polish: card name is 14.5px via the --text-card-name token', () => {
-  // Phase 1: the name drops 18px -> 14.5px (the 18px name was the
-  // heading's tallest element and, with the service badge, left the
-  // name 0px wide at 320px). Same token, same bold weight, no
+test('polish: card name is 15px via the --text-card-name token', () => {
+  // Customers List Cards polish: the name drops 14.5px -> 15px (spec
+  // text-[15px], parent D2). Same token, same bold weight, no
   // input-box look.
-  assert.match(tokens, /--text-card-name: 14\.5px;/, 'token is 14.5px');
+  assert.match(tokens, /--text-card-name: 15px;/, 'token is 15px');
   // Customers Cards Compact retired the name PILL with the Customer N
   // pill: the name is a plain bold span (flex:1) — same token,
   // same bold weight, no input-box look.
@@ -77,7 +76,7 @@ test('polish: condensed pills replace the metrics boxes (same figures, pill geom
   // live in condensed pills in one flex-start row (B2 — no dead
   // middle). The pills reuse the palette already in the file: the
   // neutral meta/health pills take the ds tokens, the coloured pills
-  // take the health/status hex already present (no new hex — the 608
+  // take the health/status hex already present (no new hex — the 610
   // ratchet is the backstop). Round 2: the meta-pills become ONE
   // muted text line (.customer-card-meta-line) — the meta-pill rule
   // is deleted, and the line carries the muted #475569 text.

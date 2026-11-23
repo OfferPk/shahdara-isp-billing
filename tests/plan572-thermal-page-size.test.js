@@ -189,11 +189,13 @@ test('plan572 G4 braces balanced in styles.css (sharafat-95 C7 shape)', () => {
     'styles.css brace mismatch — the added rules must keep braces balanced');
 });
 
-test('plan572 G4 no new hex: the added lines carry no hex, and the styles.css hex count is unchanged at 608 (T12)', () => {
+test('plan572 G4 no new hex: the added lines carry no hex, and the styles.css hex count is 610 after the Customers List Cards polish (T12)', () => {
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(hexCount(styles), 608, `styles.css hex count moved (${hexCount(styles)})`);
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(hexCount(styles), 610, `styles.css hex count moved (${hexCount(styles)})`);
   // The added lines are ONLY the Plan 572 comment + the two @page rules
   // + the two `page:` lines — slice them precisely (the rest of the
   // thermal block legitimately carries #fff / #000 in its own rules).

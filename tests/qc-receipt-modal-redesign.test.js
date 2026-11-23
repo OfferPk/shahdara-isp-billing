@@ -259,7 +259,7 @@ test('§8.8 actions: primary, output grid, next row, Done, byte-identical sent t
 // of them (#f8fbf9 background, #667b71 label) appeared nowhere else in
 // the sheet, so they left the distinct set entirely. The direction is
 // the ratchet's own: fewer hardcoded colours, never more.
-test('§8.9 ratchet: styles.css still 608 distinct hex; no new store key or element id', () => {
+test('§8.9 ratchet: styles.css still 610 distinct hex; no new store key or element id', () => {
   const stripped = stylesSrc.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
   // 614 → 613 with Customers Cards Compact (item B): deleting the
@@ -267,7 +267,9 @@ test('§8.9 ratchet: styles.css still 608 distinct hex; no new store key or elem
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(distinct.size, 608, 'styles.css must stay at 608 distinct hex (no new hard-coded colour)');
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(distinct.size, 610, 'styles.css must stay at 610 distinct hex (608 + the two spec literals)');
   const storeKeys = [...new Set(quickCollectSrc.match(/shahdara_[a-z0-9_]+/g) || [])].sort();
   assert.deepEqual(storeKeys, ['shahdara_quick_collect_audits_v1', 'shahdara_quick_collect_last_used_v1'], 'controller must add no store key (both are pre-existing)');
   // The success step's element ids are exactly the known set (parsed
@@ -308,7 +310,7 @@ test('§8.10 hex/token map: the redesign rules use DS tokens, never hex literals
     const block = ruleBlock(stylesSrc, selector);
     // QC receipt buttons tint (2026-11-21): the WA block is the ONE
     // exception — it carries the user's specified #25d366 / #128c7e
-    // literals (lowercase; both already occur in styles.css, so the 608
+    // literals (lowercase; both already occur in styles.css, so the 610
     // distinct-hex count does not move). It is exempt from both the
     // no-hex check and the --ds-* check below; the other three blocks
     // stay token-only.

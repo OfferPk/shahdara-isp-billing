@@ -230,8 +230,10 @@ test('S4: density toggle still toggles and persists', () => {
 });
 
 // ---- B1: no new hex in the touched rules ------------------------------
-test('B1: styles.css hex count unchanged (no new hex)', () => {
-  assert.equal(hexCount(styles), 608, 'styles.css stays at 608 distinct hex');
+// 608 → 610 with the Customers List Cards polish (D2): exactly the two
+// spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+test('B1: styles.css hex count is 610 (608 + the two Customers List Cards spec literals, no other new hex)', () => {
+  assert.equal(hexCount(styles), 610, 'styles.css stays at 610 distinct hex');
 });
 
 // ---- B2: filter panel keeps its controls ------------------------------

@@ -46,14 +46,16 @@ function fBlock() {
 
 // ------------------------------------------------------------ ratchets
 
-test('Polish F: styles.css stays at exactly 608 distinct hex colours — no new hex anywhere', () => {
+test('Polish F: styles.css stays at exactly 610 distinct hex colours — no new hex anywhere', () => {
   const distinct = new Set(styles.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
   // 614 → 613 with Customers Cards Compact (item B): deleting the
   // card's health-reasons rule removed its unique hex #62766d.
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(distinct.size, 608, `styles.css has ${distinct.size} distinct hex colours, expected exactly 608`);
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(distinct.size, 610, `styles.css has ${distinct.size} distinct hex colours, expected exactly 610`);
 });
 
 test('Polish F: the F block uses only hex already in the file (ID-pill slots, wada greens/reds, neutrals)', () => {

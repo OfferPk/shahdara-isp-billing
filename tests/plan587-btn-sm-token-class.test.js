@@ -315,7 +315,8 @@ test('G4: the 10 unstyled buttons inside .analytics-btn-row keep padding 0 8px /
 
 test('G5: ratchet baselines hold and parity is 5,229/5,229 (Reports Closing adds dash_khata_open)', () => {
   // Current exact counts (ratchet ceilings in design-tokens-230):
-  // styles.css 608 (<=616), nav.css 164 (<=164), components.css 0 hex.
+  // styles.css 610 (<=616), nav.css 164 (<=164), components.css 0 hex.
+  // (Customers List Cards polish adds the two spec literals navy #1E3A5F + rose-800 #9f1239, 608 → 610.)
   // Re-pin (Reports Closing polish, rebased onto the Reports Register merge): parity 5,228 → 5,229 — the item adds
   // exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR.
   // If the Reports Register polish (+5 keys) merges first, re-pin to 5,229.

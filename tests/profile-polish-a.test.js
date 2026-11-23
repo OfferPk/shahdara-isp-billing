@@ -149,7 +149,7 @@ test('Polish A (9): the received stat renders only when receipts exist', () => {
 
 // ------------------------------------------------------------ ratchet
 
-test('Polish A ratchet: styles.css still 608 distinct hex (no new hard-coded colour)', () => {
+test('Polish A ratchet: styles.css still 610 distinct hex (no new hard-coded colour)', () => {
   const styles = read('styles.css');
   const stripped = styles.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
@@ -162,7 +162,9 @@ test('Polish A ratchet: styles.css still 608 distinct hex (no new hard-coded col
   // filter month) and #97d7bd (view-nav/phase3 group) were re-tokened
   // to var(--green), and the dark input rule's #1a5845 was re-tokened
   // to var(--green). Five distinct hex leave, none added.
-  assert.equal(distinct.size, 608, 'styles.css must stay at 608 distinct hex (no new hard-coded colour)');
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(distinct.size, 610, 'styles.css must stay at 610 distinct hex (608 + the two spec literals)');
 });
 
 test('Polish A: no real customer names or phone numbers in this test', () => {

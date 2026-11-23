@@ -608,7 +608,9 @@ test('G5: the dark selected rule exists and adds no new hex', () => {
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(distinct.size, 608, 'styles.css stays at 608 distinct hex (no new hard-coded colour)');
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(distinct.size, 610, 'styles.css stays at 610 distinct hex (608 + the two spec literals)');
 });
 
 test('G5: no new import edge — the FCS module is never imported or called', () => {

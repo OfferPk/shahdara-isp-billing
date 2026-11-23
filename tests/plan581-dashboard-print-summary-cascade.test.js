@@ -347,13 +347,15 @@ test('fences: dashboard.css distinct hex stays 84 (no colour smuggled into the f
   assert.equal(distinct.size, 84, `dashboard.css must stay at 84 distinct hex colours, got ${distinct.size}`);
 });
 
-test('fences: styles.css distinct hex stays 608 (the reminder display line adds no colour)', () => {
+test('fences: styles.css distinct hex stays 610 (the reminder display line adds no colour; 608 → 610 is the Customers List Cards polish)', () => {
   const stripped = stylesCss.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(distinct.size, 608, `styles.css must stay at 608 distinct hex colours, got ${distinct.size}`);
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(distinct.size, 610, `styles.css must stay at 610 distinct hex colours, got ${distinct.size}`);
 });
 
 test('fences: @media print blocks stay balanced and dashboard.css gains no page: assignment', () => {

@@ -281,7 +281,7 @@ test('Polish B (14): the four strip pills have all different colours', () => {
 
 // ------------------------------------------------------------ ratchet
 
-test('Polish B ratchet: styles.css still 608 distinct hex (no new hard-coded colour)', () => {
+test('Polish B ratchet: styles.css still 610 distinct hex (no new hard-coded colour)', () => {
   const stripped = styles.replace(/\/\*[\s\S]*?\*\//g, '');
   const distinct = new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
   // 614 → 613 with Customers Cards Compact (item B): deleting the
@@ -289,7 +289,9 @@ test('Polish B ratchet: styles.css still 608 distinct hex (no new hard-coded col
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(distinct.size, 608, 'styles.css must stay at 608 distinct hex (no new hard-coded colour)');
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(distinct.size, 610, 'styles.css must stay at 610 distinct hex (608 + the two spec literals)');
 });
 
 test('Polish B: no real customer names or phone numbers in this test', () => {

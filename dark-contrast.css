@@ -171,6 +171,24 @@
 [data-theme="dark"] .customer-service-active { background: #14382a !important; color: #8fe0b6 !important; border-color: #2c5c46 !important; }
 [data-theme="dark"] .customer-service-offline { background: #402a24 !important; color: #ffb4a8 !important; border-color: #6e453c !important; }
 [data-theme="dark"] .customer-service-not-set { background: var(--dk-surface-2) !important; color: var(--dk-muted) !important; border-color: var(--dk-line) !important; }
+/* Customers List Cards polish: the dark-theme values for the
+   directory-card name colours (billing-driven, same classes as
+   styles.css) and the meta chips. 0 new hex — every value is already
+   in this sheet (the plan590 G5a pin): the paid name takes the sky
+   token, pending the pink token, not-set the muted token; chips take
+   dark surface/border tokens plus the existing sky/green/pink/amber
+   values. All !important, like the rest of this sheet. */
+[data-theme="dark"] .customer-card-name--paid { color: #9cc2f0 !important; }
+[data-theme="dark"] .customer-card-name--pending { color: #ffb4a8 !important; }
+[data-theme="dark"] .customer-card-name--not-set { color: var(--dk-muted) !important; }
+[data-theme="dark"] .customer-card-meta-chip--active { background: #14382a !important; color: #8fe0b6 !important; border-color: #2c5c46 !important; }
+[data-theme="dark"] .customer-card-meta-chip--offline { background: #402a24 !important; color: #ffb4a8 !important; border-color: #6e453c !important; }
+[data-theme="dark"] .customer-card-meta-chip--not-set { background: var(--dk-surface-2) !important; color: var(--dk-muted) !important; border-color: var(--dk-line) !important; }
+[data-theme="dark"] .customer-card-meta-chip--area { background: #16283f !important; color: #9cc2f0 !important; border-color: var(--dk-line) !important; }
+[data-theme="dark"] .customer-card-meta-chip--package { background: var(--dk-surface-2) !important; color: #9cc2f0 !important; border-color: var(--dk-line) !important; }
+[data-theme="dark"] .customer-card-meta-chip--package-not-set { background: var(--dk-surface-2) !important; color: var(--dk-muted) !important; border-color: var(--dk-line) !important; }
+[data-theme="dark"] .customer-card-meta-chip--ref { background: #3a2c10 !important; color: #f6cf7a !important; border-color: var(--dk-line) !important; }
+[data-theme="dark"] .customer-card-meta-chip--lifetime { background: #1e3d31 !important; color: #8fe0b6 !important; border-color: var(--dk-line) !important; }
 /* Compact customer cards: row labels + sub-line use the muted dark text;
    the outstanding value stays ink-bright like the stat values. */
 [data-theme="dark"] :is(.customer-card-subline, .customer-card-meta-line, .customer-card-row, .customer-card-row-sub) { color: var(--dk-muted) !important; }

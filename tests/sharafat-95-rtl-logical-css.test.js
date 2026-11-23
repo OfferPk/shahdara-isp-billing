@@ -206,11 +206,13 @@ test('F20 margin-left:0 breakpoint overrides convert', () => {
 // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
 // (its only occurrence) is re-tokened to var(--color-brand-700).
 // Title + assert move together (Plan 586 rule).
-test('C1 hex pins hold (styles.css 608 / nav.css 163, no new hex)', () => {
+test('C1 hex pins hold (styles.css 610 / nav.css 163, no new hex)', () => {
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(hexCount(styles), 608, `styles.css hex count moved (${hexCount(styles)})`);
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(hexCount(styles), 610, `styles.css hex count moved (${hexCount(styles)})`);
   assert.equal(hexCount(nav), 163, `nav.css hex count moved (${hexCount(nav)})`);
 });
 

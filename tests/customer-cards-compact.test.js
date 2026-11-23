@@ -159,7 +159,7 @@ test('cards: header is [#N] badge + Bold Name + status pill + billing pill, badg
 
 test('cards: muted line is Father/ref + Mohalla · package in one line, mohalla in Title Case', () => {
   // Round 2: the two meta-pills become ONE muted text line
-  // (customer-card-meta-line) — `Charyaa • 3Mbps/100GB • Ref: …`.
+  // (customer-card-meta-line) — `Charyaa • 3Mbps/100GB • Ref: …` (Customers List Cards polish: colour-coded chips now, same segments, no ' • ' join).
   assert.ok(card.includes('customer-card-meta-line'), 'muted-line class exists');
   assert.ok(!card.includes('customer-card-meta-pill'), 'meta-pill class is gone from the card');
   assert.ok(card.includes("customer.mohalla || customer.zone"), 'mohalla falls back to zone');
@@ -183,9 +183,9 @@ test('cards: Lifetime + tenure are TWO condensed pills in one row', () => {
   assert.equal(TRANSLATIONS.en.cust_card_recorded_receipts, undefined, 'recorded-receipts key deleted from the English dict');
   assert.equal(TRANSLATIONS.ur.cust_card_recorded_receipts, undefined, 'recorded-receipts key deleted from the Urdu dict');
   assert.ok(card.includes("t('cust_card_tenure_months_short'"), 'tenure months label exists');
-  // Round 2 (D9): the tenure is compact "N mos (Mon 'YY)" — the
-  // 'since {date}' key is deleted (its only production user was the
-  // card); the months key stays for the "N mos" half.
+  // Customers List Cards polish (D8): the tenure is just "N mos" — the
+  // "(Mon 'YY)" suffix leaves the card; the months key stays for the
+  // "N mos" text.
   assert.ok(!card.includes("t('cust_card_tenure_since_short'"), 'tenure since label is gone from the card');
   assert.equal(TRANSLATIONS.en.cust_card_tenure_months_short, '{n} mos');
   assert.equal(TRANSLATIONS.en.cust_card_tenure_since_short, undefined, 'tenure since key deleted from the English dict (Round 2 D9)');
@@ -234,7 +234,7 @@ test('cards: outstanding row is gated on total > 0, with the baqaya breakdown as
 });
 
 test('cards: health is ONE pill, reasons are deleted from the card but live in the profile', () => {
-  // D-B2: `Health: NN/100 · Good` — one pill, score band coloured; the
+  // D-B2: `NN/100 · Good` (Customers List Cards polish: the "Health: " prefix drops; null score still "Health: New") — one pill, score band coloured; the
   // no-score case is a neutral meta-pill, never red. Round 2 (D3a):
   // the pill ALSO carries a CATEGORY class (.health-risk /
   // .health-critical) so the colour follows the word — the band class
@@ -417,7 +417,7 @@ test('cards: compact styles — pill rows flex-start, action row, no deleted rul
 // PHASE 1 (measure-p1-worktree.mjs, base 45362300 + this change,
 // Chromium headless shell — the standalone lifetime/tenure pill row
 // is deleted, Lifetime rides the meta line, tenure rides the health
-// row, the service badge leaves the heading, the name is 14.5px):
+// row, the service badge leaves the heading, the name is 15px (14.5px at measurement time):
 // 360px — paid-up 158.7, paid-up+Ref 158.7, owed 189.7, baqaya 235.0,
 // worst long name 189.7, Risk 63 / Critical 50 / Risk 75 189.7;
 // 320px — paid-up 158.7, paid-up+Ref 158.7, owed 189.7, baqaya 235.0,

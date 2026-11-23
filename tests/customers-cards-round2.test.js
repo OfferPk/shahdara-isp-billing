@@ -1,7 +1,7 @@
 // Customers Directory Cards — ROUND 2 Ultra-Compact (user request
 // 2026-11-17, screenshot-driven follow-up to Round 1): the ＋ Additional
 // button becomes a 24px micro-pill on the health row; the two meta-pills
-// become ONE muted text line; the tenure shortens to "N mos (Mon 'YY)"
+// become ONE muted text line; the tenure shortens to "N mos" (List Cards polish D8: the "(Mon 'YY)" suffix leaves the card)
 // and hides when no connection date is set; the Health pill colours by
 // CATEGORY (Risk → amber, Critical → rose); the action bar tightens to
 // 36px with a "Profile" button (IdCard icon).
@@ -312,17 +312,25 @@ test('r2 R1e: archived / FREE cards render no ＋ Additional; a baqaya card rend
 
 // ---------- R2 — muted line (6) ----------
 
-test('r2 R2a: the muted line reads mohalla • package • Ref in order, slash compacted', () => {
+test('r2 R2a: the meta line reads mohalla • package • Ref in order, slash compacted (List Cards polish: chips)', () => {
   const { state, customer } = paidUpState();
   const html = renderCard(customer, state);
-  assert.ok(html.includes('customer-card-meta-line'), 'muted line class exists');
+  assert.ok(html.includes('customer-card-meta-line'), 'meta line class exists');
   const lineAt = html.indexOf('customer-card-meta-line');
   // Phase 1: the meta line's first segment is a nested status span,
   // so the first `</span>` after the line start is the STATUS span's
   // close, not the line's. The line's own close is followed by
   // `</button>` (the outer button closes right after the meta line).
   const line = html.slice(lineAt, html.indexOf('</button>', lineAt));
-  assert.ok(line.includes('Charyaa • 3Mbps/100GB • Ref:'), `line reads "Charyaa • 3Mbps/100GB • Ref: …": ${line}`);
+  // Customers List Cards polish: the segments are colour-coded chips now
+  // (no ' • ' join — the flex gap does the spacing), so the order is
+  // asserted on the chip spans, not on a dot-separated string.
+  const areaAt = line.indexOf('customer-card-meta-chip--area');
+  const pkgAt = line.indexOf('customer-card-meta-chip--package');
+  const refAt = line.indexOf('customer-card-meta-chip--ref');
+  assert.ok(areaAt > -1 && pkgAt > areaAt && refAt > pkgAt, 'chips read mohalla • package • Ref in order');
+  assert.ok(line.includes('>Charyaa<'), 'mohalla chip reads Charyaa');
+  assert.ok(line.includes('>3Mbps/100GB<'), 'package chip reads 3Mbps/100GB');
   assert.ok(!line.includes('3Mbps / 100GB'), 'package slash is compacted (no spaces around /)');
   assert.ok(line.includes('Reference Person'), 'ref name rides on the line');
 });
@@ -333,14 +341,16 @@ test('r2 R2b: meta pills are gone — markup and CSS rule both', () => {
   assert.ok(!app.includes('customer-card-meta-pill'), 'no meta-pill anywhere in app.js');
 });
 
-test('r2 R2c: no-Ref case renders the line without the Ref segment', () => {
+test('r2 R2c: no-Ref case renders the line without the Ref segment (List Cards polish: chips)', () => {
   const { state, customer } = goodState();
   const html = renderCard(customer, state);
   const lineAt = html.indexOf('customer-card-meta-line');
   // Phase 1: slice to `</button>` — the first `</span>` is the nested
   // status span's close now (see R2a).
   const line = html.slice(lineAt, html.indexOf('</button>', lineAt));
-  assert.ok(line.includes('Charyaa • 3Mbps/100GB'), 'line still shows mohalla • package');
+  assert.ok(line.includes('customer-card-meta-chip--area'), 'line still shows the mohalla chip');
+  assert.ok(line.includes('customer-card-meta-chip--package'), 'line still shows the package chip');
+  assert.ok(!line.includes('customer-card-meta-chip--ref'), 'no Ref chip when there is no known-as name');
   assert.ok(!line.includes('Ref:'), 'no Ref segment when there is no known-as name');
 });
 
@@ -378,25 +388,25 @@ test('r2 R2f: dark mode colours the muted line with the muted dark text (D8)', (
 
 // ---------- R3 — tenure (5) ----------
 
-test('r2 R3a: tenure is compact "N mos (Mon \'YY)" in EN', () => {
+test('r2 R3a: tenure is compact "N mos" in EN (List Cards polish D8)', () => {
   const { state, customer } = paidUpState();
   const html = renderCard(customer, state);
   const months = core.summarizeCustomerTenure(customer, new Date()).serviceMonths;
   const pillAt = html.indexOf('customer-card-tenure-pill');
   assert.ok(pillAt > -1, 'tenure pill exists for a current tenure');
   const pill = (html.match(/<span class="customer-card-tenure-pill">(.*?)<\/span>/s) || [])[1] ?? '';
-  assert.equal(plainText(pill), `${months} mos (Jun '26)`, `tenure reads "${months} mos (Jun '26)"`);
+  assert.equal(plainText(pill), `${months} mos`, `tenure reads "${months} mos"`);
   assert.ok(!pill.includes('since'), 'no "since {date}" format left');
 });
 
-test('r2 R3b: UR compact tenure keeps the Latin "Jun \'26" (D9)', () => {
+test('r2 R3b: UR compact tenure is "N ماہ" (List Cards polish D8 — the Latin "(Jun \'26)" leaves with the EN suffix)', () => {
   const { state, customer } = paidUpState();
   const html = renderCard(customer, state, 'ur');
   const pillAt = html.indexOf('customer-card-tenure-pill');
   assert.ok(pillAt > -1, 'tenure pill exists in UR mode');
   const pill = (html.match(/<span class="customer-card-tenure-pill">(.*?)<\/span>/s) || [])[1] ?? '';
   const months = core.summarizeCustomerTenure(customer, new Date()).serviceMonths;
-  assert.equal(plainText(pill), `${months} ماہ (Jun '26)`, 'UR tenure keeps the Latin short date with the Urdu months word');
+  assert.equal(plainText(pill), `${months} ماہ`, 'UR tenure is just "N ماہ"');
 });
 
 test('r2 R3c: cust_card_tenure_since_short is deleted from both dicts and unused in the card', () => {

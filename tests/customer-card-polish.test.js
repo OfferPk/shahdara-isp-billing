@@ -59,17 +59,22 @@ test('card polish: name is bold plain text next to the [#N] badge', () => {
   // pill: the name is a plain bold element (flex:1) beside the [#N]
   // badge — the wide grey input-box look came from the deleted
   // .customer-copy column, not from the name itself.
+  // Customers List Cards polish: the span gains a billing-driven status
+  // class (nameStatusClass — paid → navy, pending/partial → rose,
+  // not-set → slate); the intent ("plain bold span, not a pill") holds,
+  // the exact string moves.
   assert.ok(
-    card.includes('<span class="customer-card-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>'),
+    card.includes('<span class="customer-card-name ${nameStatusClass}" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>'),
     'name is a plain span, not a pill'
   );
   assert.ok(!card.includes('customer-name-pill'), 'no name pill in the card');
   assert.ok(!styles.includes('.customer-name-pill'), 'no name-pill rule in styles.css');
   const rule = styles.match(/\.customer-card-name \{[^}]*\}/s);
   assert.ok(rule, 'name rule exists');
-  // Phase 1: the name is 14.5px via the token now (was 18px) — the
-  // token itself is the pin; the value moved in tokens.css.
-  assert.match(rule[0], /font-size: var\(--text-card-name\);/, 'name stays on the token (now 14.5px)');
+  // Customers List Cards polish: the name is 15px via the token now
+  // (was 14.5px) — the token itself is the pin; the value moved in
+  // tokens.css.
+  assert.match(rule[0], /font-size: var\(--text-card-name\);/, 'name stays on the token (now 15px)');
   assert.match(rule[0], /font-weight: 700;/, 'name is bold');
   assert.match(rule[0], /flex: 1 1 auto;/, 'name takes the free header width');
 });

@@ -9,8 +9,9 @@
 // Ratchet disclosure (in the PR body too): the user's palette is
 // implemented as --qc-* tokens in tokens.css — the user's exact hex
 // values live there, and styles.css uses only var(), so styles.css
-// stays at 608 distinct hex (613 before Plan 589 removed five hex)
-// and the ==608 pins stay green. No new hex enters any legacy
+// stays at 610 distinct hex (608 + the two spec literals from the
+// Customers List Cards polish; 613 before Plan 589 removed five hex)
+// and the ==610 pins stay green. No new hex enters any legacy
 // stylesheet.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -373,7 +374,7 @@ test('(14) the help dialog is a nested overlay with a ✕ close and a Got-it but
 
 // --- Ratchet: the user's palette lives in tokens.css, not styles.css ---
 
-test('ratchet: styles.css stays at 608 distinct hex — the palette is tokens, not new hex', () => {
+test('ratchet: styles.css stays at 610 distinct hex — the palette is tokens, not new hex', () => {
   // 614 → 613 with Customers Cards Compact (item B): deleting the
   // card's health-reasons rule removed its unique hex #62766d.
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
@@ -381,7 +382,9 @@ test('ratchet: styles.css stays at 608 distinct hex — the palette is tokens, n
   // were re-tokened to var(--green), and the dark input rule's
   // #1a5845 was re-tokened to var(--green). Five distinct hex leave,
   // none added.
-  assert.equal(distinctHex(styles).size, 608);
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(distinctHex(styles).size, 610);
   assert.equal(distinctHex(read('components.css')).size, 0, 'components.css must stay hex-free');
 });
 

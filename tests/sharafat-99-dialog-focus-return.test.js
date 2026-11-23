@@ -164,7 +164,7 @@ test('R C1: no new i18n keys needed (the fix adds no user-facing strings)', () =
 // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
 // (its only occurrence) is re-tokened to var(--color-brand-700).
 // Title + assert move together (Plan 586 rule).
-test('R C2: hex counts unchanged (styles 608 / nav 163 / components 0)', () => {
+test('R C2: hex counts unchanged (styles 610 / nav 163 / components 0)', () => {
   const distinctHex = (name) => {
     const stripped = read(name).replace(/\/\*[\s\S]*?\*\//g, '');
     return new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []).size;
@@ -172,7 +172,9 @@ test('R C2: hex counts unchanged (styles 608 / nav 163 / components 0)', () => {
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(distinctHex('styles.css'), 608);
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(distinctHex('styles.css'), 610);
   assert.equal(distinctHex('nav.css'), 163);
   assert.equal(distinctHex('components.css'), 0);
 });
@@ -297,7 +299,7 @@ test('G EN/UR parity holds at 4,722/4,722 (Round 2 D9 net −1; Quick Collect po
 // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
 // (its only occurrence) is re-tokened to var(--color-brand-700).
 // Title + assert move together (Plan 586 rule).
-test('G no new hex: styles.css 608 / nav.css 163 / components.css 0 (test-method count)', () => {
+test('G no new hex: styles.css 610 / nav.css 163 / components.css 0 (test-method count)', () => {
   const distinctHex = (name) => {
     const stripped = read(name).replace(/\/\*[\s\S]*?\*\//g, '');
     return new Set(stripped.match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []).size;
@@ -305,7 +307,9 @@ test('G no new hex: styles.css 608 / nav.css 163 / components.css 0 (test-method
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(distinctHex('styles.css'), 608);
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(distinctHex('styles.css'), 610);
   assert.equal(distinctHex('nav.css'), 163);
   assert.equal(distinctHex('components.css'), 0);
 });

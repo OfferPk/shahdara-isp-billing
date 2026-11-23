@@ -390,7 +390,7 @@ test('plan567 G5 kist values: monthly-kist + schedule values stay verbatim in th
 
 /* ---------------- G6 — guards ---------------- */
 
-test('plan567 G6: EN/UR parity stays 5,229/5,229 — Reports Closing adds dash_khata_open', () => {
+test('plan567 G6: EN/UR parity stays 5,231/5,231 — Reports Closing adds dash_khata_open', () => {
   // Plan 582 (D1(b)): re-pinned 4,675 → 4,669 — six orphan
   // dash_tile_collect_*/dash_tile_closing_* keys deleted.
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
@@ -398,9 +398,10 @@ test('plan567 G6: EN/UR parity stays 5,229/5,229 — Reports Closing adds dash_k
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
   // Reports Closing polish: +1 dash_khata_open key — parity
   // 5,223 → 5,229/5,229. (The Register polish's +5 keys land first, so
-  // the real post-merge parity is 5,229/5,229 — re-pinned at rebase.)
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR key count moved');
+  // the real post-merge parity is 5,231/5,231 — re-pinned at rebase (was 5,229/5,229).)
+  // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5231, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5231, 'UR key count moved');
 });
 
 // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338

@@ -15,11 +15,14 @@ const stylesCss = readFileSync(join(root, 'styles.css'), 'utf8');
 
 test('profile tabs: month summary renders as stat cells, not bare rows', () => {
   const stats = appJs.match(/month-summary-stat/g) || [];
-  // Status, due date, receipts, carry-in credit, bill amount, balance due
-  // + 3 conditional credit lines = 9 core stat cells.
-  assert.ok(stats.length >= 9, `expected >= 9 month-summary-stat cells, found ${stats.length}`);
+  // Bill-card Material redesign (2026-11-22, user decision): the six core
+  // stat cells (Status, due date, receipts, carry-in, bill amount,
+  // balance due) became the hero strip + ledger. Remaining: tax, net,
+  // 3 conditional credit lines, extension + billClarityMarkup helper = 7.
+  assert.ok(stats.length >= 7, `expected >= 7 month-summary-stat cells, found ${stats.length}`);
   const wide = appJs.match(/month-summary-wide/g) || [];
-  // Late-fee row, Apply-Late-Fee button row, partial-payment badge.
+  // Late-fee row, partial-payment badge. (The Apply-Late-Fee button lost
+  // its wide wrapper in the same redesign — count 9 → 8, assertion holds.)
   assert.ok(wide.length >= 3, `expected >= 3 month-summary-wide rows, found ${wide.length}`);
 });
 
@@ -80,14 +83,19 @@ test('profile tabs: billing metrics grid + incidents section kept', () => {
   assert.ok(appJs.includes('incident-section'), 'incident section kept');
 });
 
-test('profile tabs: phone CSS uses compact 2-col grids', () => {
-  assert.match(stylesCss, /\.month-summary\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
-    'month summary must be a 2-col grid on phones');
+test('profile tabs: phone CSS uses compact grids (month summary 1-col, metrics 2-col)', () => {
+  // Bill-card Material redesign (2026-11-22, user decision): the month
+  // summary is a single full-width column on phones now — the hero strip
+  // and the ledger stack full-width instead of a 2-col grid.
+  assert.match(stylesCss, /\.month-summary\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
+    'month summary must be a single full-width column on phones');
+  assert.doesNotMatch(stylesCss, /\.month-summary\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
+    'no 2-col month-summary grid may survive on phones');
   // Billing & ledger redesign (2026-11-11, user-locked resolution
   // 1): 1-column always wins ≤480px on the month forms — the old
   // `.month-forms .form-grid` 2-column overrides are deleted, so
   // the form is one column at phone widths by the ≤700px rule.
-  // The month summary and billing metrics stay 2-col.
+  // The billing metrics stay 2-col.
   assert.match(stylesCss, /\.form-grid,\s*\.phase3-form,\s*\.incident-form\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
     'month forms must be one column at phone widths');
   assert.doesNotMatch(stylesCss, /\.month-forms\s+\.form-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,

@@ -18,6 +18,8 @@
 // when the message-draft keys landed); the Inventory & Materials item
 // re-pinned it again (one new key: the Equipment Register tab label);
 // Plan 628 re-pinned it again (one new key pair: qc_bill_month_label);
+// the Profile bill-card Material redesign re-pinned it again (two new
+// keys: prof_hist_snapshot_footnote + prof_hist_due_on);
 // the comments still name no total in digits.
 
 import test from 'node:test';
@@ -265,9 +267,11 @@ test('Plan 598: the toggle label reuses the vault words, no new i18n key', () =>
   assert.ok(!bindSrc.includes('aria-label'), 'no hardcoded English aria-label on the toggle');
   // Parity moved with the Reports Register & audit polish's +5 keys
   // (4 help keys + the collapsed audit pill key) and again with the
-  // Reports Closing polish's one new key (dash_khata_open): both dicts now
+  // Reports Closing polish's one new key (dash_khata_open), and again with
+  // the Profile bill-card Material redesign's two new keys
+  // (prof_hist_snapshot_footnote + prof_hist_due_on): both dicts now
   // hold the new total, counted without spelling the digits (see the file header).
-  const total = Number('52' + '29');
+  const total = Number('52' + '31');
   assert.equal(Object.keys(TRANSLATIONS.en).length, total);
   assert.equal(Object.keys(TRANSLATIONS.ur).length, total);
 });
@@ -279,6 +283,7 @@ test('Plan 598: this file stays free of the parity-count digits it must not pin'
   // guard cannot trip the sweep it guards.
   // Re-pin (Reports Closing polish, rebased onto the Reports Register merge):
   // current 5,228 → 5,229, previous 5,223 → 5,228.
-  assert.ok(!selfSrc.includes('52' + '29'), 'this file must stay free of the current-count literal');
-  assert.ok(!selfSrc.includes('52' + '28'), 'this file must stay free of the previous-count literal');
+  // Re-pin (Bill card rebase 2026-11-23): current 5,229 → 5,231, previous 5,228 → 5,229.
+  assert.ok(!selfSrc.includes('52' + '31'), 'this file must stay free of the current-count literal');
+  assert.ok(!selfSrc.includes('52' + '29'), 'this file must stay free of the previous-count literal');
 });

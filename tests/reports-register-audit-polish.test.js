@@ -30,7 +30,9 @@ const salesTaxJs = read('package-sales-tax.js');
 // digits the sweeps count.
 // Re-pin (Reports Closing rebase 2026-11-23): Closing adds 1 key,
 // total 5,228 -> 5,229.
-const PARITY = Number('52' + '29');
+// Re-pin (Bill card rebase 2026-11-23): Bill card adds 2 keys,
+// total 5,229 -> 5,231.
+const PARITY = Number('52' + '31');
 
 function segment(source, startMarker, endMarker, fromIndex = 0) {
   const start = source.indexOf(startMarker, fromIndex);

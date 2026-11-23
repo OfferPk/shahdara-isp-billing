@@ -13958,7 +13958,7 @@ dialog.help-guide-modal::backdrop {
 }
 
 .apply-late-fee-btn {
-  background: #f59e0b;
+  background: var(--qc-amber-strong-border);
   color: #ffffff;
   border: none;
   border-radius: 4px;
@@ -13970,7 +13970,7 @@ dialog.help-guide-modal::backdrop {
 }
 
 .apply-late-fee-btn:hover {
-  background: #d97706;
+  background: var(--qc-amber-strong-text);
 }
 
 .waive-late-fee-btn {
@@ -18226,7 +18226,7 @@ section[aria-label="Customer credit balance"] > p:not(:first-of-type){font-weigh
 .profile-household-link .hhl-list li,.profile-splitter-section .signal-history-list li,.profile-referral-section .profile-referral-list li,.profile-contributors-section .profile-referral-list li{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:6px 0;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
 /* F5 — classed notes and draft prose: info notes (.pcp-explainer values).
  * Scoped per section so they beat the F3/F4 pill rules above. */
-.profile-kist-section .profile-kist-note,.profile-next-bill-section .profile-next-bill-note,.profile-mikrotik-section .profile-mikrotik-note,.profile-router-cred-section .profile-router-cred-note,.profile-splitter-section .profile-pole-note,.profile-uptime-cert-section > p,.profile-relocation-section .relocation-timeline-note,.profile-lifecycle-section .lifecycle-undated-note,.customer-lifetime-value .customer-lifetime-note,.onboarding-checklist > p:last-of-type,.profile-bad-debt-section > p.profile-custody-note,.profile-clearance-noc > p.profile-custody-note,.profile-deposit-settlement > p.profile-custody-note,.profile-deposit-offset > p.profile-custody-note,.profile-hardware-custody > p.profile-custody-note,#statementDraftResult .statement-draft-text,#balanceReplyResult p[style*="pre-wrap"],#paymentSlipResult p[style*="pre-wrap"],#statusReplyResult pre,section[aria-label="Welcome pack"] > p.welcome-pack-draft,#firstBillPreviewResult .first-bill-preview-assumptions,.month-card .bill-snapshot-note,.payment-form .field-help.payment-guidance{margin:8px 0;padding:10px 12px;border:1px solid #adc9f1;border-radius:12px;background:#e5efff;color:#174b87;font-size:12px;line-height:1.5}
+.profile-kist-section .profile-kist-note,.profile-next-bill-section .profile-next-bill-note,.profile-mikrotik-section .profile-mikrotik-note,.profile-router-cred-section .profile-router-cred-note,.profile-splitter-section .profile-pole-note,.profile-uptime-cert-section > p,.profile-relocation-section .relocation-timeline-note,.profile-lifecycle-section .lifecycle-undated-note,.customer-lifetime-value .customer-lifetime-note,.onboarding-checklist > p:last-of-type,.profile-bad-debt-section > p.profile-custody-note,.profile-clearance-noc > p.profile-custody-note,.profile-deposit-settlement > p.profile-custody-note,.profile-deposit-offset > p.profile-custody-note,.profile-hardware-custody > p.profile-custody-note,#statementDraftResult .statement-draft-text,#balanceReplyResult p[style*="pre-wrap"],#paymentSlipResult p[style*="pre-wrap"],#statusReplyResult pre,section[aria-label="Welcome pack"] > p.welcome-pack-draft,#firstBillPreviewResult .first-bill-preview-assumptions,.payment-form .field-help.payment-guidance{margin:8px 0;padding:10px 12px;border:1px solid #adc9f1;border-radius:12px;background:#e5efff;color:#174b87;font-size:12px;line-height:1.5}
 /* F6 — states (var(--qc-*) tokens only, no hex): mint = settled/done,
  * amber = pending/warning, rose = arrears/danger. The bad-debt arrears
  * rule comes first so the mint recovered rule (same specificity, later)
@@ -18259,6 +18259,22 @@ section[aria-label="Welcome pack"] > p.welcome-pack-missing{display:flex;flex-wr
 .month-card .month-summary-stat{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
 .month-card .month-summary-stat strong{color:#0e5b4d}
 .month-card .month-summary-wide:not(.month-status){display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:6px 12px;border:1px solid #adc9f1;border-radius:999px;background:#e5efff;color:#174b87;font-size:12px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+/* Profile bill card (Material Design 3, 2026-11-22): the amber hero strip
+   + key-value ledger replace the six oval stat bubbles. Token-only. */
+.month-hero{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:1 1 100%;padding:14px;background:var(--qc-amber-soft-bg);border:1px solid var(--ds-warning-border);border-radius:16px}
+.month-hero-left{display:flex;flex-direction:column;gap:2px;min-width:0}
+.month-hero-label{font-size:12px;font-weight:600;color:var(--color-pending)}
+.month-hero-amount{font-size:20px;font-weight:700;color:var(--color-slate-900);overflow-wrap:anywhere}
+.month-hero-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
+.month-hero-due{font-size:12px;font-weight:600;color:var(--color-slate-700)}
+.month-ledger{display:grid;flex:1 1 100%}
+.month-ledger-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 2px;border-bottom:1px solid var(--color-slate-100);font-size:14px}
+.month-ledger-row span{color:var(--color-slate-500)}
+.month-ledger-row strong{font-variant-numeric:tabular-nums;font-weight:600;color:var(--color-slate-900)}
+.month-card .bill-snapshot-note{display:flex;align-items:center;gap:6px;margin:8px 0;color:var(--color-slate-500);font-size:12px;line-height:1.5}
+.month-card .bill-form h4{display:flex;align-items:center;justify-content:center;width:100%;min-height:44px;padding:0 12px;border:1px solid var(--ds-line);border-radius:12px;background:var(--surface);color:var(--color-slate-700);font-size:14px;font-weight:600;margin:0 0 12px}
+.month-summary > .apply-late-fee-btn{width:100%;min-height:48px;border-radius:12px;font-size:14px}
+.month-summary > .apply-late-fee-btn:active{transform:scale(0.99)}
 .month-card li.payment-row > .payment-main{padding:8px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec}
 .month-card li.payment-row > .payment-main .payment-amount{color:#0e5b4d}
 .month-card li.payment-row > .payment-main .payment-meta{color:#0e5b4d}
@@ -18311,7 +18327,7 @@ section[aria-label="Welcome pack"] > p.welcome-pack-missing{display:flex;flex-wr
   .month-body { padding: 12px 10px 14px; }
   .month-summary {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     padding: 10px;
     background: var(--surface-soft);

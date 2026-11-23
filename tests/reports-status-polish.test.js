@@ -113,7 +113,9 @@ test('C4 EN/UR parity holds (same keys — values only changed)', () => {
   // total 5,223 -> 5,228 — this file's own item added no key.
   // Re-pin (Reports Closing rebase 2026-11-23): Closing adds 1 key,
   // total 5,228 -> 5,229 — this file's own item added no key.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '29'),
+  // Re-pin (Bill card rebase 2026-11-23): Bill card adds 2 keys,
+  // total 5,229 -> 5,231 — this file's own item added no key.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '31'),
     'parity total moved — the shortenings are values only, no key added or dropped');
 });
 

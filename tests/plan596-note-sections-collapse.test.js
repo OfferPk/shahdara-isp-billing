@@ -180,14 +180,15 @@ describe('Plan 596: empty profile note sections collapse', () => {
   });
 
   test('G13 parity moves to the new total in both languages', () => {
-    // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
-    assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN parity 5,229');
-    assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR parity 5,229');
+    // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,231 (was 5,229 via Reports Closing).
+    // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
+    assert.equal(Object.keys(TRANSLATIONS.en).length, 5231, 'EN parity 5,231');
+    assert.equal(Object.keys(TRANSLATIONS.ur).length, 5231, 'UR parity 5,231');
   });
 
   test('G14 this file pins the new total and stays free of the previous total digits', () => {
     const selfSrc = read('tests/plan596-note-sections-collapse.test.js');
-    assert.ok(selfSrc.includes('5229'), 'this file pins the new total');
+    assert.ok(selfSrc.includes('5231'), 'this file pins the new total');
     // The previous total's digits are built, never spelled, so this guard
     // cannot trip the sweep it guards.
     assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');

@@ -130,8 +130,11 @@ test('profile view polish: Clear dues disables on payableTotal === 0, not on the
 });
 
 // (6) Utility labels are concise in both dicts, no duplicate speaker
-// emoji in Speak Due, and the row rule is 0.75rem / 10px 6px.
-test('profile view polish: utility labels concise, no duplicate speaker emoji, 12px / 10px-6px row', () => {
+// emoji in Speak Due, and the row rule is 11px / 10px 6px.
+// Customer information card polish (2026-11-22): the tile font shrinks
+// from 0.75rem (12px) to var(--text-table-head) (11px) so 'Welcome Slip'
+// fits its tile; the padding stays 10px 6px.
+test('profile view polish: utility labels concise, no duplicate speaker emoji, 11px / 10px-6px row', () => {
   assert.equal(TRANSLATIONS.en.prof_view_qr, 'QR Khata');
   assert.equal(TRANSLATIONS.ur.prof_view_qr, 'QR کھاتہ');
   assert.equal(TRANSLATIONS.en.prof_view_print_card, 'Print Card');
@@ -139,7 +142,7 @@ test('profile view polish: utility labels concise, no duplicate speaker emoji, 1
   assert.equal(TRANSLATIONS.ur.speak_due_btn, 'بقایا سنیں');
   assert.ok(!TRANSLATIONS.en.speak_due_btn.includes('🔊'), 'no speaker emoji in the English Speak Due label');
   assert.ok(!TRANSLATIONS.ur.speak_due_btn.includes('🔊'), 'no speaker emoji in the Urdu Speak Due label');
-  assert.match(styles, /\.profile-view-actions>button\{[^}]*padding:10px 6px;[^}]*font-size:0\.75rem/, 'utility buttons are 0.75rem with 10px 6px padding');
+  assert.match(styles, /\.profile-view-actions>button\{[^}]*padding:10px 6px;[^}]*font-size:var\(--text-table-head\)/, 'utility buttons are 11px (var(--text-table-head)) with 10px 6px padding');
 });
 
 // (7) Strip zero case: a zero balance reads soft emerald (modifier

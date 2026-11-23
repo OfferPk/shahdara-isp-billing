@@ -132,9 +132,10 @@ button.app-confirm-btn:not([hidden]) { min-height: 48px !important; padding: 0 1
 #editProfileButton.profile-edit-button:not([hidden]) { min-height: 48px !important; min-width: 48px; padding: 0 16px !important; font-size: 14px !important; font-weight: 700; border: 1px solid var(--green, #0e5b4d); border-radius: 12px !important; background: var(--green, #0e5b4d); color: #fff; box-shadow: 0 4px 12px rgba(14, 91, 77, 0.28); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 #editProfileButton.profile-edit-button:hover { background: var(--green-dark, #094338); border-color: var(--green-dark, #094338); }
 #editProfileButton.profile-edit-button:active { transform: translateY(1px); box-shadow: 0 2px 6px rgba(14, 91, 77, 0.28); }
-/* Profile header action row: keep each label on one line so QR / Speak Due
-   never break mid-label on narrow phones; the row itself wraps instead. */
-.profile-view-actions .secondary-button { white-space: nowrap; }
+/* Customer information card polish (2026-11-22): the nowrap rule that
+   kept each tile label on one line is DELETED — it is the proven cause
+   of 'Welcome Slip' overflowing its tile at 360px. The labels now wrap
+   inside their own .profile-info-btn-label spans (styles.css). */
 /* Live visual bugs (Nov 2026): the old .profile-edit-button::before
    '✎' was deleted here — the button already carries the ds-icons
    Pencil SVG in its .ds-action-icon span, so the ::before rendered

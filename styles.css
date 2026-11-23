@@ -1698,6 +1698,11 @@ is only ~300px wide. */
 /* Profile Uptime polish (2026-11-22): the uptime header (i) is a small
  * inline toggle, so its .help-icon is a 20px named exception (F4). */
 .uptime-section .help-icon{width:20px;height:20px;min-height:20px;font-size:11px}
+/* Customer information card polish (2026-11-22): the (i) next to the
+   'Customer information' heading shrinks to 32px — the THIRD named
+   Sharafat 96 F4 exception (see tests/sharafat-96-touch-targets.test.js).
+   The base 40px rule above is untouched. */
+.profile-view-heading .help-icon{width:32px;height:32px;min-height:32px;font-size:11px}
 .registry-heading-row { display: flex; align-items: center; gap: 8px; }
 .help-tip-content{position:absolute;top:calc(100% + 8px);inset-inline-end:0;z-index:9;width:min(300px,calc(100vw - 32px));max-height:min(60vh,360px);overflow:auto;padding:11px 13px;border:1px solid #174b3b;border-radius:10px;background:#173e32;color:#fff;box-shadow:0 12px 28px #102b2240;font:500 12px/1.55 'DM Sans',sans-serif}
 .help-tip:not([open])>.help-tip-content{display:none}
@@ -1750,7 +1755,12 @@ is only ~300px wide. */
    customer name, wrapping as pills — never beside the Edit/QR/Print row. */
 .profile-heading-badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-basis:100%}
 .profile-view-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;flex:1 1 100%}
-.profile-view-actions>button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:52px;padding:10px 6px;font-size:0.75rem;line-height:1.2;text-align:center}
+.profile-view-actions>button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:52px;padding:10px 6px;font-size:var(--text-table-head);line-height:1.2;text-align:center}
+/* Customer information card polish (2026-11-22): the tile labels wrap
+   inside their tiles — the label span is the wrapping container (a bare
+   text node inside a column-flex button resolves to max-content width
+   and cannot wrap even with nowrap removed). */
+.profile-info-btn-label{min-width:0;width:100%;overflow-wrap:anywhere;line-height:1.2}
 .profile-readonly-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin:0}
 .profile-readonly-field{min-width:0;padding:9px 10px;border:1px solid #e3ebe7;border-radius:9px;background:var(--surface)}
 .profile-readonly-field dt{margin:0 0 4px;color:#5b7067;font-size:10px;font-weight:700}
@@ -2001,10 +2011,14 @@ a valid profile must not look broken). The bar uses NEW classes so
 the FORM bar (profile-ui.css, 6px, brand fill, redesign:250) is
 untouched; the old tone-fill rules above stay as dead CSS. */
 .profile-completion-details{margin:10px 0 0}
-.profile-details-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px;cursor:pointer;font:700 13px Manrope,sans-serif;list-style:none}
+.profile-details-summary{display:flex;flex-direction:column;align-items:stretch;gap:6px;cursor:pointer;font:700 13px Manrope,sans-serif;list-style:none}
 .profile-details-summary::-webkit-details-marker{display:none}
 .profile-details-summary .ds-action-icon svg{width:18px;height:18px}
-.profile-details-bar{display:inline-block;width:120px;height:8px;border-radius:999px;background:#eef3f0;overflow:hidden;vertical-align:middle}
+/* Customer information card polish (2026-11-22): the title and the
+   toggle share one row (title left, toggle right) and the bar is a
+   full-width block beneath it — the old inline 120px bar is gone. */
+.profile-details-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--text-xs)}
+.profile-details-bar{display:block;width:100%;height:6px;border-radius:999px;background:var(--color-slate-100);overflow:hidden}
 .profile-details-fill{display:block;height:100%;border-radius:999px;background:#5fa876}
 .mfc-count-pill{display:inline-flex;align-items:center;justify-content:center;min-width:24px;padding:2px 8px;border:1px solid #dc9478;border-radius:999px;background:#fee2e2;color:#b91c1c;font-weight:700}
 .mfc-bar{display:inline-block;width:120px;height:8px;border-radius:999px;background:#eef3f0;overflow:hidden;vertical-align:middle;margin-inline-start:8px}
@@ -2050,6 +2064,10 @@ stat cells become pills. */
 .profile-header-strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3);align-items:stretch;margin:var(--space-2) 0 var(--space-3);padding:var(--space-2-5) var(--space-3);border:1px solid var(--line);border-radius:var(--radius-xs);background:var(--surface-soft)}
 .phs-label{display:block;font-size:var(--text-table-head);color:var(--phs-label)}
 .phs-value{font-size:var(--text-phs-value)}
+/* Customer information card polish (2026-11-22): the Package price
+   subtitle under the bold speed label — compact, so the Package cell
+   no longer stretches to three lines. */
+.phs-value-sub{display:block;font-size:var(--text-xs);font-weight:500;opacity:.8}
 .current-bill-grid{gap:8px}
 .current-bill-stat{min-height:70px;border-color:#e0ebe5;box-shadow:0 3px 10px rgba(27,68,51,.035)}
 .current-bill-stat>span{font-size:11px;letter-spacing:.05px}

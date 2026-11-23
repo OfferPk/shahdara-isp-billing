@@ -160,37 +160,39 @@ test('Plan 555: the PNG remaining balance equals the HTML Balance Due on the sam
 
 // ---------------------------------------------------------------- format parity
 
-// A taxed 1,500-package bill: 1,500 package + 292.50 tax = 1,792.50 due.
+// A taxed 1,500-package bill: 1,500 package + 293 tax = 1,793 due.
+// Whole-rupee tax since the 2026-11-22 user decision (the old paisa
+// rule billed 1,500 + 292.50 = 1,792.50).
 const taxedFixture = () => {
-  const taxCents = 29250;
+  const taxCents = 29300;
   const bill = {
-    id: 'bill-2026-11', month: '2026-11', dueAmount: 1792.5, status: 'pending',
+    id: 'bill-2026-11', month: '2026-11', dueAmount: 1793, status: 'pending',
     packageSnapshot: { nominalPrice: 1500 }, salesTaxCents: taxCents, salesTaxRateBps: 1950, payments: [],
   };
-  const payment = { id: 'pay-taxed', amount: 1792.5, date: '2026-11-07', method: 'Cash' };
+  const payment = { id: 'pay-taxed', amount: 1793, date: '2026-11-07', method: 'Cash' };
   bill.payments = [payment];
   const customer = { id: 'synthetic-customer', customerNumber: 42, name: 'Synthetic Customer', packageHistory: [], bills: [bill] };
   return { customer, bill, payment, receipt: buildPaymentReceipt(customer, bill, payment) };
 };
 
 const qcReceipt = (overrides = {}) => ({
-  id: 'receipt-12', receiptNumber: 'RCPT-12-202611-01', amount: 1792.5,
+  id: 'receipt-12', receiptNumber: 'RCPT-12-202611-01', amount: 1793,
   customerName: 'Test Customer', customerNumber: 12, date: '2026-11-08', month: '2026-11',
-  method: 'Cash', area: 'Sodaa', payableRemaining: 0, newTotalDues: 0, salesTaxCents: 29250, ...overrides,
+  method: 'Cash', area: 'Sodaa', payableRemaining: 0, newTotalDues: 0, salesTaxCents: 29300, ...overrides,
 });
 
-test('Plan 555: the same 292.5 tax prints identically — PKR 292.50 — on HTML, PNG and the QC WhatsApp draft', () => {
+test('Plan 555: the same 293 tax prints identically — PKR 293 — on HTML, PNG and the QC WhatsApp draft', () => {
   const { customer, receipt } = taxedFixture();
-  assert.equal(receipt.salesTaxCents, 29250);
+  assert.equal(receipt.salesTaxCents, 29300);
   const a4 = generatePaymentReceiptHtml(receipt, { format: 'a4' });
-  assert.ok(a4.includes('+PKR 292.50'), 'A4 shows PKR 292.50');
+  assert.ok(a4.includes('+PKR 293'), 'A4 shows PKR 293');
   const t80 = generatePaymentReceiptHtml(receipt, { format: 'thermal-80' });
-  assert.ok(t80.includes('+PKR 292.50'), 'thermal-80 shows PKR 292.50');
-  assert.equal(pngTaxOf(buildPngReceiptModel(receipt, customer)), '+PKR 292.50');
+  assert.ok(t80.includes('+PKR 293'), 'thermal-80 shows PKR 293');
+  assert.equal(pngTaxOf(buildPngReceiptModel(receipt, customer)), '+PKR 293');
   const draft = formatQuickCollectWhatsAppReceipt(qcReceipt()).text;
-  assert.ok(draft.includes('Sales tax / سیلز ٹیکس (19.5%):* PKR 292.50'), 'QC WhatsApp draft shows PKR 292.50');
+  assert.ok(draft.includes('Sales tax / سیلز ٹیکس (19.5%):* PKR 293'), 'QC WhatsApp draft shows PKR 293');
   const card = renderQuickCollectReceiptCardHtml(qcReceipt());
-  assert.ok(card.includes('PKR 292.50'), 'QC success card shows PKR 292.50');
+  assert.ok(card.includes('PKR 293'), 'QC success card shows PKR 293');
 });
 
 test('Plan 555: the same 1500.50 payment prints identically — PKR 1,500.50 — on HTML, PNG, split and WhatsApp', () => {

@@ -11,12 +11,15 @@
  * sendable to customers; a sales-tax dashboard shows monthly tax
  * per customer package; every profile shows that customer's tax.
  *
- * Pinned rules: tax in integer cents, Math.round(priceCents x 195 /
- * 1000), rate constant 1950 bps; old bills keep recorded cents,
- * history never recomputed; partial payment DOES move the package
- * (owner-stated rule — the old partial-payment protection is gone
- * by design, see the priced-month follow tests); NO tax on a bare
- * typed amount in v1; dashboard current month only in v1.
+ * Pinned rules: tax in integer cents, rounded to whole rupees
+ * (user decision 2026-11-22, superseding the old paisa rule —
+ * the user asked for Math.round to whole PKR, "1793 instead of
+ * 1792.5", so 1500 -> 293 and 2500 -> 488); rate constant 1950 bps;
+ * old bills keep recorded cents, history never recomputed; partial
+ * payment DOES move the package (owner-stated rule — the old
+ * partial-payment protection is gone by design, see the priced-month
+ * follow tests); NO tax on a bare typed amount in v1; dashboard
+ * current month only in v1.
  * Synthetic data only.
  */
 import test from 'node:test';
@@ -86,7 +89,7 @@ function septemberSettledState() {
 test('tax table: all six catalog prices map to the owner-confirmed values, in integer cents', () => {
   assert.equal(SALES_TAX_RATE_BPS, 1950);
   assert.equal(SALES_TAX_RATE_PERCENT, 19.5);
-  const expected = { 1000: 19500, 1500: 29250, 1600: 31200, 2000: 39000, 2500: 48750, 3000: 58500 };
+  const expected = { 1000: 19500, 1500: 29300, 1600: 31200, 2000: 39000, 2500: 48800, 3000: 58500 };
   for (const [price, cents] of Object.entries(expected)) {
     assert.equal(salesTaxCentsForPrice(Number(price)), cents, `tax on ${price}`);
   }
@@ -96,20 +99,25 @@ test('tax table: all six catalog prices map to the owner-confirmed values, in in
     assert.equal(row.taxCents, expected[row.priceCents / 100], `table row ${row.label}`);
     assert.equal(salesTaxForPackage(row.packageId).taxCents, row.taxCents);
   }
-  // The owner's confirmed table, in rupees: 1000->195, 1500->292.5,
-  // 1600->312, 2000->390, 2500->487.5, 3000->585.
+  // The owner's confirmed table, in rupees: 1000->195, 1500->293,
+  // 1600->312, 2000->390, 2500->488, 3000->585. (Whole-rupee tax
+  // since the 2026-11-22 user decision — 1500 and 2500 used to read
+  // 292.5 and 487.5 under the old paisa rule.)
   assert.equal(formatSalesTaxAmount(19500), 'PKR 195');
-  assert.equal(formatSalesTaxAmount(29250), 'PKR 292.5');
+  assert.equal(formatSalesTaxAmount(29300), 'PKR 293');
   assert.equal(formatSalesTaxAmount(31200), 'PKR 312');
   assert.equal(formatSalesTaxAmount(39000), 'PKR 390');
-  assert.equal(formatSalesTaxAmount(48750), 'PKR 487.5');
+  assert.equal(formatSalesTaxAmount(48800), 'PKR 488');
   assert.equal(formatSalesTaxAmount(58500), 'PKR 585');
 });
 
-test('tax table: a non-catalog amount rounds half-up to the paisa; missing/invalid figures are null, never zero', () => {
-  assert.equal(salesTaxCentsForPrice(333), 6494, '33300 cents x 195 / 1000 = 6493.5 -> 6494');
-  assert.equal(salesTaxCentsForPrice(1001), 19520, '100100 cents x 195 / 1000 = 19519.5 -> 19520');
-  assert.equal(salesTaxCentsForPrice(1000.5), 19510, 'half-rupee prices keep paisa precision');
+test('tax table: a non-catalog amount rounds to whole rupees; missing/invalid figures are null, never zero', () => {
+  // Whole-rupee tax since the 2026-11-22 user decision (the old
+  // paisa rule read 6494 / 19520 / 19510 here): paisa cents first,
+  // then to the nearest whole rupee.
+  assert.equal(salesTaxCentsForPrice(333), 6500, '33300 cents x 195 / 1000 = 6493.5 paisa -> 65 whole rupees');
+  assert.equal(salesTaxCentsForPrice(1001), 19500, '100100 cents x 195 / 1000 = 19519.5 paisa -> 195 whole rupees');
+  assert.equal(salesTaxCentsForPrice(1000.5), 19500, 'half-rupee prices round to whole rupees');
   for (const bad of [null, undefined, '', true, false, 0, -5, Number.NaN, 'abc']) {
     assert.equal(salesTaxCentsForPrice(bad), null, `expected null for ${String(bad)}`);
   }
@@ -145,16 +153,18 @@ test('Req 1: package chosen + tax ticked -> bill due is price + tax and the cent
   assert.equal(untaxed.salesTaxRateBps, undefined);
 });
 
-test('Req 1: omitting the tax param leaves recorded tax untouched; a 1500 package bills 1792.5 with its tax', () => {
+test('Req 1: omitting the tax param leaves recorded tax untouched; a 1500 package bills 1793 with its tax', () => {
   let state = createInitialState(['Tax Keep Tester']);
-  state = saveBillMonth(state, 'seed-001', { month: '2026-11', status: 'pending', packageId: '5mbps-150gb', salesTaxCents: 29250 }, NOV_2);
-  assert.equal(Number(billOf(state, '2026-11').dueAmount), 1792.5);
+  // Whole-rupee tax since the 2026-11-22 user decision: 1500 + 293
+  // = 1793 (the old paisa rule billed 1792.5 with 29250 cents).
+  state = saveBillMonth(state, 'seed-001', { month: '2026-11', status: 'pending', packageId: '5mbps-150gb', salesTaxCents: 29300 }, NOV_2);
+  assert.equal(Number(billOf(state, '2026-11').dueAmount), 1793);
   // A later save that only changes the due date keeps the tax — the
   // caller passes the due (price + tax, as the bill form does) and
   // omits the tax param.
-  state = saveBillMonth(state, 'seed-001', { month: '2026-11', status: 'pending', dueAmount: 1792.5, dueDate: '2026-11-07' }, NOV_2);
-  assert.equal(billOf(state, '2026-11').salesTaxCents, 29250);
-  assert.equal(Number(billOf(state, '2026-11').dueAmount), 1792.5);
+  state = saveBillMonth(state, 'seed-001', { month: '2026-11', status: 'pending', dueAmount: 1793, dueDate: '2026-11-07' }, NOV_2);
+  assert.equal(billOf(state, '2026-11').salesTaxCents, 29300);
+  assert.equal(Number(billOf(state, '2026-11').dueAmount), 1793);
 });
 
 test('Req 1: mismatched tax, tax with no package, and non-positive tax are all rejected — never silently stored', () => {
@@ -537,12 +547,12 @@ test('Req 4 wiring: the dashboard rides the monthly billing report and follows i
 });
 
 // --- §8.9 Req 5 profile ---
-test('Req 5 profile: 1,000 -> PKR 195, 1,500 -> PKR 292.5, no package -> Not set; after a follow the line updates with no manual edit', () => {
+test('Req 5 profile: 1,000 -> PKR 195, 1,500 -> PKR 293, no package -> Not set; after a follow the line updates with no manual edit', () => {
   assert.equal(formatSalesTaxAmount(customerSalesTaxCents({ monthlySellingAmount: 1000 })), 'PKR 195');
-  assert.equal(formatSalesTaxAmount(customerSalesTaxCents({ monthlySellingAmount: 1500 })), 'PKR 292.5');
+  assert.equal(formatSalesTaxAmount(customerSalesTaxCents({ monthlySellingAmount: 1500 })), 'PKR 293');
   assert.equal(formatSalesTaxAmount(customerSalesTaxCents({ monthlySellingAmount: 1600 })), 'PKR 312');
   assert.equal(formatSalesTaxAmount(customerSalesTaxCents({ monthlySellingAmount: 2000 })), 'PKR 390');
-  assert.equal(formatSalesTaxAmount(customerSalesTaxCents({ monthlySellingAmount: 2500 })), 'PKR 487.5');
+  assert.equal(formatSalesTaxAmount(customerSalesTaxCents({ monthlySellingAmount: 2500 })), 'PKR 488');
   assert.equal(formatSalesTaxAmount(customerSalesTaxCents({ monthlySellingAmount: 3000 })), 'PKR 585');
   assert.equal(formatSalesTaxAmount(customerSalesTaxCents({})), 'Not set');
   assert.equal(formatSalesTaxAmount(customerSalesTaxCents(null)), 'Not set');

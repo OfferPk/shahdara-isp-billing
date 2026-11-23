@@ -5374,8 +5374,8 @@
 }
 .upsell-item {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
 }
 .upsell-item + .upsell-item {
   border-top: 1px solid var(--line);
@@ -5385,11 +5385,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  flex: 1;
+  flex: none;
   min-width: 0;
   background: none;
   border: none;
-  padding: 9px 0;
+  padding: 9px 0 4px;
   font: inherit;
   color: inherit;
   text-align: left;
@@ -5401,32 +5401,52 @@
   gap: 1px;
   min-width: 0;
 }
+/* Reports → Compare polish: the name and the package/reason lines must
+   never break mid-word again — overflow-wrap:anywhere shredded
+   "Ch sikandar · SODAA" into 1-word-per-line vertical strips at 360px.
+   overflow-wrap:normal lets long names wrap between words instead. */
 .upsell-name {
   font-size: 13px;
   font-weight: 700;
   color: var(--ink);
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .upsell-sub-line {
   font-size: 11px;
   color: var(--muted);
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
+/* Reports → Compare polish: the gain is a green pill now (the
+   .audits-clear-pill success pattern: --ds-success-bg / --ds-success,
+   --radius-pill), not bare bold text. */
 .upsell-gain {
   font-size: 13px;
   font-weight: 700;
-  color: var(--green);
+  color: var(--ds-success);
+  background: var(--ds-success-bg);
+  border-radius: var(--radius-pill);
+  padding: 2px 8px;
   white-space: nowrap;
   flex-shrink: 0;
 }
+/* The At-Risk Loyal rows reuse the upsell classes, but their gain is a ⚠️
+   marker, not a money pill — keep it bare text there so the audit section
+   (owned by the Register & audit polish) stays visually unchanged. */
+#loyaltyAtRiskList .upsell-gain{background:none;padding:0;border-radius:0}
+/* Send Offer is a full-width solid button below the name/gain row, wearing
+   the shared .qc-wa-btn treatment (class on the link in app.js) — no
+   hard-coded colour here, so the home-summary tail stays hex-free. The
+   item is a column now, so the link stretches across the whole row. */
 .upsell-offer-btn {
-  flex-shrink: 0;
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  margin-bottom: 9px;
   font: 600 12px 'DM Sans', system-ui, sans-serif;
-  color: var(--green);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xs);
   padding: var(--space-2) 10px;
   text-decoration: none;
+  text-align: center;
   white-space: nowrap;
 }
 .upsell-empty {

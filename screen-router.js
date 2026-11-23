@@ -27,7 +27,11 @@ import { t } from './nav.js?v=1.11.0';
 export const SCREENS = {
   customers: { view: 'customersView', tab: 'showCustomersButton', title: 'Customers', subtitle: 'Search, add and open customer ledgers', action: { label: '+ Add Customer', click: '#addCustomerButton' }, filters: { selector: '.customer-filter-panel', mobileOnly: false } },
   transactions: { view: 'transactionsView', tab: 'showTransactionsButton', title: 'Transactions', subtitle: 'Every saved payment, newest first', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
-  reports: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Report', subtitle: 'Bills, collections and dues for the month', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
+  // Reports → Compare polish: the Monthly Report header has no redundant
+  // back button (Home is already in the bottom nav). hideBack is consumed
+  // by the Area Analytics PR's hideBack mechanism — this entry only
+  // declares it; that PR merges first in queue order.
+  reports: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Report', subtitle: 'Bills, collections and dues for the month', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' }, hideBack: true },
   bills: { view: 'billingReportsView', reportsTab: 'status', title: 'Monthly Bills', subtitle: 'Generated bills, due dates and customer billing status', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
   recovery: { view: 'billingReportsView', reportsTab: 'status', title: 'Dues Recovery', subtitle: 'Smart recovery triage and WhatsApp reminders', anchor: '#duesRecoveryPanel', action: { label: 'Remind Pending', click: '#bulkReminderDispatchBtn' } },
   // Smart Alerts cleanup: the alerts screen has NO header action by design —

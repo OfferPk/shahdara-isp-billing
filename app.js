@@ -3187,6 +3187,10 @@ function renderDashboard() {
     auditsUpsellCount = upsellSummary.count;
     const upsellTotalEl = $('#upsellTotalGain');
     if (upsellTotalEl) upsellTotalEl.textContent = upsellSummary.count > 0 ? t('upsell_total', null, { amount: formatAmount(upsellSummary.totalGainPerMonth) }) : '';
+    // Reports → Compare polish: each row is two rows — Row 1 is the tap
+    // target (name + green gain pill); Row 2 (package path + reasons)
+    // and the full-width Send Offer link sit outside the button, so the
+    // name column is never squeezed into vertical strips again.
     upsellListEl.innerHTML = upsellCandidates.length === 0
       ? `<li class="upsell-empty">${escapeHtml(t('upsell_empty'))}</li>`
       : upsellCandidates.map((row) => {
@@ -3194,7 +3198,7 @@ function renderDashboard() {
           row.slowSpeedComplaints > 0 ? t('upsell_reason_complaints', null, { count: row.slowSpeedComplaints }) : '',
           row.onTimeStreak >= 3 ? t('upsell_reason_ontime', null, { count: row.onTimeStreak }) : ''
         ].filter(Boolean).join(' · ');
-        return `<li class="upsell-item"><button type="button" class="upsell-row" data-upsell-customer-id="${escapeHtml(row.customerId)}"><span class="upsell-main"><strong class="upsell-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="upsell-sub-line"><bdi>${escapeHtml(t('upsell_pkg_line', null, { current: row.currentLabel, fee: formatAmount(row.currentFee), target: row.targetLabel, price: formatAmount(row.targetPrice) }))}</bdi></span><span class="upsell-sub-line">${escapeHtml(reasons)}</span></span><strong class="upsell-gain"><bdi>${escapeHtml(t('upsell_gain', null, { amount: formatAmount(row.gainPerMonth) }))}</bdi></strong></button>${row.whatsappUrl ? `<a class="upsell-offer-btn" href="${escapeHtml(row.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('upsell_offer'))}</a>` : ''}</li>`;
+        return `<li class="upsell-item"><button type="button" class="upsell-row" data-upsell-customer-id="${escapeHtml(row.customerId)}"><span class="upsell-main"><strong class="upsell-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong></span><strong class="upsell-gain"><bdi>${escapeHtml(t('upsell_gain', null, { amount: formatAmount(row.gainPerMonth) }))}</bdi></strong></button><span class="upsell-sub-line"><bdi>${escapeHtml(t('upsell_pkg_line', null, { current: row.currentLabel, fee: formatAmount(row.currentFee), target: row.targetLabel, price: formatAmount(row.targetPrice) }))}</bdi></span><span class="upsell-sub-line">${escapeHtml(reasons)}</span>${row.whatsappUrl ? `<a class="upsell-offer-btn qc-wa-btn" href="${escapeHtml(row.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('upsell_offer'))}</a>` : ''}</li>`;
       }).join('');
     upsellListEl.querySelectorAll('[data-upsell-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.upsellCustomerId)));
   }
@@ -24328,6 +24332,21 @@ function renderAnnualSummary() {
   const year = yearEl?.value ?? localDate().slice(0, 4);
   const view = buildAnnualSummary({ year, months: annualSummaryRowsForYear(year) });
   bodyEl.innerHTML = view ? annualSummaryHtml(view) : '<p style="font-size: 12px;">Pick a valid year to see the annual summary.</p>';
+  // Reports → Compare polish: the empty-months toggle is re-created with
+  // every render (innerHTML replaces the button), so it is wired here on
+  // every render — not behind the once-only annualSummaryBound guard.
+  // The CSV export rebuilds from the view and is never filtered by it.
+  const emptyToggle = bodyEl.querySelector('[data-annual-empty-toggle]');
+  if (emptyToggle) {
+    emptyToggle.addEventListener('click', () => {
+      const count = Number(emptyToggle.dataset.emptyCount || 0);
+      const plural = count === 1 ? '' : 's';
+      const showing = emptyToggle.getAttribute('aria-expanded') === 'true';
+      bodyEl.querySelectorAll('.annual-empty-month').forEach((row) => { row.hidden = showing; });
+      emptyToggle.setAttribute('aria-expanded', String(!showing));
+      emptyToggle.textContent = showing ? `Show ${count} empty month${plural} ▾` : `Hide ${count} empty month${plural} ▴`;
+    });
+  }
   if (!annualSummaryBound) {
     annualSummaryBound = true;
     $('#annualSummaryYear')?.addEventListener('change', () => renderAnnualSummary());

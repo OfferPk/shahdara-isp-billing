@@ -237,6 +237,18 @@
   color: var(--ink);
   font-variant-numeric: var(--numeric);
 }
+/* Reports → Compare polish: the Annual Owner Summary 2x2 KPI grid colours
+   its values semantically — Collections + Net emerald, Expenses rose,
+   Growth indigo. Rose is --qc-rose-strong-text (#e11d48) and indigo is
+   --qc-indigo-text (#4338ca): the exact spec shades, decided once for the
+   Status tab and this tab so adjacent panels never show two reds/blues.
+   The modifiers sit on the VALUE div (not the box) so the existing
+   `class="ds-stat-box"` count pin in annual-owner-summary-cleanup keeps
+   passing. Both --qc-* tokens carry dark values; --color-emerald-dark is
+   the exact Tailwind emerald-700. */
+.ds-stat-box__value--emerald { color: var(--color-emerald-dark); }
+.ds-stat-box__value--rose { color: var(--qc-rose-strong-text); }
+.ds-stat-box__value--indigo { color: var(--qc-indigo-text); }
 /* Collect Tab polish: the payment-method breakdown renders as a
    2-column grid of .ds-stat-box cells instead of full-width stacked
    boxes. Scoped to this list only — .provider-cost-list is shared

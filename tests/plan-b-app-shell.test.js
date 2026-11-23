@@ -77,8 +77,11 @@ test('every router screen has one header spec: back, title, subtitle, action', (
     assert.equal(header.screen, name);
     // Area Analytics screen polish: analytics is the per-screen exception
     // to the one-header contract — it hides its Home back button because
-    // Home is in the bottom nav. Every other screen keeps the back control.
-    assert.equal(header.hasBack, name !== 'analytics', `${name} has a Home back control`);
+    // Home is in the bottom nav. Reports → Compare polish adds a second
+    // exception: the reports screen hides its redundant back button (the
+    // top 'Monthly Report' card is the router header). Every other screen
+    // keeps the back control.
+    assert.equal(header.hasBack, name !== 'analytics' && name !== 'reports', `${name} has a Home back control`);
     assert.ok(header.title && header.title.length > 0, `${name} title`);
     assert.ok(header.subtitle && header.subtitle.length > 0, `${name} subtitle`);
     // Payments Inbox cleanup: the Inbox has NO header action by design —

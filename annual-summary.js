@@ -294,7 +294,14 @@ export function annualSummaryHtml(view) {
   const money = (value) => (value === null ? '—' : `Rs. ${Number(value).toLocaleString('en-PK')}`);
   const num = (value) => (value === null ? '—' : String(value));
   const pct = (value) => (value === null ? '—' : `${value}%`);
-  const body = view.months.map((row) => `<tr><td>${escapeHtml(row.month)}</td>` +
+  // Reports → Compare polish: a month is "empty" when both rendered money
+  // figures are recorded zeros (collections === 0 && expenses === 0). A
+  // missing month has nulls, not 0, so it is excluded by construction —
+  // and December (nulls, "not yet") stays visible with '—', which keeps
+  // the toggle label's count exact.
+  const emptyMonths = view.months.filter((row) => row.collections === 0 && row.expenses === 0);
+  const emptyCount = emptyMonths.length;
+  const body = view.months.map((row) => `<tr${row.collections === 0 && row.expenses === 0 ? ' class="annual-empty-month" hidden' : ''}><td>${escapeHtml(row.month)}</td>` +
     `<td>${money(row.collections)}</td><td>${money(row.expenses)}</td><td>${money(row.net)}</td>` +
     `<td>${num(row.newCustomers)}</td><td>${num(row.departed)}</td>` +
     `<td>${num(row.customersStart)} → ${num(row.customersEnd)}</td>` +
@@ -311,11 +318,15 @@ export function annualSummaryHtml(view) {
   // 'not recorded' when its inputs are missing, never a guessed zero.
   const growthValue = view.growth === null ? 'not recorded' : `${view.growth > 0 ? '+' : ''}${view.growth}`;
   const churnLine = view.annualChurnRatePercent === null ? 'churn not recorded' : `${view.annualChurnRatePercent}% churn`;
+  // Reports → Compare polish: the 2x2 KPI grid colours its values
+  // semantically — Collections + Net emerald, Expenses rose, Growth
+  // indigo. The modifiers sit on the VALUE div (not the box) so the
+  // existing `class="ds-stat-box"` count pin keeps passing.
   const kpi = '<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0;">' +
-    `<div class="ds-stat-box"><div class="ds-stat-box__label">Collections</div><div class="ds-stat-box__value">${money(view.collectionsTotal)}</div></div>` +
-    `<div class="ds-stat-box"><div class="ds-stat-box__label">Expenses</div><div class="ds-stat-box__value">${money(view.expensesTotal)}</div></div>` +
-    `<div class="ds-stat-box"><div class="ds-stat-box__label">Net</div><div class="ds-stat-box__value">${money(view.netTotal)}</div></div>` +
-    `<div class="ds-stat-box"><div class="ds-stat-box__label">Growth</div><div class="ds-stat-box__value">${growthValue}</div><div style="font-size: 11px; color: var(--muted);">${churnLine}</div></div>` +
+    `<div class="ds-stat-box"><div class="ds-stat-box__label">Collections</div><div class="ds-stat-box__value ds-stat-box__value--emerald">${money(view.collectionsTotal)}</div></div>` +
+    `<div class="ds-stat-box"><div class="ds-stat-box__label">Expenses</div><div class="ds-stat-box__value ds-stat-box__value--rose">${money(view.expensesTotal)}</div></div>` +
+    `<div class="ds-stat-box"><div class="ds-stat-box__label">Net</div><div class="ds-stat-box__value ds-stat-box__value--emerald">${money(view.netTotal)}</div></div>` +
+    `<div class="ds-stat-box"><div class="ds-stat-box__label">Growth</div><div class="ds-stat-box__value ds-stat-box__value--indigo">${growthValue}</div><div style="font-size: 11px; color: var(--muted);">${churnLine}</div></div>` +
     '</div>';
   // The badge is derived from the view, never hardcoded: the count
   // of live months, and whether December has no frozen snapshot. No
@@ -340,7 +351,13 @@ export function annualSummaryHtml(view) {
   const details = '<details><summary>ⓘ How this year view works ▾</summary>' +
     `<p style="font-size: 12px;">${escapeHtml(yearViewRules)}</p>` +
     `<p style="font-size: 12px;">${escapeHtml(annualSummaryText(view))}</p></details>`;
-  return kpi + liveBadge + details +
+  // Reports → Compare polish: the empty-months toggle sits above the
+  // table (empty rows are hidden by default). The label is data-driven —
+  // `Show ${n} empty months ▾` / `Hide ${n} empty months ▴` — and the
+  // CSV export rebuilds from the view, so it is never filtered by it.
+  const emptyToggle = emptyCount === 0 ? '' :
+    `<button type="button" class="secondary-button annual-empty-months-toggle" data-annual-empty-toggle data-empty-count="${emptyCount}" aria-expanded="false">Show ${emptyCount} empty month${emptyCount === 1 ? '' : 's'} ▾</button>`;
+  return kpi + liveBadge + details + emptyToggle +
     '<div class="table-scroll"><table style="font-size: 12px; border-collapse: collapse;"><thead><tr>' +
     '<th>Month</th><th>Collections</th><th>Expenses</th><th>Net</th><th>New</th><th>Departed</th>' +
     '<th>Customers start → end</th><th>Churn</th><th>Snapshot</th><th>Reconciles</th></tr></thead>' +

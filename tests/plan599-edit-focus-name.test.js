@@ -114,6 +114,7 @@ test('Plan 599: this file stays free of the parity-count digits it must not pin'
   // guard cannot trip the sweep it guards.
   // Re-pin (Reports Closing polish): current 5,228 → 5,229, previous 5,223 → 5,228.
   // Re-pin (Bill card rebase 2026-11-23): current 5,229 → 5,231, previous 5,228 → 5,229.
-  assert.ok(!selfSrc.includes('52' + '31'), 'this file must stay free of the current-count literal');
-  assert.ok(!selfSrc.includes('52' + '29'), 'this file must stay free of the previous-count literal');
+  // Re-pin (Billing history rebase 2026-11-23): current 5,231 → 5,234, previous 5,229 → 5,231.
+  assert.ok(!selfSrc.includes('52' + '34'), 'this file must stay free of the current-count literal');
+  assert.ok(!selfSrc.includes('52' + '31'), 'this file must stay free of the previous-count literal');
 });

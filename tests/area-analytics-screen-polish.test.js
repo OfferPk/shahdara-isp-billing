@@ -33,7 +33,8 @@ const selfSrc = read('tests/area-analytics-screen-polish.test.js');
 // total 5,228 -> 5,229 — this file's own item added no key.
 // Re-pin (Bill card rebase 2026-11-23): Bill card adds 2 keys,
 // total 5,229 -> 5,231 — this file's own item added no key.
-const PARITY = Number('52' + '31');
+// Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+const PARITY = Number('52' + '34');
 
 // ---- shared measurements (360px phone) -------------------------------------
 // .phase3-view padding at <=700px is 8px 12px 22px -> content width 336px.
@@ -157,7 +158,8 @@ test('I2b: header action label is the compact "Export CSV"; parity holds (no new
     'the compact pill still clicks the real in-card export button');
   assert.equal(Object.keys(TRANSLATIONS.en).length, PARITY, 'EN parity');
   assert.equal(Object.keys(TRANSLATIONS.ur).length, PARITY, 'UR parity');
-  assert.ok(selfSrc.includes("'52' + '31'"), 'this file pins the total in the split form only');
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  assert.ok(selfSrc.includes("'52' + '34'"), 'this file pins the total in the split form only');
 });
 
 test('I2c: analytics header is one row on phones — title left, pill action right', () => {

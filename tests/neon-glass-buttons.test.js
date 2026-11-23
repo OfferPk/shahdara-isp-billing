@@ -316,7 +316,9 @@ test('neon glassy: this file asserts no parity total and carries neither parity 
   // current 5,229, previous 5,228 (the +1 key).
   // Bill card rebase (2026-11-23) — guard moves one step:
   // current 5,231, previous 5,229 (the +2 keys).
-  assert.ok(!selfSrc.includes('52' + '31'), 'file contains the current parity total as a bare literal');
-  assert.ok(!selfSrc.includes('52' + '29'), 'file contains the previous parity total as a bare literal');
+  // Billing history rebase (2026-11-23) — guard moves one step:
+  // current 5,234, previous 5,231 (the +3 keys).
+  assert.ok(!selfSrc.includes('52' + '34'), 'file contains the current parity total as a bare literal');
+  assert.ok(!selfSrc.includes('52' + '31'), 'file contains the previous parity total as a bare literal');
   assert.ok(!selfSrc.includes('nav-' + 'language.js'), 'this file must not assert a parity total');
 });

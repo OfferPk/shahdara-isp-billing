@@ -150,9 +150,10 @@ test('G9 this file carries neither the current nor the previous parity bare digi
   // digits of the previous total). This file asserts no parity total.
   // Re-pin (Reports Closing polish, rebased onto the Reports Register merge): current 5,228 → 5,229, previous 5,223 → 5,228.
   // Re-pin (Bill card rebase 2026-11-23): current 5,229 → 5,231, previous 5,228 → 5,229.
+  // Re-pin (Billing history rebase 2026-11-23): current 5,231 → 5,234, previous 5,229 → 5,231.
   const selfSrc = read('tests/plan602-profile-contact-action-links-44px.test.js');
-  assert.ok(!selfSrc.includes('52' + '31'), 'this file carries the current parity bare digits');
-  assert.ok(!selfSrc.includes('52' + '29'), 'this file carries the previous parity bare digits');
+  assert.ok(!selfSrc.includes('52' + '34'), 'this file carries the current parity bare digits');
+  assert.ok(!selfSrc.includes('52' + '31'), 'this file carries the previous parity bare digits');
   // The import path is built from split literals too: the assertion string
   // itself must never contain the path it forbids.
   assert.ok(!selfSrc.includes("from '../nav-" + "language.js'"), 'this file must not touch the language dicts');

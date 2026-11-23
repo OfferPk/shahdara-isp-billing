@@ -144,8 +144,9 @@ test('P1 parity total is the new total in EN + UR (+8 keys)', () => {
   // exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR.
   // The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,231 (was 5,229 via Reports Closing).
   // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5231);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5231);
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5234);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5234);
 });
 
 test('P2 the 8 new keys exist in both dicts', () => {

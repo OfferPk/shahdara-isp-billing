@@ -458,15 +458,17 @@ test('G4c: the pills stay pale in dark — DISCLOSED shortfall, not a pass', () 
 
 // ================= G5 — Guards + completeness =================
 
-test('G5a: parity is 5,231/5,231 and the re-pin set is complete', () => {
+test('G5a: parity is 5,234/5,234 and the re-pin set is complete', () => {
   // Re-pin (Reports Closing polish, rebased onto the Reports Register merge):
   // parity 5,228 → 5,229 — the item adds exactly one i18n key,
   // dash_khata_open ('Open Khata Closing ›'), EN + UR.
   // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — the item
   // adds two i18n keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5231, 'EN parity 5,231');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5231, 'UR parity 5,231');
-  // Every file that pinned 5,229 now pins 5,231 (41 files), and no file
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — the item
+  // adds three i18n keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5234, 'EN parity 5,234');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5234, 'UR parity 5,234');
+  // Every file that pinned 5,231 now pins 5,234 (41 files), and no file
   // still pins the old count. This file itself asserts 5,168 — plus
   // Plan 592's new test file, which pins 5,168 as its own G5 guard
   // (the parity VALUE does not move; only the file count does) — plus
@@ -506,21 +508,24 @@ test('G5a: parity is 5,231/5,231 and the re-pin set is complete', () => {
   // the total to 5,229, re-pinning the same 41 files — and the Profile
   // bill-card Material redesign new test file pins no parity total, which is
   // why the count holds at 41 through this item too; this item's +2 keys move
-  // the total to 5,231, re-pinning the same 41 files.) The sweep below
+  // the total to 5,231, re-pinning the same 41 files — and the Billing History
+  // new test file pins no parity total either, which is why the count holds at 41
+  // through this item too; this item's +3 keys move the total to 5,234,
+  // re-pinning the same 41 files.) The sweep below
   // counts 41, not 42: the privacy canary
   // (tests/privacy-zero-pii-ratchet.test.js) holds the OLD digits
   // '5162' inside the invented CNIC '35202-4815162-3' — a PII fixture,
   // not a parity pin, so it is never re-pinned and it drops out of the
   // fresh count; the old-sweep excludes it for the same reason.
   const testFiles = fs.readdirSync(path.join(ROOT, 'tests')).filter((f) => f.endsWith('.test.js'));
-  // This file itself mentions '5229' as the literal it checks against,
+  // This file itself mentions '5231' as the literal it checks against,
   // so it is excluded from the sweep — and so is the privacy canary,
   // which holds the old digits inside its invented CNIC. Every OTHER
   // file must be clean.
-  const old = testFiles.filter((f) => f !== 'plan591-header-strip-tokens-i18n.test.js' && f !== 'privacy-zero-pii-ratchet.test.js' && read(`tests/${f}`).includes('5229'));
-  const fresh = testFiles.filter((f) => read(`tests/${f}`).includes('5231'));
-  assert.deepEqual(old, [], 'no test file may still pin 5,229');
-  assert.equal(fresh.length, 41, `expected 41 files containing 5,231 (41 re-pins — the Reports Register & audit polish's +5 keys, then the Reports Closing polish's one new key, then the Profile bill-card Material redesign's two new keys; the privacy canary holds the old digits), got ${fresh.length}: ${fresh.join(', ')}`);
+  const old = testFiles.filter((f) => f !== 'plan591-header-strip-tokens-i18n.test.js' && f !== 'privacy-zero-pii-ratchet.test.js' && read(`tests/${f}`).includes('5231'));
+  const fresh = testFiles.filter((f) => read(`tests/${f}`).includes('5234'));
+  assert.deepEqual(old, [], 'no test file may still pin 5,231');
+  assert.equal(fresh.length, 41, `expected 41 files containing 5,234 (41 re-pins — the Reports Register & audit polish's +5 keys, then the Reports Closing polish's one new key, then the Profile bill-card Material redesign's two new keys, then the Billing history item's three new keys; the privacy canary holds the old digits), got ${fresh.length}: ${fresh.join(', ')}`);
 });
 
 test('G5b: the wiring is the labels object, and the module stays pure', () => {
@@ -547,12 +552,13 @@ test('G5c: the strings left behind are listed, not silently claimed fixed', () =
   }
   assert.ok(profileHeaderStripText(baseStrip(), undefined, urLabels()).includes(' on '), "the text sentence still carries the English word 'on' (disclosed)");
   // The 12 stale '4,669' parity TITLES + 5 why-comments are NOT this
-  // plan's sweep: the asserts moved to 5,231 (G5a) while the titles
+  // plan's sweep: the asserts moved to 5,234 (G5a) while the titles
   // stay as they were — a title sweep is a different item. This asserts
   // the split: each of the 12 files still carries '4,669' somewhere
-  // (title or comment) AND pins 5,231 in its asserts (Reports Closing
+  // (title or comment) AND pins 5,234 in its asserts (Reports Closing
   // polish moved the pin 5,228 → 5,229, then the Bill card rebase moved
-  // it 5,229 → 5,231; the titles stay as they were).
+  // it 5,229 → 5,231, then the Billing history rebase moved it 5,231 → 5,234;
+  // the titles stay as they were).
   const staleTitleFiles = [
     'plan566-receipt-card-nan-guard.test.js',
     'plan567-urdu-script-labels.test.js',
@@ -570,7 +576,7 @@ test('G5c: the strings left behind are listed, not silently claimed fixed', () =
   for (const name of staleTitleFiles) {
     const src = read(`tests/${name}`);
     assert.ok(src.includes('4,669'), `${name} still carries its stale '4,669' title/comment (not this plan's sweep)`);
-    assert.ok(src.includes('5231'), `${name} pins 5,231 in its asserts`);
-    assert.ok(!src.includes('5229'), `${name} no longer pins 5,229`);
+    assert.ok(src.includes('5234'), `${name} pins 5,234 in its asserts`);
+    assert.ok(!src.includes('5231'), `${name} no longer pins 5,231`);
   }
 });

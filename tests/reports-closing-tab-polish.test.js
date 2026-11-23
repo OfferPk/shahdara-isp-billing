@@ -7,10 +7,10 @@
 //
 // Base: main c17863f3, suite 21,475/0. New file — ~18 tests.
 // Expected suite after this file: ≈21,491–21,493/0.
-// Parity here uses the SPLIT form ('52' + '31') — this file must
+// Parity here uses the SPLIT form ('52' + '34') — this file must
 // never contain the bare parity literal (re-pinned at rebase time: the
 // Register polish's +5 keys landed first, so post-merge parity was
-// 5,229/5,229; the Bill card rebase (2026-11-23) adds 2 keys → 5,231/5,231).
+// 5,229/5,229; the Bill card rebase (2026-11-23) adds 2 keys → 5,231/5,231; the Billing history rebase (2026-11-23) adds 3 keys → 5,234/5,234).
 // Synthetic data only — no real customer names, no realistic phone
 // numbers (pattern-fake digits only).
 import test from 'node:test';
@@ -191,7 +191,8 @@ test('S3-5: the One-page summary list is grouped and Total dues reads rose', () 
 // --- Parity (split literal — never the bare number) ---
 
 test('parity: EN/UR stay equal at the new total after +1 key', () => {
-  const expected = Number('52' + '31');  // Re-pin (Bill card rebase 2026-11-23): Bill card adds 2 keys → 5,231 (was 5,229 via Reports Closing).
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  const expected = Number('52' + '34');  // Re-pin (Bill card rebase 2026-11-23): Bill card adds 2 keys → 5,231 (was 5,229 via Reports Closing).
   assert.equal(Object.keys(TRANSLATIONS.en).length, expected, 'EN key count moved');
   assert.equal(Object.keys(TRANSLATIONS.ur).length, expected, 'UR key count moved');
 });

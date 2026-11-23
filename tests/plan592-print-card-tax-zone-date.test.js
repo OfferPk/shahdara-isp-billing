@@ -264,8 +264,9 @@ test('Plan 592: parity does not move — 592 adds no i18n key', () => {
   // The count was 5,161/5,161 at Plan 606; Plan 608 adds one key, so it reads 5,162/5,162.
   // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,231 (was 5,229 via Reports Closing).
   // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5231);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5231);
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5234);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5234);
 });
 
 test('Plan 592: the plan502 wording on the card is unchanged', () => {

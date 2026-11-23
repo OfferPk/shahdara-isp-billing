@@ -129,6 +129,10 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   // exception (.customer-list-search .search-help .help-icon), pinned
   // by name below. The base stays 40x40; the two 28px exceptions are
   // untouched.
+  // Reports Status polish (2026-11-22): the two Status-tab (i)
+  // help-tips (dues recovery + collection by area) are 28px
+  // informational triggers — matched to the Month-end 28px standard —
+  // as a FOURTH NAMED scoped exception, pinned by name below.
   const base = /\.help-icon\{([^}]*)\}/.exec(stylesNC)?.[1];
   assert.ok(base, 'base .help-icon rule present');
   assert.ok(sizes([base]).length > 0 && sizes([base]).every((v) => v >= 40),
@@ -145,6 +149,10 @@ test('F4 help-icon (summary) is 40x40 in its own rule', () => {
   assert.ok(search, 'scoped .customer-list-search .search-help .help-icon rule present');
   assert.deepEqual(sizes([search]).sort((a, b) => a - b), [20, 20, 20],
     'scoped search (i) is exactly 20px (Customers search toolbar, user 2026-11-21)');
+  const reportsStatus = /\.reports-status-help\s+\.help-icon\s*\{([^}]*)\}/.exec(stylesNC)?.[1];
+  assert.ok(reportsStatus, 'scoped .reports-status-help .help-icon rule present');
+  assert.deepEqual(sizes([reportsStatus]).sort((a, b) => a - b), [28, 28, 28],
+    'scoped Reports Status (i) is exactly 28px (Reports Status polish, matched to Month-end D5)');
   const all = sizes(ruleBodies(stylesNC, '.help-icon'));
   assert.ok(all.every((v) => v >= 40 || v === 28 || v === 20),
     'a .help-icon rule other than the named 28px / 20px exceptions carries a sub-40px size');

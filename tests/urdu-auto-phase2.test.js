@@ -332,8 +332,14 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
     'dash_card_recovery', 'dash_card_khata', 'dash_card_wallet',
     'dash_card_active',
     'dash_btn_cash_suite', 'dash_btn_daily_register', 'dash_btn_daily_slip', 'dash_btn_staff_perf',
-    'dash_btn_shop_settlement', 'dash_btn_billing_cycle', 'dash_btn_monthly_report',
-    'dash_btn_roznamcha', 'dash_btn_trace_outage', 'dash_btn_saad_visits', 'dash_btn_cheatsheet',
+    'dash_btn_shop_settlement', 'dash_btn_billing_cycle',
+    // Reports Status polish (2026-11-22): dash_btn_monthly_report
+    // and dash_btn_saad_visits left with the deleted inner buttons
+    // of the five ops articles — the grouped rows open the same
+    // modals by id and carry the dash_card_* labels instead. The
+    // keys stay in TRANSLATIONS (dead) because removing them would
+    // cost a parity re-pin.
+    'dash_btn_roznamcha', 'dash_btn_trace_outage', 'dash_btn_cheatsheet',
     'dash_btn_wallet', 'dash_btn_target', 'dash_btn_worklists',
     'dash_target_title', 'dash_target_sub', 'dash_worklists_title', 'dash_worklists_sub',
     'dash_worklists_disc', 'dash_worklists_rec', 'dash_worklists_ready',

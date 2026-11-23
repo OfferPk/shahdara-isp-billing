@@ -293,6 +293,10 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   // value, because the input handler keeps it here.
   let recoveryFilter={query:'',mohalla:'all',priority:'all'};
   let recoveryPhoneEditing=null;
+  // Reports Status polish: the WhatsApp / Remind <details> open state
+  // survives re-renders in this closure set, same pattern as
+  // recoveryPhoneEditing above.
+  let recoveryWhatsappOpen=new Set();
   let recoveryGroupsWired=false;
   let lastRecoveryResult=null;
   const recoveryDueBadge=row=>{
@@ -352,10 +356,19 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
           ?`<div class="recovery-phone-editor"><input type="tel" inputmode="tel" autocomplete="off" placeholder="03XX XXXXXXX" aria-label="Mobile number" data-recovery-phone-input="${escapeHtml(row.customerId)}" value="${escapeHtml(recoveryPhoneEditing.value??'')}"><button class="secondary-button" type="button" data-recovery-phone-save="${escapeHtml(row.customerId)}">${escapeHtml(t('save'))}</button><button class="secondary-button" type="button" data-recovery-phone-cancel="${escapeHtml(row.customerId)}">${escapeHtml(t('cancel'))}</button>${recoveryPhoneEditing.error?`<p class="form-error">${escapeHtml(recoveryPhoneEditing.error)}</p>`:''}</div>`
           :`<button class="secondary-button recovery-add-phone" type="button" data-recovery-add-phone="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_add_phone'))}</button>`;
         else contact='<span class="recovery-no-contact">A saved full international WhatsApp number is required.</span>';
-        return `<article class="recovery-customer-card" data-recovery-customer="${escapeHtml(row.customerId)}"><div class="recovery-customer-head"><div class="recovery-customer-identity"><strong>#${row.customerNumber} ${escapeHtml(row.name)}${row.archived?' · Archived':''}</strong><span>${escapeHtml(row.package)} · ${escapeHtml(row.area)}</span></div><div class="recovery-amount"><strong>${escapeHtml(formatAmount(row.outstanding))}</strong><span class="recovery-age-badge">${escapeHtml(recoveryDueBadge(row))}</span>${row.healthTag?`<span class="ds-chip ${tagTone}">${escapeHtml(row.healthTag.tag)}</span>`:''}${row.manualBaqayaCents>0?`<span class="recovery-baqaya-line">${escapeHtml(t('addpend_breakdown',null,{bill:formatAmount(row.billDues),additional:formatAmount(row.manualBaqaya)}))}</span>`:''}</div></div>${savedPhone.trim()?`<p class="recovery-phone-line">📱 <span>${escapeHtml(savedPhone)}</span></p>`:''}<div class="recovery-customer-actions"><button class="secondary-button recovery-collect-btn" type="button" data-recovery-collect="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_collect'))}</button>${row.archived?'':`<button class="secondary-button" type="button" data-recovery-waada="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_waada'))}</button>`}<button class="secondary-button" type="button" data-open-recovery-customer="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_history'))}</button></div><div class="recovery-whatsapp-row"><label>Draft template<select data-recovery-template="${escapeHtml(row.customerId)}">${templateOptions}</select></label>${contact}</div><details class="recovery-reasons"><summary>Why this priority?</summary><ul>${row.reasons.map(reason=>`<li>${escapeHtml(reason)}</li>`).join('')}</ul></details></article>`;
+        return `<article class="recovery-customer-card" data-recovery-customer="${escapeHtml(row.customerId)}"><div class="recovery-customer-head"><div class="recovery-customer-identity"><strong>#${row.customerNumber} ${escapeHtml(row.name)}${row.archived?' · Archived':''}</strong><span>${escapeHtml(row.package)} · ${escapeHtml(row.area)}</span></div><div class="recovery-amount"><strong>${escapeHtml(formatAmount(row.outstanding))}</strong><span class="recovery-age-badge">${escapeHtml(recoveryDueBadge(row))}</span>${row.healthTag?`<span class="ds-chip ${tagTone}">${escapeHtml(row.healthTag.tag)}</span>`:''}${row.manualBaqayaCents>0?`<span class="recovery-baqaya-line">${escapeHtml(t('addpend_breakdown',null,{bill:formatAmount(row.billDues),additional:formatAmount(row.manualBaqaya)}))}</span>`:''}</div></div>${savedPhone.trim()?`<p class="recovery-phone-line">📱 <span>${escapeHtml(savedPhone)}</span></p>`:''}<div class="recovery-customer-actions"><button class="primary-button recovery-collect-btn" type="button" data-recovery-collect="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_collect'))}</button>${row.archived?'':`<button class="secondary-button" type="button" data-recovery-waada="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_waada'))}</button>`}<button class="secondary-button" type="button" data-open-recovery-customer="${escapeHtml(row.customerId)}">${escapeHtml(t('recovery_history'))}</button></div><details class="recovery-whatsapp-toggle"${recoveryWhatsappOpen.has(row.customerId) ? ' open' : ''}><summary>WhatsApp / Remind ▾</summary><div class="recovery-whatsapp-row"><label>Draft template<select data-recovery-template="${escapeHtml(row.customerId)}">${templateOptions}</select></label>${contact}</div></details><details class="recovery-reasons"><summary>Why this priority?</summary><ul>${row.reasons.map(reason=>`<li>${escapeHtml(reason)}</li>`).join('')}</ul></details></article>`;
       }).join('')}</div></section>`;
     }).join('');
     host.innerHTML=groupsHtml||'<p class="empty-state">No customers match this filter.</p>';
+    // Reports Status polish: keep the WhatsApp / Remind toggle open
+    // across re-renders (a re-render recreates the <details>, so the
+    // open state lives in the recoveryWhatsappOpen closure set).
+    host.querySelectorAll('.recovery-whatsapp-toggle').forEach(details => details.addEventListener('toggle', () => {
+      const card = details.closest('[data-recovery-customer]');
+      if (!card) return;
+      if (details.open) recoveryWhatsappOpen.add(card.dataset.recoveryCustomer);
+      else recoveryWhatsappOpen.delete(card.dataset.recoveryCustomer);
+    }));
     if(recoveryPhoneEditing){
       const input=host.querySelector(`[data-recovery-phone-input="${recoveryPhoneEditing.customerId}"]`);
       if(input)input.focus();
@@ -470,7 +483,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     lastRecoveryResult=result;
     setText('#recoveryFormula',`${result.formula} Total recoverable: ${formatAmount(result.totalRecoverable)} across ${result.totalCustomers} customer(s).`);
     const summary=$('#recoverySummaryBar');
-    if(summary)summary.innerHTML=`<div class="recovery-summary-stat"><span>Pending</span><strong>${result.totalCustomers} customer(s) · ${escapeHtml(formatAmount(result.totalRecoverable))}</strong></div><div class="recovery-summary-stat"><span>Arrears (old)</span><strong>${escapeHtml(formatAmount(result.totalArrears))}</strong></div><div class="recovery-summary-stat"><span>Current month</span><strong>${escapeHtml(formatAmount(result.totalCurrentMonth))}</strong></div>`;
+    if(summary)summary.innerHTML=`<div class="recovery-summary-stat"><span>Pending</span><strong>${escapeHtml(formatAmount(result.totalRecoverable))}</strong><span class="recovery-summary-customers">${result.totalCustomers} customer${result.totalCustomers === 1 ? '' : 's'}</span></div><div class="recovery-summary-stat"><span>Arrears (old)</span><strong>${escapeHtml(formatAmount(result.totalArrears))}</strong></div><div class="recovery-summary-stat"><span>Current month</span><strong>${escapeHtml(formatAmount(result.totalCurrentMonth))}</strong></div>`;
     wireRecoveryFilterOnce();
     renderRecoveryMohallaOptions(result);
     wireRecoveryGroupsOnce();

@@ -378,13 +378,20 @@ export function renderCollectionTargetGaugeSvg(metrics) {
   const strokeWidth = 20;
 
   if (!metrics || !metrics.hasTarget) {
+    // Reports Status polish: the empty gauge is tightened (190 tall,
+    // cy 140, r 110) so the Set / Manage Target button no longer sits
+    // below a tall empty SVG — the shared 250/180/130 constants stay
+    // for the progress gauge, which needs the room.
+    const emptyHeight = 190;
+    const emptyCy = 140;
+    const emptyR = 110;
     return `
-      <svg class="target-gauge-svg" viewBox="0 0 ${width} ${height}" width="100%" height="${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Target not set">
-        <rect width="${width}" height="${height}" rx="12" fill="var(--card-bg, #ffffff)" />
-        <path d="M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}" fill="none" stroke="var(--border-color, #e2e8f0)" stroke-width="${strokeWidth}" stroke-linecap="round" />
-        <text x="${cx}" y="${cy - 30}" text-anchor="middle" font-size="14" font-weight="600" fill="var(--text-muted, #64748b)">No Collection Target Set</text>
-        <text x="${cx}" y="${cy - 8}" text-anchor="middle" font-size="12" fill="var(--text-muted, #94a3b8)">Set an owner monthly target to enable pace & run-rate tracking</text>
-        <text x="${cx}" y="${cy + 36}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text-color, #1e293b)">Actual Collected: PKR ${formatAmount(metrics?.collected ?? 0)}</text>
+      <svg class="target-gauge-svg" viewBox="0 0 ${width} ${emptyHeight}" width="100%" height="${emptyHeight}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Target not set">
+        <rect width="${width}" height="${emptyHeight}" rx="12" fill="var(--card-bg, #ffffff)" />
+        <path d="M ${cx - emptyR} ${emptyCy} A ${emptyR} ${emptyR} 0 0 1 ${cx + emptyR} ${emptyCy}" fill="none" stroke="var(--border-color, #e2e8f0)" stroke-width="${strokeWidth}" stroke-linecap="round" />
+        <text x="${cx}" y="${emptyCy - 30}" text-anchor="middle" font-size="14" font-weight="600" fill="var(--text-muted, #64748b)">No Collection Target Set</text>
+        <text x="${cx}" y="${emptyCy - 8}" text-anchor="middle" font-size="12" fill="var(--text-muted, #94a3b8)">Set an owner monthly target to enable pace & run-rate tracking</text>
+        <text x="${cx}" y="${emptyCy + 36}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--text-color, #1e293b)">Actual Collected: PKR ${formatAmount(metrics?.collected ?? 0)}</text>
       </svg>
     `;
   }

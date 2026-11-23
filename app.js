@@ -2459,7 +2459,7 @@ function setupReportsTabs() {
   if (!viewEl || viewEl.dataset.reportsTabsWired) return;
   viewEl.dataset.reportsTabsWired = '1';
   const tabPanels = {
-    status: ['.report-heading', '#billsActionsBar', '.report-filters', '.report-search-bar', '#monthlyReportSummaryBar', '#monthlyReportCount', '.mohalla-analytics', '#reportAreaFilterChip', '#monthlyReportList', '#monthlyReportPagination', '#monthlyReportEmpty', '.report-not-set-note', '#duesRecoveryPanel', '#smartAlertsPanel', '#targetGaugeSection', 'h3[data-i18n="ops_section_billing"]', '.summary-billing-cycle', '.summary-complaint-register', '.summary-field-tickets', '.summary-monthly-complaint-report', '.summary-group-billing', 'h3[data-i18n="ops_section_workers"]', '.summary-saad-visits', '.summary-lineman-scorecard'],
+    status: ['.report-heading', '#billsActionsBar', '.report-filters', '.report-search-bar', '#monthlyReportSummaryBar', '.mohalla-analytics', '#reportAreaFilterChip', '#monthlyReportList', '#monthlyReportPagination', '#monthlyReportEmpty', '#duesRecoveryPanel', '#smartAlertsPanel', '#targetGaugeSection', 'h3[data-i18n="ops_section_billing"]', '.summary-billing-cycle', '#opsListBilling', '.summary-group-billing', 'h3[data-i18n="ops_section_workers"]', '#opsListWorkers'],
     register: ['#stxTaxDashboard', '#billingRegisterSection'],
     compare: ['#monthComparisonSection', '#customerRankingsSection', '#multiMonthMatrixSection', '#annualOwnerSummarySection', '#collectionVelocitySection', '#packageUpgradeSection', '#fuelCostSection', '#winBackSection', '#atRiskLoyalSection', '#revenueLeakSection', '#hardwareAuditSection'],
     closing: ['#savedClosingsSection', '#dailyRoznamchaSection', '#ownerKhataSection', '#newCustomersSection', '#monthCompareSection', '#printSummarySection'],
@@ -3435,31 +3435,19 @@ function renderDashboard() {
       : '';
   }
   // SISP-15: complaint register card (open faults + this-month downtime).
-  const complaintSummaryEl = $('#complaintRegisterSummary');
-  if (complaintSummaryEl) {
-    const summary = buildComplaintSummary(loadComplaints(), referenceDate);
-    const valueEl = $('#dashboardComplaintValue');
-    const periodEl = $('#dashboardComplaintPeriod');
-    if (valueEl) valueEl.textContent = summary.total === 0 ? t('dash_complaint_empty') : t('dash_complaint_open', null, { open: summary.open, inProgress: summary.inProgress });
-    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', summary.total === 0);
-    if (periodEl) periodEl.textContent = summary.total === 0 ? t('dash_complaint_period_empty') : t('dash_complaint_period', null, { resolved: summary.resolved, count: summary.thisMonthCount, hours: summary.thisMonthDowntime });
-    complaintSummaryEl.innerHTML = summary.total === 0
-      ? ''
-      : `<p><span>${t('dash_detail_open_now')}</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(t('dash_detail_progress_resolved', null, { inProgress: summary.inProgress, resolved: summary.resolved }))}</small></p>`;
-  }
+  // Reports Status polish: the period/summary lines left the card
+  // surface, so the row subtitle updates directly instead of riding
+  // inside the (now deleted) summary-element guard.
+  const complaintSummary = buildComplaintSummary(loadComplaints(), referenceDate);
+  const complaintValueEl = $('#dashboardComplaintValue');
+  if (complaintValueEl) complaintValueEl.textContent = complaintSummary.total === 0 ? t('dash_complaint_empty') : t('dash_complaint_open', null, { open: complaintSummary.open, inProgress: complaintSummary.inProgress });
+  if (complaintValueEl) complaintValueEl.classList.toggle('ds-card-metric--empty', complaintSummary.total === 0);
   // SISP-12: field tickets card (open worklist + pending ticket charges).
-  const ticketSummaryEl = $('#fieldTicketsSummary');
-  if (ticketSummaryEl) {
-    const summary = buildTicketSummary(loadTickets());
-    const valueEl = $('#dashboardFieldTicketsValue');
-    const periodEl = $('#dashboardFieldTicketsPeriod');
-    if (valueEl) valueEl.textContent = summary.total === 0 ? t('dash_ticket_empty') : t('dash_complaint_open', null, { open: summary.open, inProgress: summary.inProgress });
-    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', summary.total === 0);
-    if (periodEl) periodEl.textContent = summary.total === 0 ? t('dash_ticket_period_empty') : t('dash_ticket_period', null, { resolved: summary.resolved, charges: summary.pendingCharges });
-    ticketSummaryEl.innerHTML = summary.total === 0
-      ? ''
-      : `<p><span>${t('dash_detail_open_now')}</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(t('dash_detail_progress_resolved', null, { inProgress: summary.inProgress, resolved: summary.resolved }))}</small></p>`;
-  }
+  // Reports Status polish: same direct subtitle update as above.
+  const ticketSummary = buildTicketSummary(loadTickets());
+  const ticketValueEl = $('#dashboardFieldTicketsValue');
+  if (ticketValueEl) ticketValueEl.textContent = ticketSummary.total === 0 ? t('dash_ticket_empty') : t('dash_complaint_open', null, { open: ticketSummary.open, inProgress: ticketSummary.inProgress });
+  if (ticketValueEl) ticketValueEl.classList.toggle('ds-card-metric--empty', ticketSummary.total === 0);
   // SISP-16: downtime analytics card (this-month customer + network downtime).
   const downtimeSummaryEl = $('#downtimeAnalyticsSummary');
   if (downtimeSummaryEl) {
@@ -3582,18 +3570,12 @@ function renderDashboard() {
     renderAreaModuleJumpOptions();
   }
   // SISP-17: monthly complaint report card (this-month 4-part report totals).
-  const monthlyReportSummaryEl = $('#monthlyComplaintReportSummary');
-  if (monthlyReportSummaryEl) {
-    const report = buildMonthlyComplaintReport(loadComplaints(), pakistanMonthNow(referenceDate));
-    const valueEl = $('#dashboardMonthlyReportValue');
-    const periodEl = $('#dashboardMonthlyReportPeriod');
-    if (valueEl) valueEl.textContent = report.summary.totalComplaints === 0 ? t('dash_complaint_empty') : t('dash_report_value', null, { count: report.summary.totalComplaints, hours: report.summary.totalDowntime });
-    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', report.summary.totalComplaints === 0);
-    if (periodEl) periodEl.textContent = report.summary.totalComplaints === 0 ? t('dash_report_period_empty') : t('dash_report_period', null, { resolved: report.summary.resolvedCount, pending: report.summary.pendingCount, hours: report.summary.fiberCutHours });
-    monthlyReportSummaryEl.innerHTML = report.summary.totalComplaints === 0
-      ? ''
-      : `<p><span>${t('dash_downtime_top')}</span><strong>${escapeHtml(report.perCustomer.length ? t('dash_report_complaints', null, { name: report.perCustomer[0].customerName, count: report.perCustomer[0].complaintCount }) : '—')}</strong></p>`;
-  }
+  // Reports Status polish: the period/summary lines left the card
+  // surface — direct subtitle update (see the SISP-15 note above).
+  const monthlyReport = buildMonthlyComplaintReport(loadComplaints(), pakistanMonthNow(referenceDate));
+  const monthlyReportValueEl = $('#dashboardMonthlyReportValue');
+  if (monthlyReportValueEl) monthlyReportValueEl.textContent = monthlyReport.summary.totalComplaints === 0 ? t('dash_complaint_empty') : t('dash_report_value', null, { count: monthlyReport.summary.totalComplaints, hours: monthlyReport.summary.totalDowntime });
+  if (monthlyReportValueEl) monthlyReportValueEl.classList.toggle('ds-card-metric--empty', monthlyReport.summary.totalComplaints === 0);
   // SISP-11: roznamcha card (today's cash drawer).
   const roznamchaSummaryEl = $('#roznamchaSummary');
   if (roznamchaSummaryEl) {
@@ -3670,18 +3652,12 @@ function renderDashboard() {
     daisySummaryEl.innerHTML = '';
   }
   // Saad visit log: this-month visits, days present and hours worked.
-  const saadSummaryEl = $('#saadVisitsSummary');
-  if (saadSummaryEl) {
-    const summary = buildMonthlySaadSummary(loadSaadVisits(), loadSaadPayments(), pakistanMonthNow(referenceDate));
-    const valueEl = $('#dashboardSaadVisitsValue');
-    const periodEl = $('#dashboardSaadVisitsPeriod');
-    if (valueEl) valueEl.textContent = summary.visits.length === 0 ? t('dash_saad_empty') : `${t(summary.visits.length === 1 ? 'dash_saad_visit_sing' : 'dash_saad_visit_plur', null, { count: summary.visits.length })} · ${t(summary.dayCount === 1 ? 'dash_saad_day_sing' : 'dash_saad_day_plur', null, { count: summary.dayCount })}`;
-    if (valueEl) valueEl.classList.toggle('ds-card-metric--empty', summary.visits.length === 0);
-    if (periodEl) periodEl.textContent = summary.visits.length === 0 ? t('dash_saad_period_empty') : t('dash_saad_period', null, { hours: formatHours(summary.totalHours), amount: summary.grandTotal });
-    saadSummaryEl.innerHTML = summary.visits.length === 0
-      ? ''
-      : `<p><span>${t('dash_detail_latest')}</span><strong>${escapeHtml(summary.visits[summary.visits.length - 1].date)} · ${escapeHtml(visitWhereLabel(summary.visits[summary.visits.length - 1]))} · ${escapeHtml(formatHours(visitHours(summary.visits[summary.visits.length - 1])))} h</strong></p>`;
-  }
+  // Reports Status polish: the period/summary lines left the card
+  // surface — direct subtitle update (see the SISP-15 note above).
+  const saadSummary = buildMonthlySaadSummary(loadSaadVisits(), loadSaadPayments(), pakistanMonthNow(referenceDate));
+  const saadValueEl = $('#dashboardSaadVisitsValue');
+  if (saadValueEl) saadValueEl.textContent = saadSummary.visits.length === 0 ? t('dash_saad_empty') : `${t(saadSummary.visits.length === 1 ? 'dash_saad_visit_sing' : 'dash_saad_visit_plur', null, { count: saadSummary.visits.length })} · ${t(saadSummary.dayCount === 1 ? 'dash_saad_day_sing' : 'dash_saad_day_plur', null, { count: saadSummary.dayCount })}`;
+  if (saadValueEl) saadValueEl.classList.toggle('ds-card-metric--empty', saadSummary.visits.length === 0);
   // Installation tracker: the headline is the OPEN queue (every
   // pending request, any month) — the same queue the Zone Field
   // Dispatch Board reads — so the card can never say "No requests
@@ -8003,7 +7979,7 @@ function renderMohallaAnalytics(month) {
     const rateOver100 = (area.collectionRate ?? 0) > 100;
     const rateText = rateOver100 ? t('mohalla_card_rate_over') : t('mohalla_card_rate', null, { rate });
     const popular = area.popularPackage ? t('mohalla_card_popular', null, { package: area.popularPackage }) : '';
-    return `<article class="mohalla-card"><button type="button" class="mohalla-card-btn" data-mohalla-drilldown="${escapeHtml(area.key)}" data-mohalla-label="${escapeHtml(area.label)}" aria-label="${escapeHtml(t('mohalla_card_aria', null, { area: area.label }))}"><span class="mohalla-card-head"><strong>${escapeHtml(area.label)}</strong><span>${escapeHtml(t('mohalla_card_count', null, { count: area.customers }))}</span></span><span class="mohalla-card-status">${escapeHtml(t('bill_service_active'))} ${area.activeCustomers} · ${escapeHtml(t('bill_service_offline'))} ${area.offlineCustomers}</span><span class="mohalla-card-metrics"><span><span class="mohalla-metric-label">${escapeHtml(t('mohalla_card_billed'))}</span><strong>${escapeHtml(formatAmount(area.billed))}</strong></span><span><span class="mohalla-metric-label">${escapeHtml(t('mohalla_card_collected'))}</span><strong>${escapeHtml(formatAmount(area.collected))}</strong></span><span><span class="mohalla-metric-label">${escapeHtml(t('mohalla_card_pending'))}</span><strong>${escapeHtml(formatAmount(area.outstanding))}</strong></span></span><span class="mohalla-card-rate"><span class="mohalla-rate-bar" role="img" aria-label="${escapeHtml(rateText)}"><span style="width:${Math.max(0, Math.min(100, rate))}%"></span></span><span>${escapeHtml(rateText)}</span></span>${popular ? `<span class="mohalla-card-package">${escapeHtml(popular)}</span>` : ''}</button></article>`;
+    return `<article class="mohalla-card"><button type="button" class="mohalla-card-btn" data-mohalla-drilldown="${escapeHtml(area.key)}" data-mohalla-label="${escapeHtml(area.label)}" aria-label="${escapeHtml(t('mohalla_card_aria', null, { area: area.label }))}"><span class="mohalla-card-head"><strong>${escapeHtml(area.label)}</strong><span>${escapeHtml(t('mohalla_card_count', null, { count: area.customers }))}</span></span><span class="mohalla-card-status">${escapeHtml(t('bill_service_active'))} ${area.activeCustomers} · ${escapeHtml(t('bill_service_offline'))} ${area.offlineCustomers}</span><span class="mohalla-card-metrics"><span><span class="mohalla-metric-label">${escapeHtml(t('mohalla_card_billed'))}</span><strong>${escapeHtml(formatAmount(area.billed))}</strong></span><span><span class="mohalla-metric-label">${escapeHtml(t('mohalla_card_collected'))}</span><strong${area.collected > 0 ? ' class="mohalla-metric-collected"' : ''}>${escapeHtml(formatAmount(area.collected))}</strong></span><span><span class="mohalla-metric-label">${escapeHtml(t('mohalla_card_pending'))}</span><strong${area.outstanding > 0 ? ' class="mohalla-metric-pending"' : ''}>${escapeHtml(formatAmount(area.outstanding))}</strong></span></span><span class="mohalla-card-rate"><span class="mohalla-rate-bar" role="img" aria-label="${escapeHtml(rateText)}"><span style="width:${Math.max(0, Math.min(100, rate))}%"></span></span><span>${escapeHtml(rateText)}</span></span>${popular ? `<span class="mohalla-card-package">${escapeHtml(popular)}</span>` : ''}</button></article>`;
   }).join('');
 }
 
@@ -8099,7 +8075,7 @@ function renderMonthlyReport() {
     if (methodTotals.Bank > 0) chips.push(`<span class="method-chip bank">${t('bill_method_bank')}: ${formatAmount(methodTotals.Bank)}</span>`);
     if (methodTotals.other > 0) chips.push(`<span class="method-chip other">${t('bill_method_other')}: ${formatAmount(methodTotals.other)}</span>`);
     methodBreakdownEl.innerHTML = chips.length > 0
-      ? `<span class="method-breakdown-title">${t('bill_method_title')}</span> ${chips.join(' ')}`
+      ? `<span class="method-breakdown-title">${t('bill_method_title')}</span>${chips.join(' ')}`
       : '';
   }
 
@@ -8137,7 +8113,11 @@ function renderMonthlyReport() {
     // The grey auto-credit box is noise when every value is PKR 0; it
     // renders only when non-zero credit is actually involved.
     const hasCredit = row.creditApplied > 0 || row.creditForwarded > 0 || row.creditPending > 0 || creditSources !== '' || pendingSources !== '';
-    const creditCell = hasCredit ? `<div class="report-cell report-credit-cell"><span class="report-cell-label">${t('bill_row_credit')}</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div>` : '';
+    // Reports Status polish: the auto-credit box is a collapsed chip
+    // (option (b) — no "applied" word, no new i18n key); the full
+    // credit text survives in the expanded body.
+    const chipAmount = row.creditApplied > 0 ? row.creditApplied : (row.creditForwarded > 0 ? row.creditForwarded : row.creditPending);
+    const creditCell = hasCredit ? `<details class="report-credit-chip"><summary><span class="report-credit-chip-label">${t('bill_row_credit')}: ${escapeHtml(formatAmount(chipAmount))}</span><span aria-hidden="true">▾</span></summary><span class="report-credit-value">${escapeHtml(creditSummary)}</span></details>` : '';
     const needsAction = row.status === 'pending' || row.status === 'partial';
     const actionsCell = needsAction ? `<div class="report-row-actions"><button type="button" class="secondary-button btn-sm" data-report-collect="${escapeHtml(row.customerId)}">${escapeHtml(t('bill_row_collect'))}</button><button type="button" class="secondary-button btn-sm" data-report-remind="${escapeHtml(row.customerId)}" data-remind-balance="${row.balanceDue ?? 0}" data-remind-due="${escapeHtml(row.dueDate ?? '')}">${escapeHtml(t('bill_row_remind'))}</button></div>` : '';
     // Reports Tab: pills whose value is bill_not_set are not rendered
@@ -8145,7 +8125,7 @@ function renderMonthlyReport() {
     // the package is not set, so the card never loses its package identity).
     const serviceTag = serviceLabel === t('bill_not_set') ? '' : `<span class="report-tag">${t('bill_row_service')}: ${serviceLabel}</span>`;
     const providerTag = provider === t('bill_not_set') ? '' : `<span class="report-tag">${t('bill_row_provider')}: ${escapeHtml(provider)}</span>`;
-    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ` · ${t('bill_row_archived')}` : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-tags">${serviceTag}<span class="report-tag">${t('bill_row_package')}: ${escapeHtml(speed)}</span>${providerTag}</span></div>${monthlySaleCell}<div class="report-cell"><span class="report-cell-label">${escapeHtml(t('bill_row_month_bill', null, { month: displayMonthName(row.month) }))}</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_due_date')}</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_received')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_balance')}</span><span class="report-cell-value">${escapeHtml(due)}</span></div>${creditCell}<div class="report-cell report-status-cell"><span class="report-cell-label">${t('bill_row_status')}</span><span class="report-status report-status-${row.status}">${billStatusLabel(row.status)}</span></div>${actionsCell}</li>`;
+    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ` · ${t('bill_row_archived')}` : ''}</span><div class="report-customer-head"><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-status report-status-${row.status}">${billStatusLabel(row.status)}</span></div><span class="report-tags">${serviceTag}<span class="report-tag">${t('bill_row_package')}: ${escapeHtml(speed)}</span>${providerTag}</span></div>${monthlySaleCell}<div class="report-cell"><span class="report-cell-label">${escapeHtml(t('bill_row_month_bill', null, { month: displayMonthName(row.month) }))}</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_due_date')}</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_received')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_balance')}</span><span class="report-cell-value">${escapeHtml(due)}</span></div>${creditCell}${actionsCell}</li>`;
   }).join('');
   document.querySelectorAll('[data-report-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.reportFilter === selectedReportFilter ? 'true' : 'false'));
   // Sharafat 45: keep the Archived checkbox in sync with the module state

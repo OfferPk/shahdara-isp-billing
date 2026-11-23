@@ -68,7 +68,9 @@ test('phase 4 dictionary: templates resolve without leftover placeholders, Engli
     t('bill_generate_note', 'en', { month: 'October 2026', key: '2026-10', count: 3 }),
     'Bills for October 2026 (2026-10) are generated and up to date for 3 customer(s). New bills use each customer\'s saved package price; nothing is guessed.',
   );
-  assert.equal(t('bill_row_month_bill', 'en', { month: 'October 2026' }), 'October 2026 bill (PKR)');
+  // Reports Status polish (2026-11-22): the month-bill label shortened
+  // to 'Bill' — the {month} param is now ignored by the value.
+  assert.equal(t('bill_row_month_bill', 'en', { month: 'October 2026' }), 'Bill');
   assert.equal(t('bill_heading_title', 'en'), 'Monthly payment status');
   assert.equal(t('bill_empty', 'en'), 'No customers match this status and search.');
   assert.equal(t('bill_row_monthly_sale', 'en'), 'Monthly sale (PKR)');
@@ -96,7 +98,10 @@ test('phase 4 source pins: renderMonthlyReport renders via t(), old literals gon
     "t('bill_row_received')",
     "t('bill_row_balance')",
     "t('bill_row_credit')",
-    "t('bill_row_status')",
+    // Reports Status polish (2026-11-22): the status pill moved into
+    // the row header, so renderMonthlyReport no longer calls
+    // t('bill_row_status') — the key stays in the dict (dead) because
+    // removing it would cost a parity re-pin.
     'billStatusLabel(row.status)',
   ]) {
     assert.ok(body.includes(pin), `renderMonthlyReport must call ${pin}`);

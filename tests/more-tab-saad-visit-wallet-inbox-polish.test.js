@@ -1,9 +1,13 @@
-// More Tab & Wallet Inbox Polish (Nov 2026): the 22 registry &
+// More Tab & Wallet Inbox Polish (Nov 2026): the 17 registry &
 // operations cards get single-row headers (DS-0 SVG tile + title +
 // status metric), static section headers at their post-SCTI homes,
 // zero-state values rendered as compact muted pills, singular/plural
 // metrics, and the Wallet inbox gets a one-row toolbar, DS-0 token
 // borders, compact review rows and an SVG empty state.
+// (Reports Status polish, 2026-11-22: five ops cards became two
+// grouped lists — 22 -> 17 articles. The five rows keep their modal
+// openers by id and their Reports home; see
+// tests/reports-status-polish.test.js A4.)
 //
 // Scope notes (read before "fixing" a failure here):
 // - Saad Visit Log has exactly ONE home: the Reports "Workers & Field
@@ -44,13 +48,17 @@ const ticketsSrc = fs.readFileSync(new URL('../complaint-tickets.js', import.met
 const PICTOGRAPH = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/u;
 const hasPictograph = (s) => PICTOGRAPH.test(s.replace(/[—·]/g, ''));
 
-// The 22 ops cards, in document order.
+// The 17 ops cards, in document order. (Reports Status polish,
+// 2026-11-22: the five Billing/Workers cards — complaint-register,
+// field-tickets, monthly-complaint-report, saad-visits,
+// lineman-scorecard — left this list when they became grouped list
+// rows; their modal openers and Reports home are pinned in
+// tests/reports-status-polish.test.js A2/A4.)
 const OPS_CARDS = [
   'summary-pending-works', 'summary-system-health',
-  'summary-billing-cycle', 'summary-complaint-register',
-  'summary-field-tickets', 'summary-monthly-complaint-report',
-  'summary-group-billing', 'summary-saad-visits',
-  'summary-lineman-scorecard', 'summary-downtime-analytics',
+  'summary-billing-cycle',
+  'summary-group-billing',
+  'summary-downtime-analytics',
   'summary-upstream-sla', 'summary-fleet-uptime', 'summary-splitter-map',
   'summary-pon-capacity', 'summary-outage-impact', 'summary-daisy-chain',
   'summary-pole-landmark', 'summary-pole-registry', 'summary-power-backup',
@@ -60,16 +68,16 @@ const OPS_CARDS = [
 
 function opsCardBlocks(source) {
   const blocks = [...source.matchAll(/<article[^>]*ops-card[^>]*>[\s\S]*?<\/article>/g)].map((m) => m[0]);
-  assert.equal(blocks.length, 22, `expected 22 ops-card articles, got ${blocks.length}`);
+  assert.equal(blocks.length, 17, `expected 17 ops-card articles, got ${blocks.length}`);
   return blocks;
 }
 
-test('ops cards: all 22 carry the scoped class and a single-row header (tile + title span + metric)', () => {
+test('ops cards: all 17 carry the scoped class and a single-row header (tile + title span + metric)', () => {
   const blocks = opsCardBlocks(html);
   assert.deepEqual(
     blocks.map((b) => (b.match(/class="summary-card (summary-[a-z-]+)/) || [])[1]).sort(),
     [...OPS_CARDS].sort(),
-    'the 22 ops cards are exactly the SCTI D2 set',
+    'the 17 ops cards are exactly the SCTI D2 set',
   );
   for (const block of blocks) {
     assert.ok(block.includes('class="ds-card-head"'), 'each ops card has a .ds-card-head row');
@@ -78,17 +86,18 @@ test('ops cards: all 22 carry the scoped class and a single-row header (tile + t
     assert.match(block, /<strong id="dashboard[a-zA-Z]+" class="summary-value ds-card-metric">/, 'value carries .ds-card-metric');
     assert.ok(!hasPictograph(block), 'no pictograph survives inside an ops card');
   }
-  // Header tiles: 22, button tiles: 24 — counted INSIDE the ops-card
+  // Header tiles: 17, button tiles: 18 — counted INSIDE the ops-card
   // blocks only (other surfaces use the same spans: profile actions,
   // speed dial, …). Fleet + PON have no buttons; the per-card button
-  // counts are: Billing 2, Complaint 2, Field 1, Monthly 1, Saad 1,
-  // Group 1, Lineman 1, Downtime 0, SLA 0, Splitter 3, Outage 3,
-  // Daisy 0, PoleDir 1, PoleReg 0, Power 1, Stock 3, Drums 1,
-  // Recovery 1, Pending 1, Health 1.
+  // counts are: Billing 2, Group 1, Downtime 0, SLA 0, Splitter 3,
+  // Outage 3, Daisy 0, PoleDir 1, PoleReg 0, Power 1, Stock 3, Drums 1,
+  // Recovery 1, Pending 1, Health 1. (Reports Status polish,
+  // 2026-11-22: Complaint 2, Field 1, Monthly 1, Saad 1 and
+  // Lineman 1 left with the five grouped rows.)
   const headerTiles = blocks.reduce((n, b) => n + ((b.match(/<span class="ds-icon-tile" data-ds-icon="/g) || []).length), 0);
   const buttonTiles = blocks.reduce((n, b) => n + ((b.match(/<span class="ds-icon-tile ds-icon-tile--sm" data-ds-icon="/g) || []).length), 0);
-  assert.equal(headerTiles, 22);
-  assert.equal(buttonTiles, 24);
+  assert.equal(headerTiles, 17);
+  assert.equal(buttonTiles, 18);
   // Every icon named on an ops card exists in the DS-0 set.
   for (const block of blocks) {
     for (const [, name] of block.matchAll(/data-ds-icon="([A-Za-z]+)"/g)) {
@@ -104,10 +113,13 @@ test('section headers: one per destination, in order, Group Billing moved before
   }
   const idx = (s) => html.indexOf(s);
   assert.ok(idx('ops_section_billing') < idx('summary-billing-cycle'));
-  assert.ok(idx('summary-monthly-complaint-report') < idx('summary-group-billing'));
+  // Reports Status polish (2026-11-22): the five Billing/Workers
+  // articles became grouped lists — the order now runs through the
+  // group ids, with Group Billing still before the Workers header.
+  assert.ok(idx('summary-billing-cycle') < idx('opsListBilling'));
+  assert.ok(idx('opsListBilling') < idx('summary-group-billing'));
   assert.ok(idx('summary-group-billing') < idx('ops_section_workers'));
-  assert.ok(idx('ops_section_workers') < idx('summary-saad-visits'));
-  assert.ok(idx('summary-saad-visits') < idx('summary-lineman-scorecard'));
+  assert.ok(idx('ops_section_workers') < idx('opsListWorkers'));
   assert.ok(idx('ops_section_network') < idx('summary-downtime-analytics'));
   assert.ok(idx('ops_section_inventory') < idx('summary-inventory-book'));
   assert.equal(t('ops_section_billing', 'en'), 'Billing Cycle & Complaints');
@@ -122,7 +134,11 @@ test('section headers: one per destination, in order, Group Billing moved before
 
 test('Saad Visit Log: exactly one card, under Workers & Field Staff — nowhere else', () => {
   assert.equal((html.match(/data-i18n="dash_card_saad"/g) || []).length, 1);
-  assert.equal((html.match(/data-i18n="dash_btn_saad_visits"/g) || []).length, 1);
+  // Reports Status polish (2026-11-22): the inner 'Saad Visits'
+  // button that carried dash_btn_saad_visits was deleted with the
+  // five ops articles — the grouped row opens the same modal by id,
+  // and the Workers home is now the #opsListWorkers grouped list
+  // (pinned in tests/reports-status-polish.test.js A4).
   // No Saad entry in the More menu or the Customers tab.
   assert.ok(!/data-mobile-more="[^"]*saad[^"]*"/i.test(html));
   const customersStart = html.indexOf('id="customersView"');

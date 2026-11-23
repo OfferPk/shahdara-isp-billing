@@ -2150,7 +2150,7 @@ voice-armed controls and the answer-waiting dot. Token colours only. */
 .recovery-reasons ul{padding-inline-start:19px;line-height:1.5}
 .recovery-customer-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
 .recovery-customer-actions .secondary-button{min-height:44px;padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.recovery-collect-btn{border-color:var(--green);background:var(--mint);color:var(--green);font-weight:700}
+.recovery-collect-btn{font-weight:700}
 .recovery-whatsapp-row{display:flex;gap:8px;align-items:end;margin-top:8px}
 .recovery-whatsapp-row label{display:grid;gap:5px;color:#52685f;font-size:11px;font-weight:700;flex:1 1 50%;min-width:0}
 .recovery-whatsapp-row select{min-width:0;min-height:44px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:8px 11px;color:var(--ink);font:500 14px 'DM Sans',sans-serif;width:100%}
@@ -18748,3 +18748,71 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
  * own dropdown, the audit explainer's caption drops down below the row. */
 .analytics-card-summary .audit-explainer{position:relative;margin:0}
 .analytics-card-summary .audit-explainer .chart-caption{position:absolute;top:calc(100% + 4px);right:0;z-index:3;width:min(320px,80vw);margin:0;padding:8px 10px;border:1px solid var(--ds-line);border-radius:8px;background:var(--ds-card);box-shadow:0 2px 7px rgba(15,83,56,0.14)}
+
+/* Reports Status polish (2026-11-22): grouped Operations rows, 2x2 KPI
+ * summary, compact method pills, row-header status pills, credit chips,
+ * semantic area figures and the two (i) help-tips. Radius is
+ * --radius-md (14px, A3) — the spec's 16px rounded-2xl is off-scale. */
+.ops-list-card{background:var(--ds-surface);border:1px solid var(--ds-border);border-radius:var(--radius-md);overflow:hidden}
+.ops-list-row{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;background:transparent;border:0;border-top:1px solid var(--ds-divider);text-align:left;cursor:pointer}
+.ops-list-row:first-child{border-top:0}
+.ops-list-row-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.ops-list-row-text .summary-value{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ops-list-chevron{flex:none;color:var(--ds-muted);font-size:18px;line-height:1}
+/* (E) Top Summary Card as a balanced 2x2 KPI grid; the count subtitle
+ * rides as the card's first row, full month name kept (no new key). */
+.monthly-report-summary-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#monthlyReportSummaryBar #monthlyReportCount{grid-column:1 / -1;margin:0}
+#monthlyReportSummaryBar .monthly-report-method-breakdown{grid-column:1 / -1}
+#monthlyReportSummaryBar .report-summary-item{display:flex;flex-direction:column;gap:2px;min-width:0}
+#monthlyReportSummaryBar .report-summary-item strong{font-size:18px;line-height:1.25}
+#reportSummaryBilled{color:var(--color-slate-900)}
+#reportSummaryCollected{color:var(--color-emerald-dark)}
+#reportSummaryBalance{color:var(--qc-rose-strong-text)}
+#reportSummaryCredit{color:var(--qc-indigo-text)}
+/* (F) 'By method' label on its own line, then tight uniform pills.
+ * The label keeps its existing .method-breakdown-title class and takes
+ * the full flex row (flex: 1 1 100%). */
+.method-breakdown-title{flex:1 1 100%;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ds-muted);margin-bottom:6px}
+.monthly-report-method-breakdown .method-chip{padding:4px 10px;font-size:12px;font-weight:600;border-radius:999px}
+/* (D) the Set / Manage Target button rides inline at the top-right of
+ * the gauge header (row, wrapping on narrow screens) instead of
+ * stacking below the title — scoped to this card only, so the other
+ * .chart-card-header-flex headers keep their ≤620px column stack. */
+#targetGaugeSection .chart-card-header-flex{flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap}
+/* (D) the Draft template + Add Phone bar hides behind a compact
+ * WhatsApp / Remind toggle; its open state survives re-renders via
+ * the recoveryWhatsappOpen closure set in owner-ui.js. */
+.recovery-whatsapp-toggle{margin-top:8px}
+.recovery-whatsapp-toggle summary{display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none;font-size:12px;font-weight:700;color:var(--ds-muted)}
+.recovery-whatsapp-toggle summary::-webkit-details-marker{display:none}
+/* (C) status pill in the row header, next to the customer name. */
+.report-customer-head{display:flex;align-items:center;gap:8px;min-width:0}
+.report-customer-head .report-customer-name{flex:1;min-width:0}
+.report-customer-head .report-status{flex:none}
+/* (C) the auto-credit box is a collapsed chip; the full credit text
+ * survives in the expanded body. No "applied" word, no new key. */
+.report-credit-chip{grid-column:1 / -1;margin-top:4px}
+.report-credit-chip summary{display:flex;align-items:center;gap:6px;cursor:pointer;list-style:none}
+.report-credit-chip summary::-webkit-details-marker{display:none}
+.report-credit-chip-label{font-size:12px;font-weight:700;color:var(--ds-muted)}
+.report-credit-chip .report-credit-value{display:block;margin-top:4px}
+@media (min-width: 1151px) {
+  /* (C) the status cell left the row, so the monthly-report grid drops
+   * its last track — desktop only, so the shared ≤1150px / ≤620px
+   * layouts and the sales-tax rows (.report-row.stx-row) keep theirs. */
+  #monthlyReportList .report-row{grid-template-columns:minmax(165px,1.4fr) repeat(5,minmax(90px,.8fr))}
+}
+/* (H) semantic colour on area card figures — Collected emerald only
+ * when > 0, Pending rose only when > 0 (symmetric, parent decision). */
+.mohalla-metric-collected{color:var(--color-emerald-dark)}
+.mohalla-metric-pending{color:var(--qc-rose-strong-text)}
+/* (B) the Pending strip's customer count is a compact 1-line nowrap
+ * subtitle under the bold amount — the strip split was
+ * overflow-wrap:anywhere on the strong in a ~80px column. */
+.recovery-summary-customers{font-size:12px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--ds-muted);white-space:nowrap}
+/* (B/G) Reports Status help-tips: 28px (i) — the FOURTH named F4
+ * exception (sharafat-96-touch-targets.test.js), matching the
+ * Month-end close and Saad payroll 28px standards. (F's search
+ * toolbar 20px is the third.) */
+.reports-status-help .help-icon{width:28px;height:28px;min-height:28px;font-size:11px}

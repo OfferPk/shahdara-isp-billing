@@ -187,9 +187,10 @@ test('tab bar, summary rows, and tab mechanism are wired', () => {
 test('EN/UR parity holds at the new total with the 8 new keys', () => {
   // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds
   // exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR.
-  // The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229);
+  // The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,231 (was 5,229 via Reports Closing).
+  // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5231);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5231);
   for (const key of ['dash_charts_tab_revenue', 'dash_charts_tab_customers', 'dash_charts_tab_network', 'dash_charts_tab_forecast', 'dash_upstream_primary_gateway', 'dash_upstream_redundancy', 'dash_acq_fastest_channel', 'dash_acq_portfolio_roi']) {
     assert.equal(typeof TRANSLATIONS.en[key], 'string');
     assert.ok(TRANSLATIONS.en[key].length > 0);

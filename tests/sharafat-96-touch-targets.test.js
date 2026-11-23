@@ -341,8 +341,9 @@ test('S1 EN/UR parity holds (4,669 / 4,669 — Round 2 D9 net −1, Quick Collec
   // Reports Closing polish: +1 key dash_khata_open ('Open Khata Closing ›')
   // — parity 5,223 → 5,229/5,229. If the Reports Register polish (+5 keys)
   // merges first, re-pin to 5,229.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5229, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5229, 'UR key count moved');
+  // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5231, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5231, 'UR key count moved');
 });
 
 test('S2 global button floor intact', () => {

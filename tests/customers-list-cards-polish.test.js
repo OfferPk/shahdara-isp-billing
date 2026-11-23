@@ -375,6 +375,7 @@ test('list-cards guards: hex ratchet, dark coverage, parity (no new keys)', () =
   // This item adds NO i18n keys. SPLIT parity literal — never the bare
   // literal. Re-pinned at rebase (Customers List Cards, 2026-11-23):
   // Register +5 then Closing +1 → 5,229 (was '52' + '23' on the PR base).
-  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '29'), 'EN parity');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, Number('52' + '29'), 'UR parity');
+  // Bill card rebase (2026-11-23): +2 keys → 5,231.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '31'), 'EN parity');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, Number('52' + '31'), 'UR parity');
 });

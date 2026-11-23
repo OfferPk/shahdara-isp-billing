@@ -126,9 +126,10 @@ test('G4 parity holds at 4,722 / 4,722 after deleting the six orphan keys', () =
   // (Test title re-pinned with the asserts by Plan 586 — the 585 merge had
   // left the 582-era number in the title with disclosure; titles and
   // asserts move together from here on.)
-  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
-  assert.equal(Object.keys(en).length, 5229, 'EN key count moved');
-  assert.equal(Object.keys(ur).length, 5229, 'UR key count moved');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,231 (was 5,229 via Reports Closing).
+  // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
+  assert.equal(Object.keys(en).length, 5231, 'EN key count moved');
+  assert.equal(Object.keys(ur).length, 5231, 'UR key count moved');
 });
 
 test('G4 dues, installation and Quick Collect values are byte-identical to base', () => {

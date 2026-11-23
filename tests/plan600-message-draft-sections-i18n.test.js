@@ -114,9 +114,10 @@ const sends3 = [...sends2, { customerId: 'c1', sentAt: '2026-11-06T10:00:00.000Z
 // ================= G1 — parity guard (this file's own pin) =================
 
 test('G1: parity is the new total in both dicts', () => {
-  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,229.
-  assert.equal(Object.keys(en).length, 5229, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5229, 'UR parity');
+  // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,231 (was 5,229 via Reports Closing).
+  // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
+  assert.equal(Object.keys(en).length, 5231, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5231, 'UR parity');
 });
 
 // ================= G2 — the dft_ family is complete and clean =================

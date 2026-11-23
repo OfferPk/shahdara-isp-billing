@@ -18584,6 +18584,36 @@ the same row; the dd becomes a flex row so the button never stretches. */
 .payment-form input, .payment-form select, .bill-form input, .bill-form select { height: 46px; border: 1px solid var(--ds-input-border); border-radius: var(--radius-sm); }
 .payment-form input:focus, .payment-form select:focus, .bill-form input:focus, .bill-form select:focus { border: 1.5px solid var(--ds-brand); box-shadow: 0 0 0 3px var(--ds-focus-ring); outline: none; }
 
+/* Profile bill/package form polish (2026-11-22): the tax and free-bill
+   options are single-row toggle cards — label left, a crisp 20px
+   checkbox right — instead of a bare label over a stretched box.
+   Scoped to this form only (the #quickCollectModal checkbox rule at
+   :8493 is the precedent): the global input rules (width 100%,
+   height 46px, min-height 44px) stretch every checkbox into a
+   full-width ~48px box, and the global rules are NOT changed. The
+   12px grid gap (space-y-3) and the neutralised -3px label margin
+   keep Free bill clear of the Optional due date row. */
+.bill-form .form-grid { gap: 12px; }
+.bill-form .form-grid .field-label.bill-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: var(--ds-radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 10px 14px;
+  margin-bottom: 0;
+  font-size: 13px;
+}
+.bill-form input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  flex: none;
+  accent-color: var(--qc-emerald-text);
+}
+
 /* §3.2 + DS §9.1: the collapsible "Optional & Third-Party Payer
    Details" section — method visibility decides which fields exist;
    this section decides how the optional ones are grouped. */

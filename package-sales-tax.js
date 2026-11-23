@@ -7,10 +7,14 @@
 // cents; display uses the min-0-decimals formatter, so 292.5 reads
 // "PKR 292.5" and 195 reads "PKR 195", never "PKR 292.50" or "PKR 0".
 //
-// Pinned rounding: tax = Math.round(priceCents x 195 / 1000). For all
-// six catalog prices the computation is exact (no rounding occurs);
-// for any other positive amount it rounds half-up to the nearest
-// paisa. Never round to whole rupees.
+// Pinned rounding (user decision 2026-11-22, superseding the old
+// paisa rule — the user asked for whole rupees, "1793 instead of
+// 1792.5"): tax = Math.round(priceCents x 195 / 1000) to the paisa
+// first, then Math.round to the nearest 100 cents (one whole rupee).
+// 1500 -> 293, 2500 -> 488; the other four catalog prices are
+// already whole rupees, so their tax is unchanged. A 1500 package
+// bills 1793, never 1792.5. Old bills keep the cents recorded on
+// them — history is never recomputed.
 //
 // Pure and import-free apart from the package catalog (the single
 // source of truth for prices — the price table is never duplicated
@@ -51,13 +55,14 @@ function salesTaxPriceCents(value) {
   return Math.round(rupees * 100);
 }
 
-// The sales tax on one package price, in integer cents:
-// Math.round(priceCents x 195 / 1000). Null for anything that is not
+// The sales tax on one package price, in integer cents, rounded to
+// whole rupees (user decision 2026-11-22): paisa cents first, then
+// to the nearest 100 cents. Null for anything that is not
 // a positive amount — never zero.
 export function salesTaxCentsForPrice(priceRupees) {
   const priceCents = salesTaxPriceCents(priceRupees);
   if (priceCents === null) return null;
-  return Math.round((priceCents * SALES_TAX_RATE_BPS) / 10000);
+  return Math.round(Math.round((priceCents * SALES_TAX_RATE_BPS) / 10000) / 100) * 100;
 }
 
 // The sales tax for one catalog package: { packageId, label,

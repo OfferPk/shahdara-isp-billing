@@ -126,8 +126,16 @@ test('R3b: STX per-customer cards are compact 2-line grouped rows', () => {
   assert.ok(stylesCss.includes('.stx-grouped-row + .stx-grouped-row { border-top: 1px solid var(--line); }'), 'rows divide with a single line');
 });
 
-test('R3c GUARD: sales-tax figures stay FRACTIONAL (never whole-rupee)', () => {
-  assert.ok(salesTaxJs.includes('Never round to whole rupees'), 'package-sales-tax.js still pins fractional tax — Plan J whole-rupee rounding does NOT apply here, so PKR 292.5 stays');
+// Re-pin (Plan J rebase 2026-11-23): the old 'Never round to whole
+// rupees' module pin is reversed by J's NAMED REVERSAL (user decision
+// 2026-11-22: whole-rupee tax, "1793 instead of 1792.5") — the module
+// now rounds stored tax to whole rupees, so that string no longer
+// exists. What this guard still pins is the Register's own display
+// path: figures render through formatSalesTaxAmount (max-2 decimals)
+// and the Register never rounds a figure itself. Old bills keep the
+// cents recorded on them.
+test('R3c GUARD: sales-tax figures render through formatSalesTaxAmount (no Register-side rounding)', () => {
+  assert.ok(salesTaxJs.includes('Pinned rounding (user decision 2026-11-22'), 'package-sales-tax.js pins the whole-rupee rule (Plan J reversal of Polish #11)');
   assert.ok(appJs.includes('formatSalesTaxAmount(totals.derivedTotalCents)'), 'the strip still formats through formatSalesTaxAmount (max-2 decimals)');
   assert.ok(!appJs.includes('Math.round(row.taxCents'), 'no whole-rupee rounding of the tax figure');
 });

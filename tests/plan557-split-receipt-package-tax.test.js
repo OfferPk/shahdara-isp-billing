@@ -86,23 +86,24 @@ const untaxedSpec = {
   ]
 };
 
-// A taxed 1,500-package split: 1,500 package + 292.50 tax = 1,792.50
-// due, settled 1,500 Cash + 292.50 Easypaisa — the fractional tax
-// pins the Plan 555 shared format (292.50, never 292.5).
+// A taxed 1,500-package split: 1,500 package + 293 tax = 1,793
+// due, settled 1,500 Cash + 293 Easypaisa. Whole-rupee tax since
+// the 2026-11-22 user decision (the old paisa rule billed 1,792.50
+// with a 292.50 tax) — the split sums to the whole-rupee due.
 function fractionalFixture() {
   let s = { version: 1, nextCustomerNumber: 2, customers: [{
     id: 'a', customerNumber: 1, name: 'Test Customer', phone: '03000000001',
     area: 'Shahdara', archived: false, bills: [],
     monthlySellingAmount: 1500, packageSpeed: '5Mbps / 150GB'
   }] };
-  s = saveBillMonth(s, 'a', { month: MONTH, dueAmount: 1792.5, packageId: '5mbps-150gb', salesTaxCents: 29250, status: 'pending' }, NOW);
+  s = saveBillMonth(s, 'a', { month: MONTH, dueAmount: 1793, packageId: '5mbps-150gb', salesTaxCents: 29300, status: 'pending' }, NOW);
   return s;
 }
 const fractionalSpec = {
   customerId: 'a', month: MONTH, date: DATE, paidBy: 'Self',
   legs: [
     { amount: 1500, method: 'Cash' },
-    { amount: 292.5, method: 'Easypaisa', transactionId: 'EP99887766' }
+    { amount: 293, method: 'Easypaisa', transactionId: 'EP99887766' }
   ]
 };
 
@@ -173,13 +174,13 @@ test('Plan 557: an untaxed, unpackaged split shows no tax line and no package li
   assert.equal(taxFigureOf(html), null);
 });
 
-test('Plan 557: a fractional tax prints identically on both surfaces (PKR 292.50, never 292.5)', () => {
+test('Plan 557: a whole-rupee tax prints identically on both surfaces (PKR 293)', () => {
   const { combinedReceipt } = run(fractionalFixture(), fractionalSpec);
-  assert.equal(combinedReceipt.salesTaxCents, 29250, '1,500 package carries 292.50 tax');
+  assert.equal(combinedReceipt.salesTaxCents, 29300, '1,500 package carries 293 tax');
   const text = formatSplitTenderWhatsAppText(combinedReceipt);
   const html = generateSplitTenderReceiptHtml(combinedReceipt);
-  assert.equal(taxFigureOf(text), 'PKR 292.50', 'WhatsApp keeps the trailing zero (Plan 555 format)');
-  assert.equal(taxFigureOf(html), 'PKR 292.50', 'HTML keeps the trailing zero (Plan 555 format)');
+  assert.equal(taxFigureOf(text), 'PKR 293', 'WhatsApp shows the whole-rupee figure');
+  assert.equal(taxFigureOf(html), 'PKR 293', 'HTML shows the whole-rupee figure');
   assert.ok(text.includes('📦 *Package / پیکیج:* 5Mbps / 150GB'), 'fractional fixture package line');
   assert.ok(html.includes('<dt>Package / پیکیج:</dt><dd>5Mbps / 150GB</dd>'), 'fractional fixture package row');
 });

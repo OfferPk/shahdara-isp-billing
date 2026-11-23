@@ -66,8 +66,9 @@ const FUTURE = '2026-11-25';
 test('G1: parity is 5,222/5,222 in both dicts', () => {
   // Re-pin (Reports Closing polish): parity 5,223 → 5,229 — the item adds exactly one i18n key, dash_khata_open ('Open Khata Closing ›'), EN + UR. The Reports Register polish (+5 keys) merged first, so this re-pin lands at 5,231 (was 5,229 via Reports Closing).
   // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
-  assert.equal(Object.keys(en).length, 5231, 'EN parity');
-  assert.equal(Object.keys(ur).length, 5231, 'UR parity');
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  assert.equal(Object.keys(en).length, 5234, 'EN parity');
+  assert.equal(Object.keys(ur).length, 5234, 'UR parity');
 });
 
 test('G2: isWaadaDateInPast classifies past / today / future / invalid', () => {
@@ -165,7 +166,8 @@ test('G9: the collection-promise form is untouched (different store)', () => {
 });
 
 test('G10: this file pins the new total and stays free of the previous and older total literals', () => {
-  assert.ok(selfSrc.includes('5231'), 'this file pins the new total 5,231');
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  assert.ok(selfSrc.includes('5234'), 'this file pins the new total 5,234');
   // The previous total's digits and the older total's digits are built,
   // never spelled, so this guard cannot trip the sweep it guards.
   assert.ok(!selfSrc.includes('51' + '61'), 'this file must stay free of the previous-count literal');

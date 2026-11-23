@@ -313,7 +313,8 @@ test('G4: the 10 unstyled buttons inside .analytics-btn-row keep padding 0 8px /
 
 // ---------- G5 — Guards + completeness ----------
 
-test('G5: ratchet baselines hold and parity is 5,231/5,231 (Reports Closing adds dash_khata_open)', () => {
+// Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+test('G5: ratchet baselines hold and parity is 5,234/5,234 (Reports Closing adds dash_khata_open)', () => {
   // Current exact counts (ratchet ceilings in design-tokens-230):
   // styles.css 610 (<=616), nav.css 164 (<=164), components.css 0 hex.
   // (Customers List Cards polish adds the two spec literals navy #1E3A5F + rose-800 #9f1239, 608 → 610.)
@@ -324,8 +325,9 @@ test('G5: ratchet baselines hold and parity is 5,231/5,231 (Reports Closing adds
   assert.ok(distinctHex(navCss) <= 164, `nav.css distinct hex must not exceed 164 (now ${distinctHex(navCss)})`);
   assert.equal(distinctHex(componentsCss), 0, 'components.css stays hex-free');
   // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5231, 'EN keys');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5231, 'UR keys');
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5234, 'EN keys');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5234, 'UR keys');
   assert.deepEqual(
     Object.keys(TRANSLATIONS.en).sort(),
     Object.keys(TRANSLATIONS.ur).sort(),

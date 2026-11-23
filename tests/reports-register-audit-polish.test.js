@@ -32,7 +32,8 @@ const salesTaxJs = read('package-sales-tax.js');
 // total 5,228 -> 5,229.
 // Re-pin (Bill card rebase 2026-11-23): Bill card adds 2 keys,
 // total 5,229 -> 5,231.
-const PARITY = Number('52' + '31');
+// Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+const PARITY = Number('52' + '34');
 
 function segment(source, startMarker, endMarker, fromIndex = 0) {
   const start = source.indexOf(startMarker, fromIndex);

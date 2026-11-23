@@ -376,6 +376,8 @@ test('list-cards guards: hex ratchet, dark coverage, parity (no new keys)', () =
   // literal. Re-pinned at rebase (Customers List Cards, 2026-11-23):
   // Register +5 then Closing +1 → 5,229 (was '52' + '23' on the PR base).
   // Bill card rebase (2026-11-23): +2 keys → 5,231.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '31'), 'EN parity');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, Number('52' + '31'), 'UR parity');
+  // Billing history rebase (2026-11-23): +3 keys → 5,234.
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '34'), 'EN parity');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, Number('52' + '34'), 'UR parity');
 });

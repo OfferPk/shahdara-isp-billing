@@ -3242,6 +3242,23 @@ export function deletePayment(state, customerId, month, paymentId, referenceDate
 }
 
 /**
+ * Billing history: remove the bill object for one month (2026-11-22).
+ * Narrow removal for the 1-tap '✓ Paid' undo — when the tap created the
+ * bill, undoing the payment must also remove the bill, or the month
+ * comes back Pending instead of empty. Refuses a bill that still has
+ * payments (the caller deletes the payment first); a legacy or corrupt
+ * unpriced bill with no payments is only ever removed when the caller
+ * explicitly asks for this month.
+ */
+export function deleteBill(state, customerId, month) {
+  const customer = customerOrThrow(state, customerId);
+  const bill = customer.bills.find(b => b.month === month);
+  if (!bill) throw new Error('Bill not found.');
+  if ((bill.payments ?? []).length > 0) throw new Error('Cannot remove a bill that still has payments.');
+  return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.filter(b => b.month !== month) }) };
+}
+
+/**
  * SISP-21: 1-tap wallet verification toggle. Sets walletVerified true, or
  * removes the field entirely when false (absent === pending, never verified).
  * Pure state transform; the caller persists and re-renders.

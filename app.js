@@ -1,7 +1,7 @@
 import {
   INITIAL_NAMES, PAYMENT_METHODS, MONTH_LIMIT, STORAGE_KEY, readState, persistState, monthsForHistory, generateMonthlyBillsThroughCurrentMonth,
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, recordWinBackOfferSent, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
-  deletePayment, setPaymentWalletVerified, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
+  deletePayment, deleteBill, setPaymentWalletVerified, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot, isCashPaymentMethod, deriveDashboardBillRows,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation, applyConcessionToBill, removeConcessionFromBill, removeFirstMonthWaiverFromBill,
@@ -6846,6 +6846,106 @@ function updatePaymentMethodGroups(form) {
     cell.hidden = !show;
   });
 }
+
+// Billing history: which months count as populated (2026-11-22) — a
+// month with a priced bill (a deliberate Rs 0 bill counts), any payment
+// at all (even on an unpriced bill — derivedBillStatus still reads
+// 'not-set' for those, so the status alone cannot see them), or a
+// billed allocation from the engine. A month with no bill object is
+// empty.
+function isPopulatedHistoryMonth(customer, month, byMonth, allocations) {
+  const bill = byMonth.get(month);
+  if (!bill) return false;
+  if (bill.isZeroPriced === true) return true;
+  if (typeof bill.dueAmount === 'number' && bill.dueAmount > 0) return true;
+  if (Array.isArray(bill.payments) && bill.payments.length > 0) return true;
+  const monthAllocation = allocations.forMonth(customer.id, month);
+  return typeof monthAllocation?.billAmountCents === 'number' && monthAllocation.billAmountCents !== null;
+}
+
+// Billing history: whether an empty month offers the 1-tap '✓ Paid'
+// pill (2026-11-22) — archived customers, free connections, paused
+// (vacation-hold) months, and months with no applicable price (before
+// the schedule starts, or no schedule at all) get Custom only.
+function canMarkMonthPaid(customer, month) {
+  if (!customer || customer.archived === true || customer.isFreeConnection === true) return false;
+  if (Array.isArray(customer.pauseSkippedMonths) && customer.pauseSkippedMonths.includes(month)) return false;
+  const price = applicablePriceForMonth(customer, month) ?? customer.monthlySellingAmount ?? null;
+  return price !== null && price > 0;
+}
+
+function emptyMonthsDrawerMarkup(customer, emptyMonths, open) {
+  if (emptyMonths.length === 0) return '';
+  const rows = emptyMonths.map(month => {
+    const paidButton = canMarkMonthPaid(customer, month) ? `<button type="button" class="empty-month-paid status-received" data-mark-month-paid="${escapeHtml(month)}">${escapeHtml(t('prof_hist_mark_paid'))}</button>` : '';
+    return `<div class="empty-month-row" data-empty-month-row="${escapeHtml(month)}"><span class="empty-month-label">${escapeHtml(displayMonthName(month))}</span><span class="empty-month-actions">${paidButton}<button type="button" class="empty-month-custom" data-open-month-form="${escapeHtml(month)}">${escapeHtml(t('prof_hist_empty_custom'))} ›</button></span></div>`;
+  }).join('');
+  // The toggle is a span styled as the outlined button, not a button
+  // element: the <summary> itself is the control (one tab stop, one
+  // native toggle), and a button nested inside a summary has
+  // unreliable toggle behaviour across browsers.
+  return `<details class="empty-months" data-empty-months ${open ? 'open' : ''}><summary><span class="secondary-button" data-empty-months-toggle>${escapeHtml(t('prof_hist_empty_months', null, { count: emptyMonths.length }))}</span></summary><div class="empty-month-rows">${rows}</div></details>`;
+}
+
+// Billing history: 1-tap '✓ Paid' for an empty past month (2026-11-22).
+// Records the saved package rate for that month as a Cash payment dated
+// the last day of the month (clamped to today), then re-renders so the
+// month moves out of the empty drawer into the populated list. The
+// double-tap guard keys on customer+month+amount so a double tap cannot
+// record twice. Undo removes the payment and, when this tap created the
+// bill, the bill object too (deleteBill) — otherwise the month would
+// come back Pending instead of empty. Deliberately NOT run here: the
+// auto-package follow and the FIFO kist event (the tap prices the month
+// from its own schedule, it does not reprice the customer's package),
+// and the large-cash approval (the tap passes no threshold, same as
+// historical paths). The generated bill is tax-free, so the tap amount
+// is the schedule price, not price + 19.5%.
+const markMonthPaidSaveGuard = createDoubleTapSaveGuard();
+function onMarkMonthPaid(customerId, month) {
+  const customer = state.customers.find(c => c.id === customerId);
+  if (!customer || customer.archived === true || customer.isFreeConnection === true) return;
+  if (Array.isArray(customer.pauseSkippedMonths) && customer.pauseSkippedMonths.includes(month)) return;
+  const amount = applicablePriceForMonth(customer, month) ?? customer.monthlySellingAmount ?? null;
+  if (amount === null || !(amount > 0)) return;
+  const monthParts = month.split('-').map(Number);
+  const lastDay = new Date(monthParts[0], monthParts[1], 0).getDate();
+  const monthEndDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+  const today = localDate();
+  const date = monthEndDate < today ? monthEndDate : today;
+  const guardKey = doubleTapSaveGuardKey({ customerId, amount, method: 'Cash', month, date });
+  if (!doubleTapSaveGuardTryStart(markMonthPaidSaveGuard, guardKey)) return;
+  const billBefore = (customer.bills ?? []).find(b => b.month === month);
+  const beforeIds = new Set((billBefore?.payments ?? []).map(p => p.id));
+  try {
+    state = addPayment(state, customerId, month, { amount, method: 'Cash', date });
+    save();
+    renderDetail();
+    const paidCustomer = state.customers.find(c => c.id === customerId);
+    const added = paidCustomer?.bills.find(b => b.month === month)?.payments.find(p => !beforeIds.has(p.id));
+    if (added) recordAudit('payment_recorded', { recordRef: `${customerId}/${month}/${added.id}`, customerId, customerName: paidCustomer?.name || '', detail: `${formatAmount(added.amount)} · ${added.method || ''}`.trim() });
+    const actions = added ? [
+      { label: 'Undo', onAction: () => { try { state = deletePayment(state, customerId, month, added.id); if (!billBefore) state = deleteBill(state, customerId, month); save(); if (selectedCustomerId === customerId) renderDetail(); toast('Payment undone. Ledger restored.', { type: 'info', title: 'Undone' }); } catch (err) { toast(err.message); } } },
+      { label: 'Receipt', onAction: () => printPaymentReceipt(customerId, month, added.id) }
+    ] : [];
+    toast(added ? `${formatAmount(added.amount)} received from #${paidCustomer.customerNumber} ${paidCustomer.name} for ${monthName(month)}. Payment recorded on this device.` : 'Payment recorded on this device.', { type: 'success', title: 'Payment recorded', actions });
+  } catch (error) { toast(paymentSaveErrorMessage(error), { type: 'error', title: 'Payment not saved' }); }
+  finally { doubleTapSaveGuardFinish(markMonthPaidSaveGuard); }
+}
+
+// Months the operator opened with Custom stay as full cards for this
+// session, so the manual form is there to jump to — the empty drawer
+// holds compact rows, not cards, so Custom materialises the card first
+// and then follows the jump-to-bill precedent.
+const customOpenedHistoryMonths = new Set();
+function openEmptyMonthForm(month) {
+  customOpenedHistoryMonths.add(month);
+  renderDetail();
+  const card = historyContainer.querySelector(`details.month-card[data-month-card="${month}"]`);
+  if (!card) return;
+  card.open = true;
+  card.scrollIntoView({ block: 'center' });
+}
+
 function renderHistory(customer) {
   const monthList = monthsForHistory();
   const byMonth = new Map(customer.bills.map(bill => [bill.month, bill]));
@@ -6855,8 +6955,17 @@ function renderHistory(customer) {
     Array.from(historyContainer.querySelectorAll('details.month-card[open]'))
       .map(el => el.getAttribute('data-month-card'))
   );
+  const openEmptyMonths = historyContainer.querySelector('details.empty-months[open]') !== null;
   $('#customerEmptyNote').hidden = customer.bills.length > 0;
-  historyContainer.innerHTML = monthList.map((month, idx) => {
+  // Billing history: empty 'Not set' months collapse into one drawer
+  // (2026-11-22) — only months with a bill, a payment, or a billed
+  // allocation stay as full cards; the current month always stays
+  // visible even when empty (it is the live billing month), and a month
+  // the operator opened with Custom stays visible for the session.
+  const currentMonth = monthsForHistory()[0];
+  const visibleMonths = monthList.filter(month => month === currentMonth || customOpenedHistoryMonths.has(month) || isPopulatedHistoryMonth(customer, month, byMonth, allocations));
+  const emptyMonths = monthList.filter(month => !visibleMonths.includes(month));
+  historyContainer.innerHTML = visibleMonths.map((month, idx) => {
     const isOpen = openMonths.has(month) || (openMonths.size === 0 && idx === 0);
     const bill = byMonth.get(month);
     const status = statusPresentation(customer, bill, allocations);
@@ -6955,7 +7064,7 @@ function renderHistory(customer) {
     const archivedWithoutBill = customer.archived && !bill;
     const formsMarkup = archivedWithoutBill ? `<p class="notice">${t('prof_hist_archived_notice')}</p>` : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? t('prof_hist_bill_update') : t('prof_hist_bill_record')}</h4><div class="form-grid">${packageSelector}<div class="form-cell"><label class="field-label full" for="due-${month}">${t('prof_hist_bill_amount_label')} <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="${zeroPriced ? '0' : '0.01'}" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}></div><label class="field-label full bill-toggle-card" data-zero-price-wrap><span>${t('prof_hist_bill_zero_price')}</span><input type="checkbox" id="zeroPrice-${month}" name="isZeroPriced" data-zero-price ${zeroPriced ? 'checked' : ''} ${savedPackage ? 'disabled' : ''}></label><div class="form-cell"><label class="field-label full" for="due-date-${month}">${t('prof_hist_due_date_label')}</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"></div><p class="field-help full">${t('prof_hist_due_help')}</p><button class="primary-button" type="submit">${bill ? t('prof_hist_bill_save') : t('prof_hist_bill_record_btn')}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>${t('prof_hist_pay_title')}</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">${t('prof_hist_pay_guidance')}</p><div class="form-grid"><div class="form-cell" data-pay-group="always"><label class="field-label full" for="amount-${month}">${t('prof_hist_pay_amount_label')}</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_amount_ph')}" required></div><div class="form-cell" data-pay-group="always"><label class="field-label full" for="method-${month}">${t('prof_hist_pay_method_label')}</label><select id="method-${month}" class="full" name="method" required><option value="">${t('prof_hist_pay_method_choose')}</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select></div>${billMonthSelectorFieldMarkup(`bms-${month}`, monthsForHistory(), month, 'always')}<div class="form-cell" data-pay-group="always"><label class="field-label full" for="date-${month}">${t('prof_hist_pay_date_label')}</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required></div><div class="form-cell" data-pay-group="cash">${paidByFieldMarkup(`paid-by-${month}`)}</div><div class="form-cell" data-pay-group="digital"><label class="field-label full" for="txnid-${month}">${t('prof_hist_pay_txn_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="${t('prof_hist_pay_txn_ph')}"></div><div class="form-cell" data-pay-group="digital"><label class="field-label full" for="sender-name-${month}">${t('spay_sender_name_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-name-${month}" class="full" name="senderTitle" type="text" maxlength="100" placeholder="${t('spay_sender_name_ph')}"></div><div class="form-cell" data-pay-group="digital"><label class="field-label full" for="sender-digits-${month}">${t('spay_sender_digits_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-digits-${month}" class="full" name="senderDigits" type="text" inputmode="numeric" maxlength="19" placeholder="${t('spay_sender_digits_ph')}"></div><div class="form-cell" data-pay-group="digital"><label class="field-label full" for="proof-${month}">${t('proof_attach_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="proof-${month}" class="full" name="proofScreenshot" type="file" accept="image/*"></div><details class="pay-optional-details" data-pay-optional><summary>${t('pay_optional_details')}</summary><div class="pay-optional-body">${crossPaymentNoteFieldsMarkup(`xpn-${month}`, customer.id, state.customers, 'thirdparty')}${collectionPlaceNoteFieldsMarkup(`cpl-${month}`, undefined, 'cash')}${largeCashApprovalFieldsMarkup(`lca-${month}`, 'cash')}${categoryTagFieldMarkup(`ctg-${month}`, 'always')}</div></details>${urduNoteFieldMarkup(`urn-${month}`, undefined, 'always')}<div class="form-cell" data-pay-group="always"><label class="field-label full" for="discount-${month}">${t('prof_hist_pay_discount_label')} <span class="optional-label">${t('prof_hist_discount_opt')}</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_discount_ph')}"></div><label class="field-label full" data-pay-group="always" for="discount-reason-${month}">${t('prof_hist_pay_discount_reason')} <span class="optional-label">${t('prof_optional')}</span></label><input id="discount-reason-${month}" class="full" data-pay-group="always" name="discountReason" type="text" maxlength="100" placeholder="${t('prof_hist_pay_discount_reason_ph')}">${billKistTotal(bill) > 0 ? `<label class="field-label full" data-pay-group="always"><input type="checkbox" name="fifoPrioritizeKist"> ${t('prof_hist_fifo_first')} <span class="optional-label">${t('prof_hist_fifo_first_note')}</span></label>` : ''}${promisePaymentLinkFieldMarkup(`ppl-${month}`, customer, 'always')}<div class="profile-remwaada-row full" id="profile-remwaada-${month}" hidden></div></div><button class="primary-button" type="submit">${t('prof_hist_pay_submit')}</button></form></div>`;
     return `<details class="month-card" data-month-card="${month}" ${isOpen ? 'open' : ''}><summary><span class="month-label">${escapeHtml(displayMonthName(month))}</span><span class="history-count">${bill ? ((bill.payments?.length ?? 0) === 1 ? t('prof_hist_payments_1', null, { count: bill.payments?.length ?? 0 }) : t('prof_hist_payments_n', null, { count: bill.payments?.length ?? 0 })) : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="${t('prof_hist_payments_for', null, { month: displayMonthName(month) })}">${payments}</ul></div></details>`;
-  }).join('');
+  }).join('') + emptyMonthsDrawerMarkup(customer, emptyMonths, openEmptyMonths);
   // Polish #11: the month summary's tax line follows the bill form
   // live — the due input already updates on toggle, and this keeps
   // the summary beside it honest before saving.
@@ -7117,6 +7226,10 @@ function renderHistory(customer) {
   historyContainer.querySelectorAll('[data-print-thermal58-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { format: 'thermal-58' })));
   historyContainer.querySelectorAll('[data-png-receipt]').forEach(button => button.addEventListener('click', () => downloadPngReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   historyContainer.querySelectorAll('[data-print-bluetooth-receipt]').forEach(button => button.addEventListener('click', () => printBluetoothReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
+  // Billing history: the empty-months drawer actions (2026-11-22) — the
+  // 1-tap Paid pill and the Custom target that opens the manual form.
+  historyContainer.querySelectorAll('[data-mark-month-paid]').forEach(button => button.addEventListener('click', () => onMarkMonthPaid(customer.id, button.dataset.markMonthPaid)));
+  historyContainer.querySelectorAll('[data-open-month-form]').forEach(button => button.addEventListener('click', () => openEmptyMonthForm(button.dataset.openMonthForm)));
   historyContainer.querySelectorAll('[data-apply-late-fee]').forEach(button => button.addEventListener('click', () => {
     const custId = button.dataset.customerId;
     const month = button.dataset.month;

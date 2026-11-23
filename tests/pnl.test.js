@@ -567,7 +567,7 @@ test('hisaab H4 G3: buried triggers untouched and no Hisaab wiring in the engine
 
 // G4 — the binding is once-only, and parity moves with the 612 keys.
 // Re-pin (Bill card rebase 2026-11-23): parity 5,229 → 5,231 — L adds 2 keys, prof_hist_snapshot_footnote + prof_hist_due_on, EN + UR.
-// The parity digits are searched as a split literal ('52' + '31'): this
+// The parity digits are searched as a split literal ('52' + '34'): this
 // file must NOT contain the bare digits — 591's G5a sweep counts every
 // test file containing them and asserts 41, so a literal here would make
 // this the 42nd file and break the suite. The count below is 41 pinning
@@ -598,7 +598,8 @@ test('hisaab H4 G4: the Hisaab P&L binding is once-only with its own guard flag,
   // Re-pin (Reports Closing polish, rebased onto the Reports Register merge):
   // parity digits 5,228 → 5,229 (one new key, dash_khata_open); the
   // pinning-file count holds at 41.
-  const parityDigits = '52' + '31';
+  // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
+  const parityDigits = '52' + '34';
   const pinning = fs.readdirSync(path.join(__dirname)).filter((f) =>
     f.endsWith('.test.js') && fs.readFileSync(path.join(__dirname, f), 'utf8').includes(parityDigits));
   assert.equal(pinning.length, 41, `expected 41 test files containing the current parity digits (41 re-pins — the Reports Register & audit polish's +5 keys, then the Reports Closing polish's +1 key; the privacy canary holds the old digits), got ${pinning.length}: ${pinning.join(', ')}`);

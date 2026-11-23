@@ -2171,7 +2171,7 @@ stat cells become pills. */
 .owner-command-heading,.closing-card-head,.recovery-group-heading,.recovery-customer-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .owner-command-heading h3,.owner-report-panel h3{font:700 19px Manrope,sans-serif;letter-spacing:-.35px;margin:0}
 .owner-command-heading p:not(.eyebrow){font-size:12px;line-height:1.5;color:var(--muted);margin:7px 0 0}
-.owner-command-form{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:end;margin-top:13px}
+.owner-command-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:end;margin-top:13px}
 .owner-command-form input,.owner-voice-language select,.owner-filter-grid select,.performance-explain-form select,.recovery-customer-actions select{min-width:0;min-height:42px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:8px 11px;color:var(--ink);font:500 14px 'DM Sans',sans-serif}
 .owner-voice-language{grid-column:1/-1;display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px}
 .owner-voice-language select{min-height:38px}
@@ -2191,13 +2191,20 @@ do not change. */
 voice-armed controls and the answer-waiting dot. Token colours only. */
 .owner-command-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:6px 4px;border:0;background:transparent;color:var(--ink);font:700 15px Manrope,sans-serif;letter-spacing:-.2px;cursor:pointer;text-align:start;white-space:nowrap;overflow:hidden}
 .owner-command-toggle [data-i18n="dash_owner_heading"]{min-width:0;overflow:hidden;text-overflow:ellipsis}
-.owner-command-toggle .local-only-badge{margin-block: 0; margin-inline-start: auto; margin-inline-end: 0}
+.owner-command-toggle .local-only-badge{margin-block: 0; margin-inline-start: auto; margin-inline-end: 0; padding:2px 8px}
 .owner-command-answer-dot{display:none;flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:var(--green)}
 .owner-command-panel:not(.is-expanded):has(#ownerCommandAnswer:not(:empty)) .owner-command-answer-dot{display:inline-block}
 .owner-command-chevron{flex:0 0 auto;color:var(--muted);transition:transform .15s}
 .owner-command-toggle[aria-expanded="true"] .owner-command-chevron{transform:rotate(180deg)}
 .owner-command-body{margin-top:12px}
 .owner-voice-button{min-width:44px;padding:0 10px;font-size:16px}
+/* Customers header + Pucho polish (2026-11-22): the mic lives inside the
+   input's right edge so the form is input + Ask only and Ask can never be
+   pushed past the card edge. The wrapper is the grid item (min-width:0);
+   the input keeps its width and reserves 48px for the 44px mic. */
+.owner-command-input-wrap{position:relative;display:block;min-width:0}
+.owner-command-input-wrap input{width:100%;padding-inline-end:48px}
+.owner-command-input-wrap .owner-voice-button{position:absolute;inset-inline-end:2px;top:50%;transform:translateY(-50%);min-width:44px;min-height:44px;border:0;background:transparent}
 .owner-command-panel:not(.voice-armed) .owner-voice-language,.owner-command-panel:not(.voice-armed) #ownerVoiceStatus{display:none}
 .owner-report-panel{margin-top:19px}
 .owner-filter-grid{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:9px;margin:12px 0}
@@ -2392,7 +2399,7 @@ voice-armed controls and the answer-waiting dot. Token colours only. */
   .owner-command-panel,.owner-report-panel{padding:13px;margin:11px 0;border-radius:13px}
   .owner-command-heading{align-items:center}
   .owner-command-heading h3,.owner-report-panel h3{font-size:17px}
-  .owner-command-form{grid-template-columns:minmax(0,1fr) auto auto;gap:7px}
+  .owner-command-form{grid-template-columns:minmax(0,1fr) auto;gap:7px}
   .owner-command-form input{grid-column:auto;width:100%;font-size:16px;min-height:46px}
   .owner-command-form>button{min-height:44px}
   .owner-voice-language{grid-column:1/-1}

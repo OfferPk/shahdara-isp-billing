@@ -45,9 +45,10 @@ test('pucho fit: panel is collapsed by default — toggle + hidden body, no over
   assert.ok(screenRouter.includes('win.expandOwnerCommandCenter()'), 'assistant route expands the panel');
 });
 
-test('pucho fit: one-row form at phone widths — input + mic + Ask share one row', () => {
-  // The <=820px override puts the input (minmax) + mic + Ask on one row.
-  assert.ok(styles.includes('.owner-command-form{grid-template-columns:minmax(0,1fr) auto auto;gap:7px}'), 'form is a 1-row 3-column grid at <=820px');
+test('pucho fit: one-row form at phone widths — mic inside input, input + Ask share one row', () => {
+  // RE-PIN (2026-11-22, customers-header-pucho): the mic moved inside the
+  // input, so the <=820px override is a 2-column grid (input wrapper + Ask).
+  assert.ok(styles.includes('.owner-command-form{grid-template-columns:minmax(0,1fr) auto;gap:7px}'), 'form is a 1-row 2-column grid at <=820px');
   assert.ok(styles.includes('.owner-command-form input{grid-column:auto;width:100%;font-size:16px;min-height:46px}'), 'input no longer spans the full row');
   // The mic is icon-only now (data-i18n would wipe the icon span).
   const voiceBtn = index.match(/<button id="ownerVoiceButton"[^>]*>/);
@@ -83,13 +84,14 @@ test('pucho fit: expanded panel (empty answer, voice disarmed) fits within half 
   // Expanded height, empty answer, voice disarmed (360px, EN):
   //   panel padding        13 + 13          =  26
   //   body margin-top                          12
-  //   heading h3 (~21) + note 2 lines (36) + margin (7) = 64
+  //   note 2 lines (36) + margin (7) = 43 — the heading h3 (~21) is gone
+  //   (RE-PIN 2026-11-22, customers-header-pucho: duplicate body heading removed).
   //   form margin-top (13) + input (46)       =  59
   //   intro 2 lines (~29) + chips margin (10) =  39
   //   chips 2 rows x 44 + gap 8 + padding 2   =  98
-  //   TOTAL                                   = 298
-  const expanded = 26 + 12 + 64 + 59 + 39 + 98;
-  assert.equal(expanded, 298, 'expanded panel arithmetic');
+  //   TOTAL                                   = 277
+  const expanded = 26 + 12 + 43 + 59 + 39 + 98;
+  assert.equal(expanded, 277, 'expanded panel arithmetic');
   assert.ok(expanded <= 320, `expanded panel ${expanded}px must fit within half a screen at 360x640 (320px)`);
   assert.ok(expanded <= 370, `expanded panel ${expanded}px must fit within half a screen at 360x740 (370px)`);
 });

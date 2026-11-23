@@ -55,6 +55,19 @@
    freeze: it only shows while .is-loading is set, and the router's
    watchdog always clears that class. Token-only: no new hex values. */
 .sr-header-actions { display: flex; align-items: center; gap: 8px; }
+/* Customers header polish (2026-11-22): the shared ← Home back control is
+   hidden on the Customers screen only (Home is already in the bottom nav)
+   and the title + '+ Add' pill share one row. The grid rule applies at all
+   widths: with the back button display:none, the desktop 3-track grid
+   would auto-place the title in the `auto` track and park the action in
+   the middle track instead of right-aligned, so the Customers header is
+   explicitly a 2-track title/action grid. The shared contract
+   (hasBack: true, back markup) is unchanged for every other screen. */
+body.sr-screen-mode[data-screen="customers"] .sr-back-button { display: none; }
+body.sr-screen-mode[data-screen="customers"] .sr-screen-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title action";
+}
 .sr-loading-bar {
   height: 3px;
   border-radius: var(--radius-pill);
@@ -176,6 +189,7 @@ body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expen
     grid-template-areas: "title action";
   }
   body.sr-screen-mode[data-screen="reports"] .sr-primary-action { width: auto; border-radius: var(--radius-pill); }
+  body.sr-screen-mode[data-screen="customers"] .sr-primary-action { width: auto; border-radius: var(--radius-pill); }
   .sr-screen-title { font-size: 20px; }
   /* On phones the header scrolls away so it never covers content. */
   .sr-screen-header { position: static; }

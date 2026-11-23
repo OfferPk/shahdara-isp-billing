@@ -62,7 +62,8 @@ test('C1: primary CTA paints the authentic WhatsApp gradient (lowercase hex, 48p
   const block = ruleBlock(styles, WA_RULE);
   assert.ok(block.includes('min-height: 48px'), 'primary must stay 48px');
   // Lowercase hex ONLY: #25D366 (upper) would count as a second distinct
-  // hex under the ratchet's case-sensitive Set and break the 608 pin.
+  // hex under the ratchet's case-sensitive Set and break the 610 pin.
+  // (608 → 610 is the Customers List Cards polish, D2: #1E3A5F + #9f1239.)
   assert.ok(/linear-gradient\(90deg,\s*#25d366,\s*#128c7e\)/.test(block),
     'primary must paint linear-gradient(90deg, #25d366, #128c7e)');
   assert.ok(!/var\(--ds-brand\)/.test(block), 'primary must no longer be the solid brand');
@@ -189,7 +190,7 @@ test('B1: dark mode gives the WhatsApp button a dark teal (reusing the existing 
 });
 
 test('B2: hex ratchets unchanged (test exact method: comment-stripped, case-sensitive)', () => {
-  assert.equal(distinctHex(styles).size, 608, `styles.css distinct hex: ${distinctHex(styles).size}, expected 608`);
+  assert.equal(distinctHex(styles).size, 610, `styles.css distinct hex: ${distinctHex(styles).size}, expected 610`);
   // Customers stat cards (2026-11-21): tokens 117 → 121 — four new
   // distinct hexes for the roster pill tints (--roster-sky-900
   // #0c4a6e, --roster-teal-50 #f0fdfa, --roster-teal-200 #99f6e4,

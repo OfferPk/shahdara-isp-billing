@@ -278,7 +278,9 @@ test('plan569 G4 no new hex: the new rules set no colour, and the hex pins hold 
   // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
   // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
   // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(hexCount(styles), 608, `styles.css hex count moved (${hexCount(styles)})`);
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  assert.equal(hexCount(styles), 610, `styles.css hex count moved (${hexCount(styles)})`);
   // Plan 588 D5(b) re-pins nav.css 164 -> 163: .btn-primary:hover #094338
   // (its only occurrence) is re-tokened to var(--color-brand-700).
   assert.equal(hexCount(navCss), 163, `nav.css hex count moved (${hexCount(navCss)})`);

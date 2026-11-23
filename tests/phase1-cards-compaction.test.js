@@ -311,7 +311,13 @@ test('p1 G1c: the meta line carries status • mohalla • package • Ref • L
   const at = order.map((seg) => line.indexOf(seg));
   assert.ok(at.every((i) => i > -1), `every meta segment renders (missing: ${order.filter((_, i) => at[i] === -1).join(', ')})`);
   assert.ok(at.every((v, i) => i === 0 || v > at[i - 1]), 'segments are in order: status • mohalla • package • Ref • Lifetime');
-  assert.ok(line.includes('Charyaa • 3Mbps/100GB • Ref:'), 'the Round 2 substring is preserved');
+  // Customers List Cards polish: the segments are colour-coded chips now
+  // (no ' • ' join — the flex gap does the spacing), so the Round 2
+  // dot-separated substring is replaced by a chip-order check.
+  const chipOrder = ['customer-card-meta-chip--active', 'customer-card-meta-chip--area', 'customer-card-meta-chip--package', 'customer-card-meta-chip--ref', 'customer-card-meta-chip--lifetime'];
+  const chipAt = chipOrder.map((cls) => line.indexOf(cls));
+  assert.ok(chipAt.every((i) => i > -1), 'every segment rides its own chip class');
+  assert.ok(chipAt.every((v, i) => i === 0 || v > chipAt[i - 1]), 'chips are in order: status • mohalla • package • Ref • Lifetime');
 });
 
 test('p1 G1d: the tenure pill rides the health row as the shrinking middle', () => {
@@ -324,7 +330,9 @@ test('p1 G1d: the tenure pill rides the health row as the shrinking middle', () 
   const addAt = row.indexOf('additional-pending-btn');
   assert.ok(healthAt > -1 && tenureAt > -1 && addAt > -1, 'health pill, tenure pill and Additional are all on the row');
   assert.ok(healthAt < tenureAt && tenureAt < addAt, 'order is Health • Tenure • Additional');
-  assert.match(plainText(row), /\d+ mos \(Jun '26\)/, 'the tenure text rides the row');
+  // Customers List Cards polish (D8): the tenure is just "N mos" — the
+  // "(Mon 'YY)" suffix leaves the card.
+  assert.match(plainText(row), /\d+ mos/, 'the tenure text rides the row');
   const strip = cssRule(styles, '.customer-card-pill-row--spread .customer-card-tenure-pill');
   assert.ok(strip, 'the spread-row tenure strip rule exists');
   assert.match(strip, /flex:\s*0 1 auto/, 'the tenure shrinks before the Health pill or Additional');
@@ -344,8 +352,8 @@ test('p1 G1e: the service badge is gone from the heading; the status rides the m
   assert.ok(styles.includes('.customer-service-badge'), 'the badge rules stay in styles.css (pinned, unused on the card)');
 });
 
-test('p1 G1f: the name is 14.5px with a 95px floor (D5 — layout, not pill shrinking)', () => {
-  assert.match(tokens, /--text-card-name:\s*14\.5px/, 'the name token is 14.5px');
+test('p1 G1f: the name is 15px with a 95px floor (D5 — layout, not pill shrinking)', () => {
+  assert.match(tokens, /--text-card-name:\s*15px/, 'the name token is 15px (Customers List Cards polish D2: 14.5px -> 15px)');
   const nameRule = cssRule(styles, '.customer-card-name');
   assert.ok(nameRule, 'the name rule exists');
   assert.match(nameRule, /font-size:\s*var\(--text-card-name\)/, 'the name uses the token');
@@ -464,12 +472,12 @@ test('p1 G3c: a Critical pill carries health-critical + the rose palette', () =>
   // what the browser computes, now immune to source order.
 });
 
-test('p1 G3d: the category rules use only hexes already in the 608-token set (no new hex)', () => {
+test('p1 G3d: the category rules use only hexes already in the 610-token set (no new hex beyond the two spec literals)', () => {
   const distinct = new Set(styles.replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
-  // 613 → 608 with Plan 589 (one focus-ring colour): the two dead
-  // baselines' #16745a/#0b624b deleted, #6caa91/#97d7bd/#1a5845
-  // re-tokened to var(--green). Five distinct hex leave, none added.
-  assert.equal(distinct.size, 608, 'styles.css stays at 608 distinct hex (no new hard-coded colour)');
+  // 608 → 610 with the Customers List Cards polish (D2): exactly the
+  // two spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  // Every other colour in the sheet reuses hex already in the set.
+  assert.equal(distinct.size, 610, 'styles.css stays at 610 distinct hex (608 + the two spec literals)');
 });
 
 test('p1 G3e: a Good pill stays green (band only, no category class)', () => {
@@ -505,9 +513,13 @@ test('p1 G4c: the meta line wraps as a flex row (Customers-tab polish — the us
   assert.match(line, /flex-wrap:\s*wrap/, 'long lines wrap instead of clipping');
   assert.doesNotMatch(line, /text-overflow:\s*ellipsis/, 'no ellipsis truncation');
   assert.doesNotMatch(line, /white-space:\s*nowrap/, 'no forced single line');
+  // Customers List Cards polish: the Round 2 strip rule is deleted — the
+  // Lifetime pill shows its own green chrome on the line now (D5).
   const strip = cssRule(styles, '.customer-card-meta-line .customer-card-lifetime-pill');
-  assert.ok(strip, 'the meta-line Lifetime strip exists');
-  assert.match(strip, /background:\s*transparent/, 'the Lifetime pill reads as plain text on the line');
+  assert.ok(!strip, 'the meta-line Lifetime strip rule is gone');
+  const lifetime = cssRule(styles, '.customer-card-lifetime-pill');
+  assert.ok(lifetime, 'the Lifetime pill base rule exists');
+  assert.match(lifetime, /background:\s*#e8f5ed/, 'the Lifetime pill keeps its green chrome');
 });
 
 test('p1 G4d: pills stay >= 11px (D5 — no pill was shrunk to reach the name target)', () => {

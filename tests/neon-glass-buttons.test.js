@@ -287,7 +287,7 @@ test('neon glassy: shared rules, token values and hex ratchets unchanged', () =>
   const btnSmCount = [...indexHtml.matchAll(/class="([^"]*)"/g)]
     .flatMap((m) => m[1].split(/\s+/)).filter((t) => t === 'btn-sm').length;
   assert.equal(btnSmCount, 1314, `.btn-sm count: ${btnSmCount}, expected 1314`);
-  // Hex ratchets: styles 608 / nav 163 / dark 19 / components 0 / tokens 121.
+  // Hex ratchets: styles 610 / nav 163 / dark 19 / components 0 / tokens 121 (608 → 610 is the Customers List Cards polish, D2).
   // Customers stat cards (2026-11-21): tokens 117 → 121 — four new
   // distinct hexes for the roster pill tints (--roster-sky-900
   // #0c4a6e, --roster-teal-50 #f0fdfa, --roster-teal-200 #99f6e4,
@@ -296,7 +296,7 @@ test('neon glassy: shared rules, token values and hex ratchets unchanged', () =>
   const distinctHex = (s) => new Set(stripComments(s).match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []).size;
   assert.deepEqual(
     { styles: distinctHex(stylesCss), nav: distinctHex(navCss), dark: distinctHex(darkCss), comp: distinctHex(componentsCss), tokens: distinctHex(tokensCss) },
-    { styles: 608, nav: 163, dark: 19, comp: 0, tokens: 121 },
+    { styles: 610, nav: 163, dark: 19, comp: 0, tokens: 121 },
     'a hex ratchet moved — the glassy change must be token-only (rgba)');
 });
 

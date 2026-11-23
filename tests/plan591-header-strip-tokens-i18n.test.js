@@ -251,10 +251,11 @@ test('G2b: the two new tokens are defined where D3(a)/D4(d) put them', () => {
 });
 
 test('G2c: no new hex anywhere the ratchets watch', () => {
-  // styles.css keeps exactly 608 distinct hex (comment-stripped,
+  // styles.css keeps exactly 610 distinct hex (comment-stripped,
+  // 608 → 610 is the Customers List Cards polish (D2: #1E3A5F + #9f1239).
   // case-sensitive — the pin method); the pill hex already occur
   // elsewhere, and the three new rules use var() only.
-  assert.equal(hexCount('styles.css'), 608);
+  assert.equal(hexCount('styles.css'), 610);
   assert.equal(hexCount('dark-contrast.css'), 19);
   assert.equal(hexCount('components.css'), 0);
   assert.equal(hexCount('nav.css'), 163);

@@ -330,8 +330,13 @@ test('G5a ratchet holds with the exact post-fix counts recorded', () => {
   const distinctHex = (f) => new Set((stripComments(read(f))
     .match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []).map((h) => h.toLowerCase())).size;
   assert.ok(distinctHex('styles.css') <= 616, 'styles.css ratchet max 616');
-  assert.equal(distinctHex('styles.css'), 605,
-    'styles.css 610 -> 605: #16745a, #0b624b, #6caa91, #97d7bd, #1a5845 leave with the fix');
+  // 605 -> 607 with the Customers List Cards polish (D2): exactly the two
+  // spec-literal name colours #1E3A5F (navy) + #9f1239 (rose-800).
+  // (This ratchet lowercases, so its base count is 605, not the 608 the
+  // case-sensitive ratchets pin — 3 case-duplicate pairs: #0e5b4d, #14211e,
+  // #3fbf9f. The +2 delta is the same either way.)
+  assert.equal(distinctHex('styles.css'), 607,
+    'styles.css 612 -> 607: #16745a, #0b624b, #6caa91, #97d7bd, #1a5845 leave with the fix');
   assert.ok(distinctHex('nav.css') <= 164, 'nav.css ratchet max 164');
   assert.equal(distinctHex('nav.css'), 163, 'nav.css stays 163 (588 dropped it from 164)');
   assert.equal(distinctHex('payments-list.css'), 9, 'payments-list 10 -> 9: #1f7a5a leaves');

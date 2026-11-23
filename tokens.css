@@ -26,13 +26,14 @@
   --text-2xl: 32px;
   /* DS-0: brief sizes that fall between existing steps — card name 18px,
      profile-tab labels 13px, ledger table headers 11px. */
-  /* Phase 1: card names 18px -> 14.5px. The name was the heading's
-     tallest element (18px at line-height 1.25 = 22.5px) and its width
-     the reason names ellipsized to 0px at 320px; 14.5px buys the
-     heading ~4px and, with the service badge gone from the heading,
-     room for the name. Only usage is styles.css .customer-card-name;
-     no test pins the token value. Pills stay >= 11px (D5). */
-  --text-card-name: 14.5px;
+  /* Customers List Cards polish: card names 14.5px -> 15px (spec
+     text-[15px], parent D2). A half-point is within the token
+     rhythm and keeps the name readable at 360px once the health/
+     tenure pills shrink. Only usage is styles.css
+     .customer-card-name; the token value IS pinned (Phase 1 G1f +
+     the Customers-Cards-Polish token assertion). Pills stay
+     >= 11px (D5). */
+  --text-card-name: 15px;
   --text-tab: 13px;
   --text-table-head: 11px;
   /* Plan 591 (D3(a)/D4(d)) — profile header strip: --phs-label is FROZEN

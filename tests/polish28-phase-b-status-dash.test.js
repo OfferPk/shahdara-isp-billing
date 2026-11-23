@@ -302,7 +302,11 @@ test('phase B Req 3: service package dashes; the state rows keep their stored la
   // expressions — the pinned intent — are unchanged.
   assert.ok(service.includes("[t('prof_field_isp'), profileEmptyText(customer.ispProvider), false, '', 'ispProviderInput']"), 'isp must dash when empty');
   assert.ok(service.includes("[t('prof_field_package'), profileEmptyText(customer.packageSpeed), false, '', 'packageSpeedInput']"), 'package must dash when empty');
-  assert.ok(service.includes('manualServiceStatusLabel(customer.serviceStatus)'), 'service status row keeps the STORED label, not the derived pill');
+  // Profile Info pills (2026-11-22, user decision): the Service status
+  // row now renders the BARE stored label (Active / Offline / Not
+  // chosen) instead of repeating "Service status: " in the value — the
+  // stored label itself is unchanged, only the prefix is gone.
+  assert.ok(service.includes('manualServiceStatusBareLabel(customer.serviceStatus)'), 'service status row keeps the STORED label, not the derived pill');
   assert.ok(service.includes('pauseSummary.detail'), 'vacation hold row keeps its state label');
   assert.ok(service.includes('shieldSummary.detail'), 'do-not-suspend shield row keeps its state label');
   assert.ok(service.includes('paydaySummary.label'), 'usual pay day row keeps its state label');

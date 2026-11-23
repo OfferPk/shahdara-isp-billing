@@ -18120,9 +18120,7 @@ real pills. No new hex anywhere. */
  * is an info note (a one-line pill would wrap badly), the kept-preview
  * line is a real wrapping pill, and the "Proposed package" label words
  * are a compact pill chip. No new hex anywhere. */
-.profile-info-group--service .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec}
-.profile-info-group--service .profile-readonly-field dt{color:#0e5b4d}
-.profile-info-group--service .profile-readonly-field dd{color:#0e5b4d}
+.profile-info-group--service .profile-readonly-field{display:flex;flex-direction:column;justify-content:space-between;gap:2px;padding:10px 12px;border:1px solid #9acbad;border-radius:var(--radius-lg);background:#e7f2ec}
 .profile-readonly-field--tap{cursor:pointer}
 .profile-readonly-field--tap:focus-visible{outline:3px solid #9acbad;outline-offset:2px}
 .profile-boost-section .profile-boost-list li{padding:8px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec}
@@ -18265,6 +18263,25 @@ section[aria-label="Welcome pack"] > p.welcome-pack-missing{display:flex;flex-wr
 .profile-info-group .profile-readonly-field{padding:7px 8px}
 .profile-info-group .profile-readonly-field dt{font-size:9px}
 .profile-info-group .profile-readonly-field dd{font-size:11px}
+}
+/* Profile Info pills (2026-11-22) — the SERVICE + CONNECTION tiles take
+ * their own type sizes. PLACEMENT: these rules sit AFTER the 620px phone
+ * block above on purpose — the phone dt 9px / dd 11px rules have equal
+ * specificity and come later than the :17476 tile rule, so a --service
+ * size rule placed up there would lose at phone widths. */
+.profile-info-group--service .profile-readonly-field dt{font-size:11px;font-weight:600;color:#0e5b4d}
+.profile-info-group--service .profile-readonly-field dd{font-size:14px;font-weight:600;color:var(--color-slate-700);overflow-wrap:anywhere}
+/* Profile Info pills (2026-11-22) — the small state dot on the Service
+ * status tile: emerald Active, orange Offline, grey Not chosen. The dot
+ * rides inside the dd, so the dd becomes a flex row only on that tile. */
+.profile-info-status-dot{width:8px;height:8px;flex:0 0 auto;border-radius:50%;background:var(--color-paid)}
+.profile-info-status-dot--active{background:var(--color-paid)}
+.profile-info-status-dot--offline{background:#cf6341}
+.profile-info-status-dot--not-chosen{background:#84948c}
+.profile-info-group--service .profile-readonly-field dd.profile-info-status-dd{display:flex;align-items:center;gap:6px}
+@media(max-width:620px){
+.profile-info-group--service .profile-readonly-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.profile-info-group--service .profile-readonly-field{padding:10px 12px}
 }
 [data-theme="dark"] .profile-readonly-field dd,
 [data-theme="dark"] .customer-lifetime-grid dd{color:var(--dk-ink)}

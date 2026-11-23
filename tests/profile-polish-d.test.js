@@ -112,20 +112,26 @@ test('Polish D (16): the Service and lifecycle groups share one service pill cla
   assert.ok(lifecycle.includes('customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH'), 'cancellation stays in the lifecycle fragment');
 });
 
-test('Polish D (16): the service pill is one teal pill, same size for every field, full words wrap', () => {
+test('Profile Info pills (2026-11-22): the service tiles are teal cards, not capsules — label 11px, value 14px slate, full words wrap', () => {
   const rule = styles.match(/\.profile-info-group--service \.profile-readonly-field\{[^}]*\}/);
-  assert.ok(rule, 'the service pill rule must exist');
-  assert.ok(rule[0].includes('border-radius:999px'), 'a real pill');
+  assert.ok(rule, 'the service tile rule must exist');
+  // Profile Info pills (2026-11-22, user decision): the capsule radius is
+  // replaced by the on-scale --radius-lg card radius, and the padding
+  // grows to px-3 py-2.5; the teal border/background are unchanged.
+  assert.ok(rule[0].includes('border-radius:var(--radius-lg)'), 'a card, not a capsule');
   assert.ok(rule[0].includes('background:#e7f2ec'), 'the service teal background');
   assert.ok(rule[0].includes('border:1px solid #9acbad'), 'the service teal border');
-  assert.ok(rule[0].includes('padding:8px 12px'), 'one padding for every field');
+  assert.ok(rule[0].includes('padding:10px 12px'), 'one padding for every field');
   const dtRule = styles.match(/\.profile-info-group--service \.profile-readonly-field dt\{[^}]*\}/);
   const ddRule = styles.match(/\.profile-info-group--service \.profile-readonly-field dd\{[^}]*\}/);
   assert.ok(dtRule && dtRule[0].includes('color:#0e5b4d'), 'label in the service teal');
-  assert.ok(ddRule && ddRule[0].includes('color:#0e5b4d'), 'value in the service teal');
-  // Same sizes as the plain readonly field (dt 10px, dd 12px) — the
-  // pill rule sets no font-size of its own, so nothing shrinks.
-  assert.ok(!rule[0].includes('font-size'), 'the pill sets no font-size — fields keep the base sizes');
+  assert.ok(ddRule && ddRule[0].includes('color:var(--color-slate-700)'), 'value in slate, not the service teal');
+  // Profile Info pills (2026-11-22, user decision): the scoped dt/dd
+  // rules now set the sizes (label 11px, value 14px) — the tile rule
+  // itself still sets no font-size.
+  assert.ok(!rule[0].includes('font-size'), 'the tile rule sets no font-size');
+  assert.ok(dtRule && dtRule[0].includes('font-size:11px'), 'label is 11px');
+  assert.ok(ddRule && ddRule[0].includes('font-size:14px'), 'value is 14px');
   assert.ok(styles.includes('.profile-readonly-field dt{margin:0 0 4px;color:#5b7067;font-size:10px;font-weight:700}'), 'base label size still 10px');
   assert.ok(styles.includes('.profile-readonly-field dd{margin:0;color:#1d382d;font-size:12px;line-height:1.4;overflow-wrap:anywhere;white-space:pre-wrap}'), 'base value still 12px with wrapping (full words, nothing clipped)');
 });

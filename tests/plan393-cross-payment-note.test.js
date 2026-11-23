@@ -316,11 +316,17 @@ test('Plan 393: the payer picker never lists the account holder as their own cro
 });
 
 test('Plan 393: the payer\'s own profile shows the payments they made for others, after the profile info groups', () => {
-  // Polish #28 Phase A — the cross-payments section follows the money
-  // fragment inside the Financial section body. Plan 601 — the section
-  // call now passes the cross-payments labels object (keyed chrome);
-  // the section itself is unchanged.
-  assert.equal(appSrc.includes('${profileInfoGroupFragments.money}${crossPaymentsMadeSectionMarkup}'), true);
+  // Profile Billing tab M3 (2026-11-22, Specs P+Q+R, parent decisions
+  // D1/D9): the money fragment moved inside Group 3
+  // (billingGroupProfitClvHtml) and the cross-payments section now
+  // follows Group 4 (billingGroupSettingsHtml) in the Financial body,
+  // so the old money→cross-payments template adjacency is gone by
+  // design. The section still sits in the Financial body after the
+  // money-bearing group, and its call is unchanged. Plan 601 — the
+  // section call now passes the cross-payments labels object (keyed
+  // chrome); the section itself is unchanged.
+  assert.equal(appSrc.includes('${profileInfoGroupFragments.money}</div></details>`'), true);
+  assert.equal(appSrc.includes('${billingGroupSettingsHtml}${crossPaymentsMadeSectionMarkup}'), true);
   assert.equal(appSrc.includes('crossPaymentsMadeSectionHtml(customer, crossPaymentsMadeBy(listTransactions(state), customer.id), formatAmount, crossPaymentsLabels())'), true);
 });
 

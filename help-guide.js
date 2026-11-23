@@ -84,6 +84,18 @@ export const HELP_TOPICS = Object.freeze({
   bad_debt: { titleKey: 'help_bad_debt_title', bodyKey: 'help_bad_debt_body' },
   prepay: { titleKey: 'help_prepay_title', bodyKey: 'help_prepay_body' },
   kist: { titleKey: 'help_kist_title', bodyKey: 'help_kist_body' },
+  // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the six
+  // section explainers live behind (i) buttons instead of always
+  // visible paragraphs. Each topic reuses its section's own heading
+  // as the title and its explainer as the body, so no new i18n keys
+  // are added (parity stays 5,222). The help-guide key-scheme test
+  // carries a named exception for exactly these six topics.
+  billing_cycle: { titleKey: 'prv_bc_heading', bodyKey: 'prv_bc_explainer' },
+  payment_channel: { titleKey: 'prv_pch_heading', bodyKey: 'prv_pch_explainer' },
+  statement_draft: { titleKey: 'dft_statement_heading', bodyKey: 'dft_statement_explainer' },
+  balance_reply: { titleKey: 'dft_balance_heading', bodyKey: 'dft_balance_explainer' },
+  payment_slip: { titleKey: 'dft_slip_heading', bodyKey: 'dft_slip_explainer' },
+  credit_balance: { titleKey: 'dft_credit_heading', bodyKey: 'dft_credit_explainer' },
   complaints: { titleKey: 'help_complaints_title', bodyKey: 'help_complaints_body' },
   uptime: { titleKey: 'help_uptime_title', bodyKey: 'help_uptime_body' },
   revenue_leak: { titleKey: 'help_revenue_leak_title', bodyKey: 'help_revenue_leak_body' },

@@ -75,8 +75,10 @@ test('exact cent sums and date order on one fixture', () => {
   assert.equal(slip.subtotal, 1000);
   assert.equal(slip.liveCount, 3);
   assert.equal(slip.voidedCount, 0);
-  assert.ok(slip.text.includes('Subtotal (live payments): Rs. 1000'));
-  assert.ok(slip.text.includes('Current balance: Rs. 500'));
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.ok(slip.text.includes('Kul (zinda adaigiyan): Rs. 1000'));
+  assert.ok(slip.text.includes('Maujooda balance: Rs. 500'));
 });
 
 test('last-N selection keeps the most recent payments, in date order', () => {
@@ -107,8 +109,12 @@ test('voided payments are marked VOID, excluded from the subtotal, and the exclu
   const voided = slip.payments.find((row) => row.voided);
   assert.equal(voided.amount, 1000);
   assert.ok(slip.text.includes('VOID'));
-  assert.ok(slip.text.includes('1 voided payment(s) excluded from the subtotal'));
-  assert.ok(!slip.text.includes('Subtotal (live payments): Rs. 2500'));
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English. The HTML
+  // assertion below stays: paymentSlipSummaryText is English UI text,
+  // unchanged by this item.
+  assert.ok(slip.text.includes('1 voided payment(s) kul mein shamil nahi hain'));
+  assert.ok(!slip.text.includes('Kul (zinda adaigiyan): Rs. 2500'));
   const html = paymentSlipHtml(slip, { draftText: slip.text });
   assert.ok(html.includes('<strong>VOID</strong>'));
   assert.ok(html.includes('excluded from the subtotal'));
@@ -128,7 +134,9 @@ test('unusable rows are counted as skipped, never zero-filled', () => {
   assert.equal(slip.payments.length, 1);
   assert.equal(slip.skippedUnusable, 4);
   assert.equal(slip.subtotal, 1000);
-  assert.ok(slip.text.includes('4 payment row(s) could not be listed'));
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.ok(slip.text.includes('4 payment row(s) tareekh ya raqam na hone ki wajah se list nahi ho sakin'));
 });
 
 test('missing or unusable balance refuses the slip; zero balance is a real figure', () => {
@@ -140,11 +148,13 @@ test('missing or unusable balance refuses the slip; zero balance is a real figur
   const zero = buildPaymentSlip({ ...base, balance: 0 });
   assert.notEqual(zero, null);
   assert.equal(zero.balance, 0);
-  assert.ok(zero.text.includes('Current balance: Rs. 0'));
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.ok(zero.text.includes('Maujooda balance: Rs. 0'));
   const empty = buildPaymentSlip({ ...base, payments: [] });
   assert.notEqual(empty, null);
   assert.equal(empty.payments.length, 0);
-  assert.ok(empty.text.includes('No payments listed.'));
+  assert.ok(empty.text.includes('Koi payment list nahi hai.'));
 });
 
 test('blank channel says "not recorded", never invented', () => {
@@ -162,9 +172,12 @@ test('blank channel says "not recorded", never invented', () => {
 test('Urdu variant carries the same figures', () => {
   const slip = buildPaymentSlip({ ...base, variant: 'urdu' });
   assert.equal(slip.variant, PAYMENT_SLIP_VARIANTS.URDU);
-  assert.ok(slip.text.includes('payment history'));
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'urdu' branch was Roman Urdu text mislabeled "Urdu script";
+  // it now emits real Urdu script. Figures stay as Rs. amounts.
+  assert.ok(slip.text.includes('کی ادائیگی کی تاریخ'));
   assert.ok(slip.text.includes('Rs. 3000'));
-  assert.ok(slip.text.includes('Current balance: Rs. 500'));
+  assert.ok(slip.text.includes('موجودہ بیلنس: Rs. 500'));
 });
 
 test('send log: once per customer, re-send allowed, half-formed ignored', () => {

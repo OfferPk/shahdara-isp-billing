@@ -180,32 +180,39 @@ export function buildPaymentSlipText(slip) {
   if (!slip) return '';
   const lines = [];
   if (slip.variant === PAYMENT_SLIP_VARIANTS.URDU) {
-    lines.push(`Shahdara ISP — ${slip.customerName} ki payment history`);
+    // Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the 'urdu'
+    // variant was Roman Urdu text mislabeled "Urdu script"; it now
+    // emits real Urdu script. The 'roman' branch below carries the
+    // Roman Urdu wording the old 'urdu' branch used to hold.
+    lines.push(`شاہدرہ آئی ایس پی — ${slip.customerName} کی ادائیگی کی تاریخ`);
     if (slip.payments.length === 0) {
-      lines.push('Koi payment list nahi hai.');
+      lines.push('کوئی ادائیگی درج نہیں ہے۔');
     } else {
       for (const row of slip.payments) {
         lines.push(`${row.date} — ${formatAmount(row.amount)} — ${row.channel}${row.voided ? ' — VOID' : ''}`);
       }
     }
-    lines.push(`Subtotal (live payments): ${formatAmount(slip.subtotal)}`);
-    if (slip.voidedCount > 0) lines.push(`${slip.voidedCount} voided payment(s) subtotal se excluded hain — ye successful payments nahi hain.`);
-    if (slip.skippedUnusable > 0) lines.push(`${slip.skippedUnusable} payment row(s) date ya amount na hone ki wajah se list nahi ho sakin.`);
-    lines.push(`Current balance: ${formatAmount(slip.balance)}`);
+    lines.push(`ذیلی مجموعہ (زندہ ادائیگیاں): ${formatAmount(slip.subtotal)}`);
+    if (slip.voidedCount > 0) lines.push(`${slip.voidedCount} منسوخ ادائیگیاں ذیلی مجموعے میں شامل نہیں ہیں — یہ کامیاب ادائیگیاں نہیں ہیں۔`);
+    if (slip.skippedUnusable > 0) lines.push(`${slip.skippedUnusable} ادائیگی کی قطاریں تاریخ یا رقم نہ ہونے کی وجہ سے درج نہیں ہو سکیں۔`);
+    lines.push(`موجودہ بیلنس: ${formatAmount(slip.balance)}`);
     return lines.join('\n');
   }
-  lines.push(`Shahdara ISP — Payment history for ${slip.customerName}`);
+  // The 'roman' variant is Roman Urdu, not English: the draft a
+  // customer reads on WhatsApp speaks the operator's language. The
+  // figures (amounts, dates, the VOID stamp) render exactly as before.
+  lines.push(`Shahdara ISP — ${slip.customerName} ki payment history`);
   if (slip.payments.length === 0) {
-    lines.push('No payments listed.');
+    lines.push('Koi payment list nahi hai.');
   } else {
     for (const row of slip.payments) {
       lines.push(`${row.date} — ${formatAmount(row.amount)} — ${row.channel}${row.voided ? ' — VOID' : ''}`);
     }
   }
-  lines.push(`Subtotal (live payments): ${formatAmount(slip.subtotal)}`);
-  if (slip.voidedCount > 0) lines.push(`${slip.voidedCount} voided payment(s) excluded from the subtotal — these are not successful payments.`);
-  if (slip.skippedUnusable > 0) lines.push(`${slip.skippedUnusable} payment row(s) could not be listed (no usable date or amount).`);
-  lines.push(`Current balance: ${formatAmount(slip.balance)}`);
+  lines.push(`Kul (zinda adaigiyan): ${formatAmount(slip.subtotal)}`);
+  if (slip.voidedCount > 0) lines.push(`${slip.voidedCount} voided payment(s) kul mein shamil nahi hain — ye kamyab adaigiyan nahi hain.`);
+  if (slip.skippedUnusable > 0) lines.push(`${slip.skippedUnusable} payment row(s) tareekh ya raqam na hone ki wajah se list nahi ho sakin.`);
+  lines.push(`Maujooda balance: ${formatAmount(slip.balance)}`);
   return lines.join('\n');
 }
 

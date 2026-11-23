@@ -13,7 +13,6 @@ import {
   formatStatementMonth,
   buildMonthlyStatement,
   buildStatementDraftText,
-  statementDraftSummaryText,
   logStatementSent,
   findStatementSends,
   statementSentText,
@@ -46,7 +45,10 @@ test('null for missing customer or invalid month, never a guessed statement', ()
   assert.equal(buildMonthlyStatement({ customerId: 'c1', month: '2026-13', bills: [], payments: [] }), null);
   assert.equal(buildMonthlyStatement({ month: '2026-11', bills: [], payments: [] }), null);
   assert.equal(buildStatementDraftText(null), null);
-  assert.equal(statementDraftSummaryText(null), 'Monthly statement unavailable.');
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // statementDraftSummaryText is deleted with the middle summary <p>
+  // it fed — the null case is pinned by buildStatementDraftText(null)
+  // above and by statementDraftHtml(null) in the escape test below.
 });
 
 test('charges sum the month bill due plus its own late and shifting fees', () => {
@@ -116,7 +118,9 @@ test('a negative opening is advance, kept as-is, and the draft says so', () => {
   assert.equal(statement.openingBalance, -2000);
   assert.equal(statement.closingBalance, 1000);
   const draft = buildStatementDraftText(statement);
-  assert.match(draft.text, /Opening balance: PKR -2,000/);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.match(draft.text, /Ibtedai baqaya: PKR -2,000/);
 });
 
 test('a month with no bill still gets a statement that says so', () => {
@@ -130,7 +134,9 @@ test('a month with no bill still gets a statement that says so', () => {
   assert.equal(statement.openingBalance, 3000);
   assert.equal(statement.closingBalance, 3000);
   const draft = buildStatementDraftText(statement);
-  assert.match(draft.text, /No bill was raised for this month/);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English.
+  assert.match(draft.text, /Is mahine ka koi bill jari nahi hua\./);
 });
 
 test('Roman draft carries figures verbatim with a baqaya line; Urdu draft mirrors it', () => {
@@ -142,9 +148,12 @@ test('Roman draft carries figures verbatim with a baqaya line; Urdu draft mirror
   const roman = buildStatementDraftText(statement, STATEMENT_DRAFT_VARIANTS.ROMAN);
   assert.equal(roman.variant, 'roman');
   assert.equal(roman.month, '2026-11');
-  assert.match(roman.text, /Monthly statement for Nov 2026/);
-  assert.match(roman.text, /Opening balance: PKR 3,000/);
-  assert.match(roman.text, /Closing balance: PKR 5,000/);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the 'roman' branch is Roman Urdu now, not English — the closing
+  // line below is the one string that stays verbatim.
+  assert.match(roman.text, /Nov 2026 ka mahana statement:/);
+  assert.match(roman.text, /Ibtedai baqaya: PKR 3,000/);
+  assert.match(roman.text, /Ikhtitami baqaya: PKR 5,000/);
   assert.match(roman.text, /Baqaya PKR 5,000 baqi hai/);
   const urdu = buildStatementDraftText(statement, STATEMENT_DRAFT_VARIANTS.URDU);
   assert.equal(urdu.variant, 'urdu');
@@ -199,17 +208,21 @@ test('sent text states not-sent, once, and re-send', () => {
   ]), /1 more time/);
 });
 
-test('summary text and HTML escape customer input', () => {
+test('statement HTML escapes customer input', () => {
   const statement = buildMonthlyStatement({
     customerId: 'c1', customerName: '<b>Ahmed</b>', month: '2026-11',
     bills: [bill('2026-11', { dueAmount: 3000 })],
     payments: [],
   });
-  assert.match(statementDraftSummaryText(statement), /Nov 2026/);
-  assert.match(statementDraftSummaryText(statement), /closing PKR 3,000/);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the summary-text assertions retired with statementDraftSummaryText
+  // (deleted with the middle summary <p>); the HTML escape pins stay.
+  // The customer name no longer renders in this Html at all — the
+  // summary <p> was its only host — so the name-escape pin retires
+  // with it and the Html is pinned to carry no name.
   const html = statementDraftHtml(statement, { draftText: '<script>alert(1)</script>', sends: [] });
   assert.doesNotMatch(html, /<script>/);
-  assert.match(html, /&lt;b&gt;Ahmed&lt;\/b&gt;/);
+  assert.ok(!html.includes('Ahmed'), 'the Html carries no customer name now');
   assert.match(html, /not sent yet/);
   assert.equal(statementDraftHtml(null), '<p class="empty-state">Monthly statement unavailable.</p>');
 });

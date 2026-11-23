@@ -83,7 +83,11 @@ test('customer profiles show receipt-based CLV and clearly label future value as
   assert.match(app, /t\('prof_clv_avg_revenue'\)/);
   assert.match(app, /t\('prof_clv_delay'\)/);
   assert.match(app, /t\('prof_clv_future_value'\)/);
-  assert.match(app, /t\('prof_clv_note'\)/);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the <p class="customer-lifetime-note"> (prof_clv_note) is deleted —
+  // the estimate tile carries one concise subtitle instead.
+  assert.doesNotMatch(app, /t\('prof_clv_note'\)/);
+  assert.match(app, /customer-lifetime-subtitle/);
   assert.match(app, /t\('prof_clv_tenure_basis_none'\)/);
   assert.match(styles, /\.customer-lifetime-grid/);
 });

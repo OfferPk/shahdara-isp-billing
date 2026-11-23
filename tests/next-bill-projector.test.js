@@ -278,6 +278,10 @@ test('wiring: app.js renders the projection into the customer profile', () => {
   const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.match(appSource, /from '\.\/next-bill-projector\.js'/);
   assert.match(appSource, /projectNextMonthInvoice\(customer, \{ referralQueued: queuedReferralTotalFor\(loadReferralCredits\(\), customer\.id\) \}\)/);
-  assert.match(appSource, /nextBillProjectionSectionHtml\(nextBillProjection, formatAmount\)/);
-  assert.match(appSource, /\$\{nextBillSectionHtml\}/);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the separate next-bill section is deleted — the projection is
+  // passed to the dues breakdown as its 6th argument and renders as
+  // one footer line under the dues card.
+  assert.match(appSource, /formatAmount, nextBillProjection\)/);
+  assert.match(appSource, /\$\{duesBreakdownSectionMarkup\}/);
 });

@@ -17396,7 +17396,8 @@ button:not([hidden]).quick-method-chip.bwb-big {
 .waada-chip-row {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
 .waada-chip-btn {
   min-height: 44px;
@@ -18216,7 +18217,11 @@ real pills. No new hex anywhere. */
 .profile-info-group--location .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #dc9478;border-radius:999px;background:#fff0e8}
 .profile-info-group--location .profile-readonly-field dt{color:#8a2b12}
 .profile-info-group--location .profile-readonly-field dd{color:#8a2b12}
-.profile-info-group--money .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec}
+.profile-info-group--money .profile-readonly-grid{display:grid;grid-template-columns:1fr;gap:0}
+.profile-info-group--money .profile-readonly-field{display:flex;flex-direction:row;justify-content:space-between;align-items:baseline;gap:8px;padding:8px 0;border:0;border-bottom:1px solid #dce6e1;background:transparent}
+.profile-info-group--money .profile-readonly-field:last-child{border-bottom:0}
+.profile-info-group--money .profile-readonly-field dt{flex:1;min-width:0}
+.profile-info-group--money .profile-readonly-field dd{flex:none;font-variant-numeric:tabular-nums;text-align:right}
 .profile-info-group--money .profile-readonly-field dt{color:#0e5b4d}
 .profile-info-group--money .profile-readonly-field dd{color:#0e5b4d}
 .profile-info-group--install .profile-readonly-field{display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid #5fa876;border-radius:999px;background:#dcfce7}
@@ -18570,12 +18575,14 @@ section[aria-label="Welcome pack"] > p.welcome-pack-missing{display:flex;flex-wr
 .pcd-form .primary-button,.pcd-form .secondary-button{justify-self:start}
 .pcd-route-line{margin-top:2px;font-size:11px;color:#5c6e66;font-style:italic}
 .dmb-list{list-style:none;margin:8px 0;padding:0;display:grid;gap:8px}
-.dmb-list>li{display:grid;gap:2px;padding:8px 12px;border:1px solid #9acbad;border-radius:12px;background:#e7f2ec}
+.dmb-list>li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border:1px solid #9acbad;border-radius:12px;background:#e7f2ec}
 .dmb-month{font-weight:600;color:#0e5b4d}
 .dmb-billed{color:#5c6e66;font-size:12px}
 .dmb-paid{color:#5c6e66;font-size:12px}
 .dmb-owed{color:#5c6e66;font-size:12px}
-.dmb-settled{font-weight:600;color:#0e5b4d}
+.dmb-settled{font-weight:600;color:#0e5b4d;background:#dcfce7;border:1px solid #9acbad;border-radius:999px;padding:4px 10px;font-size:12px;white-space:nowrap}
+.dmb-due{font-weight:600;color:#92400e;background:#fef3c7;border:1px solid #e7c77e;border-radius:999px;padding:4px 10px;font-size:12px;white-space:nowrap}
+.dmb-projection{margin:8px 0 0;font-size:12px;color:#5c6e66}
 .dmb-not-priced{color:#5c6e66;font-size:12px}
 .dmb-additional{color:#5c6e66;font-size:12px}
 .dmb-total{display:inline-flex;align-items:center;padding:6px 12px;border:1px solid #9acbad;border-radius:999px;background:#e7f2ec;color:#0e5b4d;font-weight:600}
@@ -18607,6 +18614,15 @@ same chevron pattern as the month cards, tokens only, no new hex. */
 .profile-detail-section[open] summary::after{transform:rotate(180deg)}
 .profile-detail-section summary h3{margin:0;font-size:15px;flex:1;min-width:0}
 .profile-section-summary{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the Financial
+ * header stacks title over summary (the summary was clipping under
+ * the Edit button). SCOPED to the Financial section only: the shell
+ * is shared by all 7 profile sections, so the generic summary rule
+ * above is never retargeted. The title takes row 1; the summary,
+ * Edit button and chevron share row 2. */
+.profile-detail-section[data-profile-section="financial"] summary{flex-wrap:wrap;row-gap:2px}
+.profile-detail-section[data-profile-section="financial"] summary h3{flex:1 1 100%}
+.profile-detail-section[data-profile-section="financial"] .profile-section-summary{flex:1;min-width:0;white-space:normal;overflow:visible;text-overflow:clip}
 .profile-section-body{display:grid;gap:12px;padding:14px 15px 16px;border-top:1px solid var(--line)}
 /* Polish #28 Phase C — the per-section Edit button sits between the
 summary text and the chevron; it must not stretch or shrink. */
@@ -19084,3 +19100,57 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
  * Month-end close and Saad payroll 28px standards. (F's search
  * toolbar 20px is the third.) */
 .reports-status-help .help-icon{width:28px;height:28px;min-height:28px;font-size:11px}
+/* Profile Billing tab M3 (Specs P+Q+R, 2026-11-22) — the '1. Billing'
+ * tab renders the Financial body as four groups. Tokens + already-used
+ * hex only (the 608-hex ratchet); no new colour is introduced here.
+ * NOTE on the utility-looking classes in app.js: this repo has no
+ * Tailwind build or CDN, so class names like 'text-xs font-medium
+ * text-slate-600' and 'rounded-xl ...' on the Wada labels and the
+ * billing-cycle input carry no styling by themselves — the scoped
+ * rules below (.wada-quick-form label span, #billingCycleDueDay) are
+ * what actually renders them. The class names are kept because the
+ * spec names them. */
+/* Receipts: the 9 behaviour cards tuck behind one collapsed details. */
+.profile-behavior-details{grid-column:1 / -1;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.profile-behavior-details summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:12px 14px;min-height:44px;font-size:13px;font-weight:600;color:var(--ink)}
+.profile-behavior-details summary::-webkit-details-marker{display:none}
+.profile-behavior-details summary::after{content:'⌄';font-size:18px;color:var(--muted);margin-inline-start:auto;transition:transform .15s}
+.profile-behavior-details[open] summary::after{transform:rotate(180deg)}
+.profile-behavior-details .profile-summary-grid{padding:0 10px 12px}
+/* Wada: the quick-add form tucks behind '+ Add Wada'; the field labels
+ * are plain small text, scoped to this form only (the shared
+ * .pcp-field-pill chip is never restyled globally). */
+.wada-quick-details{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--surface)}
+.wada-quick-details summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;font-weight:600;color:var(--ink)}
+.wada-quick-details summary::-webkit-details-marker{display:none}
+.wada-quick-details summary::after{content:'⌄';font-size:18px;color:var(--muted);margin-inline-start:auto;transition:transform .15s}
+.wada-quick-details[open] summary::after{transform:rotate(180deg)}
+.wada-quick-details .wada-quick-form{margin-top:12px}
+.wada-quick-form label span{font-size:12px;font-weight:500;color:#475569}
+/* Billing cycle: the due-day input is a standard rounded input,
+ * scoped to its id (no global input rule). */
+#billingCycleDueDay{border-radius:12px;border:1px solid var(--line);padding:8px 12px;width:80px;text-align:center}
+/* Billing groups 2–4: expandable cards on the profile's own <details>
+ * idiom, mirroring the .profile-detail-section summary pattern. */
+.billing-group{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;margin-bottom:12px}
+.billing-group summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:14px 15px;min-height:57px}
+.billing-group summary::-webkit-details-marker{display:none}
+.billing-group summary::after{content:'⌄';font-size:18px;color:var(--muted);margin-inline-start:auto;transition:transform .15s}
+.billing-group[open] summary::after{transform:rotate(180deg)}
+.billing-group-title{font-size:15px;font-weight:700;color:var(--ink);white-space:nowrap}
+.billing-group-sub{flex:1;min-width:0;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.billing-group-chev{font-size:15px;color:var(--muted);flex:none}
+.billing-group-body{display:grid;gap:12px;padding:14px 15px 16px;border-top:1px solid var(--line)}
+.billing-group-body .profile-custody-section{margin-top:0}
+.billing-group-body .profile-kist-section{margin-top:0}
+/* Group 2: the segmented selector, the shared language + Send row,
+ * and the per-segment panels. The three per-section send buttons
+ * stay in the DOM (wired, logging) but are never shown — the one
+ * visible Send button dispatches to the active one. */
+.billing-segment-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.billing-segment-btn{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;min-height:40px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer}
+.billing-segment-btn[aria-pressed="true"]{background:#e7f2ec;border-color:#9acbad;color:#0e5b4d}
+.billing-slips-controls{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.billing-slips-controls label{font-size:12px;font-weight:600;color:var(--muted)}
+.billing-slip-segment[hidden]{display:none}
+#statementDraftSendBtn,#balanceReplySendBtn,#paymentSlipSendBtn{display:none}

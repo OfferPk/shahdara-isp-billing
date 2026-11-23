@@ -262,8 +262,13 @@ test('S1 groups: service + lifecycle keep the class, stay adjacent', () => {
 
 // S2: the other groups keep their capsule pills (the fix is scoped to
 // --service only).
-test('S2 scope: contact/location/money/install/network/hardware keep 999px pills', () => {
-  for (const group of ['contact', 'location', 'money', 'install', 'network', 'hardware']) {
+// Re-pin (P/Q/R rebase 2026-11-23): 'money' drops out of this list —
+// PQR's Group 3 deliberately deletes the 999px pill for the --money
+// group only (its own new test C12 pins the key-value rows), so the
+// money rule no longer carries border-radius:999px. The other five
+// groups still keep their capsule pills.
+test('S2 scope: contact/location/install/network/hardware keep 999px pills', () => {
+  for (const group of ['contact', 'location', 'install', 'network', 'hardware']) {
     const rule = ruleBlock(stylesSrc, `.profile-info-group--${group} .profile-readonly-field{`);
     assert.ok(rule && rule.includes('border-radius:999px'), `${group} keeps its capsule pill`);
   }

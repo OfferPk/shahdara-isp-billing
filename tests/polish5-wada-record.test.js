@@ -345,9 +345,12 @@ test('wiring: profile banner sits at the top of the profile view', () => {
   // the money fragment follows the dues breakdown inside it; the strip
   // sits above every section. The preserved intent is the banner
   // first in Financial, before the money rows.
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the money fragment now rides inside the Profit & CLV group card
+  // (billingGroupProfitClvHtml), so the order pin follows that card.
   const financialBodyAt = app.indexOf('const profileSectionFinancialBody = ');
   const financialBody = app.slice(financialBodyAt, app.indexOf('\n', financialBodyAt));
-  assert.ok(financialBody.indexOf('${wadaProfileBannerHtml(customer)}') < financialBody.indexOf('${profileInfoGroupFragments.money}'), 'banner must render before the profile info groups');
+  assert.ok(financialBody.indexOf('${wadaProfileBannerHtml(customer, duesBreakdownFigures.total)}') < financialBody.indexOf('${billingGroupProfitClvHtml}'), 'banner must render before the profile info groups');
   for (const id of ['wadaQuickDate', 'wadaQuickAmount', 'wadaQuickNote', 'wadaQuickSaveBtn']) {
     assert.equal(app.includes(`id="${id}"`), true, `missing ${id}`);
   }

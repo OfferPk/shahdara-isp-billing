@@ -23,7 +23,6 @@ import {
 import {
   buildMonthlyStatement,
   buildStatementDraftText,
-  statementDraftSummaryText,
   statementSentText,
   statementDraftHtml,
 } from '../statement-draft.js';
@@ -69,6 +68,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const appJs = read('app.js');
 const navJs = read('nav-language.js');
+const helpGuideJs = read('help-guide.js');
 const en = TRANSLATIONS.en;
 const ur = TRANSLATIONS.ur;
 
@@ -158,8 +158,16 @@ test('G3a: all eight headings and explainers render through t()', () => {
   for (const key of ['dft_welcome_heading', 'dft_statement_heading', 'dft_balance_heading', 'dft_slip_heading', 'dft_infocard_heading', 'dft_status_heading', 'dft_terms_heading', 'dft_credit_heading']) {
     assert.ok(appJs.includes(`t('${key}')`), `app.js must pass t('${key}')`);
   }
-  for (const key of ['dft_welcome_explainer', 'dft_statement_explainer', 'dft_balance_explainer', 'dft_slip_explainer', 'dft_infocard_explainer', 'dft_status_explainer', 'dft_terms_explainer', 'dft_credit_explainer']) {
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the four draft explainers no longer render inline in app.js —
+  // they moved behind the (i) help icon as HELP_TOPICS bodies in
+  // help-guide.js, reusing the same explainer keys. The other four
+  // explainers still render inline through t().
+  for (const key of ['dft_welcome_explainer', 'dft_infocard_explainer', 'dft_status_explainer', 'dft_terms_explainer']) {
     assert.ok(appJs.includes(`t('${key}')`), `app.js must pass t('${key}')`);
+  }
+  for (const key of ['dft_statement_explainer', 'dft_balance_explainer', 'dft_slip_explainer', 'dft_credit_explainer']) {
+    assert.ok(helpGuideJs.includes(`bodyKey: '${key}'`), `help-guide.js must carry ${key} as a topic body`);
   }
 });
 
@@ -167,7 +175,12 @@ test('G3b: no template line still carries a hardcoded heading or explainer', () 
   const lines = appJs.split('\n');
   const names = ['welcomePackSectionHtml', 'statementDraftSectionHtml', 'balanceReplySectionHtml', 'paymentSlipSectionHtml', 'infoCardSectionHtml', 'statusReplySectionHtml', 'termsAckSectionHtml', 'creditBalanceSectionHtml'];
   const sectionLines = lines.filter((l) => names.some((n) => l.includes(`${n} = \`<section`)));
-  assert.equal(sectionLines.length, 8, `expected the eight section templates, got ${sectionLines.length}`);
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // seven, not eight — the credit section is now a guarded ternary
+  // (rendered only when remaining credit is positive), so its line no
+  // longer matches `${name} = \`<section`. The section itself is
+  // pinned by G3d, which asserts its builder call byte-identically.
+  assert.equal(sectionLines.length, 7, `expected the seven section templates, got ${sectionLines.length}`);
   for (const heading of ['Welcome pack', 'Monthly statement', 'Balance enquiry reply', 'Payment history mini-slip', 'Package and service info card', 'Open fault and request status reply', 'Service terms acknowledgement', 'Customer credit balance']) {
     assert.ok(!sectionLines.some((l) => l.includes(`<h4>${heading}</h4>`)), `no template still hardcodes <h4>${heading}</h4>`);
   }
@@ -237,31 +250,38 @@ test('G4c: welcome-pack renders in Urdu through labels', () => {
 
 // ================= G5 — statement-draft =================
 
-test('G5a: statement-draft summary and sent lines are byte-identical in EN by default', () => {
-  assert.equal(statementDraftSummaryText(null), 'Monthly statement unavailable.');
-  assert.equal(statementDraftSummaryText(statement), 'Monthly statement for Ahmed — Nov 2026: opening PKR 0, charges PKR 3,000, payments PKR 1,000, closing PKR 2,000.');
+test('G5a: statement-draft sent lines are byte-identical in EN by default', () => {
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the summary assertions retired with statementDraftSummaryText
+  // (deleted with the middle summary <p> it fed); the sent lines stay.
   assert.equal(statementSentText([]), 'Monthly statement not sent yet — send it once for this month.');
   assert.equal(statementSentText(sends1), 'Monthly statement sent on 4 Nov 2026.');
   assert.equal(statementSentText(sends2), 'Monthly statement sent on 4 Nov 2026 and 1 more time — re-send anytime from here.');
 });
 
-test('G5b: statement-draft Html fields are byte-identical in EN by default', () => {
-  const html = statementDraftHtml(statement, { draftText: '', sends: [] });
+test('G5b: statement-draft Html carries the draft and the sent line only, in EN by default', () => {
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the five field pills are deleted — the Html no longer repeats the
+  // figures the WhatsApp preview below already carries. What stays is
+  // the draft text, the sent line, and the empty state.
+  const html = statementDraftHtml(statement, { draftText: 'DRAFT-TEXT', sends: [] });
+  assert.ok(html.includes('<p class="statement-draft-text">DRAFT-TEXT</p>'), 'Html must carry the draft text');
+  assert.ok(html.includes('Monthly statement not sent yet'), 'Html must carry the sent line');
+  assert.ok(!html.includes('statement-draft-fields'), 'Html must not carry the field pills');
   for (const field of ['Month: Nov 2026', 'Opening balance: PKR 0', "This month's charges: PKR 3,000", 'Payments received: PKR 1,000 (1 payment)', 'Closing balance: PKR 2,000']) {
-    assert.ok(html.includes(field), `Html must carry ${field}`);
+    assert.ok(!html.includes(field), `Html must not repeat ${field}`);
   }
-  assert.ok(statementDraftHtml(statementNoBill, { draftText: '', sends: [] }).includes('No bill was raised for this month.'));
-  const voided = statementDraftHtml(statementVoided, { draftText: '', sends: [] });
-  assert.ok(voided.includes('Voided payments this month (not counted): 1'));
   assert.equal(statementDraftHtml(null), '<p class="empty-state">Monthly statement unavailable.</p>');
 });
 
 test('G5c: statement-draft renders in Urdu through labels', () => {
-  assert.ok(statementDraftSummaryText(statement, urLabels.statement).includes('Ahmed کی ماہانہ اسٹیٹمنٹ — Nov 2026:'));
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the summary assertion retired with statementDraftSummaryText, and
+  // the field-label assertions retired with the field pills — the sent
+  // line is the Html the labels object still drives.
   const html = statementDraftHtml(statement, { draftText: '', sends: [], labels: urLabels.statement });
-  assert.ok(html.includes('مہینہ: Nov 2026'), 'UR Html must carry the month label');
-  assert.ok(html.includes('ابتدائی بقایا: PKR 0'), 'UR Html must carry the opening label');
-  assert.ok(!html.includes('Opening balance:'), 'UR Html must not carry the English label');
+  assert.ok(html.includes('ماہانہ اسٹیٹمنٹ ابھی نہیں بھیجی گئی — اس ماہ کے لیے ایک بار بھیجیں۔'), 'UR Html must carry the sent line');
+  assert.ok(!html.includes('Monthly statement not sent yet'), 'UR Html must not carry the English sent line');
 });
 
 // ================= G6 — balance-reply =================
@@ -439,13 +459,18 @@ test('G11c: the credit ledger table stays on the EN defaults (D5, out of scope)'
 // ================= G12 — draft TEXT builders untouched =================
 
 test('G12: the draft texts still return the same Roman and Urdu variants', () => {
+  // Profile Billing tab M3 (Specs P+Q+R, user decision 2026-11-22):
+  // the three 'roman' draft branches are Roman Urdu now, not English
+  // (plan600's "builders untouched" rule is superseded for those three
+  // branches only); the Urdu-script branches and every other module
+  // still read exactly as before.
   assert.ok(buildWelcomePackDraft(pack).text.includes('Aap ka bill 5 Nov 2026 tak ada karna hai.'));
   assert.ok(buildWelcomePackDraft(pack, 'urdu').text.includes('آپ کا بل 5 Nov 2026 تک ادا کرنا ہے۔'));
-  assert.ok(buildStatementDraftText(statement).text.includes('Opening balance: PKR 0.'));
+  assert.ok(buildStatementDraftText(statement).text.includes('Ibtedai baqaya: PKR 0.'));
   assert.ok(buildStatementDraftText(statement, 'urdu').text.includes('ابتدائی بقایا: PKR 0۔'));
-  assert.ok(reply.text.includes('Your current balance is Rs. 1000.'));
+  assert.ok(reply.text.includes('Aap ka maujooda baqaya Rs. 1000 hai.'));
   assert.ok(buildBalanceReply({ customerId: 'c1', outstanding: 1000, variant: 'urdu' }).text.includes('آپ کا موجودہ بقایا: Rs. 1000۔'));
-  assert.ok(buildPaymentSlipText(slip).includes('Subtotal (live payments): Rs. 1000'));
+  assert.ok(buildPaymentSlipText(slip).includes('Kul (zinda adaigiyan): Rs. 1000'));
   assert.ok(buildPaymentSlipText(slip).includes('No payments listed.') === false);
   assert.ok(card.text.includes('Aap ka current package: 20 Mbps'));
   assert.ok(buildInfoCard({ customerId: 'c1', package: '20 Mbps', monthlyPrice: 3000, cycleDueDay: 5, variant: 'urdu' }).text.includes('آپ کا موجودہ پیکج: 20 Mbps'));

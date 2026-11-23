@@ -1728,12 +1728,12 @@ ${t("ur")}`}function kKe(e=document,t){if(!e||!t||!e.getElementById("morningBrie
         <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No fiber distribution hubs or drops recorded</text>
         <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Assign customers to areas to map optical splitter utilization, attenuation, and dark fiber headroom</text>
       </g>
-    </svg>`;let o=36,r=12,a=160,l=420-a-140,c=e.hubs.slice(0,5),d=Math.floor((216-o-r)/Math.max(c.length,1)),u=Math.min(18,Math.max(12,d-12)),p="var(--color-emerald-dark)";e.overallSaturationPercent>=85?p="#ef4444":e.overallSaturationPercent>=70&&(p="#d97706");let m=c.map((h,g)=>{let y=o+g*d+d/2,b=Math.round(y-u/2),v=h.totalPorts>0?h.activeSubscribers/h.totalPorts:0,_=h.totalPorts>0?h.offlineSubscribers/h.totalPorts:0,C=Math.round(v*l),x=Math.round(_*l),$=Math.max(0,l-C-x),k=a,N=k+C,D=N+x,R=h.saturationPercent>=85?"#ef4444":h.saturationPercent>=70?"#d97706":"var(--color-emerald)";return`
-      <text x="${a-12}" y="${y+5}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="15" font-weight="600" fill="var(--ink, #182e2a)">
+    </svg>`;let n=e.hubs.slice(0,5),o=n.length>=4?36:12,r=12,a=n.length>=4?216:o+n.length*42+r,s=160,c=420-s-140,d=Math.floor((a-o-r)/Math.max(n.length,1)),u=Math.min(18,Math.max(12,d-12)),p="var(--color-emerald-dark)";e.overallSaturationPercent>=85?p="#ef4444":e.overallSaturationPercent>=70&&(p="#d97706");let m=n.map((h,g)=>{let y=o+g*d+d/2,b=Math.round(y-u/2),v=h.totalPorts>0?h.activeSubscribers/h.totalPorts:0,_=h.totalPorts>0?h.offlineSubscribers/h.totalPorts:0,C=Math.round(v*c),x=Math.round(_*c),$=Math.max(0,c-C-x),k=s,N=k+C,D=N+x,R=h.saturationPercent>=85?"#ef4444":h.saturationPercent>=70?"#d97706":"var(--color-emerald)";return`
+      <text x="${s-12}" y="${y+5}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="15" font-weight="600" fill="var(--ink, #182e2a)">
         ${Lt(h.areaName.length>16?h.areaName.slice(0,15)+"\u2026":h.areaName)}
       </text>
 
-      <rect x="${a}" y="${b}" width="${l}" height="${u}" rx="4" fill="var(--bg-soft, #f1f5f3)" />
+      <rect x="${s}" y="${b}" width="${c}" height="${u}" rx="4" fill="var(--bg-soft, #f1f5f3)" />
 
       ${C>0?`<rect x="${k}" y="${b}" width="${C}" height="${u}" rx="${x===0&&$===0?4:0}" fill="var(--color-brand-600)" />`:""}
 
@@ -1741,11 +1741,11 @@ ${t("ur")}`}function kKe(e=document,t){if(!e||!t||!e.getElementById("morningBrie
 
       ${$>0?`<rect x="${D}" y="${b}" width="${$}" height="${u}" rx="${C===0&&x===0?4:0}" fill="var(--color-slate-400)" fill-opacity="0.4" />`:""}
 
-      <text x="${a+l+8}" y="${y+5}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="${R}">
+      <text x="${s+c+8}" y="${y+5}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="15" font-weight="700" fill="${R}">
         ${h.assignedPorts}/${h.totalPorts} (${h.saturationPercent}%)
       </text>
-    `}).join("");return`<div class="chart-with-topbar"><div class="chart-top-bar"><span class="chart-top-bar-title">Markaz-e-Taqseem-e-Fiber (FDH)</span></div><div class="chart-metric-strip"><div class="chart-metric-cell"><div class="chart-metric-label">Total Ports</div><div class="chart-metric-value">${e.totalDeployedPorts}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Dark Headroom</div><div class="chart-metric-value" style="color:var(--color-emerald-dark)">${e.totalSparePorts}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Saturation</div><div class="chart-metric-value" style="color:${p}">${e.overallSaturationPercent}%</div></div></div><svg class="chart-svg" viewBox="0 0 420 216" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
-    <rect width="420" height="216" rx="10" fill="transparent" />
+    `}).join("");return`<div class="chart-with-topbar"><div class="chart-top-bar"><span class="chart-top-bar-title">Markaz-e-Taqseem-e-Fiber (FDH)</span></div><div class="chart-metric-strip"><div class="chart-metric-cell"><div class="chart-metric-label">Total Ports</div><div class="chart-metric-value">${e.totalDeployedPorts}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Dark Headroom</div><div class="chart-metric-value" style="color:var(--color-emerald-dark)">${e.totalSparePorts}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Saturation</div><div class="chart-metric-value" style="color:${p}">${e.overallSaturationPercent}%</div></div></div><svg class="chart-svg" viewBox="0 0 420 ${a}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
+    <rect width="420" height="${a}" rx="10" fill="transparent" />
 
 
     ${m}
@@ -1929,52 +1929,52 @@ ${t("ur")}`}function kKe(e=document,t){if(!e||!t||!e.getElementById("morningBrie
       <text x="${n/2}" y="${o/2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="13" fill="var(--muted, #71817c)">
         No delinquent collection route stops recorded
       </text>
-    </svg>`;let r=20,s=n-r-20,l="#047857";e.fleetRoutingStatus.includes("Urgent")?l="#ef4444":e.fleetRoutingStatus.includes("Active")&&(l="#d97706");let c=e.areas.slice(0,4),d=42,u=46,p=Math.max(1,...e.areas.map(g=>g.totalOverdueAmount)),m=Math.max(1,...e.areas.map(g=>g.overdueCount)),h=c.map((g,y)=>{let b=d+y*u,v=140,_=Math.max(4,Math.round(g.totalOverdueAmount/p*v)),C=100,x=Math.max(4,Math.round(g.overdueCount/m*C)),$=g.priorityTier.includes("High")?"#b91c1c":g.priorityTier.includes("Quick")?"#047857":"#64748b",k=g.priorityTier.includes("High")?"rgba(185, 28, 28, 0.12)":g.priorityTier.includes("Quick")?"rgba(4, 120, 87, 0.12)":"rgba(100, 116, 139, 0.12)";return`
-      <!-- Route Row ${y+1} -->
-      <g transform="translate(${r}, ${b})">
+    </svg>`;let r=20,s=n-r-20,l="#047857";e.fleetRoutingStatus.includes("Urgent")?l="#ef4444":e.fleetRoutingStatus.includes("Active")&&(l="#d97706");let c=e.areas.slice(0,4),d=42,u=46,p=t.height||d+c.length*u+34,m=Math.max(1,...e.areas.map(y=>y.totalOverdueAmount)),h=Math.max(1,...e.areas.map(y=>y.overdueCount)),g=c.map((y,b)=>{let v=d+b*u,_=140,C=Math.max(4,Math.round(y.totalOverdueAmount/m*_)),x=100,$=Math.max(4,Math.round(y.overdueCount/h*x)),k=y.priorityTier.includes("High")?"#b91c1c":y.priorityTier.includes("Quick")?"#047857":"#64748b",N=y.priorityTier.includes("High")?"rgba(185, 28, 28, 0.12)":y.priorityTier.includes("Quick")?"rgba(4, 120, 87, 0.12)":"rgba(100, 116, 139, 0.12)";return`
+      <!-- Route Row ${b+1} -->
+      <g transform="translate(${r}, ${v})">
         <!-- Row Background Card -->
         <rect width="${s}" height="38" rx="6" fill="var(--bg-soft, #f8faf9)" stroke="var(--line, #e2ece7)" />
 
         <!-- Area Title & Subs -->
         <text x="10" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
-          ${Lt(g.areaName)}
+          ${Lt(y.areaName)}
         </text>
         <text x="10" y="29" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">
-          ${g.overdueCount} Stops \xB7 ~${M(g.avgTicketPerStop)}/stop
+          ${y.overdueCount} Stops \xB7 ~${M(y.avgTicketPerStop)}/stop
         </text>
 
         <!-- Density Tag -->
-        <rect x="175" y="10" width="75" height="18" rx="4" fill="${k}" />
-        <text x="212" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${$}">
-          ${Lt(g.densityRating)}
+        <rect x="175" y="10" width="75" height="18" rx="4" fill="${N}" />
+        <text x="212" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${k}">
+          ${Lt(y.densityRating)}
         </text>
 
         <!-- Uncollected Dues Bar -->
         <g transform="translate(260, 8)">
           <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
-            TARGET: ${M(g.totalOverdueAmount)}
+            TARGET: ${M(y.totalOverdueAmount)}
           </text>
-          <rect y="11" width="${v}" height="10" rx="3" fill="var(--line, #e2ece7)" />
-          <rect y="11" width="${_}" height="10" rx="3" fill="#b91c1c" />
+          <rect y="11" width="${_}" height="10" rx="3" fill="var(--line, #e2ece7)" />
+          <rect y="11" width="${C}" height="10" rx="3" fill="#b91c1c" />
         </g>
 
         <!-- Stop Density Bar -->
         <g transform="translate(400, 8)">
           <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
-            DENSITY: ${g.overdueCount} accounts
+            DENSITY: ${y.overdueCount} accounts
           </text>
-          <rect y="11" width="${C}" height="10" rx="3" fill="var(--line, #e2ece7)" />
-          <rect y="11" width="${x}" height="10" rx="3" fill="#047857" />
+          <rect y="11" width="${x}" height="10" rx="3" fill="var(--line, #e2ece7)" />
+          <rect y="11" width="${$}" height="10" rx="3" fill="#047857" />
         </g>
 
         <!-- Dispatch Crew Pill -->
         <rect x="525" y="9" width="67" height="20" rx="4" fill="var(--surface-sunken, #edf3f0)" />
         <text x="558" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
-          ${g.recommendedCollectors} Crew (${g.estimatedRouteDays}d)
+          ${y.recommendedCollectors} Crew (${y.estimatedRouteDays}d)
         </text>
       </g>
-    `}).join("");return`<svg class="chart-svg" viewBox="0 0 ${n} ${o}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
-    <rect width="${n}" height="${o}" rx="10" fill="transparent" />
+    `}).join("");return`<svg class="chart-svg" viewBox="0 0 ${n} ${p}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
+    <rect width="${n}" height="${p}" rx="10" fill="transparent" />
 
     <g transform="translate(${r}, 20)">
       <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
@@ -1985,10 +1985,10 @@ ${t("ur")}`}function kKe(e=document,t){if(!e||!t||!e.getElementById("morningBrie
       </text>
     </g>
 
-    ${h}
+    ${g}
 
     <!-- Bottom Legend & Health Status -->
-    <g transform="translate(${n/2}, ${o-10})" text-anchor="middle">
+    <g transform="translate(${n/2}, ${p-10})" text-anchor="middle">
       <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
         Dispatch Status: <tspan font-weight="700" fill="${l}">${Lt(e.fleetRoutingStatus)}</tspan> \xB7 Sectors: <tspan font-weight="700" fill="var(--ink, #182e2a)">${e.totalAreasTargeted}</tspan> \xB7 Daily Pacing: <tspan font-weight="700" fill="#047857">${M(e.dailyFleetRecoveryTargetPkr)}/day</tspan>
       </text>

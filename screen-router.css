@@ -166,6 +166,16 @@ body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expen
     color: var(--ink, #16342b);
     box-shadow: none;
   }
+  /* Reports → Compare polish: the Monthly Report header is one row
+     ("title action") with a compact pill action — mirrors the Area
+     Analytics scoped rule. Depends on the Area Analytics hideBack
+     mechanism (the back button is hidden there); until that merge lands,
+     this rule applies on top of the two-row base grid. */
+  body.sr-screen-mode[data-screen="reports"] .sr-screen-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "title action";
+  }
+  body.sr-screen-mode[data-screen="reports"] .sr-primary-action { width: auto; border-radius: var(--radius-pill); }
   .sr-screen-title { font-size: 20px; }
   /* On phones the header scrolls away so it never covers content. */
   .sr-screen-header { position: static; }

@@ -58,6 +58,13 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   // the collection rate shows points, everything else shows counts.
   const MONEY_COMPARE_KEYS = ['billedAmount', 'collection', 'outstanding', 'expenses', 'cashProfit'];
   const compareKind = key => key === 'collectionRate' ? 'rate' : MONEY_COMPARE_KEYS.includes(key) ? 'money' : 'count';
+  // Reports → Compare polish: delta polarity per compare metric key.
+  // 'good' means a rise is good (collections up), 'bad' means a rise is
+  // bad (expenses up); zero change and unavailable deltas stay neutral
+  // (plain). compareKind above is formatting-only and carries no polarity.
+  const GOOD_UP_COMPARE_KEYS = ['billedAmount', 'collection', 'cashProfit', 'collectionRate', 'activeCustomers', 'newCustomers', 'newConnections', 'billCount', 'pricedBillCount'];
+  const BAD_UP_COMPARE_KEYS = ['outstanding', 'expenses', 'unpricedBillCount', 'archivedCustomers', 'disconnectedCustomers'];
+  const comparePolarity = key => GOOD_UP_COMPARE_KEYS.includes(key) ? 'good' : BAD_UP_COMPARE_KEYS.includes(key) ? 'bad' : 'neutral';
   function renderCommand(query=lastQuery) {
     const output=$('#ownerCommandAnswer'); if(!output)return;
     output.replaceChildren();
@@ -183,9 +190,20 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
       setText('#monthComparisonBasis',`${monthBasis(comparison.monthA)} ${monthBasis(comparison.monthB)} ${comparison.basis.collection} ${comparison.basis.billedAmount} ${comparison.basis.profit} Manual service state: ${comparison.monthA.activeCustomerSource} / ${comparison.monthB.activeCustomerSource}`);
       const keys=Object.keys(compareLabels);
       metrics.innerHTML=keys.map(key=>{
-        const change=comparison.changes[key],renderValue=value=>value===null||value===undefined?'Not available':key==='collectionRate'?`${value}%`:['billCount','pricedBillCount','unpricedBillCount','activeCustomers','newCustomers','newConnections','archivedCustomers','disconnectedCustomers'].includes(key)?String(value):formatAmount(value);
+        const change=comparison.changes[key];
+        // Reports → Compare polish: a metric with no saved figure for
+        // EITHER month hides entirely; a partially-available card (one
+        // month has data) stays with its 'Not saved for both months'
+        // footer below.
+        if(change.from===null&&change.to===null)return '';
+        const renderValue=value=>value===null||value===undefined?'Not available':key==='collectionRate'?`${value}%`:['billCount','pricedBillCount','unpricedBillCount','activeCustomers','newCustomers','newConnections','archivedCustomers','disconnectedCustomers'].includes(key)?String(value):formatAmount(value);
         const delta=describePercentChange(change,compareKind(key));
-        return `<article class="comparison-metric"><span>${compareLabels[key]}</span><strong>${escapeHtml(renderValue(change.from))} <small>→</small> ${escapeHtml(renderValue(change.to))}</strong><small>${change.absoluteChange===null?'Not saved for both months':escapeHtml(delta)}</small></article>`;
+        // Delta polarity: emerald on a good-direction move, rose on a
+        // bad-direction one; zero change and unavailable deltas stay
+        // neutral (plain). The 'New (+…)' case has from=0, to>0, so its
+        // absoluteChange is positive and colours by direction.
+        const deltaClass=change.absoluteChange===null||change.absoluteChange===0?'':(change.absoluteChange>0)===(comparePolarity(key)==='good')?'comparison-delta--good':'comparison-delta--bad';
+        return `<article class="comparison-metric"><span>${compareLabels[key]}</span><strong>${escapeHtml(renderValue(change.from))} <small>→</small> ${escapeHtml(renderValue(change.to))}</strong><small${deltaClass?` class="${deltaClass}"`:''}>${change.absoluteChange===null?'Not saved for both months':escapeHtml(delta)}</small></article>`;
       }).join('');
       const chartKeys=['billedAmount','collection','outstanding','expenses','cashProfit'];
       const max=Math.max(1,...chartKeys.flatMap(key=>[comparison.monthA[key]??0,comparison.monthB[key]??0]));
@@ -242,6 +260,14 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
       const node=$(selector);if(!node)continue;const old=node.value;node.innerHTML=`<option value="all">${allLabel}</option>${options.map(option=>`<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('')}`;node.value=options.some(option=>option.value===old)?old:'all';
     }
     const monthFilter=$('#rankingMonth')?.closest('label');if(monthFilter)monthFilter.hidden=['lifetime-value','early-payers','late-payers','troublesome'].includes(type?.value);
+    // Reports → Compare polish: the Filters chip surfaces how many of the
+    // collapsed Area / Package / Manual status filters are non-default,
+    // so a collapsed active filter is never invisible.
+    const filtersState=$('#rankingFiltersState');
+    if(filtersState){
+      const active=['#rankingArea','#rankingPackage','#rankingStatus'].filter(selector=>{ const node=$(selector); return node&&node.value&&node.value!=='all'; }).length;
+      filtersState.textContent=active>0?`· ${active} active`:'';
+    }
   }
   let rankingsShowAll=false;
   function renderRankings() {
@@ -261,9 +287,16 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
       const estimate=args.type==='lifetime-value'?`<span class="owner-result-estimate">Estimated future value · next 12 months: ${row.estimatedFutureValue===null?'Insufficient history':escapeHtml(formatAmount(row.estimatedFutureValue))}. ${escapeHtml(row.estimatedFutureValueBasis)}</span>`:'';
       const crownAvatar=args.type==='early-payers'?`<span class="owner-crown-avatar" aria-hidden="true"><span class="owner-crown-avatar-crown">👑</span>${escapeHtml(nameInitials(row.name))}</span>`:'';
       const nameLine=crownAvatar?`<span class="owner-crown-name">${crownAvatar}#${row.customerNumber} ${escapeHtml(row.name)}</span>`:`#${row.customerNumber} ${escapeHtml(row.name)}`;
-      return `<article class="owner-result-card"><span class="owner-rank">${index+1}</span><div class="owner-result-main"><strong>${nameLine}</strong><span>${escapeHtml(row.area)} · ${escapeHtml(row.package)} · ${escapeHtml(row.serviceStatus)}</span>${estimate}</div><strong class="owner-result-value">${escapeHtml(row.displayValue)}</strong><button class="secondary-button" type="button" data-open-ranking-customer="${escapeHtml(row.customerId)}">Open ledger</button></article>`;
+      // Reports → Compare polish: the whole row is the tap target now
+      // (the bulky ledger button is gone); the chevron marks the card as
+      // tappable. role="button" + tabindex keep it keyboard reachable —
+      // the old button was the only keyboard path.
+      return `<article class="owner-result-card" role="button" tabindex="0" data-open-ranking-customer="${escapeHtml(row.customerId)}" aria-label="${escapeHtml('Open ' + row.name + "'s ledger")}"><span class="owner-rank">${index+1}</span><div class="owner-result-main"><strong>${nameLine}</strong><span>${escapeHtml(row.area)} · ${escapeHtml(row.package)} · ${escapeHtml(row.serviceStatus)}</span>${estimate}</div><strong class="owner-result-value">${escapeHtml(row.displayValue)}</strong><span class="owner-result-chevron" aria-hidden="true">›</span></article>`;
     }).join(''):`<p class="empty-state">No customers have enough saved data for this ranking and filter. ${result.excludedCount?`${result.excludedCount} profile(s) were excluded because the ranked value is unavailable.`:''}</p>`;
-    host.querySelectorAll('[data-open-ranking-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openRankingCustomer)));
+    host.querySelectorAll('[data-open-ranking-customer]').forEach(card=>{
+      card.addEventListener('click',()=>openCustomer(card.dataset.openRankingCustomer));
+      card.addEventListener('keydown',event=>{ if(event.key==='Enter'||event.key===' '){ event.preventDefault(); openCustomer(card.dataset.openRankingCustomer); } });
+    });
     let toggle=$('#rankingShowAllBtn');
     if(!toggle){toggle=document.createElement('button');toggle.id='rankingShowAllBtn';toggle.type='button';toggle.className='secondary-button ranking-show-all-btn';toggle.addEventListener('click',()=>{rankingsShowAll=!rankingsShowAll;renderRankings();});host.after(toggle);}
     toggle.hidden=result.rows.length<=10;

@@ -1299,7 +1299,7 @@ export const TRANSLATIONS = {
     upsell_offer: '📲 Send offer',
     upsell_reason_complaints: '{count} slow-speed complaints',
     upsell_reason_ontime: 'Paid on time {count} months in a row',
-    upsell_gain: '+{amount}/month',
+    upsell_gain: '+{amount}/mo',
     upsell_pkg_line: '{current} ({fee}) → {target} ({price})',
     prof_upsell_heading: 'Upgrade suggestion',
     prof_upsell_text: 'Suggested upgrade: {target} ({price}/month) — {gain} more per month.',

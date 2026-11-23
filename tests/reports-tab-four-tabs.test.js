@@ -37,7 +37,10 @@ test('tab bar: sticky below the topbar at every breakpoint', () => {
   assert.ok(bar, 'reports-tabs rule exists');
   assert.ok(bar[0].includes('position:sticky'));
   assert.ok(bar[0].includes('top:78px'));
-  assert.ok(bar[0].includes('z-index:2'));
+  // Reports → Compare polish: the bar is z-index 30 now, not 2 — the
+  // sticky first-column table cells (z-index 3, corner 4) used to paint
+  // over it. Still below the topbar (z-index 50).
+  assert.ok(bar[0].includes('z-index:30'));
   assert.ok(css.includes('.reports-tabs{top:58px}'), '<=620px follows the 58px topbar');
   assert.ok(css.includes('.reports-tabs.reports-tabs { top: 56px; }'), '<=380px follows the 56px topbar');
 });

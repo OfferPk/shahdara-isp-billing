@@ -5811,6 +5811,29 @@
   padding: var(--space-2) 0 2px;
 }
 
+/* Reports Register & audit polish: an empty audit card collapses to its
+   header row (title + "None right now ✓" pill + (i)). app.js toggles
+   .audit-collapsed on the section; the sub paragraph, the analytics
+   block and the (empty) list hide, and the pill shows. The all-clear
+   pill still wins when EVERY audit is 0 (the whole section hides).
+   Revenue Leak is NOT collapsed — only its (i) shrinks. The audit
+   titles take the free space so the (i) + pill + count pack right.
+   The .winback-empty / .hwaudit-empty rules above are now uncalled
+   (the empty <li>s are gone) and are left in place, harmless. */
+.audit-collapsed .winback-sub,
+.audit-collapsed .upsell-sub,
+.audit-collapsed .hwaudit-sub { display: none; }
+.audit-collapsed .winback-analytics { display: none; }
+.audit-collapsed .winback-list,
+.audit-collapsed .upsell-list,
+.audit-collapsed .hwaudit-list { display: none; }
+.audit-none-pill { display: none; white-space: nowrap; flex: none; }
+.audit-collapsed .audit-none-pill { display: inline-flex; }
+.upsell-title,
+.winback-title,
+.revleak-title,
+.hwaudit-title { flex: 1; min-width: 0; }
+
 /* Owner feature 2026-10-29: Dashboard Advance Held KPI card + holders
    dialog rows. Theme tokens only, so light and dark modes both read
    correctly; the amount column never shrinks, so full amounts stay

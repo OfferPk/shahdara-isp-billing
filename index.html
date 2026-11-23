@@ -7243,6 +7243,7 @@
                 <section id="billingRegisterSection" class="owner-report-panel billing-register-panel" aria-labelledby="billingRegisterHeading">
           <div class="table-heading"><div><p class="eyebrow">INVOICE RECORD</p><h3 id="billingRegisterHeading" data-i18n="bill_reg_title">Billing Register</h3></div><p class="chart-caption" data-i18n="bill_reg_sub">Invoice-style record of the bills in the selected period. The CSV download exports exactly the rows shown below.</p></div>
           <div class="billing-register-controls">
+            <div class="billing-register-select-row">
             <label class="report-month-label"><span data-i18n="bill_reg_period_label">Period</span><select id="billingRegisterPeriod">
               <option value="this" selected data-i18n="bill_reg_period_this">This Month</option>
               <option value="last" data-i18n="bill_reg_period_last">Last Month</option>
@@ -7250,18 +7251,21 @@
               <option value="last6" data-i18n="bill_reg_period_last6">Last 6 Months</option>
               <option value="last12" data-i18n="bill_reg_period_last12">Last 12 Months</option>
             </select></label>
+            <label class="report-month-label"><span data-i18n="bill_reg_print_format">Print size</span><select id="billingRegisterPrintFormat">
+              <option value="a4" selected data-i18n="bill_reg_print_a4">A4 Summary</option>
+              <option value="80mm" data-i18n="bill_reg_print_80mm">80mm Thermal</option>
+            </select></label>
+            </div>
             <div class="report-filters billing-register-status" role="group" data-i18n-aria-label="bill_reg_status_label" aria-label="Bill status">
               <button type="button" class="report-filter-button" data-register-status="all" aria-pressed="false" data-i18n="bill_reg_status_all">All</button>
               <button type="button" class="report-filter-button" data-register-status="paid" aria-pressed="true" data-i18n="bill_reg_status_paid">Paid</button>
               <button type="button" class="report-filter-button" data-register-status="partial" aria-pressed="false" data-i18n="bill_reg_status_partial">Partial</button>
               <button type="button" class="report-filter-button" data-register-status="unpaid" aria-pressed="false" data-i18n="bill_reg_status_unpaid">Unpaid</button>
             </div>
-            <button type="button" class="owner-report-btn" id="billingRegisterDownloadBtn">⬇ <span data-i18n="bill_reg_download">Download CSV</span></button>
-            <label class="report-month-label"><span data-i18n="bill_reg_print_format">Print size</span><select id="billingRegisterPrintFormat">
-              <option value="a4" selected data-i18n="bill_reg_print_a4">A4 Summary</option>
-              <option value="80mm" data-i18n="bill_reg_print_80mm">80mm Thermal</option>
-            </select></label>
-            <button type="button" class="owner-report-btn" id="billingRegisterPrintBtn">🖨️ <span data-i18n="bill_reg_print">Print Register</span></button>
+            <div class="billing-register-actions">
+            <button type="button" class="secondary-button" id="billingRegisterDownloadBtn">⬇ <span data-i18n="bill_reg_download">Download CSV</span></button>
+            <button type="button" class="secondary-button" id="billingRegisterPrintBtn">🖨️ <span data-i18n="bill_reg_print">Print Register</span></button>
+            </div>
           </div>
           <p class="billing-register-totals" id="billingRegisterTotals" role="status" aria-live="polite"></p>
           <ul id="billingRegisterList" class="billing-register-list" data-i18n-aria-label="bill_reg_title" aria-label="Billing Register"></ul>
@@ -7431,6 +7435,8 @@
           <div class="winback-card">
             <div class="winback-header">
               <h3 id="winbackHeading" class="winback-title" data-i18n="winback_title">📥 Disconnect Reasons & Win-Back</h3>
+              <button class="help-info-btn" type="button" data-help="winback" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
+              <span class="audit-none-pill archive-state-badge" data-i18n="audit_none_right_now">None right now ✓</span>
               <span id="winbackQueueCount" class="winback-total"></span>
             </div>
             <p class="winback-sub" data-i18n="winback_sub">Why customers left, and the ones you marked for a free-reconnection offer — one tap opens the WhatsApp draft, nothing sends itself.</p>
@@ -7443,6 +7449,7 @@
             <div class="upsell-header">
               <h3 id="loyaltyHeading" class="upsell-title" data-i18n="loyalty_title">⚠️ At-Risk Loyal Customers</h3>
               <button class="help-info-btn" type="button" data-help="loyalty" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
+              <span class="audit-none-pill archive-state-badge" data-i18n="audit_none_right_now">None right now ✓</span>
               <span id="loyaltyAtRiskCount" class="upsell-total"></span>
             </div>
             <p class="upsell-sub" data-i18n="loyalty_sub">Customers with 1+ year of service who logged 2+ complaints this month or lost 12+ hours to downtime — a personal check-in can save them.</p>
@@ -7464,6 +7471,8 @@
           <div class="hwaudit-card">
             <div class="hwaudit-header">
               <h3 id="hwauditHeading" class="hwaudit-title" data-i18n="hwaudit_title">🔦 Hardware / Optical Bottleneck Audit</h3>
+              <button class="help-info-btn" type="button" data-help="hwaudit" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
+              <span class="audit-none-pill archive-state-badge" data-i18n="audit_none_right_now">None right now ✓</span>
               <span id="hwauditCount" class="hwaudit-count"></span>
             </div>
             <p class="hwaudit-sub" data-i18n="hwaudit_sub">Active customers on 15 Mbps or faster whose last optical RX reading is below -26.0 dBm — the line likely cannot deliver the package speed. Slow-speed complaint counts are shown as supporting evidence.</p>

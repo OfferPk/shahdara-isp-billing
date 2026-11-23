@@ -109,7 +109,9 @@ test('C3 Auto-credit is a collapsed <details> chip, not an 8-line box', () => {
 test('C4 EN/UR parity holds (same keys — values only changed)', () => {
   assert.deepEqual(Object.keys(TRANSLATIONS.en).sort(), Object.keys(TRANSLATIONS.ur).sort(),
     'EN/UR key sets diverged');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '23'),
+  // Re-pin (Reports Register rebase 2026-11-23): Register adds 5 keys,
+  // total 5,223 -> 5,228 — this file's own item added no key.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '28'),
     'parity total moved — the shortenings are values only, no key added or dropped');
 });
 

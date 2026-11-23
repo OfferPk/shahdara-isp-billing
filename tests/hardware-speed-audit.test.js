@@ -207,7 +207,10 @@ test('i18n audit: every hwaudit key used via t() in app.js / profile-ui.js is de
   for (const source of [app, profileUi]) {
     for (const match of source.matchAll(/t\('((?:prof_)?hwaudit_[a-z_]+)'/g)) used.add(match[1]);
   }
-  assert.ok(used.size >= 8, `expected the wiring to use the hwaudit keys, got ${used.size}`);
+  // Reports Register & audit polish: the empty Hardware Audit card
+  // collapsed into a 1-line row, so hwaudit_empty is kept in the dicts
+  // but no longer used by the UI — the used-key count drops from 8 to 7.
+  assert.ok(used.size >= 7, `expected the wiring to use the hwaudit keys, got ${used.size}`);
   for (const key of used) {
     assert.ok(HW_KEYS.includes(key), `unexpected key ${key}`);
     assert.equal(typeof TRANSLATIONS.en[key], 'string', `en:${key}`);

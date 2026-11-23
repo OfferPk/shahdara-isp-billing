@@ -3224,9 +3224,19 @@ function renderDashboard() {
       ];
       winbackAnalyticsEl.innerHTML = winbackAnalytics.totalArchived === 0 ? '' : analyticsRows.map(row => `<p><span>${escapeHtml(row.label)}</span><strong>${escapeHtml(String(row.allTime))}</strong><small> · ${escapeHtml(t('winback_analytics_month'))}: ${escapeHtml(String(row.thisMonth))}</small></p>`).join('');
     }
-    winbackListEl.innerHTML = winbackQueue.length === 0
-      ? `<li class="winback-empty">${escapeHtml(t('winback_empty'))}</li>`
-      : winbackQueue.map((row) => {
+    // Reports Register & audit polish: an empty Win-Back card collapses
+    // to its header row (title + "None right now ✓" pill + (i)) — the
+    // sub paragraph and the list hide via .audit-collapsed on the
+    // section. Collapse iff the queue is 0 AND no archived disconnects
+    // exist; when archives exist the analytics rows still show and the
+    // card stays open (with an empty list). The all-clear pill
+    // (below) still wins when EVERY audit is 0: the whole section
+    // hides. The winback_empty key is kept (uncalled) — no unused-key
+    // test exists and removing it would churn the parity pins.
+    const winbackCollapsed = winbackQueue.length === 0 && winbackAnalytics.totalArchived === 0;
+    const winbackSection = winbackListEl.closest('section');
+    if (winbackSection) winbackSection.classList.toggle('audit-collapsed', winbackCollapsed);
+    winbackListEl.innerHTML = winbackCollapsed ? '' : winbackQueue.map((row) => {
           const wa = formatWhatsAppUrl(row.phone || '', row.offerText);
           const offerAction = wa.validPhone
             ? `<a class="winback-offer-btn" href="${escapeHtml(wa.url)}" target="_blank" rel="noopener noreferrer" data-winback-offer-id="${escapeHtml(row.customerId)}">${escapeHtml(t('winback_offer'))}</a>`
@@ -3256,9 +3266,14 @@ function renderDashboard() {
     auditsLoyaltyCount = loyaltySummary.count;
     const loyaltyCountEl = $('#loyaltyAtRiskCount');
     if (loyaltyCountEl) loyaltyCountEl.textContent = loyaltySummary.count > 0 ? t('loyalty_count', null, { count: loyaltySummary.count }) : '';
-    loyaltyListEl.innerHTML = atRiskRows.length === 0
-      ? `<li class="upsell-empty">${escapeHtml(t('loyalty_empty'))}</li>`
-      : atRiskRows.map((row) => {
+    // Reports Register & audit polish: an empty At-Risk card collapses
+    // to its header row (title + "None right now ✓" pill + (i)) via
+    // .audit-collapsed on the section; the loyalty_empty key is kept
+    // (uncalled) — see the winback note above.
+    const loyaltyCollapsed = atRiskRows.length === 0;
+    const loyaltySection = loyaltyListEl.closest('section');
+    if (loyaltySection) loyaltySection.classList.toggle('audit-collapsed', loyaltyCollapsed);
+    loyaltyListEl.innerHTML = atRiskRows.map((row) => {
         const reasons = [
           row.reasons.includes('complaints') ? t('loyalty_reason_complaints', null, { count: row.complaintsThisMonth }) : '',
           row.reasons.includes('downtime') ? t('loyalty_reason_downtime', null, { hours: row.downtimeHours }) : ''
@@ -3347,9 +3362,14 @@ function renderDashboard() {
     auditsHwauditCount = hwSummary.count;
     const hwauditCountEl = $('#hwauditCount');
     if (hwauditCountEl) hwauditCountEl.textContent = hwSummary.count > 0 ? t('hwaudit_count', null, { count: hwSummary.count }) : '';
-    hwauditListEl.innerHTML = suspects.length === 0
-      ? `<li class="hwaudit-empty">${escapeHtml(t('hwaudit_empty'))}</li>`
-      : suspects.map((row) => {
+    // Reports Register & audit polish: an empty Hardware Audit card
+    // collapses to its header row (title + "None right now ✓" pill +
+    // (i)) via .audit-collapsed on the section; the hwaudit_empty key
+    // is kept (uncalled) — see the winback note above.
+    const hwauditCollapsed = suspects.length === 0;
+    const hwauditSection = hwauditListEl.closest('section');
+    if (hwauditSection) hwauditSection.classList.toggle('audit-collapsed', hwauditCollapsed);
+    hwauditListEl.innerHTML = suspects.map((row) => {
         const complaintsLine = row.slowSpeedComplaints > 0 ? t('hwaudit_complaints', null, { count: row.slowSpeedComplaints }) : t('hwaudit_no_complaints');
         const boxLine = row.splitterBoxId ? t('hwaudit_box', null, { box: row.splitterBoxId, port: row.splitterPort ?? '—' }) : '';
         return `<li class="hwaudit-item"><button type="button" class="hwaudit-row" data-hwaudit-customer-id="${escapeHtml(row.customerId)}"><span class="hwaudit-main"><strong class="hwaudit-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="hwaudit-sub-line">${escapeHtml(t('hwaudit_line', null, { label: row.packageLabel, rx: formatRxDbm(row.lastRxDbm) }))}</span><span class="hwaudit-sub-line">${escapeHtml([boxLine, complaintsLine].filter(Boolean).join(' · '))}</span></span><strong class="hwaudit-rx">${escapeHtml(formatRxDbm(row.lastRxDbm))}</strong></button></li>`;
@@ -8152,10 +8172,10 @@ function renderSalesTaxDashboard(state, month) {
   if (!host) return;
   const rows = salesTaxDashboardRows(state.customers, month);
   const totals = salesTaxDashboardTotals(rows);
-  const rowsMarkup = rows.map(row => `<li class="report-row stx-row"><div class="report-customer"><span class="report-customer-name">${escapeHtml(row.customerName)}</span></div><div class="report-cell"><span class="report-cell-label">Package</span><span class="report-cell-value">${escapeHtml(row.packageLabel !== '' ? row.packageLabel : t('bill_not_set'))}</span></div><div class="report-cell stx-amount-cell"><span class="report-cell-label">Sales tax (19.5%)</span><span class="report-cell-value">${escapeHtml(formatSalesTaxAmount(row.taxCents))}</span></div><div class="report-cell stx-amount-cell"><span class="report-cell-label">Tax charged on bill</span><span class="report-cell-value">${escapeHtml(formatSalesTaxAmount(row.billTaxCents))}</span></div></li>`).join('');
+  const rowsMarkup = rows.map(row => `<li class="stx-grouped-row"><span class="stx-grouped-main"><strong dir="auto">${escapeHtml(row.customerName)}</strong><span class="stx-grouped-package"> · ${escapeHtml(row.packageLabel !== '' ? row.packageLabel : t('bill_not_set'))}</span></span><span class="stx-grouped-tax"><strong>${escapeHtml(formatSalesTaxAmount(row.taxCents))}</strong><span class="stx-grouped-tax-sub">${escapeHtml(formatSalesTaxAmount(row.billTaxCents))}</span></span></li>`).join('');
   host.innerHTML = `<div class="table-heading"><div><p class="eyebrow">SALES TAX</p><h3 id="stxTaxHeading">Sales tax (19.5%) — ${escapeHtml(displayMonthName(month))}</h3></div><p class="chart-caption">Monthly sales tax per customer package. Billed tax is the tax recorded on this month's bills.</p></div>
-    <div class="monthly-report-summary-bar"><span class="report-summary-item"><span class="report-summary-label">Total Taxable Customers:</span> <strong>${totals.taxedCustomerCount}</strong></span><span class="report-summary-item"><span class="report-summary-label">Total Sales Tax (19.5%):</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.derivedTotalCents))}</strong></span><span class="report-summary-item"><span class="report-summary-label">Sales tax charged on bills:</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.chargedTotalCents))}</strong></span></div>
-    ${rows.length ? `<ol class="monthly-report-list">${rowsMarkup}</ol>` : `<p class="transactions-empty">${escapeHtml(t('stx_empty'))}</p>`}`;
+    <div class="monthly-report-summary-bar stx-summary"><span class="report-summary-item"><span class="report-summary-label">Taxable</span> <strong>${totals.taxedCustomerCount}</strong></span><span class="report-summary-item"><span class="report-summary-label">Total Tax</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.derivedTotalCents))}</strong></span><span class="report-summary-item"><span class="report-summary-label">Charged</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.chargedTotalCents))}</strong></span></div>
+    ${rows.length ? `<ol class="monthly-report-list stx-grouped-list">${rowsMarkup}</ol>` : `<p class="transactions-empty">${escapeHtml(t('stx_empty'))}</p>`}`;
 }
 
 const REGISTER_STATUS_CLASS = { paid: 'report-status-paid', partial: 'report-status-partial', unpaid: 'report-status-pending' };
@@ -8180,14 +8200,18 @@ function renderBillingRegister() {
   document.querySelectorAll('[data-register-status]').forEach(button => {
     button.setAttribute('aria-pressed', String(button.dataset.registerStatus === billingRegisterStatus));
   });
+  // Reports Register & audit polish: the card is one header row (reference
+  // + name + mobile, with the Paid status pill + 💎 advance badge moved
+  // INTO it) + one 3-column figures row (Package / Bill / Paid). The
+  // Month cell is gone — the reference "#N · YYYY-MM" already carries
+  // the month (Sharafat 44 re-pin: the row model keeps raw YYYY-MM and
+  // the CSV + print sheet keep their Month column; only the card drops
+  // it). Ticket Charges Paid renders only when it is > 0, in its own
+  // row below the figures row.
   list.innerHTML = register.rows.map(row => `<li class="register-row">
-      <div class="register-customer"><span class="register-reference">${escapeHtml(row.reference)}</span><span class="report-customer-name">${escapeHtml(row.customerName)}</span>${row.mobile ? `<span class="register-customer-sub">${escapeHtml(row.mobile)}</span>` : ''}</div>
-      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_package')}</span><span class="report-cell-value">${escapeHtml(row.packageSpeed || '—')}</span></div>
-      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_month')}</span><span class="report-cell-value">${escapeHtml(displayMonthName(row.month))}</span></div>
-      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_bill')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.billAmount))}</span></div>
-      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_paid')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.paidAmount))}</span></div>
-      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_ticket')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.ticketChargesPaid))}</span></div>
-      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_status')}</span><span class="report-status ${REGISTER_STATUS_CLASS[row.status]}">${t(REGISTER_STATUS_KEY[row.status])}</span>${row.advanceAdjusted ? `<span class="register-advance-badge" title="${escapeHtml(t('adv_credit_applied_title', null, { amount: formatAmount(row.advanceApplied) }))}">💎 ${escapeHtml(t('adv_register_badge'))}</span>` : ''}</div>
+      <div class="register-customer"><div class="register-customer-top"><span class="register-reference">${escapeHtml(row.reference)}</span><span class="report-status ${REGISTER_STATUS_CLASS[row.status]}">${t(REGISTER_STATUS_KEY[row.status])}</span>${row.advanceAdjusted ? `<span class="register-advance-badge" title="${escapeHtml(t('adv_credit_applied_title', null, { amount: formatAmount(row.advanceApplied) }))}">💎 ${escapeHtml(t('adv_register_badge'))}</span>` : ''}</div><span class="report-customer-name">${escapeHtml(row.customerName)}</span>${row.mobile ? `<span class="register-customer-sub">${escapeHtml(row.mobile)}</span>` : ''}</div>
+      <div class="register-figures"><div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_package')}</span><span class="report-cell-value">${escapeHtml(row.packageSpeed || '—')}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_bill')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.billAmount))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_paid')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.paidAmount))}</span></div></div>
+      ${row.ticketChargesPaid > 0 ? `<div class="register-ticket-row"><span class="report-cell-label">${t('bill_reg_col_ticket')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.ticketChargesPaid))}</span></div>` : ''}
     </li>`).join('');
   const totals = $('#billingRegisterTotals');
   if (totals) {

@@ -88,6 +88,11 @@ export const HELP_TOPICS = Object.freeze({
   uptime: { titleKey: 'help_uptime_title', bodyKey: 'help_uptime_body' },
   revenue_leak: { titleKey: 'help_revenue_leak_title', bodyKey: 'help_revenue_leak_body' },
   loyalty: { titleKey: 'help_loyalty_title', bodyKey: 'help_loyalty_body' },
+  // Reports Register & audit polish: the collapsed Win-Back + Hardware
+  // Audit rows mount their own (i) buttons, so both topics are
+  // registered here (the bodies reuse the cards' sub-paragraph wording).
+  winback: { titleKey: 'help_winback_title', bodyKey: 'help_winback_body' },
+  hwaudit: { titleKey: 'help_hwaudit_title', bodyKey: 'help_hwaudit_body' },
   additional_pending: { titleKey: 'help_additional_pending_title', bodyKey: 'help_additional_pending_body' },
   // Plan W — Operator handbook: the primary flows. Waada and the general
   // kist plan already had topics; these six close the remaining gaps so

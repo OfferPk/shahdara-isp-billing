@@ -27,7 +27,9 @@ const tokensCss = read('tokens.css');
 const selfSrc = read('tests/area-analytics-screen-polish.test.js');
 
 // The current parity total, split so no bare literal appears in this file.
-const PARITY = Number('52' + '23');
+// Re-pin (Reports Register rebase 2026-11-23): Register adds 5 keys,
+// total 5,223 -> 5,228 — this file's own item added no key.
+const PARITY = Number('52' + '28');
 
 // ---- shared measurements (360px phone) -------------------------------------
 // .phase3-view padding at <=700px is 8px 12px 22px -> content width 336px.
@@ -151,7 +153,7 @@ test('I2b: header action label is the compact "Export CSV"; parity holds (no new
     'the compact pill still clicks the real in-card export button');
   assert.equal(Object.keys(TRANSLATIONS.en).length, PARITY, 'EN parity');
   assert.equal(Object.keys(TRANSLATIONS.ur).length, PARITY, 'UR parity');
-  assert.ok(selfSrc.includes("'52' + '23'"), 'this file pins the total in the split form only');
+  assert.ok(selfSrc.includes("'52' + '28'"), 'this file pins the total in the split form only');
 });
 
 test('I2c: analytics header is one row on phones — title left, pill action right', () => {

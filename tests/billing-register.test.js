@@ -484,21 +484,29 @@ test('register Sharafat 44: switching the chip changes the label every time; "Al
   assert.equal(sharafat44TotalsLabel(allUr, 'ur'), 'تمام bills · اس مہینہ: ');
 });
 
-test('register Sharafat 44: row month renders "October 2026", never the raw YYYY-MM', () => {
-  // The builder row model keeps the raw month (pinned at :77/:84/:92–93) —
-  // the formatting happens at the render site only.
+test('register Sharafat 44: the card drops the Month cell — the reference keeps it, CSV + print keep the Month column', () => {
+  // Reports Register & audit polish: the Month cell leaves the invoice
+  // CARD (the reference "#N · YYYY-MM" already carries the month) but
+  // Month survives in the CSV download and the print sheet, which
+  // consume the row model — not the card DOM.
   const register = buildBillingRegister(registerState(), { period: 'this', status: 'paid', currentMonth: CURRENT_MONTH });
   assert.equal(register.rows[0].month, '2026-10', 'row model stays raw YYYY-MM');
   assert.equal(register.rows[0].reference, '#12 · 2026-10', 'the reference identifier stays raw too');
-  // The render swaps the Month cell to displayMonthName (same helper the
-  // month selects use since Plan 545); the raw escapeHtml(row.month) is gone
-  // from the register row template.
-  const monthCell = sharafat44AppSource.split('\n').find((line) => line.includes("bill_reg_col_month"));
-  assert.ok(monthCell.includes('displayMonthName(row.month)'), 'register row month uses displayMonthName');
-  assert.ok(!monthCell.includes('${escapeHtml(row.month)}'), 'no raw YYYY-MM left in the register row month cell');
-  // The month names displayMonthName resolves to: UR keys + the EN Intl
-  // long-month fallback (app.js:3962 + :1448 — the helper itself lives in
-  // app.js, so its outputs are pinned here, not imported).
+  // No Month cell anywhere in the app.js card template: the only
+  // app.js use of the key is gone (the key itself still lives in
+  // nav-language.js for the CSV/print columns).
+  assert.ok(!sharafat44AppSource.includes('bill_reg_col_month'), 'no Month cell in the app.js card template');
+  // Month survives in the CSV (header + a data row's month field)...
+  const csv = generateCsvContent(BILLING_REGISTER_CSV_HEADERS, billingRegisterCsvRows(register));
+  const lines = csv.replace(/^\uFEFF/, '').split('\r\n').filter((line) => line.length);
+  assert.equal(lines[0], 'Reference,Customer,Mobile,Package,Month,Bill Amount,Paid Amount,Status,Ticket Charges Paid,Total Collected');
+  assert.ok(lines[1].includes(',2026-10,'), 'the CSV data row still carries the raw month');
+  // ... and in the print sheet.
+  const html = buildBillingRegisterPrintHtml(register, { businessName: 'Test Fiber', generatedDate: '2026-10-31', lang: 'en' });
+  assert.ok(html.includes('<th class="nowrap">Month</th>'), 'the print sheet keeps its Month column');
+  assert.ok(html.includes('2026-10'), 'the print sheet still shows the raw month');
+  // displayMonthName lives on for the month selects (the helper itself
+  // is in app.js, so its outputs are pinned here, not imported).
   assert.equal(t('cust_month_oct', 'ur'), 'اکتوبر');
   assert.equal(t('cust_month_nov', 'ur'), 'نومبر');
   const enMonth = (month) => new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${month}-01T00:00:00Z`));

@@ -1303,6 +1303,8 @@ export const TRANSLATIONS = {
     upsell_pkg_line: '{current} ({fee}) → {target} ({price})',
     prof_upsell_heading: 'Upgrade suggestion',
     prof_upsell_text: 'Suggested upgrade: {target} ({price}/month) — {gain} more per month.',
+    // Reports Register & audit polish: the collapsed audit rows' pill.
+    audit_none_right_now: 'None right now ✓',
     winback_title: '📥 Disconnect Reasons & Win-Back',
     winback_sub: 'Why customers left, and the ones you marked for a free-reconnection offer — one tap opens the WhatsApp draft, nothing sends itself.',
     winback_analytics_month: 'This month',
@@ -4924,6 +4926,13 @@ export const TRANSLATIONS = {
     help_revenue_leak_body: 'A read-only check that hunts money quietly leaking away: active connections whose recorded rate is zero, vacation holds whose resume date has already passed, and customers with no bill in the current cycle. The estimate beside each flag uses the customer\'s own recorded rate. Nothing is changed — it only shows you where to look.',
     help_loyalty_title: '👑 Loyal & At-Risk Customers',
     help_loyalty_body: 'Customers with a year or more of service earn the 👑 1+ Yr Loyal badge on their profile and card. This panel watches those loyal customers for trouble: two or more complaints this month, or 12 or more hours of downtime, brings them here — a personal check-in now can save a customer you cannot afford to lose.',
+    // Reports Register & audit polish: the collapsed Win-Back + Hardware
+    // Audit rows mount their own (i) buttons; the bodies reuse the
+    // cards' sub-paragraph wording (winback_sub / hwaudit_sub).
+    help_winback_title: '📥 Disconnect Reasons & Win-Back',
+    help_winback_body: 'Why customers left, and the ones you marked for a free-reconnection offer — one tap opens the WhatsApp draft, nothing sends itself.',
+    help_hwaudit_title: '🔦 Hardware / Optical Bottleneck Audit',
+    help_hwaudit_body: 'Active customers on 15 Mbps or faster whose last optical RX reading is below -26.0 dBm — the line likely cannot deliver the package speed. Slow-speed complaint counts are shown as supporting evidence.',
     help_additional_pending_title: '➕ Additional Pending',
     help_additional_pending_body: 'Additional Pending is extra money a customer owes outside the monthly bills — an old hisaab from before this app, or a loan. Type the total here and the card shows Bill + Additional together. Never type bill arrears again here, because bills are already counted. Quick Collect collects the bill first and then this amount, and voiding a payment brings it back.',
     help_add_customer_title: '➕ Add a Customer',
@@ -6732,6 +6741,8 @@ export const TRANSLATIONS = {
     upsell_pkg_line: '{current} ({fee}) ← {target} ({price})',
     prof_upsell_heading: 'اپ گریڈ تجویز',
     prof_upsell_text: 'تجویز کردہ اپ گریڈ: {target} ({price}/ماہ) — ہر ماہ {gain} زیادہ۔',
+    // Reports Register & audit polish: the collapsed audit rows' pill.
+    audit_none_right_now: 'فی الحال کچھ نہیں ✓',
     winback_title: '📥 منقطع ہونے کی وجوہات اور واپسی آفر',
     winback_sub: 'کسٹمرز کیوں گئے، اور جنہیں آپ نے مفت ری کنکشن آفر کے لیے منتخب کیا — ایک ٹیپ سے واٹس ایپ ڈرافٹ کھلتا ہے، کچھ بھی خود نہیں بھیجا جاتا۔',
     winback_analytics_month: 'اس مہینے',
@@ -10313,6 +10324,13 @@ export const TRANSLATIONS = {
     help_revenue_leak_body: 'یہ صرف پڑھنے والی جانچ ہے جو چپکے سے ضائع ہوتے پیسے تلاشتی ہے: فعال کنکشنز جن کا درج ریٹ صفر ہے، چھٹی ہولڈز جن کی بحالی تاریخ گزر چکی ہے، اور وہ کسٹمرز جن کا موجودہ سائیکل میں بل نہیں بنا۔ ہر جھنڈے کے ساتھ اندازہ کسٹمر کے اپنے درج ریٹ سے بنتا ہے۔ کچھ بدلتا نہیں — صرف یہ دکھاتا ہے کہ کہاں دیکھنا ہے۔',
     help_loyalty_title: '👑 وفادار اور خطرے والے کسٹمرز',
     help_loyalty_body: 'ایک سال یا اس سے زیادہ پرانے کسٹمرز کے پروفائل اور کارڈ پر 👑 وفادار بیج لگتا ہے۔ یہ پینل انہی وفادار کسٹمرز پر نظر رکھتا ہے: اس مہینے دو یا زیادہ شکایات، یا 12 گھنٹے سے زیادہ بندش، انہیں یہاں لے آتی ہے — اس وقت ذاتی رابطہ اس کسٹمر کو بچا سکتا ہے جسے کھونا آپ کے لیے مہنگا ہے۔',
+    // Reports Register & audit polish: the collapsed Win-Back + Hardware
+    // Audit rows mount their own (i) buttons; the bodies reuse the
+    // cards' sub-paragraph wording (winback_sub / hwaudit_sub).
+    help_winback_title: '📥 منقطع ہونے کی وجوہات اور واپسی آفر',
+    help_winback_body: 'کسٹمرز کیوں گئے، اور جنہیں آپ نے مفت ری کنکشن آفر کے لیے منتخب کیا — ایک ٹیپ سے واٹس ایپ ڈرافٹ کھلتا ہے، کچھ بھی خود نہیں بھیجا جاتا۔',
+    help_hwaudit_title: '🔦 ہارڈویئر / آپٹیکل رکاوٹ آڈٹ',
+    help_hwaudit_body: '15 Mbps یا تیز پیکج والے فعال کسٹمرز جن کی آخری آپٹیکل RX ریڈنگ -26.0 dBm سے کم ہے — لائن شاید پیکج کی رفتار فراہم نہیں کر سکتی۔ سست اسپیڈ شکایات کی تعداد معاون ثبوت کے طور پر دکھائی گئی ہے۔',
     help_additional_pending_title: '➕ اضافی بقایا',
     help_additional_pending_body: 'اضافی بقایا وہ رقم ہے جو کسٹمر نے ماہانہ بلوں کے علاوہ دینی ہے — اس ایپ سے پہلے کا پرانا حساب، یا کوئی قرض۔ یہاں کل رقم لکھیں تو کارڈ پر بل + اضافی اکٹھا دکھے گا۔ بل کے بقایا یہاں دوبارہ ہرگز نہ لکھیں، کیونکہ بل پہلے ہی گنے جاتے ہیں۔ کوئک کلیکٹ پہلے بل اور پھر یہ رقم وصول کرتا ہے، اور ادائیگی وائیڈ کرنے سے یہ واپس آ جاتی ہے۔',
     help_add_customer_title: '➕ کسٹمر شامل کریں',

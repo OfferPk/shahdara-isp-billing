@@ -173,8 +173,22 @@ test('F6 profile help-info-btn carries no sub-40px size', () => {
 });
 
 test('F7 base help-info-btn is a 40px circle in its own rule', () => {
-  assert.ok(allAtLeast(ruleBodies(compNC, 'button:not([hidden]).help-info-btn'), 40),
-    'components.css:3717 still 28x28 with min-height:28px !important (0,2,1) — defeats the 44px floor by design, to keep the circle');
+  // Reports Register & audit polish: the four Compare-tab audit headers
+  // carry a NAMED scoped 28px exception (matched to the Month-end D5 /
+  // F4 .help-icon 28px standard) — the base rule stays a 40px circle.
+  // The base rule is anchored to the start of its line so the override's
+  // last selector member (which ends with the same text) does not match.
+  const base = /(?:^|\n)button:not\(\[hidden\]\)\.help-info-btn\s*\{([^}]*)\}/.exec(compNC)?.[1];
+  assert.ok(base, 'base button:not([hidden]).help-info-btn rule present');
+  assert.ok(sizes([base]).length > 0 && sizes([base]).every((v) => v >= 40),
+    'components.css base help-info-btn still 40px circle');
+  const scoped = /\.upsell-header button:not\(\[hidden\]\)\.help-info-btn,\s*\.revleak-header button:not\(\[hidden\]\)\.help-info-btn,\s*\.winback-header button:not\(\[hidden\]\)\.help-info-btn,\s*\.hwaudit-header button:not\(\[hidden\]\)\.help-info-btn\s*\{([^}]*)\}/.exec(compNC)?.[1];
+  assert.ok(scoped, 'scoped audit-header help-info-btn rule present');
+  assert.deepEqual(sizes([scoped]).sort((a, b) => a - b), [28, 28, 28],
+    'scoped audit-header (i) is exactly 28px (Reports Register & audit polish)');
+  const all = sizes(ruleBodies(compNC, 'button:not([hidden]).help-info-btn'));
+  assert.ok(all.length > 0 && all.every((v) => v >= 40 || v === 28),
+    'a help-info-btn rule other than the named 28px exception carries a sub-40px size');
 });
 
 test('F8 QC help-info-btn rules carry no sub-40px size', () => {
@@ -322,8 +336,8 @@ test('S1 EN/UR parity holds (4,669 / 4,669 — Round 2 D9 net −1, Quick Collec
   // Plan 584: +38 ledger_filter_* keys — parity 4,669 → 4,707/4,707.
   // Plan 585: +16 global_search_* keys — parity 4,707 → 4,723/4,723.
   // Plan 586: drawer_settings deleted (dead key) — parity 4,723 → 4,722/4,722.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5223, 'EN key count moved');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5223, 'UR key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN key count moved');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR key count moved');
 });
 
 test('S2 global button floor intact', () => {

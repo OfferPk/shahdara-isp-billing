@@ -93,8 +93,8 @@ test('Lab: More menu + router + the one new key', () => {
 });
 
 test('Lab: parity is the NEW total (this file is the pin)', () => {
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5223);
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5223);
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228);
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228);
 });
 
 test('Lab: no in-SVG headers left on the seven fixed cards', () => {

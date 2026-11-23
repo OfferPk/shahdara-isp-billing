@@ -389,8 +389,8 @@ test('G5b components.css stays hex-free and parity stays 4,722/4,722', () => {
   const hexes = stripComments(read('components.css'))
     .match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g);
   assert.equal(hexes, null, 'components.css must stay hex-free (var() only)');
-  assert.equal(Object.keys(TRANSLATIONS.en).length, 5223, 'EN parity 5,223');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5223, 'UR parity 5,223');
+  assert.equal(Object.keys(TRANSLATIONS.en).length, 5228, 'EN parity 5,228');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, 5228, 'UR parity 5,228');
 });
 
 test('G5c the chip rules and the second palette are unchanged; T10 uses are left by name', () => {

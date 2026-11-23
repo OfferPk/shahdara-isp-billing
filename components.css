@@ -2083,16 +2083,42 @@ body.field-mode-open { overflow: hidden; }
 .billing-register-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .register-row { display: grid; grid-template-columns: minmax(170px, 1.5fr) repeat(5, minmax(90px, .8fr)) minmax(86px, .6fr); gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; }
 .register-customer { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+/* Reports Register & audit polish: the card is one header row + one
+   3-column figures row (+ an optional ticket row) at every width, so
+   the header, the figures and the ticket row each span the full grid.
+   The status pill + 💎 badge sit in the header's top row (pushed
+   right by margin-inline-start:auto); the figures row holds
+   Package / Bill / Paid in 3 columns. */
+.register-row > .register-customer,
+.register-row > .register-figures,
+.register-row > .register-ticket-row { grid-column: 1 / -1; }
+.register-customer-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.register-customer-top .report-status { margin-inline-start: auto; }
+.register-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.register-ticket-row { display: flex; align-items: baseline; gap: 6px; }
+.register-ticket-row .report-cell-label { display: inline; margin-bottom: 0; }
 /* SISP-194: 💎 Advance Adjusted badge on register rows whose bill was
    settled (partly or wholly) by advance credit. Tokens only. */
 .register-advance-badge { display: inline-block; margin-left: 6px; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; background: var(--color-paid-bg); color: var(--color-paid); white-space: nowrap; vertical-align: middle; }
 .register-reference { font-size: 11px; font-weight: 700; letter-spacing: .2px; color: var(--green); }
 .register-customer-sub { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+/* Reports Register & audit polish: the Period + Print size selects and
+   the two action buttons each share one 2-column grid row on phones.
+   On desktop the wrappers vanish (display:contents) so the labels and
+   buttons sit in the flex row exactly as before. The old ≤700px rule
+   that forced every .report-month-label to width:100% (stacking the
+   selects full-width) is deleted — the grid row owns the widths now,
+   and the labels' min-width is lifted inside it so two 185px labels
+   fit two ~150px columns. */
+.billing-register-select-row,
+.billing-register-actions { display: contents; }
 @media (max-width: 700px) {
   .register-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; }
   .register-customer { grid-column: 1 / -1; }
   .billing-register-controls { align-items: stretch; }
-  .billing-register-controls .report-month-label { width: 100%; }
+  .billing-register-select-row,
+  .billing-register-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
+  .billing-register-select-row .report-month-label { min-width: 0; }
 }
 /* Dashboard stat cards (owner request 2026-10-29): ONE shared clean card
  * for the dashboard stat/KPI cards, composed on top of the existing
@@ -3924,6 +3950,23 @@ button:not([hidden]).help-info-btn {
 .help-info-btn:focus-visible {
   outline: 3px solid var(--color-neutral-0);
   outline-offset: 2px;
+}
+/* Reports Register & audit polish: the (i) circles on the four Compare-tab
+   audit headers shrink to 28px — the user asked for the oversized (i)
+   buttons to shrink, and 28px is the named compact standard (Month-end
+   close D5's .help-icon exception, matched here for the .help-info-btn
+   family). SCOPED to the audit headers only: the base 40px circle above
+   is untouched, every other (i) in the app keeps it, and the F4
+   .help-icon pins (a different element family) are untouched. The
+   selector is heavier than the base (0,3,1) vs (0,2,1) so it beats both
+   the base rule and the 44px global button floor. */
+.upsell-header button:not([hidden]).help-info-btn,
+.revleak-header button:not([hidden]).help-info-btn,
+.winback-header button:not([hidden]).help-info-btn,
+.hwaudit-header button:not([hidden]).help-info-btn {
+  width: 28px;
+  height: 28px;
+  min-height: 28px !important;
 }
 /* Polish #26 D3: the Customers header ℹ️ is 44px like the buttons beside
    it (same precedent as .field-mode-head .help-info-btn at :3442). The

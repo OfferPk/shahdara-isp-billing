@@ -120,7 +120,9 @@ test('area summary excludes archived customers from profiles, revenue and packag
   assert.equal(zone.customerCount,1);assert.equal(zone.parentArea,'Area: North');
   assert.equal(report.unassignedArea.profiles,71);
   assert.equal(report.packageRows.find(row=>row.package==='10 Mbps'),undefined);
-  assert.equal(report.packageRows.find(row=>row.package==='15 Mbps').customers,1);
+  // 2026-11-24 (user): 15 Mbps and 15 Mbps Unlimited are one package —
+  // the archived-exclusion row for seed-002 carries the merged label.
+  assert.equal(report.packageRows.find(row=>row.package==='15 Mbps Unlimited').customers,1);
   assert.equal(report.onlineOffline.online,0);assert.equal(report.onlineOffline.offline,1);assert.equal(report.onlineOffline.denominator,1);
 });
 
@@ -143,9 +145,12 @@ test('area, mohalla, zone and package keys normalize Unicode, whitespace and cas
   assert.deepEqual(northZones.map(row=>row.area),['Zone: Central','Zone: Central West','Zone: Central-West']);
   assert.deepEqual(northZones.map(row=>row.customerCount),[3,1,1]);
   assert.equal(areaLabel({mohalla:'ＮＯＲＴＨ　ＰＡＲＫ'}),'Area: North Park');
-  const speed=report.packageRows.find(row=>row.package==='15 Mbps');
+  // 2026-11-24 (user): 15 Mbps and 15 Mbps Unlimited are one package —
+  // the catalogue holds only '15mbps-unlimited', so the phase-3 package
+  // row for these six customers carries the merged label.
+  const speed=report.packageRows.find(row=>row.package==='15 Mbps Unlimited');
   assert.equal(speed.customers,6);assert.equal(speed.activeCustomers,6);assert.equal(speed.billedRevenue,1120);assert.equal(speed.arpu,Number((1120/6).toFixed(2)));
-  assert.deepEqual(['5Mbps','10 Mbps','15 MBPS','30mbps'].map(value=>canonicalPackage(value).label),['5 Mbps','10 Mbps','15 Mbps','30 Mbps']);
+  assert.deepEqual(['5Mbps','10 Mbps','15 MBPS','30mbps'].map(value=>canonicalPackage(value).label),['5 Mbps','10 Mbps','15 Mbps Unlimited','30 Mbps']);
   assert.notEqual(canonicalPackage('Silver Plan').key,canonicalPackage('Silver-Plan').key);
 });
 

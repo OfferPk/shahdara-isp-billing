@@ -79,7 +79,10 @@ test('package breakdown uses the recorded bill package, with history fallback an
   const result = buildAreaBreakdowns(fixture(), ref, calculatePaymentAllocations(fixture()));
   const packages = byName(result.packages);
   assert.deepEqual(packages.get('10 Mbps'), { name: '10 Mbps', customers: 3, billed: 4100, collected: 2300, outstanding: 1900, collectionRate: 56.1, overdueBills: 2, overdueCustomers: 2 });
-  assert.deepEqual(packages.get('15 Mbps'), { name: '15 Mbps', customers: 2, billed: 900, collected: 0, outstanding: 900, collectionRate: 0, overdueBills: 1, overdueCustomers: 1 });
+  // 2026-11-24 (user): 15 Mbps and 15 Mbps Unlimited are one package —
+  // both the '15 Mbps' history entry and the '15 Mbps' snapshot label
+  // fold to the merged label (the catalogue holds only '15mbps-unlimited').
+  assert.deepEqual(packages.get('15 Mbps Unlimited'), { name: '15 Mbps Unlimited', customers: 2, billed: 900, collected: 0, outstanding: 900, collectionRate: 0, overdueBills: 1, overdueCustomers: 1 });
   assert.deepEqual(packages.get('20 Mbps'), { name: '20 Mbps', customers: 1, billed: 500, collected: 0, outstanding: 500, collectionRate: 0, overdueBills: 0, overdueCustomers: 0 });
   assert.deepEqual(packages.get('Package not recorded'), { name: 'Package not recorded', customers: 1, billed: 100, collected: 0, outstanding: 100, collectionRate: 0, overdueBills: 1, overdueCustomers: 1 });
 });

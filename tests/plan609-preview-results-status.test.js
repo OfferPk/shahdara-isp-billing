@@ -100,7 +100,8 @@ test('G7: this file pins no parity total and stays free of the parity bare digit
   // Re-pin (Reports Closing polish, rebased onto the Reports Register merge): current 5,228 → 5,229, previous 5,223 → 5,228.
   // Re-pin (Billing history rebase 2026-11-23): current 5,231 → 5,234, previous 5,229 → 5,231.
   const selfSrc = read('tests/plan609-preview-results-status.test.js');
-  assert.ok(!selfSrc.includes('52' + '34'), 'this file carries the current parity bare digits');
-  assert.ok(!selfSrc.includes('52' + '31'), 'this file carries the previous parity bare digits');
+  // Re-pin (Recovery Pipeline redesign 2026-11-24): parity 5,234 → 5,235 — the item adds exactly one i18n key, dash_pending_manual_empty, EN + UR.
+  assert.ok(!selfSrc.includes('52' + '35'), 'this file carries the current parity bare digits');
+  assert.ok(!selfSrc.includes('52' + '34'), 'this file carries the previous parity bare digits');
   assert.ok(!selfSrc.includes('52' + '29'), 'this file carries the older parity bare digits');
 });

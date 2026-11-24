@@ -272,7 +272,8 @@ test('Plan 598: the toggle label reuses the vault words, no new i18n key', () =>
   // the Profile bill-card Material redesign's two new keys
   // (prof_hist_snapshot_footnote + prof_hist_due_on): both dicts now
   // hold the new total, counted without spelling the digits (see the file header).
-  const total = Number('52' + '34');
+  // Re-pin (Recovery Pipeline redesign 2026-11-24): parity 5,234 → 5,235 — the item adds exactly one i18n key, dash_pending_manual_empty, EN + UR.
+  const total = Number('52' + '35');
   assert.equal(Object.keys(TRANSLATIONS.en).length, total);
   assert.equal(Object.keys(TRANSLATIONS.ur).length, total);
 });
@@ -286,6 +287,6 @@ test('Plan 598: this file stays free of the parity-count digits it must not pin'
   // current 5,228 → 5,229, previous 5,223 → 5,228.
   // Re-pin (Bill card rebase 2026-11-23): current 5,229 → 5,231, previous 5,228 → 5,229.
   // Re-pin (Billing history rebase 2026-11-23): current 5,231 → 5,234, previous 5,229 → 5,231.
-  assert.ok(!selfSrc.includes('52' + '34'), 'this file must stay free of the current-count literal');
-  assert.ok(!selfSrc.includes('52' + '31'), 'this file must stay free of the previous-count literal');
+  assert.ok(!selfSrc.includes('52' + '35'), 'this file must stay free of the current-count literal');
+  assert.ok(!selfSrc.includes('52' + '34'), 'this file must stay free of the previous-count literal');
 });

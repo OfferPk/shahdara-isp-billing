@@ -378,6 +378,7 @@ test('list-cards guards: hex ratchet, dark coverage, parity (no new keys)', () =
   // Bill card rebase (2026-11-23): +2 keys → 5,231.
   // Billing history rebase (2026-11-23): +3 keys → 5,234.
   // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '34'), 'EN parity');
-  assert.equal(Object.keys(TRANSLATIONS.ur).length, Number('52' + '34'), 'UR parity');
+  // Re-pin (Recovery Pipeline redesign 2026-11-24): parity 5,234 → 5,235 — the item adds exactly one i18n key, dash_pending_manual_empty, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '35'), 'EN parity');
+  assert.equal(Object.keys(TRANSLATIONS.ur).length, Number('52' + '35'), 'UR parity');
 });

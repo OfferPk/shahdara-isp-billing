@@ -295,7 +295,19 @@ export function canonicalPackage(value) {
   const text=normalizedText(value); if(!text)return null;
   const bundle=text.match(/^(\d+)\s*mbps\s*\/\s*(\d+)\s*gb$/iu);
   if(bundle)return{key:`${bundle[1]}mbps/${bundle[2]}gb`,label:`${bundle[1]} Mbps / ${bundle[2]}GB`};
+  // "Unlimited" plans fold to one label per speed, whatever the stored
+  // spelling ("15Mbps Unlimited", "15 Mbps Unlimited", "15mbps-unlimited",
+  // "15mbps unlimited", "29 Mbps Unlimited"). The word "Unlimited" is what
+  // folds — hyphens alone never merge names (see the Silver Plan pin).
+  // 15 Mbps has no capped plan in the catalogue (BILL_PACKAGES holds only
+  // '15mbps-unlimited'), so a bare "15 Mbps" is that same package and folds
+  // here too — the user-confirmed 15 Mbps / 15 Mbps Unlimited merge
+  // (Reports Compare, 2026-11-24). Other bare speeds keep their plain
+  // label: their capped plans exist, so "5 Mbps" must not become Unlimited.
+  const unlimited=text.match(/^(\d+)\s*[- ]?mbps\s*[- ]?unlimited$/iu);
+  if(unlimited)return{key:`${unlimited[1]}mbps-unlimited`,label:`${unlimited[1]} Mbps Unlimited`};
   const speed=text.match(/^(\d+)\s*mbps$/iu);
+  if(speed&&speed[1]==='15')return{key:'15mbps-unlimited',label:'15 Mbps Unlimited'};
   return speed?{key:`${speed[1]}mbps`,label:`${speed[1]} Mbps`}:{key:comparisonKey(text),label:readableLabel(text)};
 }
 function subscriptionExclusionReason(customer,onDate) {

@@ -3738,7 +3738,7 @@ function renderDashboard() {
     const pendingSummary = pendingWorksSummary(loadPendingWorks(), countActiveCustomers(state.customers));
     const pendingValueEl = $('#dashboardPendingWorksValue');
     const pendingPeriodEl = $('#dashboardPendingWorksPeriod');
-    if (pendingValueEl) pendingValueEl.textContent = pendingSummary.pendingCount === 0 ? t('dash_pending_empty') : pendingSummary.dueCount > 0 ? t('dash_pending_due', null, { count: pendingSummary.dueCount }) : t('dash_pending_count', null, { count: pendingSummary.pendingCount });
+    if (pendingValueEl) pendingValueEl.textContent = pendingSummary.pendingCount === 0 ? t('dash_pending_manual_empty') : pendingSummary.dueCount > 0 ? t('dash_pending_due', null, { count: pendingSummary.dueCount }) : t('dash_pending_count', null, { count: pendingSummary.pendingCount });
     if (pendingValueEl) pendingValueEl.classList.toggle('ds-card-metric--empty', pendingSummary.pendingCount === 0);
     if (pendingPeriodEl) pendingPeriodEl.textContent = pendingSummary.nearestLabel ? t('dash_pending_nearest', null, { label: pendingSummary.nearestLabel }) : t('dash_pending_period_empty');
     pendingWorksSummaryEl.innerHTML = pendingSummary.dueItems.length === 0

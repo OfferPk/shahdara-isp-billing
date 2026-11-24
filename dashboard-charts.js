@@ -2707,6 +2707,14 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
     const barW = Math.max(8, Math.round((s.totalOverdueAmount / maxDues) * plotWidth));
     const recoveryW = Math.round(barW * s.recoveryProbability);
 
+    const valueLabel = `${s.subscriberCount} (${formatPKR(s.totalOverdueAmount)})`;
+    // Recovery Pipeline redesign (2026-11-24): a full bar's value label
+    // (x = leftPad + barW + 8) could run past the right viewBox edge.
+    // Clamp it inside the 560-wide viewBox; 6.5px/char is a safe upper
+    // bound for 10px bold DM Sans, so the clamped label overlaps the
+    // bar's light 0.3-opacity end instead of bleeding out.
+    const valueLabelX = Math.min(leftPad + barW + 8, width - 4 - Math.ceil(valueLabel.length * 6.5));
+
     return `
       <text x="${leftPad - 12}" y="${yCenter + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="600" fill="var(--ink, #182e2a)">
         ${escapeXml(s.shortLabel)}
@@ -2719,8 +2727,8 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
         <rect x="${leftPad}" y="${barY}" width="${recoveryW}" height="${barHeight}" rx="4" fill="${s.color}" />
       ` : ''}
 
-      <text x="${leftPad + barW + 8}" y="${yCenter + 4}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
-        ${s.subscriberCount} (${formatPKR(s.totalOverdueAmount)})
+      <text x="${valueLabelX}" y="${yCenter + 4}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
+        ${valueLabel}
       </text>
     `;
   }).join('');
@@ -2737,8 +2745,9 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
   // .chart-with-topbar wrapper — the shared .chart-svg-container is a
   // row flex, so a bare top-bar div + SVG sat side by side and squeezed
   // each other. The pacing/sector footer is wrapping HTML below the SVG.
-  // (Disclosed follow-up, not fixed here: a full bar's value label
-  // `x = leftPad + barW + 8` can still run past the right viewBox edge.)
+  // (Fixed 2026-11-24, Recovery Pipeline redesign: a full bar's value
+  // label `x = leftPad + barW + 8` could run past the right viewBox
+  // edge — it is now clamped inside the viewBox.)
   return `<div class="chart-with-topbar"><div class="chart-top-bar"><span class="chart-top-bar-title">Khata Wusooli &amp; Aging Pipeline</span></div><div class="chart-metric-strip"><div class="chart-metric-cell"><div class="chart-metric-label">Delinquent:</div><div class="chart-metric-value">${pipelineData.totalDelinquentAccounts}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Overdue:</div><div class="chart-metric-value" style="color:#dc2626">${formatPKR(pipelineData.totalDelinquentDues)}</div></div><div class="chart-metric-cell"><div class="chart-metric-label">Net Exp:</div><div class="chart-metric-value" style="color:var(--color-emerald-dark)">${formatPKR(pipelineData.totalExpectedRecovery)}</div></div></div><svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 

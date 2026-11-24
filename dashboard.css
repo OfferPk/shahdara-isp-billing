@@ -624,11 +624,23 @@
    ~391px vs ~314px content width at the 11px floor (spec's px-2.5/py-1.5
    at text-xs makes them WIDER, not narrower — pills are already 10px
    horizontal at 11px). So this card's row wraps; the base scroll-row
-   behaviour below stays nowrap for any other use. */
+   behaviour below stays nowrap for any other use. Recovery Pipeline
+   redesign (2026-11-24): the header is now --stacked (index.html:866),
+   so the pills get the full ~314px card width below the title and wrap
+   to 2 clean rows — one row cannot fit at 360px. */
 .chart-card-delinquency .chart-actions-scroll {
   flex-wrap: wrap;
   overflow-x: visible;
 }
+
+/* Recovery Pipeline redesign (2026-11-24): the 1fr grid track is
+   minmax(auto, 1fr), so the 560-wide SVG viewBox could force this card
+   past the viewport at 360px. min-width: 0 lets the grid item and the
+   column-flex children shrink below intrinsic width. Scoped to this
+   card only — the base grid/flex rules stay shared. */
+.chart-card-delinquency { min-width: 0; }
+.chart-card-delinquency .chart-with-topbar,
+.chart-card-delinquency .chart-svg-container { min-width: 0; }
 .chart-actions-scroll {
   display: flex;
   flex-wrap: nowrap;

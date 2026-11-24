@@ -318,7 +318,8 @@ test('neon glassy: this file asserts no parity total and carries neither parity 
   // current 5,231, previous 5,229 (the +2 keys).
   // Billing history rebase (2026-11-23) — guard moves one step:
   // current 5,234, previous 5,231 (the +3 keys).
-  assert.ok(!selfSrc.includes('52' + '34'), 'file contains the current parity total as a bare literal');
-  assert.ok(!selfSrc.includes('52' + '31'), 'file contains the previous parity total as a bare literal');
+  // Re-pin (Recovery Pipeline redesign 2026-11-24): parity 5,234 → 5,235 — the item adds exactly one i18n key, dash_pending_manual_empty, EN + UR.
+  assert.ok(!selfSrc.includes('52' + '35'), 'file contains the current parity total as a bare literal');
+  assert.ok(!selfSrc.includes('52' + '34'), 'file contains the previous parity total as a bare literal');
   assert.ok(!selfSrc.includes('nav-' + 'language.js'), 'this file must not assert a parity total');
 });

@@ -284,6 +284,7 @@ test('B3: this test file carries no parity-total literal', () => {
   // Re-pinned at rebase (2026-11-23): parity 5,222 -> 5,234 with the
   // intervening items (L +2 keys, M +3 keys); S adds no keys. The guard
   // tracks the current total and the previous one, in split form.
-  assert.ok(!selfSrc.includes('52' + '34'), 'test file contains the current parity total as a bare literal');
-  assert.ok(!selfSrc.includes('52' + '31'), 'test file contains the previous parity total as a bare literal');
+  // Re-pin (Recovery Pipeline redesign 2026-11-24): parity 5,234 → 5,235 — the item adds exactly one i18n key, dash_pending_manual_empty, EN + UR.
+  assert.ok(!selfSrc.includes('52' + '35'), 'test file contains the current parity total as a bare literal');
+  assert.ok(!selfSrc.includes('52' + '34'), 'test file contains the previous parity total as a bare literal');
 });

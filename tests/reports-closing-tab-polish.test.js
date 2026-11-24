@@ -192,7 +192,8 @@ test('S3-5: the One-page summary list is grouped and Total dues reads rose', () 
 
 test('parity: EN/UR stay equal at the new total after +1 key', () => {
   // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
-  const expected = Number('52' + '34');  // Re-pin (Bill card rebase 2026-11-23): Bill card adds 2 keys → 5,231 (was 5,229 via Reports Closing).
+  // Re-pin (Recovery Pipeline redesign 2026-11-24): parity 5,234 → 5,235 — the item adds exactly one i18n key, dash_pending_manual_empty, EN + UR.
+  const expected = Number('52' + '35');  // Re-pin (Bill card rebase 2026-11-23): Bill card adds 2 keys → 5,231 (was 5,229 via Reports Closing).
   assert.equal(Object.keys(TRANSLATIONS.en).length, expected, 'EN key count moved');
   assert.equal(Object.keys(TRANSLATIONS.ur).length, expected, 'UR key count moved');
 });

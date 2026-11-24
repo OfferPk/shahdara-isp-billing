@@ -1,6 +1,7 @@
 import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, isZeroPricedBill, monthsForHistory, listTransactions, summarizeCustomerTenure } from './core.js';
 import { calculateDuesByArea, calculateAreaDetailedBreakdown, calculateAreaCollectionHeatmap } from './dashboard-charts.js';
 import { calculateDuesAgingBreakdown } from './dashboard-dues-aging.js';
+import { canonicalMohalla } from './phase3.js';
 import { runKhataDoctor, repairKhataDoctor } from './qa-khata-doctor.js';
 import { forecastNextBillingMonth } from './billing-cycle.js';
 import { DEFAULT_BILL_DUE_DAY } from './billing-cycle-choice.js';
@@ -3659,11 +3660,17 @@ export function calculateDelinquencyRecoveryPipeline(state, referenceDate = new 
       }
     }
 
+    // Recovery Pipeline redesign (2026-11-24): the sector used to read
+    // only c.area, so customers whose mohalla lives in `mohalla` (with
+    // `area` empty) all aggregated under 'Unassigned'. Everywhere else
+    // the canonical location is `c.mohalla || c.area` + canonicalMohalla.
+    const rawArea = (c.mohalla || c.area || '').trim();
+    const canonArea = canonicalMohalla(rawArea);
     const customerSummary = {
       id: c.id,
       customerNumber: c.customerNumber || '',
       name: c.name || 'Unnamed',
-      area: c.area || 'Unassigned',
+      area: canonArea ? canonArea.label : (rawArea || 'Unassigned'),
       phone: c.phone || '',
       package: c.packageSpeed || 'Unassigned',
       balanceDue: totalOverdue,

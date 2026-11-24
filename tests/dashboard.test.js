@@ -4100,6 +4100,30 @@ test('calculateDelinquencyRecoveryPipeline categorizes overdue balances into sta
   assert.equal(res.topDelinquentAccounts[0].name, 'Severe Sub');
 });
 
+test('calculateDelinquencyRecoveryPipeline resolves the top sector from mohalla, not area', () => {
+  // Recovery Pipeline redesign (2026-11-24): the sector used to read
+  // only c.area, so customers whose mohalla lives in `mohalla` (with
+  // `area` empty) all aggregated under 'Unassigned'.
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  const state = createInitialState(['Mohalla Sub', 'No Area Sub']);
+  state.customers[0].mohalla = 'Charyaa';
+  state.customers[0].area = '';
+  state.customers[0].bills = [{ month: '2026-10', amount: 1500, dueDate: '2026-10-11' }];
+  state.customers[1].mohalla = '';
+  state.customers[1].area = '';
+  state.customers[1].bills = [{ month: '2026-10', amount: 3000, dueDate: '2026-10-11' }];
+
+  const res = calculateDelinquencyRecoveryPipeline(state, refDate);
+  assert.equal(res.totalDelinquentAccounts, 2);
+  assert.equal(res.topDelinquentAreas.length, 2);
+  // Higher overdue first: the customer with neither field stays 'Unassigned'.
+  assert.equal(res.topDelinquentAreas[0].areaName, 'Unassigned');
+  assert.equal(res.topDelinquentAreas[0].totalOverdue, 3000);
+  // The mohalla customer resolves to its canonical mohalla, not 'Unassigned'.
+  assert.equal(res.topDelinquentAreas[1].areaName, 'Charyaa');
+  assert.equal(res.topDelinquentAreas[1].totalOverdue, 1500);
+});
+
 test('calculateDelinquencyRecoveryPipeline evaluates moderate backlog and healthy pacing tiers', () => {
   const refDate = new Date('2026-10-16T12:00:00+05:00');
   let state = createInitialState(['Sub 1', 'Sub 2']);

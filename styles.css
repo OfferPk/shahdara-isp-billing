@@ -18921,12 +18921,16 @@ body.sr-screen-mode[data-screen="customers"] .app-footer { display: none; }
 .customer-view-toggle.ds-segmented .customer-view-btn.is-active { background: var(--ds-brand); border-color: var(--ds-brand); color: #fff; }
 
 /* (c) New customers: 1-row segmented bar (36px buttons) + 3-column
- * .ds-stat-box strip. The month select moves to its own row below. */
+ * .ds-stat-box strip. The month select moves to its own row below.
+ * The strip's boxes stack label over value (flex column, gap 2px —
+ * the #dmsMethodRows precedent): the base .ds-stat-box is a plain
+ * block, so the two spans ran together as one inline run
+ * ("NEW CUSTOMERS5", "CONNECTION FEESPKR 19,000"). */
 .new-customers-controls.ds-segmented { display: flex; gap: 4px; padding: 2px; }
 .new-customers-controls.ds-segmented .ds-segmented__button { min-height: 36px; padding: 4px 6px; font-size: 12px; }
 .new-customers-month { margin-top: 8px; }
 .new-customers-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-.new-customers-totals .ds-stat-box { min-height: 0; padding: 8px 10px; }
+.new-customers-totals .ds-stat-box { display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: 8px 10px; }
 .new-customers-totals .ds-stat-box__value { font-size: 15px; }
 .new-customers-stat-sub { display: block; margin-top: 2px; font-size: 11px; font-weight: 600; color: var(--muted); }
 

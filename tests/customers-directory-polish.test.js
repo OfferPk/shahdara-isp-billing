@@ -226,6 +226,40 @@ test('new customers: metrics live in a compact 3-column .ds-stat-box strip', () 
   assert.ok(strip.includes('grid-template-columns: repeat(3, minmax(0, 1fr))'), 'strip must be 3 columns');
 });
 
+test('new customers: KPI label sits above its value at 360px (no label/value collision)', () => {
+  // Regression: the base .ds-stat-box is a plain block (DS-0), so the
+  // label/value spans ran together as one inline run — the phone
+  // screenshot showed "NEW CUSTOMERS5" / "CONNECTION FEESPKR 19,000".
+  // The scoped strip rule stacks them (flex column, gap 2px — the
+  // #dmsMethodRows precedent at components.css:266-271).
+  const box = ruleBlock(css, '.new-customers-totals .ds-stat-box {');
+  assert.ok(box.includes('display: flex'), 'strip boxes must be flex');
+  assert.ok(box.includes('flex-direction: column'), 'strip boxes must stack label over value');
+  assert.ok(box.includes('gap: 2px'), 'stack gap must be 2px');
+  assert.ok(box.includes('min-height: 0'), 'strip boxes must keep min-height 0');
+  assert.ok(box.includes('padding: 8px 10px'), 'strip boxes must keep the tight padding');
+  // The base .ds-stat-box (DS-0, shared by dozens of surfaces) stays
+  // a plain block — the fix is scoped to this strip only. (The
+  // newline-anchored selector skips the #dmsMethodRows scoped rule,
+  // which shares the `.ds-stat-box {` suffix.)
+  const base = ruleBlock(compCss, '\n.ds-stat-box {');
+  assert.ok(!base.includes('display: flex'), 'base .ds-stat-box must stay a plain block');
+  // 360px fit (repo's 0.6em glyph width, as in the #1618 pills test):
+  // panel content 308px (360 - 2x10 margin - 2x15 padding - 2x1
+  // border); 3 tracks with 2x8px gaps -> ~97px each; box padding
+  // 10px each side -> ~77px inner.
+  const inner = Math.floor((308 - 2 * 8) / 3) - 2 * 10;
+  assert.equal(inner, 77, 'inner track width at 360px must be 77px');
+  // Longest EN label "Connection fees" (15 glyphs) at 12px (--text-xs)
+  // -> ~108px: it wraps to 2 lines inside its track, which is only
+  // safe once stacked — inline it would run into the value.
+  const labelLen = t('cust_newcust_connection_fees', 'en').length;
+  assert.equal(labelLen, 15, 'longest label must be 15 glyphs');
+  assert.ok(labelLen * 7.2 > inner, 'longest label must wrap, not collide');
+  // Longest value "PKR 19,000" (10 glyphs) at 15px -> ~90px: also wraps.
+  assert.ok(10 * 9 > inner, 'longest value must wrap inside its track');
+});
+
 test('new customers: "1 customer has no join date" (singular fixed, plural kept)', () => {
   assert.equal(
     t('cust_newcust_undated_one', 'en'),

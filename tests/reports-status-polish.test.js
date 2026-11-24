@@ -116,7 +116,8 @@ test('C4 EN/UR parity holds (same keys — values only changed)', () => {
   // Re-pin (Bill card rebase 2026-11-23): Bill card adds 2 keys,
   // total 5,229 -> 5,231 — this file's own item added no key.
   // Re-pin (Billing history rebase 2026-11-23): parity 5,231 → 5,234 — M adds 3 keys, prof_hist_empty_months + prof_hist_mark_paid + prof_hist_empty_custom, EN + UR.
-  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '34'),
+  // Re-pin (Recovery Pipeline redesign 2026-11-24): parity 5,234 → 5,235 — the item adds exactly one i18n key, dash_pending_manual_empty, EN + UR.
+  assert.equal(Object.keys(TRANSLATIONS.en).length, Number('52' + '35'),
     'parity total moved — the shortenings are values only, no key added or dropped');
 });
 

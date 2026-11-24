@@ -30,13 +30,37 @@ test('canonicalPackage folds bare speeds and Mbps/GB bundles to one label', () =
   assert.equal(canonicalPackage('5 Mbps / 150GB').label, '5 Mbps / 150GB');
   assert.equal(canonicalPackage('3Mbps').label, '3 Mbps');
   assert.equal(canonicalPackage('5mbps').label, '5 Mbps');
-  assert.equal(canonicalPackage('15mbps').label, '15 Mbps');
+  // 2026-11-24 (user): 15 Mbps and 15 Mbps Unlimited are one package —
+  // the catalogue holds only '15mbps-unlimited', so a bare "15 Mbps"
+  // folds to the Unlimited label. Capped speeds keep their plain label.
+  assert.equal(canonicalPackage('15mbps').label, '15 Mbps Unlimited');
   assert.equal(canonicalPackage('30mbps').label, '30 Mbps');
   assert.equal(canonicalPackage('10 Mbps').key, canonicalPackage('10mbps').key);
   assert.equal(canonicalPackage('5Mbps / 150GB').key, canonicalPackage('5 Mbps/150GB').key);
   assert.notEqual(canonicalPackage('3Mbps / 100GB').key, canonicalPackage('3 Mbps').key);
   // Existing pin: unrelated plan names keep distinct keys.
   assert.notEqual(canonicalPackage('Silver Plan').key, canonicalPackage('Silver-Plan').key);
+});
+
+test('canonicalPackage folds every Unlimited spelling to one key and label', () => {
+  // Every stored spelling of the one 15 Mbps package — catalogue label,
+  // spaced label, enrolment-wizard value (hyphenated), lowercase — folds
+  // to the same key and the Fork B label '15 Mbps Unlimited'.
+  for (const spelling of ['15Mbps Unlimited', '15 Mbps Unlimited', '15mbps-unlimited', '15mbps unlimited']) {
+    assert.equal(canonicalPackage(spelling).key, '15mbps-unlimited', spelling);
+    assert.equal(canonicalPackage(spelling).label, '15 Mbps Unlimited', spelling);
+  }
+  // The fold generalises to any speed + Unlimited (29 Mbps is unlimited
+  // on the owner's tiers list but has no catalogue entry yet).
+  assert.equal(canonicalPackage('29 Mbps Unlimited').key, '29mbps-unlimited');
+  assert.equal(canonicalPackage('29 Mbps Unlimited').label, '29 Mbps Unlimited');
+  // The bare-speed fold is 15-only: capped speeds keep their plain label.
+  assert.equal(canonicalPackage('5 Mbps').label, '5 Mbps');
+  assert.equal(canonicalPackage('5 Mbps').key, '5mbps');
+  assert.equal(canonicalPackage('10 Mbps').label, '10 Mbps');
+  // A GB-capped plan and a named plan never fold into Unlimited.
+  assert.equal(canonicalPackage('5Mbps / 150GB').label, '5 Mbps / 150GB');
+  assert.notEqual(canonicalPackage('15 Mbps Turbo').key, canonicalPackage('15 Mbps Unlimited').key);
 });
 
 test('compare package changes merge case/spacing variants into one row', () => {
@@ -66,6 +90,40 @@ test('compare package changes merge case/spacing variants into one row', () => {
   assert.equal(bundle[0].from, 0);
   assert.equal(bundle[0].to, 2);
   assert.ok(!comparison.packageChanges.some((row) => row.name === '5Mbps' || row.name === '5mbps'));
+});
+
+test('compare package changes merge 15 Mbps and 15 Mbps Unlimited into one row', () => {
+  // Screenshot shape, 2026-11-24 (user): Oct "15 Mbps" 0 + "15mbps
+  // Unlimited" 2, Nov "15 Mbps" 37 + "15mbps Unlimited" 4 — one merged
+  // row "15 Mbps Unlimited" 2 → 41, +39 customers. The 37 plain rows
+  // carry no snapshot, so they resolve through the current-month
+  // packageSpeed fallback, exactly like the live ledger.
+  const unlimitedBoth = (id) => customer(id, { packageSpeed: '15Mbps Unlimited' }, [
+    bill({ month: '2026-10', dueAmount: 3000, packageSnapshot: { label: '15Mbps Unlimited' } }),
+    bill({ month: '2026-11', dueAmount: 3000, packageSnapshot: { label: '15Mbps Unlimited' } }),
+  ]);
+  const unlimitedNovOnly = (id) => customer(id, { packageSpeed: '15Mbps Unlimited' }, [
+    bill({ month: '2026-11', dueAmount: 3000, packageSnapshot: { label: '15Mbps Unlimited' } }),
+  ]);
+  const plainNov = (id) => customer(id, { packageSpeed: '15 Mbps' }, [
+    bill({ month: '2026-11', dueAmount: 3000 }),
+  ]);
+  const customers = [
+    unlimitedBoth('u1'), unlimitedBoth('u2'),
+    unlimitedNovOnly('u3'), unlimitedNovOnly('u4'),
+    ...Array.from({ length: 37 }, (_, i) => plainNov(`p${String(i + 1).padStart(2, '0')}`)),
+  ];
+  const comparison = buildMonthToMonthComparison({ customers, expenses: [] }, '2026-10', '2026-11', REF);
+  const merged = comparison.packageChanges.filter((row) => row.name === '15 Mbps Unlimited');
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].from, 2);
+  assert.equal(merged[0].to, 41);
+  assert.equal(merged[0].change, 39);
+  assert.equal(merged[0].percentChange, 1950);
+  // No split rows survive under either old spelling.
+  assert.ok(!comparison.packageChanges.some((row) => row.name === '15 Mbps' || row.name === '15mbps Unlimited'));
+  // The +1950% spike renders as the absolute difference, not a percent.
+  assert.equal(describePercentChange({ ...merged[0], absoluteChange: merged[0].change }, 'count'), '+39');
 });
 
 test('area breakdowns group package variants under one canonical label', () => {

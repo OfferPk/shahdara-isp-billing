@@ -111,7 +111,12 @@ body{font-family:var(--font-sans)}
   .service-choice{min-height:44px;padding:6px 9px;font-size:10px}
   .customer-card-controls{padding-inline-start:49px}
   .customer-billing-badge{min-height:26px;font-size:10px}
-  .current-payment-shortcut{white-space:normal}
+  /* Profile action buttons fit (user screenshot 2026-11-24): the base
+     .profile-action-group>button nowrap rule (styles.css:1935) is
+     (0,1,1) and used to beat this (0,1,0) rule, so the Record label
+     could never wrap at phone widths and spilled ~48px over Wada on
+     each side. Scoped to (0,2,0) so normal wrapping wins at <=620px. */
+  .profile-action-group .current-payment-shortcut{white-space:normal}
 }
 
 
@@ -2083,7 +2088,7 @@ stat cells become pills. */
 .profile-tab-button{min-height:44px}
 .profile-tab-button:focus-visible,.profile-action-group button:focus-visible,.back-button:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
 @media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}}
-@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr) auto;gap:13px;align-items:flex-start}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:11px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:190px;flex-flow:column;align-items:flex-end;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{min-height:48px}.profile-action-group #archiveCustomerButton{grid-column:1/-1}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:6px}.current-bill-stat{min-height:56px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.reports-tabs{top:58px}.profile-tab-button{min-height:44px;padding:7px 6px}}
+@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr) auto;gap:13px;align-items:flex-start}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:11px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:190px;flex-flow:column;align-items:flex-end;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{min-height:48px}.profile-action-group #archiveCustomerButton{grid-column:1/-1}/* Profile action buttons fit (user screenshot 2026-11-24): at 360px each half-column is ~147px but the Record button needs ~239px, so it spilled over Wada and clipped past the viewport. Wada + Record (+ Unarchive, Archive's twin) each take a full row at <=620px — the primary actions stack full-width, no hole, no overlap. Primary buttons drop to 11px like secondary so 'Clear dues' fits its half-column, and overflow:hidden clips any residual nowrap spill. The two <details> span full width here too, closing the 481-620px band where no rule spanned them. */.profile-action-group #topWadaButton,.profile-action-group #currentBillPaymentShortcut,.profile-action-group #unarchiveCustomerButton{grid-column:1/-1}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.profile-action-group>.primary-button{min-height:44px;padding:7px 8px;font-size:11px}.profile-action-group>button{overflow:hidden}.profile-action-group>.customer-technical-tools{grid-column:1/-1}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:6px}.current-bill-stat{min-height:56px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.reports-tabs{top:58px}.profile-tab-button{min-height:44px;padding:7px 6px}}
 /* Sharafat 100 (D3/D6): at ≤620px all four profile tabs must fit inside
    the profile card at 360px with counts (measured +95px EN / +45px UR
    overflow — Baqaya sat off-screen until the tab row was swiped). The
@@ -4085,6 +4090,13 @@ html, body {
   touch-action: manipulation;
   list-style: none;
 }
+
+/* Profile action buttons fit (user screenshot 2026-11-24): the summary
+   label span had no flex share, so at 360px the 44-char QA label wrapped
+   under the chevron instead of beside it. flex:1 + min-width:0 lets it
+   wrap cleanly with the chevron pinned at the end. Same treatment covers
+   the More-actions summary (its span is also the last child). */
+.customer-technical-summary>span:last-child{flex:1 1 auto;min-width:0}
 
 .customer-technical-summary::-webkit-details-marker {
   display: none;
